@@ -22,5 +22,13 @@
       <groupId>ca.on.oicr.gsi.vidarr</groupId>
       <artifactId>vidarr-pluginapi</artifactId>
     </dependency>
+    <dependency>
+      <groupId>io.prometheus</groupId>
+      <artifactId>simpleclient</artifactId>
+    </dependency>
   </dependencies>
+  <build>
+    <plugins>
+    </plugins>
+  </build>
 </project>

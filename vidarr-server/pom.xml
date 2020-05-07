@@ -19,8 +19,76 @@
       <artifactId>jackson-databind</artifactId>
     </dependency>
     <dependency>
+      <groupId>io.undertow</groupId>
+      <artifactId>undertow-core</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>ca.on.oicr.gsi</groupId>
+      <artifactId>server-utils</artifactId>
+    </dependency>
+    <dependency>
       <groupId>ca.on.oicr.gsi.vidarr</groupId>
       <artifactId>vidarr-pluginapi</artifactId>
     </dependency>
+    <dependency>
+      <groupId>ca.on.oicr.gsi.vidarr</groupId>
+      <artifactId>vidarr-core</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.prometheus</groupId>
+      <artifactId>simpleclient</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.prometheus</groupId>
+      <artifactId>simpleclient_common</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.prometheus</groupId>
+      <artifactId>simpleclient_hotspot</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.jooq</groupId>
+      <artifactId>jooq</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.jooq</groupId>
+      <artifactId>jooq-meta</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.jooq</groupId>
+      <artifactId>jooq-codegen</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.postgresql</groupId>
+      <artifactId>postgresql</artifactId>
+    </dependency>
+
   </dependencies>
+  <build>
+    <plugins>
+  <plugin>
+    <groupId>org.jooq</groupId>
+    <artifactId>jooq-codegen-maven</artifactId>
+    <version>3.13.1</version>
+    <configuration>
+      <generator>
+        <database>
+          <name>org.jooq.meta.extensions.ddl.DDLDatabase</name>
+          <properties>
+            <property>
+              <key>scripts</key>
+              <value>src/main/resources/db/migration/*.sql</value>
+            </property>
+            <property>
+              <key>sort</key>
+              <value>semantic</value>
+            </property>
+          </properties>
+        </database>
+        <target>
+          <packageName>ca.on.oicr.gsi.vidarr.db</packageName>
+        </target>
+      </generator>
+    </configuration>
+  </plugin></plugins></build>
 </project>

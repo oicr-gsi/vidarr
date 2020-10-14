@@ -1,6 +1,5 @@
 package ca.on.oicr.gsi.vidarr;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
@@ -20,6 +19,11 @@ public abstract class BaseJsonWorkflowEngine<S, C, D> implements WorkflowEngine 
 
     BaseJsonWorkMonitor(WorkMonitor<O, JsonNode> original) {
       this.original = original;
+    }
+
+    @Override
+    public void log(System.Logger.Level level, String message) {
+      original.log(level, message);
     }
 
     @Override
@@ -75,10 +79,10 @@ public abstract class BaseJsonWorkflowEngine<S, C, D> implements WorkflowEngine 
     }
   }
 
-  private final Class<S> stateClass;
   private final Class<C> cleanupClass;
   private final Class<D> cleanupStateClass;
   private final ObjectMapper mapper;
+  private final Class<S> stateClass;
 
   /**
    * Construct a workflow engine with a state mapper
@@ -110,7 +114,7 @@ public abstract class BaseJsonWorkflowEngine<S, C, D> implements WorkflowEngine 
       return mapper.valueToTree(
           cleanup(
               mapper.treeToValue(cleanupState, cleanupClass), new JsonCleanupWorkMonitor(monitor)));
-    } catch (JsonProcessingException e) {
+    } catch (Exception e) {
       monitor.permanentFailure(e.toString());
       return JsonNodeFactory.instance.nullNode();
     }
@@ -127,7 +131,7 @@ public abstract class BaseJsonWorkflowEngine<S, C, D> implements WorkflowEngine 
   public final void recover(JsonNode state, WorkMonitor<Result<JsonNode>, JsonNode> monitor) {
     try {
       recover(mapper.treeToValue(state, stateClass), new JsonWorkMonitor(monitor));
-    } catch (JsonProcessingException e) {
+    } catch (Exception e) {
       monitor.permanentFailure(e.toString());
     }
   }
@@ -139,7 +143,7 @@ public abstract class BaseJsonWorkflowEngine<S, C, D> implements WorkflowEngine 
     try {
       recoverCleanup(
           mapper.treeToValue(state, cleanupStateClass), new JsonCleanupWorkMonitor(monitor));
-    } catch (JsonProcessingException e) {
+    } catch (Exception e) {
       monitor.permanentFailure(e.toString());
     }
   }

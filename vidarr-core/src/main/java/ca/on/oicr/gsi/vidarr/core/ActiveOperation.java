@@ -8,6 +8,13 @@ import com.fasterxml.jackson.databind.JsonNode;
  * @param <TX> the transaction type associated with this implementation
  */
 public interface ActiveOperation<TX> {
+  /**
+   * Be told something something interesting
+   *
+   * @param level how important this message is
+   * @param message the message to display
+   */
+  void log(System.Logger.Level level, String message);
 
   /** Get the current recovery state */
   JsonNode recoveryState();

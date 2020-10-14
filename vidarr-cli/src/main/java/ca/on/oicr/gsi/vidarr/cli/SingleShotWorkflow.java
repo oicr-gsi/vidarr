@@ -1,44 +1,43 @@
 package ca.on.oicr.gsi.vidarr.cli;
 
-import ca.on.oicr.gsi.vidarr.core.ActiveWorkflow;
-import ca.on.oicr.gsi.vidarr.core.ExternalId;
-import ca.on.oicr.gsi.vidarr.core.ExternalKey;
-import ca.on.oicr.gsi.vidarr.core.Phase;
+import ca.on.oicr.gsi.vidarr.core.*;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.Semaphore;
-import java.util.function.Supplier;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 final class SingleShotWorkflow
     implements ActiveWorkflow<SingleShotOperation, SingleShotTransaction> {
+  private final String prefix;
   private final JsonNode arguments;
   private JsonNode cleanup;
   private final ObjectNode engineArguments;
   private List<ExternalId> externalIds;
   private boolean extraInputIdsHandled;
+  private final CompletableFuture<Boolean> future = new CompletableFuture<>();
   private Set<? extends ExternalId> inputIds;
   private boolean isPreflightOkay = true;
   private final JsonNode metadata;
-  private final Supplier<ObjectNode> supplier;
   private Phase phase = Phase.INITIALIZING;
   private ObjectNode realInput;
-  private String runUrl;
-  private final Semaphore semaphore = new Semaphore(1);
+  private boolean success;
+  private final OutputProvisioningHandler<SingleShotTransaction> resultHandler;
 
   SingleShotWorkflow(
+      String prefix,
       JsonNode arguments,
       ObjectNode engineArguments,
       JsonNode metadata,
-      Supplier<ObjectNode> supplier) {
+      OutputProvisioningHandler<SingleShotTransaction> resultHandler) {
+    this.prefix = prefix;
     this.arguments = arguments;
     this.engineArguments = engineArguments;
     this.metadata = metadata;
-    this.supplier = supplier;
-    semaphore.acquireUninterruptibly();
+    this.resultHandler = resultHandler;
   }
 
   @Override
@@ -46,8 +45,8 @@ final class SingleShotWorkflow
     return arguments;
   }
 
-  public void await() {
-    semaphore.acquireUninterruptibly();
+  public boolean await() {
+    return future.join();
   }
 
   @Override
@@ -87,12 +86,17 @@ final class SingleShotWorkflow
   }
 
   public void fail() {
-    semaphore.release();
+    System.err.printf("%s: [%s] Workflow operation failed%n", prefix, Instant.now());
+    future.complete(false);
+  }
+
+  public CompletableFuture<Boolean> future() {
+    return future;
   }
 
   @Override
   public String id() {
-    return "test";
+    return prefix;
   }
 
   @Override
@@ -110,10 +114,12 @@ final class SingleShotWorkflow
     return isPreflightOkay;
   }
 
-  private boolean success;
-
   public boolean isSuccessful() {
     return success;
+  }
+
+  public void log(System.Logger.Level level, String message) {
+    System.err.printf("%s: [%s] Operation %s: %s%n", prefix, Instant.now(), level.name(), message);
   }
 
   @Override
@@ -127,28 +133,6 @@ final class SingleShotWorkflow
   }
 
   @Override
-  public List<SingleShotOperation> phase(
-      Phase phase, List<JsonNode> operationInitialStates, SingleShotTransaction transaction) {
-    System.err.println("Transitioning to phase: " + phase);
-    this.phase = phase;
-    if (phase == Phase.FAILED) {
-      semaphore.release();
-      return List.of();
-    } else {
-      System.err.println("Operations to complete: " + operationInitialStates.size());
-      return operationInitialStates.stream()
-          .map(i -> new SingleShotOperation(i, this))
-          .collect(Collectors.toList());
-    }
-  }
-
-  @Override
-  public void preflightFailed(SingleShotTransaction transaction) {
-    System.err.println("Preflight failed");
-    isPreflightOkay = false;
-  }
-
-  @Override
   public void provisionFile(
       Set<? extends ExternalId> ids,
       String storagePath,
@@ -156,22 +140,7 @@ final class SingleShotWorkflow
       String metatype,
       Map<String, String> labels,
       SingleShotTransaction transaction) {
-    System.err.println("Provisioning out file");
-    final var node = supplier.get();
-    node.put("type", "file");
-    node.put("storagePath", storagePath);
-    node.put("md5", md5);
-    node.put("metatype", metatype);
-    final var outputIds = node.putArray("ids");
-    for (final var id : ids) {
-      final var outputId = outputIds.addObject();
-      outputId.put("id", id.getId());
-      outputId.put("provider", id.getProvider());
-    }
-    final var outputLabels = node.putObject("labels");
-    for (final var label : labels.entrySet()) {
-      outputLabels.put(label.getKey(), label.getValue());
-    }
+    resultHandler.provisionFile(ids, storagePath, md5, metatype, labels, transaction);
   }
 
   @Override
@@ -180,20 +149,31 @@ final class SingleShotWorkflow
       String url,
       Map<String, String> labels,
       SingleShotTransaction transaction) {
-    System.err.println("Provisioning out URL");
-    final var node = supplier.get();
-    node.put("type", "url");
-    node.put("url", url);
-    final var outputIds = node.putArray("ids");
-    for (final var id : ids) {
-      final var outputId = outputIds.addObject();
-      outputId.put("id", id.getId());
-      outputId.put("provider", id.getProvider());
+    resultHandler.provisionUrl(ids, url, labels, transaction);
+  }
+
+  @Override
+  public List<SingleShotOperation> phase(
+      Phase phase, List<JsonNode> operationInitialStates, SingleShotTransaction transaction) {
+    System.err.printf("%s: [%s] Transitioning to phase: %s%n", prefix, Instant.now(), phase);
+    this.phase = phase;
+    if (phase == Phase.FAILED) {
+      future.complete(false);
+      return List.of();
+    } else {
+      System.err.printf(
+          "%s: [%s] Operations to complete: %s%n",
+          prefix, Instant.now(), operationInitialStates.size());
+      return operationInitialStates.stream()
+          .map(i -> new SingleShotOperation(i, this))
+          .collect(Collectors.toList());
     }
-    final var outputLabels = node.putObject("labels");
-    for (final var label : labels.entrySet()) {
-      outputLabels.put(label.getKey(), label.getValue());
-    }
+  }
+
+  @Override
+  public void preflightFailed(SingleShotTransaction transaction) {
+    System.err.printf("%s: [%s] Preflight failed%n", prefix, Instant.now());
+    isPreflightOkay = false;
   }
 
   @Override
@@ -207,18 +187,11 @@ final class SingleShotWorkflow
   }
 
   @Override
-  public String runUrl() {
-    return runUrl;
-  }
-
-  @Override
-  public void runUrl(String workflowRunUrl, SingleShotTransaction transaction) {
-    runUrl = workflowRunUrl;
-  }
+  public void runUrl(String workflowRunUrl, SingleShotTransaction transaction) {}
 
   @Override
   public void succeeded(SingleShotTransaction transaction) {
     success = true;
-    semaphore.release();
+    future.complete(true);
   }
 }

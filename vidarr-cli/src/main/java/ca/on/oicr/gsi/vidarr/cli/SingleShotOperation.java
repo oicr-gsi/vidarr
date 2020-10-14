@@ -16,6 +16,11 @@ final class SingleShotOperation implements ActiveOperation<SingleShotTransaction
   }
 
   @Override
+  public void log(System.Logger.Level level, String message) {
+    singleShotWorkflow.log(level, message);
+  }
+
+  @Override
   public JsonNode recoveryState() {
     return state;
   }

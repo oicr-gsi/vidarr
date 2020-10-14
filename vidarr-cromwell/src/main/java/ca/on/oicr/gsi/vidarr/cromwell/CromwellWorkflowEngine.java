@@ -41,6 +41,7 @@ public final class CromwellWorkflowEngine
     };
   }
 
+  private static final int CHECK_DELAY = 10;
   static final HttpClient CLIENT =
       HttpClient.newBuilder()
           .version(HttpClient.Version.HTTP_1_1)
@@ -69,6 +70,9 @@ public final class CromwellWorkflowEngine
 
   private void check(EngineState state, WorkMonitor<Result<String>, EngineState> monitor) {
     try {
+      monitor.log(
+          System.Logger.Level.INFO,
+          String.format("Checking Cromwell workflow %s on %s", state.getCromwellId(), baseUrl));
       CROMWELL_REQUESTS.labels(baseUrl).inc();
       CLIENT
           .sendAsync(
@@ -85,6 +89,11 @@ public final class CromwellWorkflowEngine
           .thenAccept(
               s -> {
                 final var result = s.get();
+                monitor.log(
+                    System.Logger.Level.INFO,
+                    String.format(
+                        "Status for Cromwell workflow %s on %s is %s",
+                        state.getCromwellId(), baseUrl, result.getStatus()));
                 switch (result.getStatus()) {
                   case "Aborted":
                   case "Failed":
@@ -95,20 +104,30 @@ public final class CromwellWorkflowEngine
                     break;
                   default:
                     monitor.updateState(statusFromCromwell(result.getStatus()));
-                    monitor.scheduleTask(10, TimeUnit.MINUTES, () -> check(state, monitor));
+                    monitor.scheduleTask(5, TimeUnit.MINUTES, () -> check(state, monitor));
                 }
               })
           .exceptionally(
               t -> {
                 t.printStackTrace();
+                monitor.log(
+                    System.Logger.Level.WARNING,
+                    String.format(
+                        "Failed to get status for Cromwell workflow %s on %s",
+                        state.getCromwellId(), baseUrl));
                 CROMWELL_FAILURES.labels(baseUrl).inc();
-                monitor.scheduleTask(10, TimeUnit.MINUTES, () -> check(state, monitor));
+                monitor.scheduleTask(5, TimeUnit.MINUTES, () -> check(state, monitor));
                 return null;
               });
     } catch (Exception e) {
       e.printStackTrace();
+      monitor.log(
+          System.Logger.Level.WARNING,
+          String.format(
+              "Failed to get status for Cromwell workflow %s on %s",
+              state.getCromwellId(), baseUrl));
       CROMWELL_FAILURES.labels(baseUrl).inc();
-      monitor.scheduleTask(10, TimeUnit.MINUTES, () -> check(state, monitor));
+      monitor.scheduleTask(5, TimeUnit.MINUTES, () -> check(state, monitor));
     }
   }
 
@@ -130,6 +149,10 @@ public final class CromwellWorkflowEngine
 
   private void finish(EngineState state, WorkMonitor<Result<String>, EngineState> monitor) {
     CROMWELL_REQUESTS.labels(baseUrl).inc();
+    monitor.log(
+        System.Logger.Level.INFO,
+        String.format(
+            "Reaping output of Cromwell workflow %s on %s", state.getCromwellId(), baseUrl));
     CLIENT
         .sendAsync(
             HttpRequest.newBuilder()
@@ -145,6 +168,10 @@ public final class CromwellWorkflowEngine
         .thenAccept(
             s -> {
               final var result = s.get();
+              monitor.log(
+                  System.Logger.Level.INFO,
+                  String.format(
+                      "Got output of Cromwell workflow %s on %s", state.getCromwellId(), baseUrl));
               monitor.complete(
                   new Result<>(
                       result.getOutputs(),
@@ -155,8 +182,13 @@ public final class CromwellWorkflowEngine
         .exceptionally(
             t -> {
               t.printStackTrace();
+              monitor.log(
+                  System.Logger.Level.INFO,
+                  String.format(
+                      "Failed to get output of Cromwell workflow %s on %s",
+                      state.getCromwellId(), baseUrl));
               CROMWELL_FAILURES.labels(baseUrl).inc();
-              monitor.scheduleTask(10, TimeUnit.MINUTES, () -> check(state, monitor));
+              monitor.scheduleTask(CHECK_DELAY, TimeUnit.MINUTES, () -> check(state, monitor));
               return null;
             });
   }
@@ -184,6 +216,9 @@ public final class CromwellWorkflowEngine
     monitor.scheduleTask(
         () -> {
           try {
+            monitor.log(
+                System.Logger.Level.INFO,
+                String.format("Starting Cromwell workflow on %s", baseUrl));
             final var body =
                 new MultiPartBodyPublisher()
                     .addPart("workflowSource", state.getWorkflowUrl())
@@ -217,18 +252,35 @@ public final class CromwellWorkflowEngine
                 .thenAccept(
                     s -> {
                       final var result = s.get();
+                      if (result.getId() == null) {
+                        monitor.permanentFailure("Cromwell to launch workflow.");
+                        return;
+                      }
                       state.setCromwellId(result.getId());
                       monitor.updateState(statusFromCromwell(result.getStatus()));
-                      monitor.scheduleTask(10, TimeUnit.MINUTES, () -> check(state, monitor));
+                      monitor.scheduleTask(
+                          CHECK_DELAY, TimeUnit.MINUTES, () -> check(state, monitor));
+                      monitor.log(
+                          System.Logger.Level.INFO,
+                          String.format(
+                              "Started Cromwell workflow %s on %s",
+                              state.getCromwellId(), baseUrl));
                     })
                 .exceptionally(
                     t -> {
+                      monitor.log(
+                          System.Logger.Level.INFO,
+                          String.format("Failed to launch Cromwell workflow on %s", baseUrl));
                       t.printStackTrace();
                       CROMWELL_FAILURES.labels(baseUrl).inc();
-                      monitor.scheduleTask(10, TimeUnit.MINUTES, () -> check(state, monitor));
+                      monitor.scheduleTask(
+                          CHECK_DELAY, TimeUnit.MINUTES, () -> check(state, monitor));
                       return null;
                     });
           } catch (Exception e) {
+            monitor.log(
+                System.Logger.Level.INFO,
+                String.format("Failed to launch Cromwell workflow on %s", baseUrl));
             CROMWELL_FAILURES.labels(baseUrl).inc();
             monitor.permanentFailure(e.toString());
           }

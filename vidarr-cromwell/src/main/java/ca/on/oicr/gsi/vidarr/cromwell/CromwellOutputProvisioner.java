@@ -45,6 +45,7 @@ public class CromwellOutputProvisioner
     };
   }
 
+  private static final int CHECK_DELAY = 5;
   private static final List<Pair<String, String>> EXTENSION_TO_META_TYPE =
       List.of(
           new Pair<>(".bam", "application/bam"),
@@ -116,6 +117,9 @@ public class CromwellOutputProvisioner
   private void check(
       ProvisionState state, WorkMonitor<OutputProvisioner.Result, ProvisionState> monitor) {
     try {
+      monitor.log(
+          System.Logger.Level.INFO,
+          String.format("Checking Cromwell job %s on %s", state.getCromwellId(), baseUrl));
       CROMWELL_REQUESTS.labels(baseUrl).inc();
       CLIENT
           .sendAsync(
@@ -132,6 +136,11 @@ public class CromwellOutputProvisioner
           .thenAccept(
               s -> {
                 final var result = s.get();
+                monitor.log(
+                    System.Logger.Level.INFO,
+                    String.format(
+                        "Cromwell job %s on %s is in state %s",
+                        state.getCromwellId(), baseUrl, result.getStatus()));
                 switch (result.getStatus()) {
                   case "Aborted":
                   case "Failed":
@@ -142,20 +151,28 @@ public class CromwellOutputProvisioner
                     break;
                   default:
                     monitor.updateState(statusFromCromwell(result.getStatus()));
-                    monitor.scheduleTask(10, TimeUnit.MINUTES, () -> check(state, monitor));
+                    monitor.scheduleTask(
+                        CHECK_DELAY, TimeUnit.MINUTES, () -> check(state, monitor));
                 }
               })
           .exceptionally(
               t -> {
                 t.printStackTrace();
+                monitor.log(
+                    System.Logger.Level.WARNING,
+                    String.format(
+                        "Failed to get Cromwell job %s on %s", state.getCromwellId(), baseUrl));
                 CROMWELL_FAILURES.labels(baseUrl).inc();
-                monitor.scheduleTask(10, TimeUnit.MINUTES, () -> check(state, monitor));
+                monitor.scheduleTask(CHECK_DELAY, TimeUnit.MINUTES, () -> check(state, monitor));
                 return null;
               });
     } catch (Exception e) {
       e.printStackTrace();
+      monitor.log(
+          System.Logger.Level.WARNING,
+          String.format("Failed to get Cromwell job %s on %s", state.getCromwellId(), baseUrl));
       CROMWELL_FAILURES.labels(baseUrl).inc();
-      monitor.scheduleTask(10, TimeUnit.MINUTES, () -> check(state, monitor));
+      monitor.scheduleTask(CHECK_DELAY, TimeUnit.MINUTES, () -> check(state, monitor));
     }
   }
 
@@ -172,6 +189,9 @@ public class CromwellOutputProvisioner
 
   private void finish(
       ProvisionState state, WorkMonitor<OutputProvisioner.Result, ProvisionState> monitor) {
+    monitor.log(
+        System.Logger.Level.INFO,
+        String.format("Reaping results of Cromwell job %s on %s", state.getCromwellId(), baseUrl));
     CROMWELL_REQUESTS.labels(baseUrl).inc();
     CLIENT
         .sendAsync(
@@ -188,6 +208,10 @@ public class CromwellOutputProvisioner
         .thenAccept(
             s -> {
               final var result = s.get();
+              monitor.log(
+                  System.Logger.Level.INFO,
+                  String.format(
+                      "Got results of Cromwell job %s on %s", state.getCromwellId(), baseUrl));
               monitor.complete(
                   Result.file(
                       result.getOutputs().get(storagePathField).asText(),
@@ -197,9 +221,14 @@ public class CromwellOutputProvisioner
             })
         .exceptionally(
             t -> {
+              monitor.log(
+                  System.Logger.Level.WARNING,
+                  String.format(
+                      "Failed to get results of Cromwell job %s on %s",
+                      state.getCromwellId(), baseUrl));
               t.printStackTrace();
               CROMWELL_FAILURES.labels(baseUrl).inc();
-              monitor.scheduleTask(10, TimeUnit.MINUTES, () -> check(state, monitor));
+              monitor.scheduleTask(CHECK_DELAY, TimeUnit.MINUTES, () -> check(state, monitor));
               return null;
             });
   }
@@ -240,6 +269,11 @@ public class CromwellOutputProvisioner
   protected void recover(ProvisionState state, WorkMonitor<Result, ProvisionState> monitor) {
     if (state.getCromwellId() == null) {
       try {
+        monitor.log(
+            System.Logger.Level.INFO,
+            String.format(
+                "Launching provisioning out job on Cromwell %s for %s",
+                baseUrl, state.getFileName()));
         final var body =
             new MultiPartBodyPublisher()
                 .addPart("workflowUrl", workflowUrl)
@@ -268,15 +302,29 @@ public class CromwellOutputProvisioner
             .thenAccept(
                 s -> {
                   final var result = s.get();
+                  if (result.getId() == null) {
+                    monitor.permanentFailure("Cromwell to launch workflow.");
+                    return;
+                  }
                   state.setCromwellId(result.getId());
                   monitor.updateState(statusFromCromwell(result.getStatus()));
-                  monitor.scheduleTask(10, TimeUnit.MINUTES, () -> check(state, monitor));
+                  monitor.scheduleTask(CHECK_DELAY, TimeUnit.MINUTES, () -> check(state, monitor));
+                  monitor.log(
+                      System.Logger.Level.INFO,
+                      String.format(
+                          "Provisioning for %s on Cromwell %s is %s",
+                          state.getFileName(), baseUrl, result.getId()));
                 })
             .exceptionally(
                 t -> {
+                  monitor.log(
+                      System.Logger.Level.WARNING,
+                      String.format(
+                          "Failed to launch provisioning out job on Cromwell %s for %s",
+                          baseUrl, state.getFileName()));
                   t.printStackTrace();
                   CROMWELL_FAILURES.labels(baseUrl).inc();
-                  monitor.scheduleTask(10, TimeUnit.MINUTES, () -> check(state, monitor));
+                  monitor.scheduleTask(CHECK_DELAY, TimeUnit.MINUTES, () -> check(state, monitor));
                   return null;
                 });
       } catch (Exception e) {
@@ -296,7 +344,7 @@ public class CromwellOutputProvisioner
   @Override
   public SimpleType typeFor(OutputProvisionFormat format) {
     if (format == OutputProvisionFormat.FILES) {
-      return InputType.object(new Pair<>("outputDirectory", InputType.STRING));
+      return SimpleType.object(new Pair<>("outputDirectory", SimpleType.STRING));
     } else {
       throw new IllegalArgumentException("Cannot provision non-file output");
     }

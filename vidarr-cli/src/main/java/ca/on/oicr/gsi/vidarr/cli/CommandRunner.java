@@ -1,10 +1,14 @@
 package ca.on.oicr.gsi.vidarr.cli;
 
+import ca.on.oicr.gsi.vidarr.core.ExternalId;
+import ca.on.oicr.gsi.vidarr.core.OutputProvisioningHandler;
 import ca.on.oicr.gsi.vidarr.core.WorkflowConfiguration;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.File;
 import java.io.IOException;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
 import picocli.CommandLine;
@@ -70,12 +74,62 @@ public class CommandRunner implements Callable<Integer> {
         MAPPER.readValue(new File(workflowFile), WorkflowConfiguration.class).toDefinition();
     final var output = MAPPER.createArrayNode();
     switch (runner.run(
+        "run",
         target,
         workflow,
         read(arguments),
         read(metadata),
         read(engineArguments),
-        output::addObject)) {
+        new OutputProvisioningHandler<>() {
+
+          @Override
+          public void provisionFile(
+              Set<? extends ExternalId> ids,
+              String storagePath,
+              String md5,
+              String metatype,
+              Map<String, String> labels,
+              SingleShotTransaction transaction) {
+            System.err.println("Provisioning out file");
+            final var node = output.objectNode();
+            node.put("type", "file");
+            node.put("storagePath", storagePath);
+            node.put("md5", md5);
+            node.put("metatype", metatype);
+            final var outputIds = node.putArray("ids");
+            for (final var id : ids) {
+              final var outputId = outputIds.addObject();
+              outputId.put("id", id.getId());
+              outputId.put("provider", id.getProvider());
+            }
+            final var outputLabels = node.putObject("labels");
+            for (final var label : labels.entrySet()) {
+              outputLabels.put(label.getKey(), label.getValue());
+            }
+          }
+
+          @Override
+          public void provisionUrl(
+              Set<? extends ExternalId> ids,
+              String url,
+              Map<String, String> labels,
+              SingleShotTransaction transaction) {
+            System.err.println("Provisioning out URL");
+            final var node = output.objectNode();
+            node.put("type", "url");
+            node.put("url", url);
+            final var outputIds = node.putArray("ids");
+            for (final var id : ids) {
+              final var outputId = outputIds.addObject();
+              outputId.put("id", id.getId());
+              outputId.put("provider", id.getProvider());
+            }
+            final var outputLabels = node.putObject("labels");
+            for (final var label : labels.entrySet()) {
+              outputLabels.put(label.getKey(), label.getValue());
+            }
+          }
+        })) {
       case SUCCESS:
         MAPPER.writeValue(new File(outputFile), output);
         return 0;

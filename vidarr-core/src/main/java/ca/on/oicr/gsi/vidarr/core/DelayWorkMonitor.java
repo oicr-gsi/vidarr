@@ -35,6 +35,11 @@ final class DelayWorkMonitor<T, S> implements WorkMonitor<T, S> {
     }
   }
 
+  @Override
+  public void log(System.Logger.Level level, String message) {
+    executeSafely(() -> delegate.log(level, message));
+  }
+
   public void permanentFailure(String reason) {
     executeSafely(() -> delegate.permanentFailure(reason));
   }

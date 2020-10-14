@@ -1,6 +1,5 @@
 package ca.on.oicr.gsi.vidarr;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.NullNode;
@@ -24,6 +23,11 @@ public abstract class BaseJsonOutputProvisioner<M, S, F> implements OutputProvis
     @Override
     public void complete(T result) {
       original.complete(result);
+    }
+
+    @Override
+    public void log(System.Logger.Level level, String message) {
+      original.log(level, message);
     }
 
     @Override
@@ -53,8 +57,8 @@ public abstract class BaseJsonOutputProvisioner<M, S, F> implements OutputProvis
 
   private final ObjectMapper mapper;
   private final Class<M> metadataClass;
-  private final Class<S> stateClass;
   private final Class<F> preflightStateClass;
+  private final Class<S> stateClass;
 
   /**
    * Construct a new output provisioner with data mapping
@@ -87,7 +91,7 @@ public abstract class BaseJsonOutputProvisioner<M, S, F> implements OutputProvis
       return mapper.valueToTree(
           preflightCheck(
               mapper.treeToValue(metadata, metadataClass), new JsonWorkMonitor<>(monitor)));
-    } catch (JsonProcessingException e) {
+    } catch (Exception e) {
       monitor.permanentFailure(e.toString());
       return NullNode.getInstance();
     }
@@ -100,7 +104,7 @@ public abstract class BaseJsonOutputProvisioner<M, S, F> implements OutputProvis
     try {
       preflightRecover(
           mapper.treeToValue(state, preflightStateClass), new JsonWorkMonitor<>(monitor));
-    } catch (JsonProcessingException e) {
+    } catch (Exception e) {
       monitor.permanentFailure(e.toString());
     }
   }
@@ -123,7 +127,7 @@ public abstract class BaseJsonOutputProvisioner<M, S, F> implements OutputProvis
               data,
               mapper.treeToValue(metadata, metadataClass),
               new JsonWorkMonitor<>(monitor)));
-    } catch (JsonProcessingException e) {
+    } catch (Exception e) {
       monitor.permanentFailure(e.toString());
       return NullNode.getInstance();
     }
@@ -140,7 +144,7 @@ public abstract class BaseJsonOutputProvisioner<M, S, F> implements OutputProvis
   public final void recover(JsonNode state, WorkMonitor<Result, JsonNode> monitor) {
     try {
       recover(mapper.treeToValue(state, stateClass), new JsonWorkMonitor<>(monitor));
-    } catch (JsonProcessingException e) {
+    } catch (Exception e) {
       monitor.permanentFailure(e.toString());
     }
   }

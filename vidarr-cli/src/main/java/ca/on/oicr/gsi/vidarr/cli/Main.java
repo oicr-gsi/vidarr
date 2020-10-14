@@ -11,7 +11,10 @@ import picocli.CommandLine;
     description = "Vidarr workflow runner")
 public class Main implements Callable<Integer> {
   public static void main(String[] args) {
-    final var cmd = new CommandLine(new Main()).addSubcommand("run", new CommandRunner());
+    final var cmd =
+        new CommandLine(new Main())
+            .addSubcommand("run", new CommandRunner())
+            .addSubcommand("test", new CommandTest());
     cmd.setExpandAtFiles(false);
     cmd.setExecutionStrategy(new CommandLine.RunLast());
     System.exit(cmd.execute(args));

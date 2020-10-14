@@ -2,7 +2,6 @@ package ca.on.oicr.gsi.vidarr.core;
 
 import ca.on.oicr.gsi.vidarr.OutputProvisionType;
 import ca.on.oicr.gsi.vidarr.OutputProvisionType.IdentifierKey;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
@@ -111,7 +110,7 @@ abstract class BaseOutputExtractor<R, E> implements OutputProvisionType.Visitor<
                   }
                 });
 
-          } catch (JsonProcessingException e) {
+          } catch (Exception e) {
             return invalid();
           }
         default:

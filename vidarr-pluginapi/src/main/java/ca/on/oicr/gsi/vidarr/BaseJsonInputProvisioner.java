@@ -1,6 +1,5 @@
 package ca.on.oicr.gsi.vidarr;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.NullNode;
@@ -23,6 +22,11 @@ public abstract class BaseJsonInputProvisioner<M, S> implements InputProvisioner
     @Override
     public void complete(T result) {
       original.complete(result);
+    }
+
+    @Override
+    public void log(System.Logger.Level level, String message) {
+      original.log(level, message);
     }
 
     @Override
@@ -68,6 +72,18 @@ public abstract class BaseJsonInputProvisioner<M, S> implements InputProvisioner
     this.metadataClass = metadataClass;
   }
 
+  @Override
+  public final JsonNode provision(
+      WorkflowLanguage language, String id, String path, WorkMonitor<JsonNode, JsonNode> monitor) {
+    try {
+      return mapper.valueToTree(
+          provisionRegistered(language, id, path, new JsonWorkMonitor<>(monitor)));
+    } catch (Exception e) {
+      monitor.permanentFailure(e.toString());
+      return NullNode.getInstance();
+    }
+  }
+
   /**
    * Begin provisioning out a new output
    *
@@ -75,16 +91,6 @@ public abstract class BaseJsonInputProvisioner<M, S> implements InputProvisioner
    */
   protected abstract S provisionExternal(
       WorkflowLanguage language, M metadata, WorkMonitor<JsonNode, S> monitor);
-
-  public abstract S provisionRegistered(
-      WorkflowLanguage language, String id, String path, WorkMonitor<JsonNode, S> monitor);
-
-  @Override
-  public final JsonNode provision(
-      WorkflowLanguage language, String id, String path, WorkMonitor<JsonNode, JsonNode> monitor) {
-    return mapper.valueToTree(
-        provisionRegistered(language, id, path, new JsonWorkMonitor<>(monitor)));
-  }
 
   @Override
   public final JsonNode provisionExternal(
@@ -95,11 +101,14 @@ public abstract class BaseJsonInputProvisioner<M, S> implements InputProvisioner
               language,
               mapper.treeToValue(metadata, metadataClass),
               new JsonWorkMonitor<>(monitor)));
-    } catch (JsonProcessingException e) {
+    } catch (Exception e) {
       monitor.permanentFailure(e.toString());
       return NullNode.getInstance();
     }
   }
+
+  public abstract S provisionRegistered(
+      WorkflowLanguage language, String id, String path, WorkMonitor<JsonNode, S> monitor);
 
   /**
    * Restart a provisioning process from state saved in the database
@@ -112,7 +121,7 @@ public abstract class BaseJsonInputProvisioner<M, S> implements InputProvisioner
   public final void recover(JsonNode state, WorkMonitor<JsonNode, JsonNode> monitor) {
     try {
       recover(mapper.treeToValue(state, stateClass), new JsonWorkMonitor<>(monitor));
-    } catch (JsonProcessingException e) {
+    } catch (Exception e) {
       monitor.permanentFailure(e.toString());
     }
   }

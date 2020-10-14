@@ -44,6 +44,14 @@ public interface WorkMonitor<T, S> {
   void complete(T result);
 
   /**
+   * Write something interesting
+   *
+   * @param level how important this message is
+   * @param message the message to display
+   */
+  void log(System.Logger.Level level, String message);
+
+  /**
    * Indicate that the task is unrecoverably broken
    *
    * <p>Once called, the workflow and related provisioning steps will be considered a failure.
@@ -53,6 +61,15 @@ public interface WorkMonitor<T, S> {
    * @param reason the reason for the failure
    */
   void permanentFailure(String reason);
+
+  /**
+   * Request that Vidarr schedule a callback at the next available opportunity
+   *
+   * <p>This cannot be called after {@link #complete(Object)} or {@link #permanentFailure(String)}
+   *
+   * @param task the task to execute
+   */
+  void scheduleTask(Runnable task);
 
   /**
    * Request that Vidarr schedule a callback at a specified time in the future
@@ -68,15 +85,6 @@ public interface WorkMonitor<T, S> {
    * @param task the task to execute
    */
   void scheduleTask(long delay, TimeUnit units, Runnable task);
-
-  /**
-   * Request that Vidarr schedule a callback at the next available opportunity
-   *
-   * <p>This cannot be called after {@link #complete(Object)} or {@link #permanentFailure(String)}
-   *
-   * @param task the task to execute
-   */
-  void scheduleTask(Runnable task);
 
   /**
    * Write the recovery information to stable store

@@ -14,7 +14,6 @@ import java.util.function.Function;
  * @param <S> the return type of the whole operation
  */
 abstract class WrappedMonitor<A, R, S> implements WorkMonitor<R, JsonNode> {
-
   public interface MonitorConstructor<A, R, S> {
     WrappedMonitor<A, R, S> create(A accessory, WorkMonitor<S, JsonNode> monitor);
   }
@@ -22,6 +21,7 @@ abstract class WrappedMonitor<A, R, S> implements WorkMonitor<R, JsonNode> {
   public interface RecoveryStarter<R> {
     void recover(JsonNode state, WorkMonitor<R, JsonNode> monitor);
   }
+
   /**
    * Restart a task from stored database state
    *
@@ -76,6 +76,11 @@ abstract class WrappedMonitor<A, R, S> implements WorkMonitor<R, JsonNode> {
   @Override
   public final void complete(R result) {
     monitor.complete(mix(accessory, result));
+  }
+
+  @Override
+  public void log(System.Logger.Level level, String message) {
+    monitor.log(level, message);
   }
 
   /**

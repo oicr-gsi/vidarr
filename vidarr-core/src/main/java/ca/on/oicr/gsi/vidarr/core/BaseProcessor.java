@@ -5,7 +5,6 @@ import ca.on.oicr.gsi.vidarr.*;
 import ca.on.oicr.gsi.vidarr.OutputProvisioner.ResultVisitor;
 import ca.on.oicr.gsi.vidarr.WorkflowEngine.Result;
 import ca.on.oicr.gsi.vidarr.core.PrepareOutputProvisioning.ProvisioningOutWorkMonitor;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
@@ -46,6 +45,11 @@ public abstract class BaseProcessor<
     }
 
     @Override
+    public final void log(System.Logger.Level level, String message) {
+      operation.log(level, message);
+    }
+
+    @Override
     public final synchronized void complete(R result) {
       if (finished) {
         throw new IllegalStateException("Operation is already complete.");
@@ -82,7 +86,7 @@ public abstract class BaseProcessor<
       return () -> {
         try {
           task.run();
-        } catch (Exception e) {
+        } catch (Throwable e) {
           System.err.println("Task thew exception. Failing workflow.");
           permanentFailure(e.toString());
         }
@@ -671,8 +675,7 @@ public abstract class BaseProcessor<
   protected abstract ObjectMapper mapper();
 
   protected void recover(
-      Target target, WorkflowDefinition definition, W workflow, List<PO> activeOperations)
-      throws JsonProcessingException {
+      Target target, WorkflowDefinition definition, W workflow, List<PO> activeOperations) {
     switch (workflow.phase()) {
       case INITIALIZING:
         final var transaction = startTransaction();
@@ -694,13 +697,7 @@ public abstract class BaseProcessor<
         for (final var operation : activeOperations) {
           WrappedMonitor.recover(
               operation.recoveryState(),
-              v -> {
-                try {
-                  return List.of(mapper().treeToValue(v, JsonPath[].class));
-                } catch (JsonProcessingException e) {
-                  throw new RuntimeException(e);
-                }
-              },
+              v -> List.of(mapper().treeToValue(v, JsonPath[].class)),
               PrepareInputProvisioning.ProvisionInMonitor::new,
               target.provisionerFor(InputProvisionFormat.valueOf(operation.type()))::recover,
               p2.createMonitor(operation));
@@ -719,13 +716,7 @@ public abstract class BaseProcessor<
           if (operation.type().startsWith("$")) {
             WrappedMonitor.recover(
                 operation.recoveryState(),
-                v -> {
-                  try {
-                    return mapper().treeToValue(v, ProvisionData.class);
-                  } catch (JsonProcessingException e) {
-                    throw new RuntimeException(e);
-                  }
-                },
+                v -> mapper().treeToValue(v, ProvisionData.class),
                 ProvisioningOutWorkMonitor::new,
                 target
                         .runtimeProvisioners()
@@ -737,13 +728,7 @@ public abstract class BaseProcessor<
           } else {
             WrappedMonitor.recover(
                 operation.recoveryState(),
-                v -> {
-                  try {
-                    return mapper().treeToValue(v, ProvisionData.class);
-                  } catch (JsonProcessingException e) {
-                    throw new RuntimeException(e);
-                  }
-                },
+                v -> mapper().treeToValue(v, ProvisionData.class),
                 ProvisioningOutWorkMonitor::new,
                 target.provisionerFor(OutputProvisionFormat.valueOf(operation.type()))::recover,
                 p4.createMonitor(operation));

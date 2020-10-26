@@ -53,6 +53,11 @@ public final class UnixShellWorkflowEngine
   }
 
   @Override
+  public boolean supports(WorkflowLanguage language) {
+    return language == WorkflowLanguage.UNIX_SHELL;
+  }
+
+  @Override
   public void recover(ShellState state, WorkMonitor<Result<String>, ShellState> monitor) {
     // When we recover, we have no way to recover a process's exit status, so we'll just assume it
     // exited successfully.

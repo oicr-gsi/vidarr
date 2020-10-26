@@ -11,9 +11,9 @@ public interface WorkflowEngine {
 
   /** The output data from a workflow */
   class Result<C> {
+    private final Optional<C> cleanupState;
     private final JsonNode output;
     private final String workflowRunUrl;
-    private final Optional<C> cleanupState;
 
     /**
      * Create new workflow output data
@@ -34,6 +34,11 @@ public interface WorkflowEngine {
       return cleanupState;
     }
 
+    /** The workflow output's output */
+    public JsonNode output() {
+      return output;
+    }
+
     /**
      * The URL identifying the workflow run so the metrics and logs workflows can collect
      * information about the completed job.
@@ -41,22 +46,7 @@ public interface WorkflowEngine {
     public String workflowRunUrl() {
       return workflowRunUrl;
     }
-
-    /** The workflow output's output */
-    public JsonNode output() {
-      return output;
-    }
   }
-  /** Display configuration status */
-  void configuration(SectionRenderer sectionRenderer) throws XMLStreamException;
-
-  /**
-   * Parameters that the submitter can provide to control the behaviour of the workflow engine.
-   *
-   * <p>Vidarr is conceptually neutral as to what goes here. This is provided as a side channel to
-   * get configuration parameters to the backend.
-   */
-  Optional<SimpleType> engineParameters();
 
   /**
    * Clean up the output of a workflow (i.e., delete its on-disk output) after provisioning has been
@@ -67,6 +57,17 @@ public interface WorkflowEngine {
    *     null as the output value
    */
   JsonNode cleanup(JsonNode cleanupState, WorkMonitor<Void, JsonNode> monitor);
+
+  /** Display configuration status */
+  void configuration(SectionRenderer sectionRenderer) throws XMLStreamException;
+
+  /**
+   * Parameters that the submitter can provide to control the behaviour of the workflow engine.
+   *
+   * <p>Vidarr is conceptually neutral as to what goes here. This is provided as a side channel to
+   * get configuration parameters to the backend.
+   */
+  Optional<SimpleType> engineParameters();
 
   /**
    * Restart a running process from state saved in the database
@@ -102,4 +103,11 @@ public interface WorkflowEngine {
       ObjectNode workflowParameters,
       ObjectNode engineParameters,
       WorkMonitor<Result<JsonNode>, JsonNode> monitor);
+
+  /**
+   * Checks if this engine can support this language
+   *
+   * @param language the workflow language to check
+   */
+  boolean supports(WorkflowLanguage language);
 }

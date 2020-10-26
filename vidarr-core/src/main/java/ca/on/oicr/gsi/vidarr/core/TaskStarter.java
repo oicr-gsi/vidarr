@@ -1,5 +1,6 @@
 package ca.on.oicr.gsi.vidarr.core;
 
+import ca.on.oicr.gsi.Pair;
 import ca.on.oicr.gsi.vidarr.WorkMonitor;
 import ca.on.oicr.gsi.vidarr.WorkflowLanguage;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -18,6 +19,6 @@ public interface TaskStarter<T> {
    * @param operation the operation that the task will use to complete its result
    * @return the initial recovery state to be serialised to the database
    */
-  JsonNode start(
+  Pair<String, JsonNode> start(
       WorkflowLanguage workflowLanguage, String workflowRunId, WorkMonitor<T, JsonNode> operation);
 }

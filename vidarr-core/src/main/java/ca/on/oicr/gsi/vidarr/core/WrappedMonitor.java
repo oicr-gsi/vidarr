@@ -1,5 +1,6 @@
 package ca.on.oicr.gsi.vidarr.core;
 
+import ca.on.oicr.gsi.Pair;
 import ca.on.oicr.gsi.vidarr.WorkMonitor;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
@@ -57,11 +58,12 @@ abstract class WrappedMonitor<A, R, S> implements WorkMonitor<R, JsonNode> {
   public static <A, R, S> TaskStarter<S> start(
       A accessory, MonitorConstructor<A, R, S> constructor, TaskStarter<R> task) {
     return (workflowLanguage, workflowId, operation) -> {
+      final var result =
+          task.start(workflowLanguage, workflowId, constructor.create(accessory, operation));
       final var array = JsonNodeFactory.instance.arrayNode(2);
       array.insertPOJO(0, accessory);
-      array.insertPOJO(
-          1, task.start(workflowLanguage, workflowId, constructor.create(accessory, operation)));
-      return array;
+      array.insertPOJO(1, result.second());
+      return new Pair<>(result.first(), array);
     };
   }
 

@@ -5,23 +5,26 @@ import ca.on.oicr.gsi.vidarr.*;
 import ca.on.oicr.gsi.vidarr.OutputProvisioner.ResultVisitor;
 import ca.on.oicr.gsi.vidarr.WorkflowEngine.Result;
 import ca.on.oicr.gsi.vidarr.core.PrepareOutputProvisioning.ProvisioningOutWorkMonitor;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.NullNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.util.*;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public abstract class BaseProcessor<
-        W extends ActiveWorkflow<PO, TX>,
-        PO extends ActiveOperation<TX>,
-        TX extends SchedulerTransaction>
+        W extends ActiveWorkflow<PO, TX>, PO extends ActiveOperation<TX>, TX>
     implements FileResolver {
   private interface PhaseManager<W, R, N, PO> {
 
@@ -45,24 +48,25 @@ public abstract class BaseProcessor<
     }
 
     @Override
-    public final void log(System.Logger.Level level, String message) {
-      operation.log(level, message);
-    }
-
-    @Override
     public final synchronized void complete(R result) {
       if (finished) {
         throw new IllegalStateException("Operation is already complete.");
       }
       finished = true;
-      final var transaction = startTransaction();
-      operation.status(OperationStatus.SUCCEEDED, transaction);
-      operation.recoveryState(serialize(result), transaction);
-      transaction.commit();
+      startTransaction(
+          transaction -> {
+            operation.status(OperationStatus.SUCCEEDED, transaction);
+            operation.recoveryState(serialize(result), transaction);
+          });
       succeeded(result);
     }
 
     protected abstract void failed();
+
+    @Override
+    public final void log(System.Logger.Level level, String message) {
+      operation.log(level, message);
+    }
 
     @Override
     public Optional<FileMetadata> pathForId(String id) {
@@ -75,10 +79,11 @@ public abstract class BaseProcessor<
         throw new IllegalStateException("Operation is already complete.");
       }
       finished = true;
-      final var transaction = startTransaction();
-      operation.status(OperationStatus.FAILED, transaction);
-      operation.recoveryState(JsonNodeFactory.instance.textNode(reason), transaction);
-      transaction.commit();
+      startTransaction(
+          transaction -> {
+            operation.status(OperationStatus.FAILED, transaction);
+            operation.recoveryState(JsonNodeFactory.instance.textNode(reason), transaction);
+          });
       failed();
     }
 
@@ -117,9 +122,7 @@ public abstract class BaseProcessor<
         throw new IllegalStateException(
             "Operation is already complete. Cannot store recovery information.");
       }
-      final var transaction = startTransaction();
-      operation.recoveryState(state, transaction);
-      transaction.commit();
+      startTransaction(transaction -> operation.recoveryState(state, transaction));
     }
 
     protected abstract void succeeded(R result);
@@ -130,9 +133,7 @@ public abstract class BaseProcessor<
         throw new IllegalStateException(
             "Operation is already complete. Cannot store recovery information.");
       }
-      final var transaction = startTransaction();
-      operation.status(OperationStatus.of(status), transaction);
-      transaction.commit();
+      startTransaction(transaction -> operation.status(OperationStatus.of(status), transaction));
     }
   }
 
@@ -222,61 +223,62 @@ public abstract class BaseProcessor<
     }
 
     public void release(Boolean result) {
-      final var transaction = startTransaction();
-      if (!result) {
-        ok = false;
-        activeWorkflow.preflightFailed(transaction);
-      }
-      if (outstanding.decrementAndGet() == 0) {
-        if (ok) {
-          final var provisionInTasks = new ArrayList<TaskStarter<JsonMutation>>();
-          final var realInput = mapper().createObjectNode();
-          definition
-              .parameters()
-              .forEach(
-                  parameter -> {
-                    if (activeWorkflow.arguments().has(parameter.name())) {
-                      realInput.set(
-                          parameter.name(),
-                          parameter
-                              .type()
-                              .apply(
-                                  new PrepareInputProvisioning(
-                                      target,
-                                      activeWorkflow.arguments().get(parameter.name()),
-                                      Stream.of(JsonPath.object(parameter.name())),
-                                      id -> {
-                                        final var file = BaseProcessor.this.pathForId(id);
-                                        if (file.isPresent()) {
-                                          discoveredInputFiles.add(id);
-                                        }
-                                        return file;
-                                      },
-                                      provisionInTasks::add)));
-                    } else if (parameter.isRequired()) {
-                      throw new IllegalArgumentException(
-                          String.format("Missing required parameter: %s", parameter.name()));
-                    }
-                  });
-          activeWorkflow.realInput(realInput, transaction);
-          final var outputRequestedInputIds = new HashSet<>(activeWorkflow.externalIds());
-          final var discoveredInputIds =
-              discoveredInputFiles.stream()
-                  .flatMap(i -> BaseProcessor.this.pathForId(i).orElseThrow().externalKeys())
-                  .collect(Collectors.toSet());
-          if (activeWorkflow.extraInputIdsHandled()
-              ? discoveredInputIds.containsAll(outputRequestedInputIds)
-              : discoveredInputIds.equals(outputRequestedInputIds)) {
-            startNextPhase(this, provisionInTasks, transaction);
-            transaction.commit();
-          } else {
-            activeWorkflow.phase(Phase.FAILED, Collections.emptyList(), transaction);
-          }
-        } else {
-          activeWorkflow.phase(Phase.FAILED, Collections.emptyList(), transaction);
-        }
-      }
-      transaction.commit();
+      startTransaction(
+          transaction -> {
+            if (!result) {
+              ok = false;
+              activeWorkflow.preflightFailed(transaction);
+            }
+            if (outstanding.decrementAndGet() == 0) {
+              if (ok) {
+                final var provisionInTasks = new ArrayList<TaskStarter<JsonMutation>>();
+                final var realInput = mapper().createObjectNode();
+                definition
+                    .parameters()
+                    .forEach(
+                        parameter -> {
+                          if (activeWorkflow.arguments().has(parameter.name())) {
+                            realInput.set(
+                                parameter.name(),
+                                parameter
+                                    .type()
+                                    .apply(
+                                        new PrepareInputProvisioning(
+                                            target,
+                                            activeWorkflow.arguments().get(parameter.name()),
+                                            Stream.of(JsonPath.object(parameter.name())),
+                                            id -> {
+                                              final var file = BaseProcessor.this.pathForId(id);
+                                              if (file.isPresent()) {
+                                                discoveredInputFiles.add(id);
+                                              }
+                                              return file;
+                                            },
+                                            provisionInTasks::add)));
+                          } else if (parameter.isRequired()) {
+                            throw new IllegalArgumentException(
+                                String.format("Missing required parameter: %s", parameter.name()));
+                          }
+                        });
+                activeWorkflow.realInput(realInput, transaction);
+                final var outputRequestedInputIds =
+                    new HashSet<>(activeWorkflow.requestedExternalIds());
+                final var discoveredInputIds =
+                    discoveredInputFiles.stream()
+                        .flatMap(i -> BaseProcessor.this.pathForId(i).orElseThrow().externalKeys())
+                        .collect(Collectors.toSet());
+                if (activeWorkflow.extraInputIdsHandled()
+                    ? discoveredInputIds.containsAll(outputRequestedInputIds)
+                    : discoveredInputIds.equals(outputRequestedInputIds)) {
+                  startNextPhase(this, provisionInTasks, transaction);
+                } else {
+                  activeWorkflow.phase(Phase.FAILED, Collections.emptyList(), transaction);
+                }
+              } else {
+                activeWorkflow.phase(Phase.FAILED, Collections.emptyList(), transaction);
+              }
+            }
+          });
     }
 
     @Override
@@ -313,9 +315,9 @@ public abstract class BaseProcessor<
         @Override
         protected void failed() {
           if (size.decrementAndGet() == 0) {
-            final var transaction = startTransaction();
-            activeWorkflow.phase(Phase.FAILED, Collections.emptyList(), transaction);
-            transaction.commit();
+            startTransaction(
+                transaction ->
+                    activeWorkflow.phase(Phase.FAILED, Collections.emptyList(), transaction));
           }
         }
 
@@ -327,32 +329,35 @@ public abstract class BaseProcessor<
         @Override
         protected void succeeded(JsonMutation result) {
           semaphore.acquireUninterruptibly();
-          final var transaction = startTransaction();
-          final var input = activeWorkflow.realInput();
-          final var path = result.getPath();
-          JsonNode current = input;
-          for (var i = 0; i < path.size() - 1; i++) {
-            current = path.get(i).get(current);
-          }
-          path.get(path.size() - 1).set(current, result.getResult());
-          activeWorkflow.realInput(input, transaction);
-          if (size.decrementAndGet() == 0) {
-            startNextPhase(
-                Phase2ProvisionIn.this,
-                Collections.singletonList(
-                    (workflowLanguage, workflowId, operation1) ->
-                        target
-                            .engine()
-                            .run(
-                                definition.language(),
-                                definition.contents(),
-                                activeWorkflow.id(),
-                                input,
-                                activeWorkflow.engineArguments(),
-                                operation1)),
-                transaction);
-          }
-          transaction.commit();
+          startTransaction(
+              transaction -> {
+                final var input = activeWorkflow.realInput();
+                final var path = result.getPath();
+                JsonNode current = input;
+                for (var i = 0; i < path.size() - 1; i++) {
+                  current = path.get(i).get(current);
+                }
+                path.get(path.size() - 1).set(current, result.getResult());
+                activeWorkflow.realInput(input, transaction);
+                if (size.decrementAndGet() == 0) {
+                  startNextPhase(
+                      Phase2ProvisionIn.this,
+                      Collections.singletonList(
+                          (workflowLanguage, workflowId, operation1) ->
+                              new Pair<>(
+                                  "",
+                                  target
+                                      .engine()
+                                      .run(
+                                          definition.language(),
+                                          definition.contents(),
+                                          activeWorkflow.id(),
+                                          input,
+                                          activeWorkflow.engineArguments(),
+                                          operation1))),
+                      transaction);
+                }
+              });
           semaphore.release();
         }
       };
@@ -419,56 +424,53 @@ public abstract class BaseProcessor<
             permanentFailure("No output from workflow");
             return;
           }
-          final var transaction = startTransaction();
-          result.cleanupState().ifPresent(c -> workflow().cleanup(c, transaction));
-          workflow().runUrl(result.workflowRunUrl(), transaction);
-          final var tasks =
-              new ArrayList<TaskStarter<Pair<ProvisionData, OutputProvisioner.Result>>>();
-          final var allIds = workflow().inputIds();
-          final var remainingIds = new HashSet<>(allIds);
-          remainingIds.removeIf(
-              p ->
-                  activeWorkflow.externalIds().stream()
-                      .anyMatch(
-                          a ->
-                              a.getId().equals(p.getId())
-                                  && a.getProvider().equals(p.getProvider())));
-          target
-              .runtimeProvisioners()
-              .forEach(
-                  p ->
-                      tasks.add(
-                          WrappedMonitor.start(
-                              new ProvisionData(allIds),
-                              PrepareOutputProvisioning.ProvisioningOutWorkMonitor::new,
-                              (language, workflowId, monitor) ->
-                                  p.provision(result.workflowRunUrl(), monitor))));
-          if (definition
-              .outputs()
-              .allMatch(
-                  output -> {
-                    if (result.output().has(output.name())) {
-                      output
-                          .type()
-                          .apply(
-                              new PrepareOutputProvisioning(
-                                  mapper(),
-                                  target,
-                                  result.output().get(output.name()),
-                                  activeWorkflow.metadata().get(output.name()),
-                                  allIds,
-                                  remainingIds))
-                          .forEach(tasks::add);
-                      return true;
-                    } else {
-                      return false;
-                    }
-                  })) {
-            startNextPhase(Phase3Run.this, tasks, transaction);
-          } else {
-            workflow().phase(Phase.FAILED, Collections.emptyList(), transaction);
-          }
-          transaction.commit();
+          startTransaction(
+              transaction -> {
+                result.cleanupState().ifPresent(c -> workflow().cleanup(c, transaction));
+                workflow().runUrl(result.workflowRunUrl(), transaction);
+                final var tasks =
+                    new ArrayList<TaskStarter<Pair<ProvisionData, OutputProvisioner.Result>>>();
+                final var allIds = workflow().inputIds();
+                final var remainingIds = new HashSet<>(allIds);
+                remainingIds.removeAll(workflow().requestedExternalIds());
+                target
+                    .runtimeProvisioners()
+                    .forEach(
+                        p ->
+                            tasks.add(
+                                WrappedMonitor.start(
+                                    new ProvisionData(allIds),
+                                    PrepareOutputProvisioning.ProvisioningOutWorkMonitor::new,
+                                    (language, workflowId, monitor) ->
+                                        new Pair<>(
+                                            "$" + p.name(),
+                                            p.provision(result.workflowRunUrl(), monitor)))));
+                if (definition
+                    .outputs()
+                    .allMatch(
+                        output -> {
+                          if (result.output().has(output.name())) {
+                            output
+                                .type()
+                                .apply(
+                                    new PrepareOutputProvisioning(
+                                        mapper(),
+                                        target,
+                                        result.output().get(output.name()),
+                                        activeWorkflow.metadata().get(output.name()),
+                                        allIds,
+                                        remainingIds))
+                                .forEach(tasks::add);
+                            return true;
+                          } else {
+                            return false;
+                          }
+                        })) {
+                  startNextPhase(Phase3Run.this, tasks, transaction);
+                } else {
+                  workflow().phase(Phase.FAILED, Collections.emptyList(), transaction);
+                }
+              });
         }
       };
     }
@@ -550,46 +552,50 @@ public abstract class BaseProcessor<
 
         @Override
         protected void succeeded(Pair<ProvisionData, OutputProvisioner.Result> result) {
-          final var transaction = startTransaction();
-          result
-              .second()
-              .visit(
-                  new ResultVisitor() {
-                    @Override
-                    public void file(String storagePath, String md5, long size, String metatype) {
-                      workflow()
-                          .provisionFile(
-                              result.first().getIds(),
-                              storagePath,
-                              md5,
-                              metatype,
-                              result.first().getLabels(),
-                              transaction);
-                    }
+          startTransaction(
+              transaction -> {
+                result
+                    .second()
+                    .visit(
+                        new ResultVisitor() {
+                          @Override
+                          public void file(
+                              String storagePath, String md5, long size, String metatype) {
+                            workflow()
+                                .provisionFile(
+                                    result.first().getIds(),
+                                    storagePath,
+                                    md5,
+                                    metatype,
+                                    size,
+                                    result.first().getLabels(),
+                                    transaction);
+                          }
 
-                    @Override
-                    public void url(String url, Map<String, String> labels) {
-                      workflow()
-                          .provisionUrl(
-                              result.first().getIds(),
-                              url,
-                              result.first().getLabels(),
-                              transaction);
-                    }
-                  });
-          if (size.decrementAndGet() == 0) {
-            final var cleanup = activeWorkflow.cleanup();
-            if (cleanup == null) {
-              workflow().succeeded(transaction);
-            } else {
-              startNextPhase(
-                  Phase4ProvisionOut.this,
-                  Collections.singletonList(
-                      (lang, workflowId, monitor) -> target.engine().cleanup(cleanup, monitor)),
-                  transaction);
-            }
-          }
-          transaction.commit();
+                          @Override
+                          public void url(String url, Map<String, String> labels) {
+                            workflow()
+                                .provisionUrl(
+                                    result.first().getIds(),
+                                    url,
+                                    result.first().getLabels(),
+                                    transaction);
+                          }
+                        });
+                if (size.decrementAndGet() == 0) {
+                  final var cleanup = activeWorkflow.cleanup();
+                  if (cleanup == null) {
+                    workflow().succeeded(transaction);
+                  } else {
+                    startNextPhase(
+                        Phase4ProvisionOut.this,
+                        Collections.singletonList(
+                            (lang, workflowId, monitor) ->
+                                new Pair<>("", target.engine().cleanup(cleanup, monitor))),
+                        transaction);
+                  }
+                }
+              });
         }
       };
     }
@@ -638,9 +644,7 @@ public abstract class BaseProcessor<
 
         @Override
         protected void succeeded(Void result) {
-          final var transaction = startTransaction();
-          activeWorkflow.succeeded(transaction);
-          transaction.commit();
+          startTransaction(activeWorkflow::succeeded);
         }
       };
     }
@@ -666,6 +670,80 @@ public abstract class BaseProcessor<
     }
   }
 
+  public static Stream<String> extractInputVidarrIds(
+      ObjectMapper mapper, WorkflowDefinition definition, JsonNode arguments) {
+    return definition
+        .parameters()
+        .flatMap(
+            p ->
+                p.isRequired() || arguments.has(p.name())
+                    ? p.type().apply(new ExtractInputVidarrIds(mapper, arguments.get(p.name())))
+                    : Stream.empty())
+        .distinct();
+  }
+
+  public static String hexDigits(byte[] bytes) {
+    final var buffer = new StringBuilder();
+    for (final var b : bytes) {
+      buffer.append(String.format("%02x", b));
+    }
+    return buffer.toString();
+  }
+
+  public static Stream<String> validateInput(
+      ObjectMapper mapper,
+      Target target,
+      WorkflowDefinition workflow,
+      JsonNode arguments,
+      JsonNode metadata,
+      ObjectNode engineParameters) {
+    return Stream.concat(
+        target.engine().supports(workflow.language())
+            ? Stream.empty()
+            : Stream.of("Workflow language is not supported by this target."),
+        Stream.of(
+                workflow
+                    .outputs()
+                    .flatMap(
+                        o ->
+                            metadata.has(o.name())
+                                ? o.type()
+                                    .apply(
+                                        new CheckOutputType(mapper, target, metadata.get(o.name())))
+                                : Stream.of("Missing metadata attribute " + o.name())),
+                workflow
+                    .parameters()
+                    .flatMap(
+                        p -> {
+                          if (arguments.has(p.name())) {
+                            return p.type()
+                                .apply(new CheckInputType(mapper, target, arguments.get(p.name())));
+                          } else {
+                            return p.isRequired()
+                                ? Stream.of("Required argument missing: " + p.name())
+                                : Stream.empty();
+                          }
+                        }),
+                target
+                    .engine()
+                    .engineParameters()
+                    .map(p -> p.apply(new CheckEngineType(engineParameters)))
+                    .orElseGet(Stream::empty))
+            .flatMap(Function.identity()));
+  }
+
+  public static final Pattern ANALYSIS_RECORD_ID =
+      Pattern.compile(
+          "vidarr:(?<instance>[a-z][a-z0-9_]*|_)/(?:workflow/(?<name>[a-z][a-zA-Z0-9_])/(?<version>[0-9]+(?:\\.[0-9]+)*(?:-[0-9]+)?)/(?<workflowhash>[0-9a-fA-F]+)/run/)?(?<type>file|url)/(?<hash>[0-9a-fA-F]+)");
+  public static final Pattern WORKFLOW_DEFINITION_ID =
+      Pattern.compile(
+          "vidarr:(?<instance>[a-z][a-z0-9_]*|_)/workflow/(?<hash>[0-9a-fA-F]+)\\.(?<lang>wdl|cwl|nf)");
+  public static final Pattern WORKFLOW_RECORD_ID =
+      Pattern.compile(
+          "vidarr:(?<instance>[a-z][a-z0-9_]*|_)/workflow/(?<name>[a-z][a-zA-Z0-9_])?/(?<version>[0-9]+(?:\\.[0-9]+)*(?:-[0-9]+)?)");
+  public static final Pattern WORKFLOW_RUN_ID =
+      Pattern.compile(
+          "vidarr:(?<instance>[a-z][a-z0-9_]*|_)/(?:workflow/(?<name>[a-z][a-zA-Z0-9_])/(?<version>[0-9]+(?:\\.[0-9]+)*(?:-[0-9]+)?)/)?run/(?<hash>[0-9a-fA-F]+)");
   private final ScheduledExecutorService executor;
 
   protected BaseProcessor(ScheduledExecutorService executor) {
@@ -678,9 +756,7 @@ public abstract class BaseProcessor<
       Target target, WorkflowDefinition definition, W workflow, List<PO> activeOperations) {
     switch (workflow.phase()) {
       case INITIALIZING:
-        final var transaction = startTransaction();
-        start(target, definition, workflow, transaction);
-        transaction.commit();
+        startTransaction(transaction -> start(target, definition, workflow, transaction));
         break;
       case PREFLIGHT:
         final var p1 =
@@ -697,7 +773,13 @@ public abstract class BaseProcessor<
         for (final var operation : activeOperations) {
           WrappedMonitor.recover(
               operation.recoveryState(),
-              v -> List.of(mapper().treeToValue(v, JsonPath[].class)),
+              v -> {
+                try {
+                  return List.of(mapper().treeToValue(v, JsonPath[].class));
+                } catch (JsonProcessingException e) {
+                  throw new RuntimeException(e);
+                }
+              },
               PrepareInputProvisioning.ProvisionInMonitor::new,
               target.provisionerFor(InputProvisionFormat.valueOf(operation.type()))::recover,
               p2.createMonitor(operation));
@@ -716,7 +798,13 @@ public abstract class BaseProcessor<
           if (operation.type().startsWith("$")) {
             WrappedMonitor.recover(
                 operation.recoveryState(),
-                v -> mapper().treeToValue(v, ProvisionData.class),
+                v -> {
+                  try {
+                    return mapper().treeToValue(v, ProvisionData.class);
+                  } catch (JsonProcessingException e) {
+                    throw new RuntimeException(e);
+                  }
+                },
                 ProvisioningOutWorkMonitor::new,
                 target
                         .runtimeProvisioners()
@@ -728,7 +816,13 @@ public abstract class BaseProcessor<
           } else {
             WrappedMonitor.recover(
                 operation.recoveryState(),
-                v -> mapper().treeToValue(v, ProvisionData.class),
+                v -> {
+                  try {
+                    return mapper().treeToValue(v, ProvisionData.class);
+                  } catch (JsonProcessingException e) {
+                    throw new RuntimeException(e);
+                  }
+                },
                 ProvisioningOutWorkMonitor::new,
                 target.provisionerFor(OutputProvisionFormat.valueOf(operation.type()))::recover,
                 p4.createMonitor(operation));
@@ -748,24 +842,8 @@ public abstract class BaseProcessor<
 
   protected void start(Target target, WorkflowDefinition definition, W workflow, TX transaction) {
     final var preflightSteps = new ArrayList<TaskStarter<Boolean>>();
-    final var externalIds = new ArrayList<ExternalId>();
+    final var requestedExternalIds = new HashSet<ExternalId>();
     final var extraInputIdsHandled = new AtomicBoolean();
-    final var inputIds =
-        definition
-            .parameters()
-            .flatMap(
-                p ->
-                    p.isRequired() || workflow.arguments().has(p.name())
-                        ? p.type()
-                            .apply(
-                                new ExtractInputVidarrIds(
-                                    mapper(), workflow.arguments().get(p.name())))
-                        : Stream.empty())
-            .distinct()
-            .flatMap(
-                i -> this.pathForId(i).map(FileMetadata::externalKeys).orElseGet(Stream::empty))
-            .collect(Collectors.toSet());
-    workflow.inputIds(inputIds, transaction);
     if (definition
         .outputs()
         .allMatch(
@@ -779,14 +857,14 @@ public abstract class BaseProcessor<
                             target,
                             workflow.metadata().get(output.name()),
                             () -> extraInputIdsHandled.set(true),
-                            externalIds::add,
+                            requestedExternalIds::add,
                             preflightSteps::add));
               } else {
                 return false;
               }
             })) {
       workflow.extraInputIdsHandled(extraInputIdsHandled.get(), transaction);
-      workflow.externalIds(externalIds);
+      workflow.requestedExternalIds(requestedExternalIds, transaction);
       startNextPhase(new Phase0Initial(target, workflow, definition), preflightSteps, transaction);
 
     } else {
@@ -814,12 +892,11 @@ public abstract class BaseProcessor<
     final var nextPhaseManager = currentPhase.startNext(initialStates.size());
     final var operations =
         currentPhase.workflow().phase(nextPhaseManager.phase(), initialStates, transaction);
-    transaction.commit();
     for (var index = 0; index < nextPhaseSteps.size(); index++) {
       final var operation = operations.get(index);
       monitors.get(index).set(nextPhaseManager.createMonitor(operation));
     }
   }
 
-  protected abstract TX startTransaction();
+  protected abstract void startTransaction(Consumer<TX> operation);
 }

@@ -47,7 +47,7 @@ abstract class BasePluginServer<P, T> implements ServerConfig {
 
   public BasePluginServer(Class<P> pluginClass, String[] args) throws IOException {
     final var configuration =
-        Server.MAPPER.readValue(new File(args[0]), PluginServerConfiguration.class);
+        Main.MAPPER.readValue(new File(args[0]), PluginServerConfiguration.class);
     if (!configuration.getPlugin().has("type")) {
       throw new IllegalArgumentException("Plugin lacks type");
     }

@@ -17,6 +17,7 @@ public interface OutputProvisioningHandler<TX> {
    * @param storagePath the permanent storage path of the file
    * @param md5 the MD5 hash of the file's contents
    * @param metatype the MIME type of the file
+   * @param fileSize the size of the file, in bytes
    * @param labels additional data attributes assoicated with this file
    * @param transaction the transaction to update the information in
    */
@@ -25,6 +26,7 @@ public interface OutputProvisioningHandler<TX> {
       String storagePath,
       String md5,
       String metatype,
+      long fileSize,
       Map<String, String> labels,
       TX transaction);
 

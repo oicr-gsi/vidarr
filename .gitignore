@@ -1,3 +1,6 @@
+
 *.iml
+.*.sw*
 .idea
+db-generate.properties
 target

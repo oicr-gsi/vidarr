@@ -6,6 +6,7 @@ public final class ProvisionState {
   private String fileName;
   private String metaType;
   private String outputPrefix;
+  private String vidarrId;
 
   public String getCromwellId() {
     return cromwellId;
@@ -23,6 +24,10 @@ public final class ProvisionState {
     return outputPrefix;
   }
 
+  public String getVidarrId() {
+    return vidarrId;
+  }
+
   public void setCromwellId(String cromwellId) {
     this.cromwellId = cromwellId;
   }
@@ -37,5 +42,9 @@ public final class ProvisionState {
 
   public void setOutputPrefix(String outputPrefix) {
     this.outputPrefix = outputPrefix;
+  }
+
+  public void setVidarrId(String vidarrId) {
+    this.vidarrId = vidarrId;
   }
 }

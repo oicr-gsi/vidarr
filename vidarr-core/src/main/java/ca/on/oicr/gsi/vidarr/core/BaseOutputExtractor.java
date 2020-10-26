@@ -4,11 +4,8 @@ import ca.on.oicr.gsi.vidarr.OutputProvisionType;
 import ca.on.oicr.gsi.vidarr.OutputProvisionType.IdentifierKey;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.TreeMap;
 import java.util.stream.Stream;
 
 /**
@@ -162,6 +159,11 @@ abstract class BaseOutputExtractor<R, E> implements OutputProvisionType.Visitor<
         }
         return mergeChildren(outputValues.stream());
       } else {
+        final var outputValues = new ArrayList<E>();
+        final var unusedKeys = new HashSet<>(outputMappings.keySet());
+        if (output.isEmpty()) {
+          return invalid();
+        }
         for (final var child : output) {
           if (!child.isObject()) {
             return invalid();
@@ -176,10 +178,10 @@ abstract class BaseOutputExtractor<R, E> implements OutputProvisionType.Visitor<
                 });
           }
           final var mapping = outputMappings.get(key);
-          final var outputValues = new ArrayList<E>();
           if (mapping == null) {
             return invalid();
           }
+          unusedKeys.remove(key);
           for (final var output : outputs.entrySet()) {
             if (!child.has(output.getKey())) {
               return invalid();
@@ -191,7 +193,11 @@ abstract class BaseOutputExtractor<R, E> implements OutputProvisionType.Visitor<
                     mapping.get(output.getKey()),
                     child.get(output.getKey())));
           }
-          return mergeChildren(outputValues.stream());
+          if (unusedKeys.isEmpty()) {
+            return mergeChildren(outputValues.stream());
+          } else {
+            return invalid();
+          }
         }
       }
       return invalid();

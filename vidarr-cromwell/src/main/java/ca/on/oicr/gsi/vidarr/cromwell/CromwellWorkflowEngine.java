@@ -41,7 +41,7 @@ public final class CromwellWorkflowEngine
     };
   }
 
-  private static final int CHECK_DELAY = 10;
+  private static final int CHECK_DELAY = 1;
   static final HttpClient CLIENT =
       HttpClient.newBuilder()
           .version(HttpClient.Version.HTTP_1_1)
@@ -147,6 +147,11 @@ public final class CromwellWorkflowEngine
     return Optional.empty();
   }
 
+  @Override
+  public boolean supports(WorkflowLanguage language) {
+    return language == WorkflowLanguage.WDL_1_0 || language == WorkflowLanguage.WDL_1_1;
+  }
+
   private void finish(EngineState state, WorkMonitor<Result<String>, EngineState> monitor) {
     CROMWELL_REQUESTS.labels(baseUrl).inc();
     monitor.log(
@@ -194,7 +199,84 @@ public final class CromwellWorkflowEngine
   }
 
   @Override
-  protected void recover(EngineState state, WorkMonitor<Result<String>, EngineState> monitor) {}
+  protected void recover(EngineState state, WorkMonitor<Result<String>, EngineState> monitor) {
+    if (state.getCromwellId() == null) {
+      startTask(state, monitor);
+    } else {
+      check(state, monitor);
+    }
+  }
+
+  private void startTask(EngineState state, WorkMonitor<Result<String>, EngineState> monitor) {
+    try {
+      monitor.log(
+          System.Logger.Level.INFO, String.format("Starting Cromwell workflow on %s", baseUrl));
+      final var body =
+          new MultiPartBodyPublisher()
+              .addPart("workflowSource", state.getWorkflowUrl())
+              .addPart("workflowInputs", MAPPER.writeValueAsString(state.getParameters()))
+              .addPart("workflowType", "WDL")
+              .addPart(
+                  "workflowTypeVersion",
+                  switch (state.getWorkflowLanguage()) {
+                    case WDL_1_0 -> "1.0";
+                    case WDL_1_1 -> "1.1";
+                    default -> "draft1";
+                  })
+              .addPart(
+                  "labels",
+                  MAPPER.writeValueAsString(
+                      Collections.singletonMap(
+                          "vidarr-id",
+                          state
+                              .getVidarrId()
+                              .substring(Math.max(0, state.getVidarrId().length() - 255)))))
+              .addPart("workflowOptions", MAPPER.writeValueAsString(state.getEngineParameters()));
+      CROMWELL_REQUESTS.labels(baseUrl).inc();
+      CLIENT
+          .sendAsync(
+              HttpRequest.newBuilder()
+                  .uri(URI.create(String.format("%s/api/workflows/v1", baseUrl)))
+                  .timeout(Duration.ofMinutes(1))
+                  .header("Content-Type", body.getContentType())
+                  .POST(body.build())
+                  .build(),
+              new JsonBodyHandler<>(MAPPER, WorkflowStatusResponse.class))
+          .thenApply(HttpResponse::body)
+          .thenAccept(
+              s -> {
+                final var result = s.get();
+                if (result.getId() == null) {
+                  monitor.permanentFailure("Cromwell to launch workflow.");
+                  return;
+                }
+                state.setCromwellId(result.getId());
+                monitor.storeRecoveryInformation(state);
+                monitor.updateState(statusFromCromwell(result.getStatus()));
+                monitor.scheduleTask(CHECK_DELAY, TimeUnit.MINUTES, () -> check(state, monitor));
+                monitor.log(
+                    System.Logger.Level.INFO,
+                    String.format(
+                        "Started Cromwell workflow %s on %s", state.getCromwellId(), baseUrl));
+              })
+          .exceptionally(
+              t -> {
+                monitor.log(
+                    System.Logger.Level.INFO,
+                    String.format("Failed to launch Cromwell workflow on %s", baseUrl));
+                t.printStackTrace();
+                CROMWELL_FAILURES.labels(baseUrl).inc();
+                monitor.scheduleTask(CHECK_DELAY, TimeUnit.MINUTES, () -> check(state, monitor));
+                return null;
+              });
+    } catch (Exception e) {
+      monitor.log(
+          System.Logger.Level.INFO,
+          String.format("Failed to launch Cromwell workflow on %s", baseUrl));
+      CROMWELL_FAILURES.labels(baseUrl).inc();
+      monitor.permanentFailure(e.toString());
+    }
+  }
 
   @Override
   protected void recoverCleanup(Void state, WorkMonitor<Void, Void> monitor) {
@@ -212,79 +294,10 @@ public final class CromwellWorkflowEngine
     final var state = new EngineState();
     state.setEngineParameters(engineParameters);
     state.setParameters(workflowParameters);
+    state.setVidarrId(vidarrId);
+    state.setWorkflowLanguage(workflowLanguage);
     state.setWorkflowUrl(workflow);
-    monitor.scheduleTask(
-        () -> {
-          try {
-            monitor.log(
-                System.Logger.Level.INFO,
-                String.format("Starting Cromwell workflow on %s", baseUrl));
-            final var body =
-                new MultiPartBodyPublisher()
-                    .addPart("workflowSource", state.getWorkflowUrl())
-                    .addPart("workflowInputs", MAPPER.writeValueAsString(state.getParameters()))
-                    .addPart("workflowType", "WDL")
-                    .addPart(
-                        "workflowTypeVersion",
-                        switch (workflowLanguage) {
-                          case WDL_1_0 -> "1.0";
-                          case WDL_1_1 -> "1.1";
-                          default -> "draft1";
-                        })
-                    .addPart(
-                        "labels",
-                        MAPPER.writeValueAsString(
-                            Collections.singletonMap(
-                                "vidarr-id",
-                                vidarrId.substring(Math.max(0, vidarrId.length() - 255)))))
-                    .addPart("workflowOptions", MAPPER.writeValueAsString(engineParameters));
-            CROMWELL_REQUESTS.labels(baseUrl).inc();
-            CLIENT
-                .sendAsync(
-                    HttpRequest.newBuilder()
-                        .uri(URI.create(String.format("%s/api/workflows/v1", baseUrl)))
-                        .timeout(Duration.ofMinutes(1))
-                        .header("Content-Type", body.getContentType())
-                        .POST(body.build())
-                        .build(),
-                    new JsonBodyHandler<>(MAPPER, WorkflowStatusResponse.class))
-                .thenApply(HttpResponse::body)
-                .thenAccept(
-                    s -> {
-                      final var result = s.get();
-                      if (result.getId() == null) {
-                        monitor.permanentFailure("Cromwell to launch workflow.");
-                        return;
-                      }
-                      state.setCromwellId(result.getId());
-                      monitor.updateState(statusFromCromwell(result.getStatus()));
-                      monitor.scheduleTask(
-                          CHECK_DELAY, TimeUnit.MINUTES, () -> check(state, monitor));
-                      monitor.log(
-                          System.Logger.Level.INFO,
-                          String.format(
-                              "Started Cromwell workflow %s on %s",
-                              state.getCromwellId(), baseUrl));
-                    })
-                .exceptionally(
-                    t -> {
-                      monitor.log(
-                          System.Logger.Level.INFO,
-                          String.format("Failed to launch Cromwell workflow on %s", baseUrl));
-                      t.printStackTrace();
-                      CROMWELL_FAILURES.labels(baseUrl).inc();
-                      monitor.scheduleTask(
-                          CHECK_DELAY, TimeUnit.MINUTES, () -> check(state, monitor));
-                      return null;
-                    });
-          } catch (Exception e) {
-            monitor.log(
-                System.Logger.Level.INFO,
-                String.format("Failed to launch Cromwell workflow on %s", baseUrl));
-            CROMWELL_FAILURES.labels(baseUrl).inc();
-            monitor.permanentFailure(e.toString());
-          }
-        });
+    monitor.scheduleTask(() -> startTask(state, monitor));
     return state;
   }
 }

@@ -4,7 +4,7 @@ import ca.on.oicr.gsi.vidarr.core.ActiveOperation;
 import ca.on.oicr.gsi.vidarr.core.OperationStatus;
 import com.fasterxml.jackson.databind.JsonNode;
 
-final class SingleShotOperation implements ActiveOperation<SingleShotTransaction> {
+final class SingleShotOperation implements ActiveOperation<Void> {
   private JsonNode state;
   private final SingleShotWorkflow singleShotWorkflow;
   private OperationStatus status = OperationStatus.INITIALIZING;
@@ -26,12 +26,12 @@ final class SingleShotOperation implements ActiveOperation<SingleShotTransaction
   }
 
   @Override
-  public void recoveryState(JsonNode state, SingleShotTransaction transaction) {
+  public void recoveryState(JsonNode state, Void transaction) {
     this.state = state;
   }
 
   @Override
-  public void status(OperationStatus status, SingleShotTransaction transaction) {
+  public void status(OperationStatus status, Void transaction) {
     this.status = status;
     if (status == OperationStatus.FAILED) {
       singleShotWorkflow.fail();
@@ -49,7 +49,7 @@ final class SingleShotOperation implements ActiveOperation<SingleShotTransaction
   }
 
   @Override
-  public void type(String type, SingleShotTransaction transaction) {
+  public void type(String type, Void transaction) {
     this.type = type;
   }
 }

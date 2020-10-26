@@ -8,7 +8,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public interface Validator extends OutputProvisioningHandler<SingleShotTransaction> {
+public interface Validator extends OutputProvisioningHandler<Void> {
   static Validator all(Stream<Validator> validators) {
     return new Validator() {
       final List<Validator> delegates = validators.collect(Collectors.toList());
@@ -24,19 +24,17 @@ public interface Validator extends OutputProvisioningHandler<SingleShotTransacti
           String storagePath,
           String md5,
           String metatype,
+          long fileSize,
           Map<String, String> labels,
-          SingleShotTransaction transaction) {
+          Void transaction) {
         for (final var validator : delegates) {
-          validator.provisionFile(ids, storagePath, md5, metatype, labels, transaction);
+          validator.provisionFile(ids, storagePath, md5, metatype, fileSize, labels, transaction);
         }
       }
 
       @Override
       public void provisionUrl(
-          Set<? extends ExternalId> ids,
-          String url,
-          Map<String, String> labels,
-          SingleShotTransaction transaction) {
+          Set<? extends ExternalId> ids, String url, Map<String, String> labels, Void transaction) {
         for (final var validator : delegates) {
           validator.provisionUrl(ids, url, labels, transaction);
         }

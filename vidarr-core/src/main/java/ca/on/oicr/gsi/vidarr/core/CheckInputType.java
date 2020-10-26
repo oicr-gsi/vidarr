@@ -6,6 +6,7 @@ import static ca.on.oicr.gsi.vidarr.core.BaseInputExtractor.EXTERNAL__IDS;
 import ca.on.oicr.gsi.Pair;
 import ca.on.oicr.gsi.vidarr.InputProvisionFormat;
 import ca.on.oicr.gsi.vidarr.InputType;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.format.DateTimeFormatter;
@@ -99,13 +100,17 @@ public final class CheckInputType implements InputType.Visitor<Stream<String>> {
           if (!externalIds.isArray()) {
             return Stream.of("External IDs are not an array");
           }
-          for (var id : mapper.treeToValue(externalIds, ExternalId[].class)) {
-            if (id.getId() == null
-                || id.getId().isBlank()
-                || id.getProvider() == null
-                || id.getProvider().isBlank()) {
-              return Stream.of("External IDs has blank or missing ID or provider");
+          try {
+            for (var id : mapper.treeToValue(externalIds, ExternalId[].class)) {
+              if (id.getId() == null
+                  || id.getId().isBlank()
+                  || id.getProvider() == null
+                  || id.getProvider().isBlank()) {
+                return Stream.of("External IDs has blank or missing ID or provider");
+              }
             }
+          } catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
           }
           return target
               .provisionerFor(format)

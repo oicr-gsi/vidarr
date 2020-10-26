@@ -2,7 +2,6 @@ package ca.on.oicr.gsi.vidarr.server.dto;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import java.util.List;
 import java.util.Map;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -12,12 +11,15 @@ public final class ServerConfiguration {
   private String dbPass;
   private int dbPort;
   private String dbUser;
+  private Map<String, String> otherServers;
   private int port = 8080;
-  private Map<String, ObjectNode> provisioners;
-  private Map<String, RoutingParameterType> routerParameters;
-  private List<Route> routing;
+  private Map<String, ObjectNode> outputProvisioners;
+  private Map<String, ObjectNode> inputProvisioners;
+  private Map<String, ObjectNode> runtimeProvisioners;
   private String url;
+  private String name;
   private Map<String, ObjectNode> workflowEngines;
+  private Map<String, TargetConfiguration> targets;
 
   public String getDbHost() {
     return dbHost;
@@ -39,20 +41,32 @@ public final class ServerConfiguration {
     return dbUser;
   }
 
+  public Map<String, ObjectNode> getInputProvisioners() {
+    return inputProvisioners;
+  }
+
+  public String getName() {
+    return name;
+  }
+
+  public Map<String, String> getOtherServers() {
+    return otherServers;
+  }
+
   public int getPort() {
     return port;
   }
 
-  public Map<String, ObjectNode> getProvisioners() {
-    return provisioners;
+  public Map<String, ObjectNode> getOutputProvisioners() {
+    return outputProvisioners;
   }
 
-  public Map<String, RoutingParameterType> getRouterParameters() {
-    return routerParameters;
+  public Map<String, ObjectNode> getRuntimeProvisioners() {
+    return runtimeProvisioners;
   }
 
-  public List<Route> getRouting() {
-    return routing;
+  public Map<String, TargetConfiguration> getTargets() {
+    return targets;
   }
 
   public String getUrl() {
@@ -83,20 +97,32 @@ public final class ServerConfiguration {
     this.dbUser = dbUser;
   }
 
+  public void setInputProvisioners(Map<String, ObjectNode> inputProvisioners) {
+    this.inputProvisioners = inputProvisioners;
+  }
+
+  public void setName(String name) {
+    this.name = name;
+  }
+
+  public void setOtherServers(Map<String, String> otherServers) {
+    this.otherServers = otherServers;
+  }
+
   public void setPort(int port) {
     this.port = port;
   }
 
-  public void setProvisioners(Map<String, ObjectNode> provisioners) {
-    this.provisioners = provisioners;
+  public void setOutputProvisioners(Map<String, ObjectNode> outputProvisioners) {
+    this.outputProvisioners = outputProvisioners;
   }
 
-  public void setRouterParameters(Map<String, RoutingParameterType> routerParameters) {
-    this.routerParameters = routerParameters;
+  public void setRuntimeProvisioners(Map<String, ObjectNode> runtimeProvisioners) {
+    this.runtimeProvisioners = runtimeProvisioners;
   }
 
-  public void setRouting(List<Route> routing) {
-    this.routing = routing;
+  public void setTargets(Map<String, TargetConfiguration> targets) {
+    this.targets = targets;
   }
 
   public void setUrl(String url) {

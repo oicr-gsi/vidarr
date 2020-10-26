@@ -8,6 +8,13 @@ public class ExternalId {
   private String id;
   private String provider;
 
+  public ExternalId() {}
+
+  public ExternalId(String provider, String id) {
+    this.provider = provider;
+    this.id = id;
+  }
+
   @Override
   public boolean equals(Object o) {
     if (this == o) {

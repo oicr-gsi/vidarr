@@ -1,5 +1,6 @@
 package ca.on.oicr.gsi.vidarr.core;
 
+import ca.on.oicr.gsi.Pair;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.util.List;
@@ -32,16 +33,6 @@ public interface ActiveWorkflow<O extends ActiveOperation<TX>, TX>
   /** Get the caller-supplied engine argument to the workflow run */
   ObjectNode engineArguments();
 
-  /** Get the external IDs associated with the files in this workflow run */
-  List<ExternalId> externalIds();
-
-  /**
-   * Set the external IDs associated with the files in this workflow run
-   *
-   * @param requiredExternalIds the IDs required by the workflow
-   */
-  void externalIds(List<ExternalId> requiredExternalIds);
-
   /**
    * Check if extra input is handled
    *
@@ -65,15 +56,7 @@ public interface ActiveWorkflow<O extends ActiveOperation<TX>, TX>
   String id();
 
   /** Get the external IDs associated with this workflow run */
-  Set<? extends ExternalId> inputIds();
-
-  /**
-   * Set the external IDs associated with this workflow run
-   *
-   * @param inputIds the input IDs
-   * @param transaction the transaction to update the information in
-   */
-  void inputIds(Set<ExternalKey> inputIds, TX transaction);
+  Set<ExternalId> inputIds();
 
   /**
    * Check if all completed preflight tests have passed
@@ -97,7 +80,7 @@ public interface ActiveWorkflow<O extends ActiveOperation<TX>, TX>
    * @param transaction the transaction to update the information in
    * @return a list of operations for each initial state, respectively
    */
-  List<O> phase(Phase phase, List<JsonNode> operationInitialStates, TX transaction);
+  List<O> phase(Phase phase, List<Pair<String, JsonNode>> operationInitialStates, TX transaction);
 
   /**
    * Indicate that a preflight check has failed
@@ -116,6 +99,18 @@ public interface ActiveWorkflow<O extends ActiveOperation<TX>, TX>
    * @param transaction the transaction to update the information in
    */
   void realInput(ObjectNode realInput, TX transaction);
+
+  /** Get the external IDs associated with the files in this workflow run */
+  Set<ExternalId> requestedExternalIds();
+
+  /**
+   * Set the external IDs associated with the files in this workflow run that were mentioned
+   * explicitly rather than by an <tt>ALL</tt> or <tt>REMAINING</tt>
+   *
+   * @param requiredExternalIds the IDs required by the workflow
+   * @param transaction the transaction to update the information in
+   */
+  void requestedExternalIds(Set<ExternalId> requiredExternalIds, TX transaction);
 
   /**
    * Set the external URL of the workflow engine record for the workflow run

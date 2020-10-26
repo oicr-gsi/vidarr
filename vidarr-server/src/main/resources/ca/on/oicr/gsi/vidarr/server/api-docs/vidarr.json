@@ -1,0 +1,1347 @@
+{
+  "components": {
+    "schemas": {
+      "BaseMetadata": {
+        "properties": {
+          "created": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "externalIds": {
+            "$ref": "#/components/schemas/ExternalKey"
+          },
+          "id": {
+            "type": "string"
+          },
+          "labels": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "modified": {
+            "format": "date-time",
+            "type": "string"
+          }
+        }
+      },
+      "ExternalKey": {
+        "items": {
+          "properties": {
+            "created": {
+              "format": "date-time",
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "modified": {
+              "format": "date-time",
+              "type": "string"
+            },
+            "provider": {
+              "type": "string"
+            },
+            "requested": {
+              "format": "date-time",
+              "type": "string"
+            },
+            "versions": {
+              "oneOf": [
+                {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                },
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "nullable": true,
+                  "type": "array"
+                }
+              ]
+            }
+          },
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "FileMetadata": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/BaseMetadata"
+          },
+          {
+            "properties": {
+              "md5": {
+                "type": "string"
+              },
+              "metatype": {
+                "type": "string"
+              },
+              "path": {
+                "type": "string"
+              },
+              "size": {
+                "type": "number"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "InputDictionary": {
+        "properties": {
+          "is": {
+            "type": "string"
+          },
+          "key": {
+            "$ref": "#/components/schemas/InputType"
+          },
+          "value": {
+            "$ref": "#/components/schemas/InputType"
+          }
+        },
+        "required": [
+          "is"
+        ],
+        "type": "object"
+      },
+      "InputList": {
+        "properties": {
+          "inner": {
+            "$ref": "#/components/schemas/InputType"
+          },
+          "is": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "is"
+        ],
+        "type": "object"
+      },
+      "InputObject": {
+        "properties": {
+          "fields": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/InputType"
+            },
+            "type": "object"
+          },
+          "is": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "is"
+        ],
+        "type": "object"
+      },
+      "InputOptional": {
+        "properties": {
+          "inner": {
+            "$ref": "#/components/schemas/InputType"
+          },
+          "is": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "is"
+        ],
+        "type": "object"
+      },
+      "InputPair": {
+        "properties": {
+          "is": {
+            "type": "string"
+          },
+          "left": {
+            "$ref": "#/components/schemas/InputType"
+          },
+          "right": {
+            "$ref": "#/components/schemas/InputType"
+          }
+        },
+        "required": [
+          "is"
+        ],
+        "type": "object"
+      },
+      "InputTaggedUnion": {
+        "properties": {
+          "fields": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/InputType"
+            },
+            "type": "object"
+          },
+          "is": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "is"
+        ],
+        "type": "object"
+      },
+      "InputTuple": {
+        "properties": {
+          "elements": {
+            "items": {
+              "$ref": "#/components/schemas/InputType"
+            },
+            "type": "array"
+          },
+          "is": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "is"
+        ],
+        "type": "object"
+      },
+      "InputType": {
+        "oneOf": [
+          {
+            "enum": [
+              "boolean",
+              "date",
+              "directory",
+              "file",
+              "floating",
+              "integer",
+              "json",
+              "string"
+            ],
+            "type": "string"
+          },
+          {
+            "discriminator": {
+              "mapping": {
+                "dictionary": "#/components/schemas/InputDictionary",
+                "list": "#/components/schemas/InputList",
+                "object": "#/components/schemas/InputObject",
+                "optional": "#/components/schemas/InputOptional",
+                "pair": "#/componentss/schemas/InputPair",
+                "tagged-union": "#/components/schemas/InputTaggedUnion",
+                "tuple": "#/components/schemas/InputTuple"
+              },
+              "propertyName": "is"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/InputObject"
+              },
+              {
+                "$ref": "#/components/schemas/InputTaggedUnion"
+              },
+              {
+                "$ref": "#/components/schemas/InputDictionary"
+              },
+              {
+                "$ref": "#/components/schemas/InputList"
+              },
+              {
+                "$ref": "#/components/schemas/InputOptional"
+              },
+              {
+                "$ref": "#/components/schemas/InputPair"
+              },
+              {
+                "$ref": "#/components/schemas/InputTuple"
+              }
+            ]
+          }
+        ]
+      },
+      "Metadata": {
+        "discriminator": {
+          "mapping": {
+            "file": "#/components/schemas/FileMetadata",
+            "url": "#/components/schemas/UrlMetadata"
+          },
+          "propertyName": "type"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/FileMetadata"
+          },
+          {
+            "$ref": "#/components/schemas/UrlMetadata"
+          }
+        ]
+      },
+      "OutputProvisionFormat": {
+        "enum": [
+          "DATAWAREHOUSE_RECORDS",
+          "FILES",
+          "LOGS",
+          "QUALITY_CONTROL"
+        ],
+        "type": "string"
+      },
+      "OutputProvisionList": {
+        "properties": {
+          "is": {
+            "type": "string"
+          },
+          "keys": {
+            "additionalProperties": {
+              "enum": [
+                "INTEGER",
+                "STRING"
+              ],
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "outputs": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/OutputProvisionType"
+            },
+            "type": "object"
+          }
+        },
+        "required": [
+          "is"
+        ],
+        "type": "object"
+      },
+      "OutputProvisionTaggedUnion": {
+        "properties": {
+          "fields": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/OutputProvisionType"
+            },
+            "type": "object"
+          },
+          "is": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "is"
+        ],
+        "type": "object"
+      },
+      "OutputProvisionType": {
+        "oneOf": [
+          {
+            "enum": [
+              "file-with-labels",
+              "files-with-labels",
+              "logs",
+              "quality-control",
+              "unknown",
+              "warehouse-records"
+            ],
+            "type": "string"
+          },
+          {
+            "discriminator": {
+              "mapping": {
+                "list": "#/components/schemas/OutputProvisionList",
+                "tagged-union": "#/components/schemas/OutputProvisionTaggedUnion"
+              },
+              "propertyName": "is"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/OutputProvisionList"
+              },
+              {
+                "$ref": "#/components/schemas/OutputProvisionTaggedUnion"
+              }
+            ]
+          }
+        ]
+      },
+      "SimpleDictionary": {
+        "properties": {
+          "is": {
+            "type": "string"
+          },
+          "key": {
+            "$ref": "#/components/schemas/SimpleType"
+          },
+          "value": {
+            "$ref": "#/components/schemas/SimpleType"
+          }
+        },
+        "required": [
+          "is"
+        ],
+        "type": "object"
+      },
+      "SimpleList": {
+        "properties": {
+          "inner": {
+            "$ref": "#/components/schemas/SimpleType"
+          },
+          "is": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "is"
+        ],
+        "type": "object"
+      },
+      "SimpleObject": {
+        "properties": {
+          "fields": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SimpleType"
+            },
+            "type": "object"
+          },
+          "is": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "is"
+        ],
+        "type": "object"
+      },
+      "SimpleOptional": {
+        "properties": {
+          "inner": {
+            "$ref": "#/components/schemas/SimpleType"
+          },
+          "is": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "is"
+        ],
+        "type": "object"
+      },
+      "SimplePair": {
+        "properties": {
+          "is": {
+            "type": "string"
+          },
+          "left": {
+            "$ref": "#/components/schemas/SimpleType"
+          },
+          "right": {
+            "$ref": "#/components/schemas/SimpleType"
+          }
+        },
+        "required": [
+          "is"
+        ],
+        "type": "object"
+      },
+      "SimpleTaggedUnion": {
+        "properties": {
+          "fields": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SimpleType"
+            },
+            "type": "object"
+          },
+          "is": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "is"
+        ],
+        "type": "object"
+      },
+      "SimpleTuple": {
+        "properties": {
+          "elements": {
+            "items": {
+              "$ref": "#/components/schemas/SimpleType"
+            },
+            "type": "array"
+          },
+          "is": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "is"
+        ],
+        "type": "object"
+      },
+      "SimpleType": {
+        "oneOf": [
+          {
+            "enum": [
+              "boolean",
+              "date",
+              "floating",
+              "integer",
+              "json",
+              "string"
+            ],
+            "type": "string"
+          },
+          {
+            "discriminator": {
+              "mapping": {
+                "dictionary": "#/components/schemas/SimpleDictionary",
+                "list": "#/components/schemas/SimpleList",
+                "object": "#/components/schemas/SimpleObject",
+                "optional": "#/components/schemas/SimpleOptional",
+                "pair": "#/components/schemas/SimplePair",
+                "tagged-union": "#/components/schemas/SimpleTaggedUnion",
+                "tuple": "#/components/schemas/SimpleTuple"
+              },
+              "propertyName": "is"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SimpleObject"
+              },
+              {
+                "$ref": "#/components/schemas/SimpleTaggedUnion"
+              },
+              {
+                "$ref": "#/components/schemas/SimpleDictionary"
+              },
+              {
+                "$ref": "#/components/schemas/SimpleList"
+              },
+              {
+                "$ref": "#/components/schemas/SimpleOptional"
+              },
+              {
+                "$ref": "#/components/schemas/SimplePair"
+              },
+              {
+                "$ref": "#/components/schemas/SimpleTuple"
+              }
+            ]
+          }
+        ]
+      },
+      "SubmissionConflict": {
+        "properties": {
+          "ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "ids"
+        ],
+        "type": "object"
+      },
+      "SubmissionDryRun": {
+        "properties": {
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "SubmissionFailure": {
+        "properties": {
+          "errors": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "errors"
+        ],
+        "type": "object"
+      },
+      "SubmissionMissingKeyVersions": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "keys": {
+            "items": {
+              "$ref": "#/components/schemas/ExternalKey"
+            },
+            "type": "array"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "SubmissionSuccess": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "id"
+        ],
+        "type": "object"
+      },
+      "UrlMetadata": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/BaseMetadata"
+          },
+          {
+            "properties": {
+              "type": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "WorkflowLanguage": {
+        "enum": [
+          "UNIX_SHELL",
+          "WDL_1_0",
+          "WDL_1_1"
+        ],
+        "type": "string"
+      },
+      "WorkflowRun": {
+        "properties": {
+          "analysis": {
+            "items": {
+              "$ref": "#/components/schemas/Metadata"
+            },
+            "type": "array"
+          },
+          "arguments": {
+            "type": "string"
+          },
+          "completed": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "created": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "engineParameters": {
+            "type": "string"
+          },
+          "externalKeys": {
+            "items": {
+              "$ref": "#/components/schemas/ExternalKey"
+            },
+            "type": "array"
+          },
+          "id": {
+            "type": "string"
+          },
+          "inputFiles": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "labels": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "metadata": {
+            "type": "string"
+          },
+          "modified": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "started": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "workflowName": {
+            "type": "string"
+          },
+          "workflowVersion": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "Víðarr",
+    "version": "1.0"
+  },
+  "openapi": "3.0.2",
+  "paths": {
+    "/api/file/{hash}": {
+      "get": {
+        "description": "Get information a provisioned-out file from a completed workflow by the file's unique identifier.",
+        "operationId": "getFileInfo",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/FileMetadata"
+                    },
+                    {
+                      "properties": {
+                        "run": {
+                          "type": "string"
+                        }
+                      },
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "File was found."
+          },
+          "404": {
+            "description": "The ID was unknown to this server."
+          }
+        },
+        "summary": "Get provisioned file data",
+        "tags": [
+          "workflow-run"
+        ]
+      }
+    },
+    "/api/provenance": {
+      "post": {
+        "description": "Fetch updated analyis provenance from the server. Analyis provenance is served incrementally, so a response contains the parameters necessary to get the remaining data. If the epoch changes, the client should discard all previous data and assume the server will resend all data. For the initial request, the client should initialise the epoch to zero.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "analysisTypes": {
+                    "description": "The type of analysis desired. The default is only files.",
+                    "items": {
+                      "enum": [
+                        "FILE",
+                        "URL"
+                      ],
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "epoch": {
+                    "description": "The epoch number returned in the last request or zero for the first request.",
+                    "type": "number"
+                  },
+                  "includeParameters": {
+                    "description": "If true, the workflow parameters will be returned.",
+                    "type": "boolean"
+                  },
+                  "timestamp": {
+                    "description": "The timestamp returned in the previous request or zero for this first request.",
+                    "type": "number"
+                  },
+                  "versionPolicy": {
+                    "description": "The type of external ID versions that should be returned; this value affects the type of the returned object.",
+                    "enum": [
+                      "NONE",
+                      "ALL",
+                      "LATEST"
+                    ],
+                    "type": "string"
+                  },
+                  "versionTypes": {
+                    "items": {
+                      "description": "The version keys that should be returned; if empty, all version keys are allowed",
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "description": "This defines the search space the client is interested in. The client is responsible for maintaining state between requests."
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "epoch": {
+                      "description": "A server token that should be included in the next request. If the epoch returned does not match the epoch requested, the client should delete all previous data.",
+                      "type": "integer"
+                    },
+                    "results": {
+                      "description": "The workflow run information. If a workflow run has been previously returned, as matched by ID, it has been modified and should replace the existing record.",
+                      "items": {
+                        "$ref": "#/components/schemas/WorkflowRun"
+                      },
+                      "type": "array"
+                    },
+                    "timestamp": {
+                      "description": "A server token that should be included in the next request. This value should not match the request.",
+                      "type": "integer"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The new or modified workflow runs from the server."
+          }
+        },
+        "summary": "List provisioned output",
+        "tags": [
+          "workflow-run"
+        ]
+      }
+    },
+    "/api/run/{hash}": {
+      "get": {
+        "description": "Get information a a completed workflow by the workflows's unique identifier.",
+        "operationId": "getWorkflowRunInfo",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowRun"
+                }
+              }
+            },
+            "description": "Workflow run was found."
+          },
+          "404": {
+            "description": "The ID was unknown to this server."
+          }
+        },
+        "summary": "Get finished workflow run data",
+        "tags": [
+          "workflow-run"
+        ]
+      }
+    },
+    "/api/status/{hash}": {
+      "get": {
+        "description": "Get the information about a workflow that is not yet completed",
+        "operationId": "getWorkflowRunStatus",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "arguments": {
+                      "additionalProperties": true,
+                      "type": "object"
+                    },
+                    "completed": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "created": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "engineParameters": {
+                      "additionalProperties": true,
+                      "type": "object"
+                    },
+                    "enginePhase": {
+                      "type": "integer"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "inputFiles": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "labels": {
+                      "additionalProperties": true,
+                      "type": "object"
+                    },
+                    "metadata": {
+                      "additionalProperties": true,
+                      "type": "object"
+                    },
+                    "modified": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "operations": {
+                      "items": {
+                        "properties": {
+                          "recoveryState": {},
+                          "status": {
+                            "type": "string"
+                          },
+                          "type": {
+                            "type": "string"
+                          }
+                        },
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "preflightOk": {
+                      "type": "boolean"
+                    },
+                    "running": {
+                      "type": "boolean"
+                    },
+                    "started": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "target": {
+                      "type": "string"
+                    },
+                    "workflowRunUrl": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The status of the workflow is available."
+          },
+          "404": {
+            "description": "The workflow run hash is unknown to this server."
+          }
+        },
+        "summary": "Get status of a workflow run",
+        "tags": [
+          "workflow-run"
+        ]
+      }
+    },
+    "/api/submit": {
+      "post": {
+        "description": "Submits a workflow. If the workflow has not been previously started, this will start the worflow. If previously started, this will provide the ID of the workflow.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "arguments": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "consumableResources": {
+                    "additionalProperties": {
+                      "type": "integer"
+                    },
+                    "type": "object"
+                  },
+                  "engineParameters": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "externalKeys": {
+                    "items": {
+                      "$ref": "#/components/schemas/ExternalKey"
+                    },
+                    "type": "array"
+                  },
+                  "labels": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "metadata": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "mode": {
+                    "enum": [
+                      "RUN",
+                      "DRY_RUN",
+                      "VALIDATE"
+                    ],
+                    "type": "string"
+                  },
+                  "target": {
+                    "type": "string"
+                  },
+                  "workflow": {
+                    "type": "string"
+                  },
+                  "workflowVersion": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "discriminator": {
+                    "mapping": {
+                      "dry-run": "#/components/schemas/SubmissionDryRun",
+                      "success": "#/components/schemas/SubmissionSuccess"
+                    },
+                    "propertyName": "type"
+                  },
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/SubmissionSuccess"
+                    },
+                    {
+                      "$ref": "#/components/schemas/SubmissionDryRun"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "The workflow request does not match the workflow definition."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "discriminator": {
+                    "mapping": {
+                      "missing-key-version": "#/components/schemas/SubmissionMissingKeyVersions",
+                      "success": "#/components/schemas/SubmissionFailure"
+                    },
+                    "propertyName": "type"
+                  },
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/SubmissionFailure"
+                    },
+                    {
+                      "$ref": "#/components/schemas/SubmissionMissingKeyVersions"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "The workflow request does not match the workflow definition."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmissionFailure"
+                }
+              }
+            },
+            "description": "The workflow request is in conflict with an existing workflow on the server."
+          }
+        },
+        "summary": "Submit a workflow run",
+        "tags": [
+          "workflow-run"
+        ]
+      }
+    },
+    "/api/targets": {
+      "get": {
+        "description": "List the targets available on this server.",
+        "operationId": "getTargets",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "engineParameters": {
+                      "additionalProperties": {
+                        "$ref": "#/components/schemas/SimpleType"
+                      },
+                      "type": "object"
+                    },
+                    "inputProvisioners": {
+                      "additionalProperties": {
+                        "$ref": "#/components/schemas/SimpleType"
+                      },
+                      "type": "object"
+                    },
+                    "language": {
+                      "items": {
+                        "$ref": "#/components/schemas/WorkflowLanguage"
+                      },
+                      "type": "array"
+                    },
+                    "outputProvisioners": {
+                      "additionalProperties": {
+                        "$ref": "#/components/schemas/SimpleType"
+                      },
+                      "type": "object"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "All available targets"
+          }
+        },
+        "summary": "List available targets",
+        "tags": [
+          "workflow"
+        ]
+      }
+    },
+    "/api/url/{hash}": {
+      "get": {
+        "description": "Get information a provisioned-out file from a completed workflow by the URL's unique identifier.",
+        "operationId": "getUrlInfo",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/UrlMetadata"
+                    },
+                    {
+                      "properties": {
+                        "run": {
+                          "type": "string"
+                        }
+                      },
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "URL was found."
+          },
+          "404": {
+            "description": "The ID was unknown to this server."
+          }
+        },
+        "summary": "Access provisioned URL",
+        "tags": [
+          "workflow-run"
+        ]
+      }
+    },
+    "/api/workflow/{name}": {
+      "delete": {
+        "description": "Deactivate a workflow. This does not stop inflight actions from using this workflow. It merely stops it from being available in the workflow catalogue.",
+        "responses": {
+          "200": {
+            "description": "The workflow was successfully disabled. It can be reactivated using the POST method."
+          },
+          "404": {
+            "description": "The workflow is unknown to this server"
+          }
+        },
+        "summary": "Disable workflow",
+        "tags": [
+          "workflow"
+        ]
+      },
+      "post": {
+        "description": "Create or configure a workflow. If a workflow was previously deactivated, this reactivates that workflow.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "consumableResources": {
+                    "additionalProperties": {
+                      "type": "integer"
+                    },
+                    "description": "Resource reservations required to launch one instance of this workflow.",
+                    "type": "object"
+                  },
+                  "labels": {
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/SimpleType"
+                    },
+                    "description": "The user-defined labels that must be supplied with this job. This cannot be modified after the initial creation of the workflow.",
+                    "type": "object"
+                  },
+                  "maxInFlight": {
+                    "description": "The maximum number of instances of this job that may be running at any given time.",
+                    "type": "integer"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "description": "The configuration parameters for a workflow."
+        },
+        "responses": {
+          "200": {
+            "description": "The workflow has been created."
+          }
+        },
+        "summary": "Add workflow",
+        "tags": [
+          "workflow"
+        ]
+      }
+    },
+    "/api/workflow/{name}/{version}": {
+      "post": {
+        "description": "Create a workflow version. The workflow must previously have been created.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "consumableResources": {
+                    "additionalProperties": {
+                      "type": "integer"
+                    },
+                    "description": "Resource reservations required to launch one instance of this workflow.",
+                    "type": "object"
+                  },
+                  "language": {
+                    "$ref": "#/components/schemas/WorkflowLanguage"
+                  },
+                  "outputs": {
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/OutputProvisionType"
+                    },
+                    "description": "The outputs from the workflow that should be provisioned by Víðarr.",
+                    "type": "object"
+                  },
+                  "parameters": {
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/InputType"
+                    },
+                    "description": "The user-defined labels that must be supplied with this job. This cannot be modified after the initial creation of the workflow.",
+                    "type": "object"
+                  },
+                  "workflow": {
+                    "description": "The contents on the workflow.",
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "description": "The configuration parameters for a workflow version."
+        },
+        "responses": {
+          "200": {
+            "description": "The workflow version has been created."
+          }
+        },
+        "summary": "Add workflow version",
+        "tags": [
+          "workflow"
+        ]
+      }
+    },
+    "/api/workflows": {
+      "get": {
+        "description": "List workflows that are available to be run. The client must do additional work to determine which of these workflows can be run with which target and what information is requred to do that.",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "labels": {
+                      "additionalProperties": {
+                        "$ref": "#/components/schemas/SimpleType"
+                      },
+                      "type": "object"
+                    },
+                    "language": {
+                      "$ref": "#/components/schemas/WorkflowLanguage"
+                    },
+                    "metadata": {
+                      "additionalProperties": {
+                        "$ref": "#/components/schemas/OutputProvisionType"
+                      },
+                      "type": "object"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "parameters": {
+                      "additionalProperties": {
+                        "$ref": "#/components/schemas/InputType"
+                      },
+                      "type": "object"
+                    },
+                    "version": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The list workflows is available"
+          }
+        },
+        "summary": "List available workflows",
+        "tags": [
+          "workflow"
+        ]
+      }
+    }
+  },
+  "servers": [],
+  "tags": [
+    {
+      "description": "Workflows",
+      "name": "workflow"
+    },
+    {
+      "description": "Workflow Runs",
+      "name": "workflow-run"
+    }
+  ]
+}

@@ -8,13 +8,13 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.function.Function;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /** A processor designed to run a single workflow run */
 final class SingleShotProcessor
-    extends BaseProcessor<SingleShotWorkflow, SingleShotOperation, SingleShotTransaction> {
+    extends BaseProcessor<SingleShotWorkflow, SingleShotOperation, Void> {
   public enum Status {
     BAD_ARGUMENTS,
     FAILURE,
@@ -44,7 +44,7 @@ final class SingleShotProcessor
       ObjectNode arguments,
       ObjectNode metadata,
       ObjectNode engineParameters,
-      OutputProvisioningHandler<SingleShotTransaction> outputHandler) {
+      OutputProvisioningHandler<Void> outputHandler) {
     final SingleShotWorkflow active =
         startAsync(prefix, target, workflow, arguments, metadata, engineParameters, outputHandler);
     if (active == null) return Status.BAD_ARGUMENTS;
@@ -58,10 +58,10 @@ final class SingleShotProcessor
       ObjectNode arguments,
       ObjectNode metadata,
       ObjectNode engineParameters,
-      OutputProvisioningHandler<SingleShotTransaction> outputHandler) {
+      OutputProvisioningHandler<Void> outputHandler) {
     System.err.printf("%s: [%s] Validating input...%n", prefix, Instant.now());
     final List<String> errors =
-        validateInput(target, workflow, arguments, metadata, engineParameters)
+        validateInput(MAPPER, target, workflow, arguments, metadata, engineParameters)
             .collect(Collectors.toList());
     if (!errors.isEmpty()) {
       errors.forEach(System.err::println);
@@ -69,50 +69,23 @@ final class SingleShotProcessor
     }
     System.err.printf("%s: [%s] Starting workflow...%n", prefix, Instant.now());
     final var active =
-        new SingleShotWorkflow(prefix, arguments, engineParameters, metadata, outputHandler);
-    start(target, workflow, active, startTransaction());
+        new SingleShotWorkflow(
+            prefix,
+            arguments,
+            engineParameters,
+            metadata,
+            extractInputVidarrIds(mapper(), workflow, arguments)
+                .flatMap(
+                    i ->
+                        this.pathForId(i).map(FileMetadata::externalKeys).orElseGet(Stream::empty)),
+            outputHandler);
+    start(target, workflow, active, null);
     System.err.printf("%s: [%s] Waiting for completion...%n", prefix, Instant.now());
     return active;
   }
 
-  public Stream<String> validateInput(
-      Target target,
-      WorkflowDefinition workflow,
-      ObjectNode arguments,
-      ObjectNode metadata,
-      ObjectNode engineParameters) {
-    return Stream.of(
-            workflow
-                .outputs()
-                .flatMap(
-                    o ->
-                        metadata.has(o.name())
-                            ? o.type()
-                                .apply(new CheckOutputType(MAPPER, target, metadata.get(o.name())))
-                            : Stream.of("Missing metadata attribute " + o.name())),
-            workflow
-                .parameters()
-                .flatMap(
-                    p -> {
-                      if (arguments.has(p.name())) {
-                        return p.type()
-                            .apply(new CheckInputType(MAPPER, target, arguments.get(p.name())));
-                      } else {
-                        return p.isRequired()
-                            ? Stream.of("Required argument missing: " + p.name())
-                            : Stream.empty();
-                      }
-                    }),
-            target
-                .engine()
-                .engineParameters()
-                .map(p -> p.apply(new CheckEngineType(engineParameters)))
-                .orElseGet(Stream::empty))
-        .flatMap(Function.identity());
-  }
-
   @Override
-  protected SingleShotTransaction startTransaction() {
-    return new SingleShotTransaction();
+  protected void startTransaction(Consumer<Void> operation) {
+    operation.accept(null);
   }
 }

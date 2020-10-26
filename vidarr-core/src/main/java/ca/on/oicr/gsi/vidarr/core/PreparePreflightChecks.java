@@ -1,5 +1,6 @@
 package ca.on.oicr.gsi.vidarr.core;
 
+import ca.on.oicr.gsi.Pair;
 import ca.on.oicr.gsi.vidarr.OutputProvisionType;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -13,7 +14,7 @@ final class PreparePreflightChecks extends BaseOutputExtractor<Boolean, Boolean>
   private final Runnable extraInputIdsHandled;
   private final ObjectMapper mapper;
   private final Consumer<TaskStarter<Boolean>> preflightTask;
-  private final Consumer<ExternalId> requiredExternalId;
+  private final Consumer<ExternalId> requestedExternalId;
   private final Target target;
 
   public PreparePreflightChecks(
@@ -21,13 +22,13 @@ final class PreparePreflightChecks extends BaseOutputExtractor<Boolean, Boolean>
       Target target,
       JsonNode metadata,
       Runnable extraIdsHandled,
-      Consumer<ExternalId> requiredExternalId,
+      Consumer<ExternalId> requestedExternalId,
       Consumer<TaskStarter<Boolean>> preflightTask) {
     super(null, metadata);
     this.mapper = mapper;
     this.target = target;
     this.extraInputIdsHandled = extraIdsHandled;
-    this.requiredExternalId = requiredExternalId;
+    this.requestedExternalId = requestedExternalId;
     this.preflightTask = preflightTask;
   }
 
@@ -47,7 +48,7 @@ final class PreparePreflightChecks extends BaseOutputExtractor<Boolean, Boolean>
 
             @Override
             public Void external(Stream<ExternalId> ids) {
-              ids.forEach(requiredExternalId);
+              ids.forEach(requestedExternalId);
               return null;
             }
 
@@ -58,7 +59,8 @@ final class PreparePreflightChecks extends BaseOutputExtractor<Boolean, Boolean>
             }
           });
       preflightTask.accept(
-          (workflowLanguage, workflowId, o) -> handler.preflightCheck(metadata, o));
+          (workflowLanguage, workflowId, o) ->
+              new Pair<>(format.name(), handler.preflightCheck(metadata, o)));
       return true;
     }
   }
@@ -83,14 +85,14 @@ final class PreparePreflightChecks extends BaseOutputExtractor<Boolean, Boolean>
       Map<String, Object> key, OutputProvisionType type, JsonNode metadata, JsonNode output) {
     return type.apply(
         new PreparePreflightChecks(
-            mapper, target, metadata, extraInputIdsHandled, requiredExternalId, preflightTask));
+            mapper, target, metadata, extraInputIdsHandled, requestedExternalId, preflightTask));
   }
 
   @Override
   protected Boolean taggedUnion(OutputProvisionType type, JsonNode metadata) {
     return type.apply(
         new PreparePreflightChecks(
-            mapper, target, metadata, extraInputIdsHandled, requiredExternalId, preflightTask));
+            mapper, target, metadata, extraInputIdsHandled, requestedExternalId, preflightTask));
   }
 
   @Override

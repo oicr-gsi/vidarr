@@ -112,7 +112,9 @@ final class PrepareOutputProvisioning
                   provisionData,
                   ProvisioningOutWorkMonitor::new,
                   (workflowLanguage, workflowId, o) ->
-                      handler.provision(workflowId, p.first(), metadata, o));
+                      new Pair<>(
+                          format.format().name(),
+                          handler.provision(workflowId, p.first(), metadata, o)));
             });
   }
 

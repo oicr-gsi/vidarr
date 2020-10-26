@@ -39,8 +39,9 @@ public final class TestValidatorScript extends TestValidator {
             String storagePath,
             String md5,
             String metatype,
+            long fileSize,
             Map<String, String> labels,
-            SingleShotTransaction transaction) {
+            Void transaction) {
           try {
             final var existing = Path.of(storagePath);
             Files.createSymbolicLink(calculateDir.resolve(existing.getFileName()), existing);
@@ -54,7 +55,7 @@ public final class TestValidatorScript extends TestValidator {
             Set<? extends ExternalId> ids,
             String url,
             Map<String, String> labels,
-            SingleShotTransaction transaction) {
+            Void transaction) {
           // Not validated
         }
 

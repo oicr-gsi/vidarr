@@ -1,72 +1,101 @@
 package ca.on.oicr.gsi.vidarr.server.dto;
 
+import ca.on.oicr.gsi.vidarr.core.ExternalKey;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.util.Map;
+import java.util.Set;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public final class SubmitWorkflowRequest {
+  private ObjectNode arguments;
   private Map<String, Long> consumableResources;
-  private ObjectNode inputs;
-  private Map<String, String> labels;
+  private ObjectNode engineParameters;
+  private Set<ExternalKey> externalKeys;
+  private ObjectNode labels;
+  private ObjectNode metadata;
   private SubmitMode mode = SubmitMode.RUN;
-  private Map<String, OutputAssociation> outputs;
-  private ObjectNode routing;
+  private String target;
   private String workflow;
+  private String workflowVersion;
+
+  public ObjectNode getArguments() {
+    return arguments;
+  }
 
   public Map<String, Long> getConsumableResources() {
     return consumableResources;
   }
 
-  public ObjectNode getInputs() {
-    return inputs;
+  public ObjectNode getEngineParameters() {
+    return engineParameters;
   }
 
-  public Map<String, String> getLabels() {
+  public Set<ExternalKey> getExternalKeys() {
+    return externalKeys;
+  }
+
+  public ObjectNode getLabels() {
     return labels;
+  }
+
+  public ObjectNode getMetadata() {
+    return metadata;
   }
 
   public SubmitMode getMode() {
     return mode;
   }
 
-  public Map<String, OutputAssociation> getOutputs() {
-    return outputs;
-  }
-
-  public ObjectNode getRouting() {
-    return routing;
+  public String getTarget() {
+    return target;
   }
 
   public String getWorkflow() {
     return workflow;
   }
 
+  public String getWorkflowVersion() {
+    return workflowVersion;
+  }
+
+  public void setArguments(ObjectNode arguments) {
+    this.arguments = arguments;
+  }
+
   public void setConsumableResources(Map<String, Long> consumableResources) {
     this.consumableResources = consumableResources;
   }
 
-  public void setInputs(ObjectNode inputs) {
-    this.inputs = inputs;
+  public void setEngineParameters(ObjectNode engineParameters) {
+    this.engineParameters = engineParameters;
   }
 
-  public void setLabels(Map<String, String> labels) {
+  public void setExternalKeys(Set<ExternalKey> externalKeys) {
+    this.externalKeys = externalKeys;
+  }
+
+  public void setLabels(ObjectNode labels) {
     this.labels = labels;
+  }
+
+  public void setMetadata(ObjectNode metadata) {
+    this.metadata = metadata;
   }
 
   public void setMode(SubmitMode mode) {
     this.mode = mode;
   }
 
-  public void setOutputs(Map<String, OutputAssociation> outputs) {
-    this.outputs = outputs;
-  }
-
-  public void setRouting(ObjectNode routing) {
-    this.routing = routing;
+  public void setTarget(String target) {
+    this.target = target;
   }
 
   public void setWorkflow(String workflow) {
     this.workflow = workflow;
+  }
+
+  public void setWorkflowVersion(String workflowVersion) {
+    this.workflowVersion = workflowVersion;
   }
 }

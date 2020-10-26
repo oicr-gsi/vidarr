@@ -24,7 +24,7 @@ public class CromwellOutputProvisioner
     return new OutputProvisionerProvider() {
       @Override
       public OutputProvisioner readConfiguration(ObjectNode node) {
-        if (node.has("workflowUrl") != node.has("workflowSource")) {
+        if (node.has("workflowUrl") == node.has("workflowSource")) {
           throw new IllegalArgumentException(
               "One of workflowUrl or workflowSource must be supplied to Cromwell provision out"
                   + " plugin.");
@@ -60,7 +60,7 @@ public class CromwellOutputProvisioner
     };
   }
 
-  private static final int CHECK_DELAY = 5;
+  private static final int CHECK_DELAY = 1;
   private static final List<Pair<String, String>> EXTENSION_TO_META_TYPE =
       List.of(
           new Pair<>(".bam", "application/bam"),
@@ -275,6 +275,7 @@ public class CromwellOutputProvisioner
       WorkMonitor<Result, ProvisionState> monitor) {
     final var state = new ProvisionState();
     state.setFileName(data);
+    state.setVidarrId(workflowId);
     state.setOutputPrefix(Path.of(metadata.getOutputDirectory()).resolve(workflowId).toString());
 
     state.setMetaType(
@@ -299,6 +300,14 @@ public class CromwellOutputProvisioner
         final var body =
             new MultiPartBodyPublisher()
                 .addPart(workflowTargetName, workflowTarget)
+                .addPart(
+                    "labels",
+                    MAPPER.writeValueAsString(
+                        Collections.singletonMap(
+                            "vidarr-id",
+                            state
+                                .getVidarrId()
+                                .substring(Math.max(0, state.getVidarrId().length() - 255)))))
                 .addPart(
                     "workflowInputs",
                     MAPPER.writeValueAsString(
@@ -329,6 +338,7 @@ public class CromwellOutputProvisioner
                     return;
                   }
                   state.setCromwellId(result.getId());
+                  monitor.storeRecoveryInformation(state);
                   monitor.updateState(statusFromCromwell(result.getStatus()));
                   monitor.scheduleTask(CHECK_DELAY, TimeUnit.MINUTES, () -> check(state, monitor));
                   monitor.log(

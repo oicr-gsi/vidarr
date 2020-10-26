@@ -1,5 +1,6 @@
 package ca.on.oicr.gsi.vidarr.cli;
 
+import ca.on.oicr.gsi.vidarr.core.BaseProcessor;
 import ca.on.oicr.gsi.vidarr.core.WorkflowConfiguration;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -85,8 +86,8 @@ public class CommandTest implements Callable<Integer> {
         cases.stream()
             .flatMap(
                 c ->
-                    runner
-                        .validateInput(
+                    BaseProcessor.validateInput(
+                            MAPPER,
                             target,
                             workflow,
                             c.getArguments(),

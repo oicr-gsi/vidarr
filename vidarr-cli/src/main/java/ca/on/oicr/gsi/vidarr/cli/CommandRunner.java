@@ -88,8 +88,9 @@ public class CommandRunner implements Callable<Integer> {
               String storagePath,
               String md5,
               String metatype,
+              long fileSize,
               Map<String, String> labels,
-              SingleShotTransaction transaction) {
+              Void transaction) {
             System.err.println("Provisioning out file");
             final var node = output.objectNode();
             node.put("type", "file");
@@ -113,7 +114,7 @@ public class CommandRunner implements Callable<Integer> {
               Set<? extends ExternalId> ids,
               String url,
               Map<String, String> labels,
-              SingleShotTransaction transaction) {
+              Void transaction) {
             System.err.println("Provisioning out URL");
             final var node = output.objectNode();
             node.put("type", "url");

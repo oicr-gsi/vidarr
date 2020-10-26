@@ -150,10 +150,12 @@ final class PrepareInputProvisioning implements InputType.Visitor<JsonNode> {
         case "EXTERNAL":
           consumer.accept(
               (language, workflowId, monitor) ->
-                  handler.provisionExternal(
-                      language,
-                      input.get("contents").get("configuration"),
-                      new ProvisionInMonitor(jsonPath, monitor)));
+                  new Pair<>(
+                      format.name(),
+                      handler.provisionExternal(
+                          language,
+                          input.get("contents").get("configuration"),
+                          new ProvisionInMonitor(jsonPath, monitor))));
           break;
         case "INTERNAL":
           if (input.has("contents")
@@ -164,8 +166,10 @@ final class PrepareInputProvisioning implements InputType.Visitor<JsonNode> {
             final var filePath = resolver.pathForId(id).map(FileMetadata::path).orElseThrow();
             consumer.accept(
                 (language, workflowId, monitor) ->
-                    handler.provision(
-                        language, id, filePath, new ProvisionInMonitor(jsonPath, monitor)));
+                    new Pair<>(
+                        format.name(),
+                        handler.provision(
+                            language, id, filePath, new ProvisionInMonitor(jsonPath, monitor))));
           } else {
             throw new IllegalArgumentException("Invalid input file for BY_ID");
           }

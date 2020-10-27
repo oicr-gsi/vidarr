@@ -24,6 +24,20 @@ public class CromwellOutputProvisioner
     return new OutputProvisionerProvider() {
       @Override
       public OutputProvisioner readConfiguration(ObjectNode node) {
+        if (node.has("workflowUrl") != node.has("workflowSource")) {
+          throw new IllegalArgumentException(
+              "One of workflowUrl or workflowSource must be supplied to Cromwell provision out"
+                  + " plugin.");
+        }
+        final String workflowTarget;
+        final String workflowTargetName;
+        if (node.has("workflowUrl")) {
+          workflowTarget = node.get("workflowUrl").asText();
+          workflowTargetName = "workflowUrl";
+        } else {
+          workflowTarget = node.get("workflowSource").asText();
+          workflowTargetName = "workflowSource";
+        }
         return new CromwellOutputProvisioner(
             node.get("cromwellUrl").asText(),
             node.get("fileField").asText(),
@@ -35,7 +49,8 @@ public class CromwellOutputProvisioner
             node.has("workflowOptions")
                 ? (ObjectNode) node.get("workflowOptions")
                 : MAPPER.createObjectNode(),
-            node.get("workflowUrl").asText());
+            workflowTargetName,
+            workflowTarget);
       }
 
       @Override
@@ -85,7 +100,8 @@ public class CromwellOutputProvisioner
   private final String storagePathField;
   private final String wdlVersion;
   private final ObjectNode workflowOptions;
-  private final String workflowUrl;
+  private final String workflowTargetName;
+  private final String workflowTarget;
 
   public CromwellOutputProvisioner(
       String baseUrl,
@@ -96,7 +112,8 @@ public class CromwellOutputProvisioner
       String storagePathField,
       String wdlVersion,
       ObjectNode workflowOptions,
-      String workflowUrl) {
+      String workflowTargetName,
+      String workflowTarget) {
     super(MAPPER, ProvisionState.class, Void.class, OutputMetadata.class);
     this.baseUrl = baseUrl;
     this.fileField = fileField;
@@ -106,7 +123,8 @@ public class CromwellOutputProvisioner
     this.storagePathField = storagePathField;
     this.wdlVersion = wdlVersion;
     this.workflowOptions = workflowOptions;
-    this.workflowUrl = workflowUrl;
+    this.workflowTargetName = workflowTargetName;
+    this.workflowTarget = workflowTarget;
   }
 
   @Override
@@ -184,7 +202,11 @@ public class CromwellOutputProvisioner
     sectionRenderer.line("Output Parameter for MD5", md5Field);
     sectionRenderer.line("Provision Out WDL Workflow Version", wdlVersion);
     sectionRenderer.link("Cromwell Instance", baseUrl, baseUrl);
-    sectionRenderer.link("Provision Out Workflow", workflowUrl, workflowUrl);
+    if (workflowTargetName.equals("workflowUrl")) {
+      sectionRenderer.link("Provision Out Workflow", workflowTarget, workflowTarget);
+    } else {
+      sectionRenderer.line("Provision Out Workflow", workflowTarget);
+    }
   }
 
   private void finish(
@@ -276,7 +298,7 @@ public class CromwellOutputProvisioner
                 baseUrl, state.getFileName()));
         final var body =
             new MultiPartBodyPublisher()
-                .addPart("workflowUrl", workflowUrl)
+                .addPart(workflowTargetName, workflowTarget)
                 .addPart(
                     "workflowInputs",
                     MAPPER.writeValueAsString(

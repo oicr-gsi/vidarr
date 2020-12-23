@@ -80,11 +80,11 @@ public final class CromwellWorkflowEngine
                   .uri(
                       URI.create(
                           String.format(
-                              "%s/api/workflows/v1/%s/status", baseUrl, state.getCromwellId())))
+                              "%s/api/workflows/v1/%s/metadata", baseUrl, state.getCromwellId())))
                   .timeout(Duration.ofMinutes(1))
                   .GET()
                   .build(),
-              new JsonBodyHandler<>(MAPPER, WorkflowStatusResponse.class))
+              new JsonBodyHandler<>(MAPPER, WorkflowMetadataResponse.class))
           .thenApply(HttpResponse::body)
           .thenAccept(
               s -> {
@@ -94,6 +94,7 @@ public final class CromwellWorkflowEngine
                     String.format(
                         "Status for Cromwell workflow %s on %s is %s",
                         state.getCromwellId(), baseUrl, result.getStatus()));
+                    monitor.storeDebugInfo(result.debugInfo());
                 switch (result.getStatus()) {
                   case "Aborted":
                   case "Failed":

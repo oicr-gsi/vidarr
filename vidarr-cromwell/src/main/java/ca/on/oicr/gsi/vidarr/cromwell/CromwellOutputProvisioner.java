@@ -145,11 +145,11 @@ public class CromwellOutputProvisioner
                   .uri(
                       URI.create(
                           String.format(
-                              "%s/api/workflows/v1/%s/status", baseUrl, state.getCromwellId())))
+                              "%s/api/workflows/v1/%s/metadata", baseUrl, state.getCromwellId())))
                   .timeout(Duration.ofMinutes(1))
                   .GET()
                   .build(),
-              new JsonBodyHandler<>(MAPPER, WorkflowStatusResponse.class))
+              new JsonBodyHandler<>(MAPPER, WorkflowMetadataResponse.class))
           .thenApply(HttpResponse::body)
           .thenAccept(
               s -> {
@@ -159,6 +159,7 @@ public class CromwellOutputProvisioner
                     String.format(
                         "Cromwell job %s on %s is in state %s",
                         state.getCromwellId(), baseUrl, result.getStatus()));
+                    monitor.storeDebugInfo(result.debugInfo());
                 switch (result.getStatus()) {
                   case "Aborted":
                   case "Failed":

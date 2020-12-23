@@ -21,6 +21,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
 import io.prometheus.client.CollectorRegistry;
 import io.prometheus.client.Counter;
 import io.prometheus.client.exporter.common.TextFormat;
@@ -140,7 +142,7 @@ public final class Main implements ServerConfig {
     final var undertow =
         Undertow.builder()
             .addHttpListener(server.port, "0.0.0.0")
-            .setWorkerThreads(10 * Runtime.getRuntime().availableProcessors())
+            .setWorkerThreads(server.dataSource.getMaximumPoolSize())
             .setHandler(
                 Handlers.exceptionHandler(
                         Handlers.routing()
@@ -233,7 +235,7 @@ public final class Main implements ServerConfig {
   private static final LatencyHistogram RESPONSE_TIME =
       new LatencyHistogram(
           "vidarr_http_response_time", "The response time to serve a query", "url");
-  private final PGConnectionPoolDataSource dataSource;
+  private final HikariDataSource dataSource;
   private long epoch = ManagementFactory.getRuntimeMXBean().getStartTime();
   private final ReentrantReadWriteLock epochLock = new ReentrantReadWriteLock();
   private final ScheduledExecutorService executor =
@@ -414,12 +416,15 @@ public final class Main implements ServerConfig {
     simpleConnection.setPassword(configuration.getDbPass());
     Flyway.configure().dataSource(simpleConnection).load().migrate();
 
-    dataSource = new PGConnectionPoolDataSource();
-    dataSource.setServerNames(new String[] {configuration.getDbHost()});
-    dataSource.setPortNumbers(new int[] {configuration.getDbPort()});
-    dataSource.setDatabaseName(configuration.getDbName());
-    dataSource.setUser(configuration.getDbUser());
-    dataSource.setPassword(configuration.getDbPass());
+    final var config = new HikariConfig();
+    config.setJdbcUrl(String.format("jdbc:postgresql://%s:%d/%s", configuration.getDbHost(), configuration.getDbPort(), configuration.getDbName()));
+    config.setUsername(configuration.getDbUser());
+    config.setPassword(configuration.getDbPass());
+    config.setAutoCommit(false);
+    config.setTransactionIsolation("TRANSACTION_SERIALIZABLE");
+    dataSource = new HikariDataSource(config);
+    // This limit is selected because of the default maximum number of connections supported by Postgres
+    dataSource.setMaximumPoolSize(Math.min(10 * Runtime.getRuntime().availableProcessors(), 95));
     processor =
         new DatabaseBackedProcessor(executor, dataSource) {
           private Optional<FileMetadata> fetchPathForId(String id) {
@@ -491,11 +496,9 @@ public final class Main implements ServerConfig {
         exchange.getAttachment(PathTemplateMatch.ATTACHMENT_KEY).getParameters().get("name");
 
     try {
-      final var pooledConnection = dataSource.getPooledConnection();
-      final var connection = pooledConnection.getConnection();
+      final var connection = dataSource.getConnection();
       try {
-        connection.setAutoCommit(false);
-        final var dsl = DSL.using(connection);
+        final var dsl = DSL.using(connection, SQLDialect.POSTGRES);
         dsl.insertInto(WORKFLOW)
             .columns(
                 WORKFLOW.NAME,
@@ -536,11 +539,9 @@ public final class Main implements ServerConfig {
     final var version =
         exchange.getAttachment(PathTemplateMatch.ATTACHMENT_KEY).getParameters().get("version");
     try {
-      final var pooledConnection = dataSource.getPooledConnection();
-      final var connection = pooledConnection.getConnection();
+      final var connection = dataSource.getConnection();
       try {
-        connection.setAutoCommit(false);
-        final var dsl = DSL.using(connection);
+        final var dsl = DSL.using(connection, SQLDialect.POSTGRES);
         final var definitionHash =
             BaseProcessor.hexDigits(
                 MessageDigest.getInstance("SHA-256")
@@ -729,7 +730,7 @@ public final class Main implements ServerConfig {
                                     includedAnalyses.stream()
                                         .map(AnalysisType::dbType)
                                         .collect(Collectors.toList())))))));
-    DSL.using(connection)
+    DSL.using(connection, SQLDialect.POSTGRES)
         .select(DSL.jsonObject(fields))
         .from(WORKFLOW_RUN)
         .where(condition)
@@ -748,11 +749,9 @@ public final class Main implements ServerConfig {
         exchange.getAttachment(PathTemplateMatch.ATTACHMENT_KEY).getParameters().get("name");
 
     try {
-      final var pooledConnection = dataSource.getPooledConnection();
-      final var connection = pooledConnection.getConnection();
+      final var connection = dataSource.getConnection();
       try {
-        connection.setAutoCommit(false);
-        final var dsl = DSL.using(connection);
+        final var dsl = DSL.using(connection, SQLDialect.POSTGRES);
         final var count =
             dsl.update(WORKFLOW)
                 .set(WORKFLOW.IS_ACTIVE, false)
@@ -775,10 +774,9 @@ public final class Main implements ServerConfig {
     try {
       final var vidarrId =
           exchange.getAttachment(PathTemplateMatch.ATTACHMENT_KEY).getParameters().get("hash");
-      final var pooledConnection = dataSource.getPooledConnection();
-      final var connection = pooledConnection.getConnection();
+      final var connection = dataSource.getConnection();
       try {
-        DSL.using(connection)
+        DSL.using(connection, SQLDialect.POSTGRES)
             .select(
                 createAnalysisJsonField(
                     DSL.field(
@@ -844,8 +842,7 @@ public final class Main implements ServerConfig {
       output.writeNumberField("epoch", epoch);
       output.writeNumberField("timestamp", endTime.toInstant().toEpochMilli());
       output.writeArrayFieldStart("results");
-      final var pooledConnection = dataSource.getPooledConnection();
-      final var connection = pooledConnection.getConnection();
+      final var connection = dataSource.getConnection();
       try {
         createAnalysisRecords(
             connection,
@@ -875,13 +872,12 @@ public final class Main implements ServerConfig {
 
   private void fetchRun(HttpServerExchange exchange) {
     try {
-      final var pooledConnection = dataSource.getPooledConnection();
-      final var connection = pooledConnection.getConnection();
+      final var connection = dataSource.getConnection();
       try {
         final var vidarrId =
             exchange.getAttachment(PathTemplateMatch.ATTACHMENT_KEY).getParameters().get("hash");
         exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/json");
-        DSL.using(connection)
+        DSL.using(connection, SQLDialect.POSTGRES)
             .select(DSL.field(ACTIVE_WORKFLOW_RUN.ID.isNull()))
             .from(
                 WORKFLOW_RUN
@@ -925,8 +921,7 @@ public final class Main implements ServerConfig {
 
       final var vidarrId =
           exchange.getAttachment(PathTemplateMatch.ATTACHMENT_KEY).getParameters().get("hash");
-      final var pooledConnection = dataSource.getPooledConnection();
-      final var connection = pooledConnection.getConnection();
+      final var connection = dataSource.getConnection();
       try {
         final var fields = new ArrayList<JSONEntry<?>>();
 
@@ -958,7 +953,7 @@ public final class Main implements ServerConfig {
                         .from(ACTIVE_OPERATION)
                         .where(ACTIVE_OPERATION.WORKFLOW_RUN_ID.eq(WORKFLOW_RUN.ID)))));
 
-        DSL.using(connection)
+        DSL.using(connection, SQLDialect.POSTGRES)
             .select(DSL.jsonObject(fields))
             .from(
                 WORKFLOW_RUN
@@ -1029,14 +1024,11 @@ public final class Main implements ServerConfig {
 
   private void fetchWorkflows(HttpServerExchange exchange) {
     try {
-
-      final var pooledConnection = dataSource.getPooledConnection();
-      final var connection = pooledConnection.getConnection();
+      final var connection = dataSource.getConnection();
       try {
-        connection.setAutoCommit(false);
         final var workflowVersionAlias = WORKFLOW_VERSION.as("other_workflow_version");
         final var response =
-            DSL.using(connection)
+            DSL.using(connection, SQLDialect.POSTGRES)
                 .select(
                     DSL.jsonArrayAgg(
                         DSL.jsonObject(

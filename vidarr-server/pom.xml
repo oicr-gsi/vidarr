@@ -66,6 +66,10 @@
       <groupId>org.flywaydb</groupId>
       <artifactId>flyway-core</artifactId>
     </dependency>
+    <dependency>
+      <groupId>com.zaxxer</groupId>
+      <artifactId>HikariCP</artifactId>
+    </dependency>
   </dependencies>
   <build>
     <plugins>
@@ -144,7 +148,7 @@
                       <userType>com.fasterxml.jackson.databind.JsonNode</userType>
                       <binding>ca.on.oicr.gsi.vidarr.server.PostgresJSONBBinding</binding>
                       <includeExpression>.*</includeExpression>
-<!-- We leave labels alone so we can manipulate them using the database functions -->
+                      <!-- We leave labels alone so we can manipulate them using the database functions -->
                       <excludeExpression>.*\.labels</excludeExpression>
                       <types>JSONB</types>
                     </forcedType>

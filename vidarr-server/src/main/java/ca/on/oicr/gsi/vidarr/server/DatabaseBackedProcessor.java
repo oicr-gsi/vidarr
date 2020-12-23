@@ -12,6 +12,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.zaxxer.hikari.HikariDataSource;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -132,10 +133,10 @@ public abstract class DatabaseBackedProcessor
       PARAMETER_JSON_TYPE = new TypeReference<>() {};
   public static final TypeReference<SortedMap<String, SimpleType>> LABELS_JSON_TYPE =
       new TypeReference<>() {};
-  private final PGConnectionPoolDataSource dataSource;
+  private final HikariDataSource dataSource;
 
   protected DatabaseBackedProcessor(
-      ScheduledExecutorService executor, PGConnectionPoolDataSource dataSource) {
+      ScheduledExecutorService executor, HikariDataSource dataSource) {
     super(executor);
     this.dataSource = dataSource;
   }
@@ -191,10 +192,8 @@ public abstract class DatabaseBackedProcessor
   }
 
   public final void recover(Consumer<Runnable> startRaw) throws SQLException {
-    final var pooledConnection = dataSource.getPooledConnection();
-    final var connection = pooledConnection.getConnection();
+    final var connection = dataSource.getConnection();
     try {
-      connection.setAutoCommit(false);
       DSL.using(connection, SQLDialect.POSTGRES)
           .transaction(
               context -> {
@@ -271,8 +270,7 @@ public abstract class DatabaseBackedProcessor
 
   protected final Optional<FileMetadata> resolveInDatabase(String inputId) {
     try {
-      final var pooledConnection = dataSource.getPooledConnection();
-      final var connection = pooledConnection.getConnection();
+      final var connection = dataSource.getConnection();
       try {
         return DSL
             .using(connection, SQLDialect.POSTGRES)
@@ -334,8 +332,7 @@ public abstract class DatabaseBackedProcessor
   @Override
   protected final void startTransaction(Consumer<DSLContext> operation) {
     try {
-      final var pooledConnection = dataSource.getPooledConnection();
-      final var connection = pooledConnection.getConnection();
+      final var connection = dataSource.getConnection();
       try {
         connection.setTransactionIsolation(Connection.TRANSACTION_SERIALIZABLE);
         connection.setAutoCommit(false);
@@ -364,11 +361,8 @@ public abstract class DatabaseBackedProcessor
         .map(
             target -> {
               try {
-                final var pooledConnection = dataSource.getPooledConnection();
-                final var connection = pooledConnection.getConnection();
+                final var connection = dataSource.getConnection();
                 try {
-                  connection.setTransactionIsolation(Connection.TRANSACTION_SERIALIZABLE);
-                  connection.setAutoCommit(false);
                   final var submitResult =
                       DSL.using(connection, SQLDialect.POSTGRES)
                           .transactionResult(

@@ -11,6 +11,7 @@ module ca.on.oicr.gsi.vidarr.server {
   requires ca.on.oicr.gsi.vidarr.pluginapi;
   requires com.fasterxml.jackson.core;
   requires com.fasterxml.jackson.databind;
+  requires HikariCP;
   requires java.management;
   requires java.naming;
   requires java.net.http;

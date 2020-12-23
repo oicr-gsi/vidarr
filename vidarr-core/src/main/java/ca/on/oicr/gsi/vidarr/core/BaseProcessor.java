@@ -99,6 +99,15 @@ public abstract class BaseProcessor<
     }
 
     @Override
+    public void storeDebugInfo(JsonNode information) {
+      if (finished) {
+        throw new IllegalStateException(
+            "Operation is already complete. Cannot debugging information.");
+      }
+      startTransaction(transaction -> operation.debugInfo(information, transaction));
+    }
+
+    @Override
     public final synchronized void scheduleTask(long delay, TimeUnit units, Runnable task) {
       if (finished) {
         throw new IllegalStateException("Operation is already complete. Cannot schedule task.");

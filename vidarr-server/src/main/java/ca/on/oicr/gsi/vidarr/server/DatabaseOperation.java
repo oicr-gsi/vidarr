@@ -47,6 +47,11 @@ public class DatabaseOperation implements ActiveOperation<DSLContext> {
   }
 
   @Override
+  public void debugInfo(JsonNode info, DSLContext transaction) {
+    updateField(ACTIVE_OPERATION.DEBUG_INFO, info, transaction);
+  }
+
+  @Override
   public void log(System.Logger.Level level, String message) {
     System.err.printf("%s: Operation %d: %s\n", level, id, message);
   }

@@ -41,6 +41,11 @@ public abstract class BaseJsonWorkflowEngine<S, C, D> implements WorkflowEngine 
       original.scheduleTask(task);
     }
 
+    @Override
+    public void storeDebugInfo(JsonNode information) {
+      original.storeDebugInfo(information);
+    }
+
     public void storeRecoveryInformation(U state) {
       original.storeRecoveryInformation(mapper.valueToTree(state));
     }

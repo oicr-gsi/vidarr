@@ -40,6 +40,11 @@ final class MonitorWithType<T> implements WorkMonitor<T, JsonNode> {
   }
 
   @Override
+  public void storeDebugInfo(JsonNode information) {
+    monitor.storeDebugInfo(information);
+  }
+
+  @Override
   public void scheduleTask(Runnable task) {
     monitor.scheduleTask(task);
   }

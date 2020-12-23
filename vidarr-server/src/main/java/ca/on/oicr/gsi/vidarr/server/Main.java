@@ -948,6 +948,7 @@ public final class Main implements ServerConfig {
                             DSL.jsonArrayAgg(
                                 DSL.jsonObject(
                                     DSL.jsonEntry("recoveryState", ACTIVE_OPERATION.RECOVERY_STATE),
+                                    DSL.jsonEntry("debugInformation", ACTIVE_OPERATION.DEBUG_INFO),
                                     DSL.jsonEntry("status", ACTIVE_OPERATION.STATUS),
                                     DSL.jsonEntry("type", ACTIVE_OPERATION.TYPE))))
                         .from(ACTIVE_OPERATION)

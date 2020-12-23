@@ -45,6 +45,11 @@ public abstract class BaseJsonOutputProvisioner<M, S, F> implements OutputProvis
       original.scheduleTask(task);
     }
 
+    @Override
+    public void storeDebugInfo(JsonNode information) {
+      original.storeDebugInfo(information);
+    }
+
     public void storeRecoveryInformation(U state) {
       original.storeRecoveryInformation(mapper.valueToTree(state));
     }

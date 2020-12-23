@@ -44,6 +44,11 @@ public abstract class BaseJsonInputProvisioner<M, S> implements InputProvisioner
       original.scheduleTask(task);
     }
 
+    @Override
+    public void storeDebugInfo(JsonNode information) {
+      original.storeDebugInfo(information);
+    }
+
     public void storeRecoveryInformation(S state) {
       original.storeRecoveryInformation(mapper.valueToTree(state));
     }

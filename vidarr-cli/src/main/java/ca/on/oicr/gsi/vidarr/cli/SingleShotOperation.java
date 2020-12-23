@@ -16,6 +16,11 @@ final class SingleShotOperation implements ActiveOperation<Void> {
   }
 
   @Override
+  public void debugInfo(JsonNode info, Void transaction) {
+    // Throw this information away since we don't really want to log it
+  }
+
+  @Override
   public void log(System.Logger.Level level, String message) {
     singleShotWorkflow.log(level, message);
   }

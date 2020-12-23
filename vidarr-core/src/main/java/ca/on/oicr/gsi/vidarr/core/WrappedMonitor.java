@@ -110,6 +110,11 @@ abstract class WrappedMonitor<A, R, S> implements WorkMonitor<R, JsonNode> {
   }
 
   @Override
+  public void storeDebugInfo(JsonNode information) {
+    monitor.storeDebugInfo(information);
+  }
+
+  @Override
   public final void storeRecoveryInformation(JsonNode state) {
     final var array = JsonNodeFactory.instance.arrayNode(2);
     array.insertPOJO(0, accessory);

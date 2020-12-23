@@ -9,6 +9,13 @@ import com.fasterxml.jackson.databind.JsonNode;
  */
 public interface ActiveOperation<TX> {
   /**
+   * Change the current client-visible debugging information
+   *
+   * @param info the debugging information to store
+   * @param transaction the transaction to perform the update in
+   */
+  void debugInfo(JsonNode info, TX transaction);
+  /**
    * Be told something something interesting
    *
    * @param level how important this message is

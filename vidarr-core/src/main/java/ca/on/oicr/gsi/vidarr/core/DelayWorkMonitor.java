@@ -2,6 +2,7 @@ package ca.on.oicr.gsi.vidarr.core;
 
 import ca.on.oicr.gsi.vidarr.WorkMonitor;
 import ca.on.oicr.gsi.vidarr.WorkMonitor.Status;
+import com.fasterxml.jackson.databind.JsonNode;
 import java.util.Deque;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.TimeUnit;
@@ -46,6 +47,11 @@ final class DelayWorkMonitor<T, S> implements WorkMonitor<T, S> {
 
   public void scheduleTask(long delay, TimeUnit units, Runnable task) {
     executeSafely(() -> delegate.scheduleTask(delay, units, task));
+  }
+
+  @Override
+  public void storeDebugInfo(JsonNode information) {
+    executeSafely(() -> delegate.storeDebugInfo(information));
   }
 
   public void scheduleTask(Runnable task) {

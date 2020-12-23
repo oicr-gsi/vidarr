@@ -1,5 +1,6 @@
 package ca.on.oicr.gsi.vidarr;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -85,6 +86,13 @@ public interface WorkMonitor<T, S> {
    * @param task the task to execute
    */
   void scheduleTask(long delay, TimeUnit units, Runnable task);
+
+  /**
+   * Write debugging status information that will be made available to clients
+   *
+   * @param information the current information to be presented
+   */
+  void storeDebugInfo(JsonNode information);
 
   /**
    * Write the recovery information to stable store

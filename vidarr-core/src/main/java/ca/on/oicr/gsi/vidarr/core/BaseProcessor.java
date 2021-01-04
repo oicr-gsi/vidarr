@@ -405,7 +405,7 @@ public abstract class BaseProcessor<
       this.target = target;
       this.definition = definition;
       this.activeWorkflow = activeWorkflow;
-      if (size != 1) {
+      if (size > 1) {
         throw new IllegalArgumentException();
       }
     }

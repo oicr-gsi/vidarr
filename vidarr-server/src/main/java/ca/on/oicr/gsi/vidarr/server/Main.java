@@ -9,6 +9,7 @@ import ca.on.oicr.gsi.vidarr.*;
 import ca.on.oicr.gsi.vidarr.core.BaseProcessor;
 import ca.on.oicr.gsi.vidarr.core.ExternalKey;
 import ca.on.oicr.gsi.vidarr.core.FileMetadata;
+import ca.on.oicr.gsi.vidarr.core.Phase;
 import ca.on.oicr.gsi.vidarr.core.Target;
 import ca.on.oicr.gsi.vidarr.server.dto.*;
 import ca.on.oicr.gsi.vidarr.server.remote.RemoteInputProvisionerProvider;
@@ -935,7 +936,10 @@ public final class Main implements ServerConfig {
         fields.add(DSL.jsonEntry("arguments", WORKFLOW_RUN.ARGUMENTS));
         fields.add(DSL.jsonEntry("engineParameters", WORKFLOW_RUN.ENGINE_PARAMETERS));
         fields.add(DSL.jsonEntry("metadata", WORKFLOW_RUN.METADATA));
-        fields.add(DSL.jsonEntry("running", DSL.field(ACTIVE_WORKFLOW_RUN.ID.isNotNull())));
+        fields.add(
+            DSL.jsonEntry(
+                "running",
+                DSL.nvl(DSL.field(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE.ne(Phase.FAILED)), false)));
         fields.add(DSL.jsonEntry("enginePhase", ACTIVE_WORKFLOW_RUN.ENGINE_PHASE));
         fields.add(DSL.jsonEntry("preflightOk", ACTIVE_WORKFLOW_RUN.PREFLIGHT_OKAY));
         fields.add(DSL.jsonEntry("target", ACTIVE_WORKFLOW_RUN.TARGET));

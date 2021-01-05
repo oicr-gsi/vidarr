@@ -70,7 +70,6 @@ import javax.xml.stream.XMLStreamException;
 import org.flywaydb.core.Flyway;
 import org.jooq.*;
 import org.jooq.impl.DSL;
-import org.postgresql.ds.PGConnectionPoolDataSource;
 import org.postgresql.ds.PGSimpleDataSource;
 
 public final class Main implements ServerConfig {
@@ -418,13 +417,17 @@ public final class Main implements ServerConfig {
     Flyway.configure().dataSource(simpleConnection).load().migrate();
 
     final var config = new HikariConfig();
-    config.setJdbcUrl(String.format("jdbc:postgresql://%s:%d/%s", configuration.getDbHost(), configuration.getDbPort(), configuration.getDbName()));
+    config.setJdbcUrl(
+        String.format(
+            "jdbc:postgresql://%s:%d/%s",
+            configuration.getDbHost(), configuration.getDbPort(), configuration.getDbName()));
     config.setUsername(configuration.getDbUser());
     config.setPassword(configuration.getDbPass());
     config.setAutoCommit(false);
     config.setTransactionIsolation("TRANSACTION_SERIALIZABLE");
     dataSource = new HikariDataSource(config);
-    // This limit is selected because of the default maximum number of connections supported by Postgres
+    // This limit is selected because of the default maximum number of connections supported by
+    // Postgres
     dataSource.setMaximumPoolSize(Math.min(10 * Runtime.getRuntime().availableProcessors(), 95));
     processor =
         new DatabaseBackedProcessor(executor, dataSource) {

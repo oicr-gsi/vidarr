@@ -29,7 +29,6 @@ import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.SQLDialect;
 import org.jooq.impl.DSL;
-import org.postgresql.ds.PGConnectionPoolDataSource;
 
 public abstract class DatabaseBackedProcessor
     extends BaseProcessor<DatabaseWorkflow, DatabaseOperation, DSLContext> {

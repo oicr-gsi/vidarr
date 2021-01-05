@@ -94,7 +94,7 @@ public final class CromwellWorkflowEngine
                     String.format(
                         "Status for Cromwell workflow %s on %s is %s",
                         state.getCromwellId(), baseUrl, result.getStatus()));
-                    monitor.storeDebugInfo(result.debugInfo());
+                monitor.storeDebugInfo(result.debugInfo());
                 switch (result.getStatus()) {
                   case "Aborted":
                   case "Failed":

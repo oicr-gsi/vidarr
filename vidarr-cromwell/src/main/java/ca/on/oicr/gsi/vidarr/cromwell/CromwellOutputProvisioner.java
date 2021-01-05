@@ -159,7 +159,7 @@ public class CromwellOutputProvisioner
                     String.format(
                         "Cromwell job %s on %s is in state %s",
                         state.getCromwellId(), baseUrl, result.getStatus()));
-                    monitor.storeDebugInfo(result.debugInfo());
+                monitor.storeDebugInfo(result.debugInfo());
                 switch (result.getStatus()) {
                   case "Aborted":
                   case "Failed":

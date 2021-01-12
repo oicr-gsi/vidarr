@@ -21,6 +21,7 @@ import java.sql.SQLException;
 import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.Semaphore;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -153,6 +154,7 @@ public abstract class DatabaseBackedProcessor
   }
 
   private final HikariDataSource dataSource;
+  private final Semaphore databaseLock = new Semaphore(1);
 
   protected DatabaseBackedProcessor(
       ScheduledExecutorService executor, HikariDataSource dataSource) {
@@ -330,11 +332,10 @@ public abstract class DatabaseBackedProcessor
 
   @Override
   protected final void startTransaction(Consumer<DSLContext> operation) {
+    databaseLock.acquireUninterruptibly();
     try {
       final var connection = dataSource.getConnection();
       try {
-        connection.setTransactionIsolation(Connection.TRANSACTION_SERIALIZABLE);
-        connection.setAutoCommit(false);
         DSL.using(connection, SQLDialect.POSTGRES)
             .transaction(context -> operation.accept(DSL.using(context)));
         connection.commit();
@@ -343,6 +344,8 @@ public abstract class DatabaseBackedProcessor
       }
     } catch (SQLException e) {
       throw new RuntimeException(e);
+    } finally {
+      databaseLock.release();
     }
   }
 

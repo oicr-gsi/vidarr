@@ -5,4 +5,5 @@ public enum WorkflowLanguage {
   UNIX_SHELL,
   WDL_1_0,
   WDL_1_1,
+  NIASSA,
 }

@@ -425,7 +425,7 @@ public final class Main implements ServerConfig {
     config.setUsername(configuration.getDbUser());
     config.setPassword(configuration.getDbPass());
     config.setAutoCommit(false);
-    config.setTransactionIsolation("TRANSACTION_SERIALIZABLE");
+    config.setTransactionIsolation("TRANSACTION_REPEATABLE_READ");
     dataSource = new HikariDataSource(config);
     // This limit is selected because of the default maximum number of connections supported by
     // Postgres

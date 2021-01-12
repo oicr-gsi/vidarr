@@ -17,7 +17,6 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.sql.Connection;
 import java.sql.SQLException;
 import java.time.OffsetDateTime;
 import java.util.*;
@@ -47,9 +46,9 @@ public abstract class DatabaseBackedProcessor
 
     T matchExisting(String vidarrId);
 
-    T missingExternalKeyVersions(String vidarrId, List<ExternalKey> missingKeys);
-
     T missingExternalIdVersion();
+
+    T missingExternalKeyVersions(String vidarrId, List<ExternalKey> missingKeys);
 
     T multipleMatches(List<String> matchIds);
 
@@ -70,10 +69,6 @@ public abstract class DatabaseBackedProcessor
       this.id = id;
       this.definition = definition;
       this.labels = labels;
-    }
-
-    public int id() {
-      return id;
     }
 
     public WorkflowDefinition definition() {
@@ -99,6 +94,10 @@ public abstract class DatabaseBackedProcessor
       }
     }
 
+    public int id() {
+      return id;
+    }
+
     public Stream<String> validateLabels(ObjectNode providedLabels) {
       if (providedLabels.size() != labels.size()) {
         return Stream.of(
@@ -121,17 +120,38 @@ public abstract class DatabaseBackedProcessor
     }
   }
 
-  private static String hashFromAnalysisId(String id) {
-    return BaseProcessor.ANALYSIS_RECORD_ID.matcher(id).group("hash");
-  }
-
+  public static final TypeReference<SortedMap<String, SimpleType>> LABELS_JSON_TYPE =
+      new TypeReference<>() {};
   static final ObjectMapper MAPPER = new ObjectMapper();
   public static final TypeReference<Map<String, OutputProvisionType>> OUTPUT_JSON_TYPE =
       new TypeReference<>() {};
   public static final TypeReference<Map<String, WorkflowConfiguration.Parameter>>
       PARAMETER_JSON_TYPE = new TypeReference<>() {};
-  public static final TypeReference<SortedMap<String, SimpleType>> LABELS_JSON_TYPE =
-      new TypeReference<>() {};
+
+  private static WorkflowDefinition buildDefinitionFromRecord(org.jooq.Record record) {
+    return new WorkflowDefinition(
+        record.get(WORKFLOW_DEFINITION.WORKFLOW_LANGUAGE),
+        record.get(WORKFLOW_VERSION.HASH_ID),
+        record.get(WORKFLOW_DEFINITION.WORKFLOW_FILE),
+        MAPPER
+            .convertValue(record.get(WORKFLOW_VERSION.PARAMETERS), PARAMETER_JSON_TYPE)
+            .entrySet()
+            .stream()
+            .map(
+                e ->
+                    new WorkflowDefinition.Parameter(
+                        e.getValue().getType(), e.getKey(), e.getValue().isRequired())),
+        MAPPER
+            .convertValue(record.get(WORKFLOW_VERSION.METADATA), OUTPUT_JSON_TYPE)
+            .entrySet()
+            .stream()
+            .map(e -> new WorkflowDefinition.Output(e.getValue(), e.getKey())));
+  }
+
+  private static String hashFromAnalysisId(String id) {
+    return BaseProcessor.ANALYSIS_RECORD_ID.matcher(id).group("hash");
+  }
+
   private final HikariDataSource dataSource;
 
   protected DatabaseBackedProcessor(
@@ -163,26 +183,6 @@ public abstract class DatabaseBackedProcessor
                 throw new RuntimeException(e);
               }
             });
-  }
-
-  private static WorkflowDefinition buildDefinitionFromRecord(org.jooq.Record record) {
-    return new WorkflowDefinition(
-        record.get(WORKFLOW_DEFINITION.WORKFLOW_LANGUAGE),
-        record.get(WORKFLOW_VERSION.HASH_ID),
-        record.get(WORKFLOW_DEFINITION.WORKFLOW_FILE),
-        MAPPER
-            .convertValue(record.get(WORKFLOW_VERSION.PARAMETERS), PARAMETER_JSON_TYPE)
-            .entrySet()
-            .stream()
-            .map(
-                e ->
-                    new WorkflowDefinition.Parameter(
-                        e.getValue().getType(), e.getKey(), e.getValue().isRequired())),
-        MAPPER
-            .convertValue(record.get(WORKFLOW_VERSION.METADATA), OUTPUT_JSON_TYPE)
-            .entrySet()
-            .stream()
-            .map(e -> new WorkflowDefinition.Output(e.getValue(), e.getKey())));
   }
 
   @Override

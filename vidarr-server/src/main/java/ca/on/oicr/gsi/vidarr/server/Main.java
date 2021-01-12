@@ -94,6 +94,29 @@ public final class Main implements ServerConfig {
     void handleRequest(HttpServerExchange exchange, T body);
   }
 
+  static final HttpClient CLIENT =
+      HttpClient.newBuilder()
+          .version(HttpClient.Version.HTTP_1_1)
+          .followRedirects(HttpClient.Redirect.NORMAL)
+          .connectTimeout(Duration.ofSeconds(20))
+          .build();
+  static final ObjectMapper MAPPER = new ObjectMapper();
+  static final JsonFactory MAPPER_FACTORY = new JsonFactory().setCodec(MAPPER);
+  private static final Counter REMOTE_ERROR_COUNT =
+      Counter.build(
+              "vidarr_remote_vidarr_error_count",
+              "The number of times a remote instance returned an error.")
+          .labelNames("remote")
+          .register();
+  private static final LatencyHistogram REMOTE_RESPONSE_TIME =
+      new LatencyHistogram(
+          "vidarr_remote_vidarr_response_time",
+          "The response time of a remote instance to a metadata access request",
+          "remote");
+  private static final LatencyHistogram RESPONSE_TIME =
+      new LatencyHistogram(
+          "vidarr_http_response_time", "The response time to serve a query", "url");
+
   private static void handleException(HttpServerExchange exchange) {
     final var e = (Exception) exchange.getAttachment(ExceptionHandler.THROWABLE);
     exchange.setStatusCode(500);
@@ -213,28 +236,6 @@ public final class Main implements ServerConfig {
     };
   }
 
-  static final HttpClient CLIENT =
-      HttpClient.newBuilder()
-          .version(HttpClient.Version.HTTP_1_1)
-          .followRedirects(HttpClient.Redirect.NORMAL)
-          .connectTimeout(Duration.ofSeconds(20))
-          .build();
-  static final ObjectMapper MAPPER = new ObjectMapper();
-  static final JsonFactory MAPPER_FACTORY = new JsonFactory().setCodec(MAPPER);
-  private static final Counter REMOTE_ERROR_COUNT =
-      Counter.build(
-              "vidarr_remote_vidarr_error_count",
-              "The number of times a remote instance returned an error.")
-          .labelNames("remote")
-          .register();
-  private static final LatencyHistogram REMOTE_RESPONSE_TIME =
-      new LatencyHistogram(
-          "vidarr_remote_vidarr_response_time",
-          "The response time of a remote instance to a metadata access request",
-          "remote");
-  private static final LatencyHistogram RESPONSE_TIME =
-      new LatencyHistogram(
-          "vidarr_http_response_time", "The response time to serve a query", "url");
   private final HikariDataSource dataSource;
   private long epoch = ManagementFactory.getRuntimeMXBean().getStartTime();
   private final ReentrantReadWriteLock epochLock = new ReentrantReadWriteLock();
@@ -1172,18 +1173,18 @@ public final class Main implements ServerConfig {
               }
 
               @Override
+              public Pair<Integer, SubmitWorkflowResponse> missingExternalIdVersion() {
+                return new Pair<>(
+                    StatusCodes.BAD_REQUEST,
+                    new SubmitWorkflowResponseFailure("External IDs do not have versions set."));
+              }
+
+              @Override
               public Pair<Integer, SubmitWorkflowResponse> missingExternalKeyVersions(
                   String vidarrId, List<ExternalKey> missingKeys) {
                 return new Pair<>(
                     StatusCodes.BAD_REQUEST,
                     new SubmitWorkflowResponseMissingKeyVersions(vidarrId, missingKeys));
-              }
-
-              @Override
-              public Pair<Integer, SubmitWorkflowResponse> missingExternalIdVersion() {
-                return new Pair<>(
-                    StatusCodes.BAD_REQUEST,
-                    new SubmitWorkflowResponseFailure("External IDs do not have versions set."));
               }
 
               @Override

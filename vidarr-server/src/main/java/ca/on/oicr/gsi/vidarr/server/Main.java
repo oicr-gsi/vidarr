@@ -116,6 +116,41 @@ public final class Main implements ServerConfig {
   private static final LatencyHistogram RESPONSE_TIME =
       new LatencyHistogram(
           "vidarr_http_response_time", "The response time to serve a query", "url");
+  private static final List<JSONEntry<?>> STATUS_FIELDS = new ArrayList<>();
+
+  static {
+    STATUS_FIELDS.add(DSL.jsonEntry("completed", WORKFLOW_RUN.COMPLETED));
+    STATUS_FIELDS.add(DSL.jsonEntry("created", WORKFLOW_RUN.CREATED));
+    STATUS_FIELDS.add(DSL.jsonEntry("id", WORKFLOW_RUN.HASH_ID));
+    STATUS_FIELDS.add(DSL.jsonEntry("inputFiles", WORKFLOW_RUN.INPUT_FILE_IDS));
+    STATUS_FIELDS.add(DSL.jsonEntry("labels", WORKFLOW_RUN.LABELS));
+    STATUS_FIELDS.add(DSL.jsonEntry("modified", WORKFLOW_RUN.MODIFIED));
+    STATUS_FIELDS.add(DSL.jsonEntry("started", WORKFLOW_RUN.STARTED));
+    STATUS_FIELDS.add(DSL.jsonEntry("arguments", WORKFLOW_RUN.ARGUMENTS));
+    STATUS_FIELDS.add(DSL.jsonEntry("engineParameters", WORKFLOW_RUN.ENGINE_PARAMETERS));
+    STATUS_FIELDS.add(DSL.jsonEntry("metadata", WORKFLOW_RUN.METADATA));
+    STATUS_FIELDS.add(
+        DSL.jsonEntry(
+            "running",
+            DSL.nvl(DSL.field(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE.ne(Phase.FAILED)), false)));
+    STATUS_FIELDS.add(DSL.jsonEntry("enginePhase", ACTIVE_WORKFLOW_RUN.ENGINE_PHASE));
+    STATUS_FIELDS.add(DSL.jsonEntry("preflightOk", ACTIVE_WORKFLOW_RUN.PREFLIGHT_OKAY));
+    STATUS_FIELDS.add(DSL.jsonEntry("target", ACTIVE_WORKFLOW_RUN.TARGET));
+    STATUS_FIELDS.add(DSL.jsonEntry("workflowRunUrl", ACTIVE_WORKFLOW_RUN.WORKFLOW_RUN_URL));
+    STATUS_FIELDS.add(
+        DSL.jsonEntry(
+            "operations",
+            DSL.field(
+                DSL.select(
+                        DSL.jsonArrayAgg(
+                            DSL.jsonObject(
+                                DSL.jsonEntry("recoveryState", ACTIVE_OPERATION.RECOVERY_STATE),
+                                DSL.jsonEntry("debugInformation", ACTIVE_OPERATION.DEBUG_INFO),
+                                DSL.jsonEntry("status", ACTIVE_OPERATION.STATUS),
+                                DSL.jsonEntry("type", ACTIVE_OPERATION.TYPE))))
+                    .from(ACTIVE_OPERATION)
+                    .where(ACTIVE_OPERATION.WORKFLOW_RUN_ID.eq(WORKFLOW_RUN.ID)))));
+  }
 
   private static void handleException(HttpServerExchange exchange) {
     final var e = (Exception) exchange.getAttachment(ExceptionHandler.THROWABLE);
@@ -172,6 +207,7 @@ public final class Main implements ServerConfig {
                             .get("/", monitor(new BlockingHandler(server::status)))
                             .get("/api/file/{hash}", monitor(server::fetchFile))
                             .get("/api/run/{hash}", monitor(new BlockingHandler(server::fetchRun)))
+                            .get("/api/status", monitor(new BlockingHandler(server::fetchAllActive)))
                             .get("/api/status/{hash}", monitor(server::fetchStatus))
                             .get("/api/targets", monitor(server::fetchTargets))
                             .get("/api/url/{hash}", monitor(server::fetchUrl))
@@ -775,6 +811,41 @@ public final class Main implements ServerConfig {
     }
   }
 
+  private void fetchAllActive(HttpServerExchange exchange) {
+    try {
+
+      final var connection = dataSource.getConnection();
+      exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/json");
+      exchange.setStatusCode(StatusCodes.OK);
+      try (final var output = MAPPER_FACTORY.createGenerator(exchange.getOutputStream())) {
+        output.writeStartArray();
+        DSL.using(connection, SQLDialect.POSTGRES)
+            .select(DSL.jsonObject(STATUS_FIELDS))
+            .from(
+                WORKFLOW_RUN
+                    .leftJoin(ACTIVE_WORKFLOW_RUN)
+                    .on(WORKFLOW_RUN.ID.eq(ACTIVE_WORKFLOW_RUN.ID)))
+            .where(ACTIVE_WORKFLOW_RUN.ID.isNotNull())
+            .forEach(
+                result -> {
+                  try {
+                    output.writeRawValue(result.value1().data());
+                  } catch (IOException e) {
+                    throw new RuntimeException(e);
+                  }
+                });
+        output.writeEndArray();
+
+      } finally {
+        connection.close();
+      }
+    } catch (SQLException | IOException e) {
+      e.printStackTrace();
+      exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);
+      exchange.getResponseSender().send(e.getMessage());
+    }
+  }
+
   private void fetchAnalysis(HttpServerExchange exchange, String type) {
     try {
       final var vidarrId =
@@ -928,42 +999,8 @@ public final class Main implements ServerConfig {
           exchange.getAttachment(PathTemplateMatch.ATTACHMENT_KEY).getParameters().get("hash");
       final var connection = dataSource.getConnection();
       try {
-        final var fields = new ArrayList<JSONEntry<?>>();
-
-        fields.add(DSL.jsonEntry("completed", WORKFLOW_RUN.COMPLETED));
-        fields.add(DSL.jsonEntry("created", WORKFLOW_RUN.CREATED));
-        fields.add(DSL.jsonEntry("id", WORKFLOW_RUN.HASH_ID));
-        fields.add(DSL.jsonEntry("inputFiles", WORKFLOW_RUN.INPUT_FILE_IDS));
-        fields.add(DSL.jsonEntry("labels", WORKFLOW_RUN.LABELS));
-        fields.add(DSL.jsonEntry("modified", WORKFLOW_RUN.MODIFIED));
-        fields.add(DSL.jsonEntry("started", WORKFLOW_RUN.STARTED));
-        fields.add(DSL.jsonEntry("arguments", WORKFLOW_RUN.ARGUMENTS));
-        fields.add(DSL.jsonEntry("engineParameters", WORKFLOW_RUN.ENGINE_PARAMETERS));
-        fields.add(DSL.jsonEntry("metadata", WORKFLOW_RUN.METADATA));
-        fields.add(
-            DSL.jsonEntry(
-                "running",
-                DSL.nvl(DSL.field(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE.ne(Phase.FAILED)), false)));
-        fields.add(DSL.jsonEntry("enginePhase", ACTIVE_WORKFLOW_RUN.ENGINE_PHASE));
-        fields.add(DSL.jsonEntry("preflightOk", ACTIVE_WORKFLOW_RUN.PREFLIGHT_OKAY));
-        fields.add(DSL.jsonEntry("target", ACTIVE_WORKFLOW_RUN.TARGET));
-        fields.add(DSL.jsonEntry("workflowRunUrl", ACTIVE_WORKFLOW_RUN.WORKFLOW_RUN_URL));
-        fields.add(
-            DSL.jsonEntry(
-                "operations",
-                DSL.field(
-                    DSL.select(
-                            DSL.jsonArrayAgg(
-                                DSL.jsonObject(
-                                    DSL.jsonEntry("recoveryState", ACTIVE_OPERATION.RECOVERY_STATE),
-                                    DSL.jsonEntry("debugInformation", ACTIVE_OPERATION.DEBUG_INFO),
-                                    DSL.jsonEntry("status", ACTIVE_OPERATION.STATUS),
-                                    DSL.jsonEntry("type", ACTIVE_OPERATION.TYPE))))
-                        .from(ACTIVE_OPERATION)
-                        .where(ACTIVE_OPERATION.WORKFLOW_RUN_ID.eq(WORKFLOW_RUN.ID)))));
-
         DSL.using(connection, SQLDialect.POSTGRES)
-            .select(DSL.jsonObject(fields))
+            .select(DSL.jsonObject(STATUS_FIELDS))
             .from(
                 WORKFLOW_RUN
                     .leftJoin(ACTIVE_WORKFLOW_RUN)

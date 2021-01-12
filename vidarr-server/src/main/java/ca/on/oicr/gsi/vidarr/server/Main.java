@@ -9,6 +9,7 @@ import ca.on.oicr.gsi.vidarr.*;
 import ca.on.oicr.gsi.vidarr.core.BaseProcessor;
 import ca.on.oicr.gsi.vidarr.core.ExternalKey;
 import ca.on.oicr.gsi.vidarr.core.FileMetadata;
+import ca.on.oicr.gsi.vidarr.core.OperationStatus;
 import ca.on.oicr.gsi.vidarr.core.Phase;
 import ca.on.oicr.gsi.vidarr.core.Target;
 import ca.on.oicr.gsi.vidarr.server.dto.*;
@@ -120,6 +121,22 @@ public final class Main implements ServerConfig {
 
   static {
     STATUS_FIELDS.add(DSL.jsonEntry("completed", WORKFLOW_RUN.COMPLETED));
+    STATUS_FIELDS.add(
+        DSL.jsonEntry(
+            "operationStatus",
+            DSL.case_(
+                    DSL.field(
+                        DSL.select(
+                                DSL.max(
+                                    DSL.case_(ACTIVE_OPERATION.STATUS)
+                                        .when(OperationStatus.FAILED, 2)
+                                        .when(OperationStatus.SUCCEEDED, 0)
+                                        .otherwise(1)))
+                            .from(ACTIVE_OPERATION)
+                            .where(ACTIVE_OPERATION.WORKFLOW_RUN_ID.eq(WORKFLOW_RUN.ID))))
+                .when(0, "SUCCEEDED")
+                .when(2, "FAILED")
+                .otherwise("WAITING")));
     STATUS_FIELDS.add(DSL.jsonEntry("created", WORKFLOW_RUN.CREATED));
     STATUS_FIELDS.add(DSL.jsonEntry("id", WORKFLOW_RUN.HASH_ID));
     STATUS_FIELDS.add(DSL.jsonEntry("inputFiles", WORKFLOW_RUN.INPUT_FILE_IDS));

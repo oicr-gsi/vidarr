@@ -134,7 +134,13 @@ public final class Main implements ServerConfig {
                                             .when(OperationStatus.SUCCEEDED, 0)
                                             .otherwise(1)))
                                 .from(ACTIVE_OPERATION)
-                                .where(ACTIVE_OPERATION.WORKFLOW_RUN_ID.eq(WORKFLOW_RUN.ID))),
+                                .where(
+                                    ACTIVE_OPERATION
+                                        .WORKFLOW_RUN_ID
+                                        .eq(WORKFLOW_RUN.ID)
+                                        .and(
+                                            ACTIVE_OPERATION.ATTEMPT.eq(
+                                                ACTIVE_WORKFLOW_RUN.ATTEMPT)))),
                         -1))
                 .when(0, "SUCCEEDED")
                 .when(2, "FAILED")
@@ -153,6 +159,7 @@ public final class Main implements ServerConfig {
         DSL.jsonEntry(
             "running",
             DSL.nvl(DSL.field(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE.ne(Phase.FAILED)), false)));
+    STATUS_FIELDS.add(DSL.jsonEntry("attempt", ACTIVE_WORKFLOW_RUN.ATTEMPT));
     STATUS_FIELDS.add(DSL.jsonEntry("enginePhase", ACTIVE_WORKFLOW_RUN.ENGINE_PHASE));
     STATUS_FIELDS.add(DSL.jsonEntry("preflightOk", ACTIVE_WORKFLOW_RUN.PREFLIGHT_OKAY));
     STATUS_FIELDS.add(DSL.jsonEntry("target", ACTIVE_WORKFLOW_RUN.TARGET));
@@ -164,6 +171,7 @@ public final class Main implements ServerConfig {
                 DSL.select(
                         DSL.jsonArrayAgg(
                             DSL.jsonObject(
+                                DSL.jsonEntry("attempt", ACTIVE_OPERATION.ATTEMPT),
                                 DSL.jsonEntry("recoveryState", ACTIVE_OPERATION.RECOVERY_STATE),
                                 DSL.jsonEntry("debugInformation", ACTIVE_OPERATION.DEBUG_INFO),
                                 DSL.jsonEntry("status", ACTIVE_OPERATION.STATUS),
@@ -1191,6 +1199,7 @@ public final class Main implements ServerConfig {
             body.getEngineParameters(),
             body.getMetadata(),
             body.getExternalKeys(),
+            body.getAttempt(),
             new DatabaseBackedProcessor.SubmissionResultHandler<
                 Pair<Integer, SubmitWorkflowResponse>>() {
               @Override
@@ -1255,6 +1264,13 @@ public final class Main implements ServerConfig {
               public Pair<Integer, SubmitWorkflowResponse> multipleMatches(List<String> matchIds) {
                 return new Pair<>(
                     StatusCodes.CONFLICT, new SubmitWorkflowResponseConflict(matchIds));
+              }
+
+              @Override
+              public Pair<Integer, SubmitWorkflowResponse> reinitialise(
+                  String vidarrId, Runnable start) {
+                postCommitAction.set(start);
+                return new Pair<>(StatusCodes.OK, new SubmitWorkflowResponseSuccess(vidarrId));
               }
 
               @Override

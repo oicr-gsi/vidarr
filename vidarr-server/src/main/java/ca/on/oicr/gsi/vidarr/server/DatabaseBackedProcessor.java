@@ -14,6 +14,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.zaxxer.hikari.HikariDataSource;
+import java.lang.ref.SoftReference;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -21,14 +22,17 @@ import java.security.NoSuchAlgorithmException;
 import java.sql.SQLException;
 import java.time.OffsetDateTime;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
+import org.jooq.Record1;
 import org.jooq.SQLDialect;
 import org.jooq.impl.DSL;
 
@@ -54,6 +58,8 @@ public abstract class DatabaseBackedProcessor
     T missingExternalKeyVersions(String vidarrId, List<ExternalKey> missingKeys);
 
     T multipleMatches(List<String> matchIds);
+
+    T reinitialise(String vidarrId, Runnable start);
 
     T unknownTarget(String targetName);
 
@@ -90,8 +96,6 @@ public abstract class DatabaseBackedProcessor
             digester.update(valueBytes);
           }
         }
-        ;
-
       } catch (JsonProcessingException e) {
         throw new RuntimeException(e);
       }
@@ -194,9 +198,16 @@ public abstract class DatabaseBackedProcessor
     return MAPPER;
   }
 
+  private final Map<Integer, SoftReference<AtomicBoolean>> liveness = new ConcurrentHashMap<>();
+
+  private AtomicBoolean liveness(int workflowRunId) {
+    return liveness
+        .computeIfAbsent(workflowRunId, k -> new SoftReference<>(new AtomicBoolean(true)))
+        .get();
+  }
+
   public final void recover(Consumer<Runnable> startRaw) throws SQLException {
-    final var connection = dataSource.getConnection();
-    try {
+    try (final var connection = dataSource.getConnection()) {
       DSL.using(connection, SQLDialect.POSTGRES)
           .transaction(
               context -> {
@@ -215,14 +226,23 @@ public abstract class DatabaseBackedProcessor
                                         dsl.select(ACTIVE_WORKFLOW_RUN.ID)
                                             .from(ACTIVE_WORKFLOW_RUN)
                                             .where(
-                                                ACTIVE_WORKFLOW_RUN.ENGINE_PHASE.ne(
-                                                    Phase.FAILED)))))
+                                                ACTIVE_WORKFLOW_RUN.ENGINE_PHASE.ne(Phase.FAILED))))
+                                .and(
+                                    ACTIVE_OPERATION.ATTEMPT.eq(
+                                        DSL.select(ACTIVE_WORKFLOW_RUN.ATTEMPT)
+                                            .from(ACTIVE_WORKFLOW_RUN)
+                                            .where(
+                                                ACTIVE_WORKFLOW_RUN.ID.eq(
+                                                    ACTIVE_OPERATION.WORKFLOW_RUN_ID)))))
                         .stream()
                         .collect(
                             Collectors.groupingBy(
                                 r -> r.get(ACTIVE_OPERATION.WORKFLOW_RUN_ID),
                                 Collectors.mapping(
-                                    DatabaseOperation::recover, Collectors.toList())));
+                                    r ->
+                                        DatabaseOperation.recover(
+                                            r, liveness(r.get(ACTIVE_OPERATION.WORKFLOW_RUN_ID))),
+                                    Collectors.toList())));
                 dsl.select()
                     .from(
                         ACTIVE_WORKFLOW_RUN
@@ -241,7 +261,11 @@ public abstract class DatabaseBackedProcessor
                                       if (record.get(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE)
                                           == Phase.INITIALIZING) {
                                         final var definition = buildDefinitionFromRecord(record);
-                                        final var workflow = DatabaseWorkflow.recover(record, dsl);
+                                        final var workflow =
+                                            DatabaseWorkflow.recover(
+                                                record,
+                                                liveness(record.get(ACTIVE_WORKFLOW_RUN.ID)),
+                                                dsl);
                                         final var activeOperations =
                                             operations.getOrDefault(
                                                 record.get(ACTIVE_WORKFLOW_RUN.ID), List.of());
@@ -259,22 +283,22 @@ public abstract class DatabaseBackedProcessor
                                         recover(
                                             target,
                                             buildDefinitionFromRecord(record),
-                                            DatabaseWorkflow.recover(record, dsl),
+                                            DatabaseWorkflow.recover(
+                                                record,
+                                                liveness(record.get(ACTIVE_WORKFLOW_RUN.ID)),
+                                                dsl),
                                             operations.getOrDefault(
                                                 record.get(ACTIVE_WORKFLOW_RUN.ID), List.of()));
                                       }
                                     }));
               });
       connection.commit();
-    } finally {
-      connection.close();
     }
   }
 
   protected final Optional<FileMetadata> resolveInDatabase(String inputId) {
     try {
-      final var connection = dataSource.getConnection();
-      try {
+      try (final var connection = dataSource.getConnection()) {
         return DSL
             .using(connection, SQLDialect.POSTGRES)
             .select()
@@ -323,8 +347,6 @@ public abstract class DatabaseBackedProcessor
                       }
                     })
             .findAny();
-      } finally {
-        connection.close();
       }
     } catch (SQLException e) {
       e.printStackTrace();
@@ -336,13 +358,10 @@ public abstract class DatabaseBackedProcessor
   protected final void startTransaction(Consumer<DSLContext> operation) {
     databaseLock.acquireUninterruptibly();
     try {
-      final var connection = dataSource.getConnection();
-      try {
+      try (final var connection = dataSource.getConnection()) {
         DSL.using(connection, SQLDialect.POSTGRES)
             .transaction(context -> operation.accept(DSL.using(context)));
         connection.commit();
-      } finally {
-        connection.close();
       }
     } catch (SQLException e) {
       throw new RuntimeException(e);
@@ -360,13 +379,13 @@ public abstract class DatabaseBackedProcessor
       ObjectNode engineParameters,
       JsonNode metadata,
       Set<ExternalKey> externalKeys,
+      int attempt,
       SubmissionResultHandler<T> handler) {
     return targetByName(targetName)
         .map(
             target -> {
               try {
-                final var connection = dataSource.getConnection();
-                try {
+                try (final var connection = dataSource.getConnection()) {
                   final var submitResult =
                       DSL.using(connection, SQLDialect.POSTGRES)
                           .transactionResult(
@@ -550,6 +569,7 @@ public abstract class DatabaseBackedProcessor
                                                           metadata,
                                                           inputIds,
                                                           externalIds,
+                                                          this::liveness,
                                                           transaction);
                                                   var externalVersionInsert =
                                                       transaction
@@ -772,8 +792,110 @@ public abstract class DatabaseBackedProcessor
                                                   }
                                                 }
                                                 externalVersionInsert.execute();
-                                                return handler.matchExisting(
-                                                    candidates.get(0).second());
+                                                // If this workflow is active, but failed, and the
+                                                // attempt number is higher or this is a different
+                                                // workflow version, we should restart it.
+                                                if (context
+                                                        .dsl()
+                                                        .selectCount()
+                                                        .from(
+                                                            ACTIVE_WORKFLOW_RUN
+                                                                .join(WORKFLOW_RUN)
+                                                                .on(
+                                                                    WORKFLOW_RUN.ID.eq(
+                                                                        ACTIVE_WORKFLOW_RUN.ID)))
+                                                        .where(
+                                                            WORKFLOW_RUN
+                                                                .ID
+                                                                .eq(workflowRunId)
+                                                                .and(
+                                                                    WORKFLOW_RUN.COMPLETED.isNull())
+                                                                .and(
+                                                                    ACTIVE_WORKFLOW_RUN
+                                                                        .ENGINE_PHASE
+                                                                        .eq(Phase.FAILED)
+                                                                        .or(
+                                                                            DSL.exists(
+                                                                                DSL.select()
+                                                                                    .from(
+                                                                                        ACTIVE_OPERATION)
+                                                                                    .where(
+                                                                                        ACTIVE_OPERATION
+                                                                                            .WORKFLOW_RUN_ID
+                                                                                            .eq(
+                                                                                                ACTIVE_WORKFLOW_RUN
+                                                                                                    .ID)
+                                                                                            .and(
+                                                                                                ACTIVE_OPERATION
+                                                                                                    .ATTEMPT
+                                                                                                    .eq(
+                                                                                                        ACTIVE_WORKFLOW_RUN
+                                                                                                            .ATTEMPT))
+                                                                                            .and(
+                                                                                                ACTIVE_OPERATION
+                                                                                                    .STATUS
+                                                                                                    .eq(
+                                                                                                        OperationStatus
+                                                                                                            .FAILED))))))
+                                                                .and(
+                                                                    ACTIVE_WORKFLOW_RUN
+                                                                        .ATTEMPT
+                                                                        .eq(attempt - 1)
+                                                                        .or(
+                                                                            WORKFLOW_RUN.HASH_ID.ne(
+                                                                                candidateIds.get(
+                                                                                    0)))))
+                                                        .fetchOptional()
+                                                        .map(Record1::value1)
+                                                        .orElse(0)
+                                                    > 0) {
+                                                  final var oldLiveness =
+                                                      liveness.remove(workflowRunId);
+                                                  if (oldLiveness != null) {
+                                                    final var oldLivenessLock = oldLiveness.get();
+                                                    if (oldLivenessLock != null) {
+                                                      oldLivenessLock.set(false);
+                                                    }
+                                                  }
+                                                  final var dbWorkflow =
+                                                      DatabaseWorkflow.reinitialise(
+                                                          workflowRunId,
+                                                          workflow.id(),
+                                                          candidateIds.get(0),
+                                                          arguments,
+                                                          engineParameters,
+                                                          metadata,
+                                                          externalIds,
+                                                          liveness(workflowRunId),
+                                                          externalKeys,
+                                                          transaction);
+                                                  return handler.reinitialise(
+                                                      candidateIds.get(0),
+                                                      new Runnable() {
+                                                        private boolean launched;
+
+                                                        @Override
+                                                        public void run() {
+                                                          if (launched) {
+                                                            throw new IllegalStateException(
+                                                                "Workflow has already been"
+                                                                    + " launched");
+                                                          }
+                                                          launched = true;
+                                                          startTransaction(
+                                                              runTransaction ->
+                                                                  DatabaseBackedProcessor.this
+                                                                      .start(
+                                                                          target,
+                                                                          workflow.definition(),
+                                                                          dbWorkflow,
+                                                                          runTransaction));
+                                                        }
+                                                      });
+                                                } else {
+                                                  return handler.matchExisting(
+                                                      candidates.get(0).second());
+                                                }
                                               } else {
                                                 return handler.multipleMatches(
                                                     candidates.stream()

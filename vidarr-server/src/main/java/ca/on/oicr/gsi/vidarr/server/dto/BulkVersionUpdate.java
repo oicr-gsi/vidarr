@@ -29,5 +29,4 @@ public final class BulkVersionUpdate {
   public void setOld(String old) {
     this.old = old;
   }
-
 }

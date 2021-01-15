@@ -15,6 +15,13 @@ public interface ActiveOperation<TX> {
    * @param transaction the transaction to perform the update in
    */
   void debugInfo(JsonNode info, TX transaction);
+
+  /**
+   * Check if the operation is still live
+   *
+   * @return if false, no callbacks will be scheduled.
+   */
+  boolean isLive();
   /**
    * Be told something something interesting
    *

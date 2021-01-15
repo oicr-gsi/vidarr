@@ -11,6 +11,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.lang.System.Logger.Level;
 import java.util.*;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Semaphore;
@@ -89,11 +90,15 @@ public abstract class BaseProcessor<
 
     private Runnable safeWrap(Runnable task) {
       return () -> {
-        try {
-          task.run();
-        } catch (Throwable e) {
-          System.err.println("Task thew exception. Failing workflow.");
-          permanentFailure(e.toString());
+        if (operation.isLive()) {
+          try {
+            task.run();
+          } catch (Throwable e) {
+            System.err.println("Task threw exception. Failing workflow.");
+            permanentFailure(e.toString());
+          }
+        } else {
+          log(Level.ERROR, "Task is now dead.");
         }
       };
     }
@@ -901,6 +906,10 @@ public abstract class BaseProcessor<
     final var nextPhaseManager = currentPhase.startNext(initialStates.size());
     final var operations =
         currentPhase.workflow().phase(nextPhaseManager.phase(), initialStates, transaction);
+    if (operations.size() != nextPhaseSteps.size()) {
+      // The backing store has decided to abandon this workflow run.
+      return;
+    }
     for (var index = 0; index < nextPhaseSteps.size(); index++) {
       final var operation = operations.get(index);
       monitors.get(index).set(nextPhaseManager.createMonitor(operation));

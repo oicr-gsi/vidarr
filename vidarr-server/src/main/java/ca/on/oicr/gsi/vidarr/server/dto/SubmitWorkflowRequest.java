@@ -9,6 +9,7 @@ import java.util.Set;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public final class SubmitWorkflowRequest {
   private ObjectNode arguments;
+  private int attempt;
   private Map<String, Long> consumableResources;
   private ObjectNode engineParameters;
   private Set<ExternalKey> externalKeys;
@@ -21,6 +22,10 @@ public final class SubmitWorkflowRequest {
 
   public ObjectNode getArguments() {
     return arguments;
+  }
+
+  public int getAttempt() {
+    return attempt;
   }
 
   public Map<String, Long> getConsumableResources() {
@@ -61,6 +66,10 @@ public final class SubmitWorkflowRequest {
 
   public void setArguments(ObjectNode arguments) {
     this.arguments = arguments;
+  }
+
+  public void setAttempt(int attempt) {
+    this.attempt = attempt;
   }
 
   public void setConsumableResources(Map<String, Long> consumableResources) {

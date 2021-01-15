@@ -6,6 +6,7 @@ import ca.on.oicr.gsi.Pair;
 import ca.on.oicr.gsi.vidarr.core.ActiveWorkflow;
 import ca.on.oicr.gsi.vidarr.core.BaseProcessor;
 import ca.on.oicr.gsi.vidarr.core.ExternalId;
+import ca.on.oicr.gsi.vidarr.core.ExternalKey;
 import ca.on.oicr.gsi.vidarr.core.Phase;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -18,6 +19,8 @@ import java.security.NoSuchAlgorithmException;
 import java.sql.SQLException;
 import java.time.OffsetDateTime;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 import org.jooq.*;
 import org.jooq.Record;
@@ -34,6 +37,7 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
       JsonNode metadata,
       SortedSet<String> fileIds,
       Set<? extends ExternalId> ids,
+      IntFunction<AtomicBoolean> liveness,
       DSLContext dsl)
       throws SQLException {
     final int dbId =
@@ -80,6 +84,7 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
     return new DatabaseWorkflow(
         dbId,
         vidarrId,
+        0,
         arguments,
         engineParameters,
         metadata,
@@ -89,7 +94,95 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
         Collections.emptySet(),
         true,
         Phase.INITIALIZING,
-        null);
+        null,
+        liveness.apply(dbId));
+  }
+
+  public static DatabaseWorkflow reinitialise(
+      int dbId,
+      int workflowVersionId,
+      String vidarrId,
+      JsonNode arguments,
+      ObjectNode engineParameters,
+      JsonNode metadata,
+      Set<? extends ExternalId> ids,
+      AtomicBoolean liveness,
+      Set<ExternalKey> keys,
+      DSLContext dsl)
+      throws SQLException {
+    final var attempt =
+        dsl.update(ACTIVE_WORKFLOW_RUN)
+            .set(ACTIVE_WORKFLOW_RUN.ATTEMPT, ACTIVE_WORKFLOW_RUN.ATTEMPT.plus(1))
+            .set(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE, Phase.INITIALIZING)
+            .set(ACTIVE_WORKFLOW_RUN.EXTERNAL_INPUT_IDS_HANDLED, false)
+            .set(ACTIVE_WORKFLOW_RUN.PREFLIGHT_OKAY, true)
+            .where(ACTIVE_WORKFLOW_RUN.ID.eq(dbId))
+            .returningResult(ACTIVE_WORKFLOW_RUN.ATTEMPT)
+            .fetchOne()
+            .value1();
+    dsl.update(WORKFLOW_RUN)
+        .set(WORKFLOW_RUN.ARGUMENTS, arguments)
+        .set(WORKFLOW_RUN.ENGINE_PARAMETERS, engineParameters)
+        .set(WORKFLOW_RUN.HASH_ID, vidarrId)
+        .set(WORKFLOW_RUN.METADATA, metadata)
+        .set(WORKFLOW_RUN.WORKFLOW_VERSION_ID, workflowVersionId)
+        .where(WORKFLOW_RUN.ID.eq(dbId))
+        .execute();
+
+    dsl.delete(ANALYSIS_EXTERNAL_ID)
+        .where(
+            ANALYSIS_EXTERNAL_ID.ANALYSIS_ID.in(
+                DSL.select(ANALYSIS.ID).from(ANALYSIS).where(ANALYSIS.WORKFLOW_RUN_ID.eq(dbId))))
+        .execute();
+    dsl.delete(ANALYSIS).where(ANALYSIS.WORKFLOW_RUN_ID.eq(dbId)).execute();
+
+    // Since the workflow previously failed, we're just going to recreate all the versions since
+    // equivalency relationships are sus.
+    dsl.delete(EXTERNAL_ID_VERSION)
+        .where(
+            EXTERNAL_ID_VERSION.EXTERNAL_ID_ID.in(
+                DSL.select(EXTERNAL_ID.ID)
+                    .from(EXTERNAL_ID)
+                    .where(EXTERNAL_ID.WORKFLOW_RUN_ID.eq(dbId))));
+    var externalVersionsInsert =
+        dsl.insertInto(EXTERNAL_ID_VERSION)
+            .columns(
+                EXTERNAL_ID_VERSION.EXTERNAL_ID_ID,
+                EXTERNAL_ID_VERSION.KEY,
+                EXTERNAL_ID_VERSION.VALUE);
+    for (final var externalKey : keys) {
+      for (final var version : externalKey.getVersions().entrySet()) {
+        externalVersionsInsert =
+            externalVersionsInsert.values(
+                DSL.field(
+                    DSL.select(EXTERNAL_ID.ID)
+                        .from(EXTERNAL_ID)
+                        .where(
+                            EXTERNAL_ID
+                                .PROVIDER
+                                .eq(externalKey.getProvider())
+                                .and(EXTERNAL_ID.EXTERNAL_ID_.eq(externalKey.getId()))
+                                .and(EXTERNAL_ID.WORKFLOW_RUN_ID.eq(dbId)))),
+                DSL.val(version.getKey()),
+                DSL.val(version.getValue()));
+      }
+    }
+
+    return new DatabaseWorkflow(
+        dbId,
+        vidarrId,
+        attempt,
+        arguments,
+        engineParameters,
+        metadata,
+        null,
+        false,
+        new HashSet<>(ids),
+        Collections.emptySet(),
+        true,
+        Phase.INITIALIZING,
+        null,
+        liveness);
   }
 
   private static JSONB labelsToJson(Map<String, String> labels) {
@@ -112,7 +205,7 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
     }
   }
 
-  public static DatabaseWorkflow recover(Record record, DSLContext dsl) {
+  public static DatabaseWorkflow recover(Record record, AtomicBoolean liveness, DSLContext dsl) {
     final var inputIds = new HashSet<ExternalId>();
     final var requestedInputIds = new HashSet<ExternalId>();
     dsl.select(EXTERNAL_ID.asterisk())
@@ -133,6 +226,7 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
     return new DatabaseWorkflow(
         record.get(ACTIVE_WORKFLOW_RUN.ID),
         record.get(WORKFLOW_RUN.HASH_ID),
+        record.get(ACTIVE_WORKFLOW_RUN.ATTEMPT),
         record.get(WORKFLOW_RUN.ARGUMENTS),
         (ObjectNode) record.get(WORKFLOW_RUN.ENGINE_PARAMETERS),
         record.get(WORKFLOW_RUN.METADATA),
@@ -142,16 +236,19 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
         requestedInputIds,
         record.get(ACTIVE_WORKFLOW_RUN.PREFLIGHT_OKAY),
         record.get(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE),
-        (ObjectNode) record.get(ACTIVE_WORKFLOW_RUN.REAL_INPUT));
+        (ObjectNode) record.get(ACTIVE_WORKFLOW_RUN.REAL_INPUT),
+        liveness);
   }
 
   private final JsonNode arguments;
+  private final int attempt;
   private JsonNode cleanup;
   private final ObjectNode engineArguments;
   private boolean extraInputIdsHandled;
   private final int id;
   private final Set<ExternalId> inputIds;
   private boolean isPreflightOkay;
+  private final AtomicBoolean liveness;
   private final JsonNode metadata;
   private Phase phase;
   private ObjectNode realInput;
@@ -161,6 +258,7 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
   private DatabaseWorkflow(
       int id,
       String vidarrId,
+      int attempt,
       JsonNode arguments,
       ObjectNode engineArguments,
       JsonNode metadata,
@@ -170,7 +268,9 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
       Set<ExternalId> requestedInputIds,
       boolean isPreflightOkay,
       Phase phase,
-      ObjectNode realInput) {
+      ObjectNode realInput,
+      AtomicBoolean liveness) {
+    this.attempt = attempt;
     this.arguments = arguments;
     this.engineArguments = engineArguments;
     this.id = id;
@@ -183,6 +283,7 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
     this.isPreflightOkay = isPreflightOkay;
     this.phase = phase;
     this.realInput = realInput;
+    this.liveness = liveness;
   }
 
   @Override
@@ -272,17 +373,23 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
   @Override
   public List<DatabaseOperation> phase(
       Phase phase, List<Pair<String, JsonNode>> operationInitialStates, DSLContext transaction) {
-    if (this.phase == Phase.INITIALIZING) {
-      updateMainField(WORKFLOW_RUN.STARTED, OffsetDateTime.now(), transaction);
+    if (liveness.get()) {
+      if (this.phase == Phase.INITIALIZING) {
+        updateMainField(WORKFLOW_RUN.STARTED, OffsetDateTime.now(), transaction);
+      }
+      this.phase = phase;
+      updateField(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE, phase, transaction);
+      return operationInitialStates.stream()
+          .map(
+              state ->
+                  DatabaseOperation.create(
+                          transaction, id, state.first(), state.second(), attempt, liveness)
+                      .orElseThrow())
+          .collect(Collectors.toList());
+    } else {
+      // The world has passed us by, bail out.
+      return Collections.emptyList();
     }
-    this.phase = phase;
-    updateField(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE, phase, transaction);
-    return operationInitialStates.stream()
-        .map(
-            state ->
-                DatabaseOperation.create(transaction, id, state.first(), state.second())
-                    .orElseThrow())
-        .collect(Collectors.toList());
   }
 
   @Override
@@ -300,52 +407,57 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
       long fileSize,
       Map<String, String> labels,
       DSLContext dsl) {
-    try {
-      final var digest = MessageDigest.getInstance("SHA-256");
-      digest.update(vidarrId.getBytes(StandardCharsets.UTF_8));
-      digest.update(Path.of(storagePath).getFileName().toString().getBytes(StandardCharsets.UTF_8));
+    if (liveness.get()) {
+      try {
+        final var digest = MessageDigest.getInstance("SHA-256");
+        digest.update(vidarrId.getBytes(StandardCharsets.UTF_8));
+        digest.update(
+            Path.of(storagePath).getFileName().toString().getBytes(StandardCharsets.UTF_8));
 
-      final var recordId =
-          dsl.insertInto(ANALYSIS)
-              .set(ANALYSIS.ANALYSIS_TYPE, "file")
-              .set(ANALYSIS.FILE_MD5SUM, md5)
-              .set(ANALYSIS.FILE_METATYPE, metatype)
-              .set(ANALYSIS.FILE_PATH, storagePath)
-              .set(ANALYSIS.FILE_SIZE, fileSize)
-              .set(ANALYSIS.HASH_ID, BaseProcessor.hexDigits(digest.digest()))
-              .set(ANALYSIS.LABELS, labelsToJson(labels))
-              .set(ANALYSIS.WORKFLOW_RUN_ID, id)
-              .returningResult(ANALYSIS.ID)
-              .fetchOptional()
-              .orElseThrow()
-              .value1();
-      attachExternalIds(dsl, recordId, ids);
-    } catch (NoSuchAlgorithmException e) {
-      throw new RuntimeException(e);
+        final var recordId =
+            dsl.insertInto(ANALYSIS)
+                .set(ANALYSIS.ANALYSIS_TYPE, "file")
+                .set(ANALYSIS.FILE_MD5SUM, md5)
+                .set(ANALYSIS.FILE_METATYPE, metatype)
+                .set(ANALYSIS.FILE_PATH, storagePath)
+                .set(ANALYSIS.FILE_SIZE, fileSize)
+                .set(ANALYSIS.HASH_ID, BaseProcessor.hexDigits(digest.digest()))
+                .set(ANALYSIS.LABELS, labelsToJson(labels))
+                .set(ANALYSIS.WORKFLOW_RUN_ID, id)
+                .returningResult(ANALYSIS.ID)
+                .fetchOptional()
+                .orElseThrow()
+                .value1();
+        attachExternalIds(dsl, recordId, ids);
+      } catch (NoSuchAlgorithmException e) {
+        throw new RuntimeException(e);
+      }
     }
   }
 
   @Override
   public void provisionUrl(
       Set<? extends ExternalId> ids, String url, Map<String, String> labels, DSLContext dsl) {
-    try {
-      final var digest = MessageDigest.getInstance("SHA-256");
-      digest.update(vidarrId.getBytes(StandardCharsets.UTF_8));
-      digest.update(url.getBytes(StandardCharsets.UTF_8));
-      final var recordId =
-          dsl.insertInto(ANALYSIS)
-              .set(ANALYSIS.ANALYSIS_TYPE, "url")
-              .set(ANALYSIS.FILE_PATH, url)
-              .set(ANALYSIS.HASH_ID, BaseProcessor.hexDigits(digest.digest()))
-              .set(ANALYSIS.LABELS, labelsToJson(labels))
-              .set(ANALYSIS.WORKFLOW_RUN_ID, id)
-              .returningResult(ANALYSIS.ID)
-              .fetchOptional()
-              .orElseThrow()
-              .value1();
-      attachExternalIds(dsl, recordId, ids);
-    } catch (NoSuchAlgorithmException e) {
-      throw new RuntimeException(e);
+    if (liveness.get()) {
+      try {
+        final var digest = MessageDigest.getInstance("SHA-256");
+        digest.update(vidarrId.getBytes(StandardCharsets.UTF_8));
+        digest.update(url.getBytes(StandardCharsets.UTF_8));
+        final var recordId =
+            dsl.insertInto(ANALYSIS)
+                .set(ANALYSIS.ANALYSIS_TYPE, "url")
+                .set(ANALYSIS.FILE_PATH, url)
+                .set(ANALYSIS.HASH_ID, BaseProcessor.hexDigits(digest.digest()))
+                .set(ANALYSIS.LABELS, labelsToJson(labels))
+                .set(ANALYSIS.WORKFLOW_RUN_ID, id)
+                .returningResult(ANALYSIS.ID)
+                .fetchOptional()
+                .orElseThrow()
+                .value1();
+        attachExternalIds(dsl, recordId, ids);
+      } catch (NoSuchAlgorithmException e) {
+        throw new RuntimeException(e);
+      }
     }
   }
 

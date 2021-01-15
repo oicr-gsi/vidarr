@@ -971,6 +971,9 @@
                     "additionalProperties": true,
                     "type": "object"
                   },
+                  "attempt": {
+                    "type": "integer"
+                  },
                   "consumableResources": {
                     "additionalProperties": {
                       "type": "integer"

@@ -21,6 +21,11 @@ final class SingleShotOperation implements ActiveOperation<Void> {
   }
 
   @Override
+  public boolean isLive() {
+    return true;
+  }
+
+  @Override
   public void log(System.Logger.Level level, String message) {
     singleShotWorkflow.log(level, message);
   }

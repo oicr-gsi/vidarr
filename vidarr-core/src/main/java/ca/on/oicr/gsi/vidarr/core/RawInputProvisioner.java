@@ -10,7 +10,7 @@ import java.util.EnumSet;
 import java.util.Set;
 import javax.xml.stream.XMLStreamException;
 
-/** Provision input using the stored path as the input path with no aleration */
+/** Provision input using the stored path as the input path with no alteration */
 public final class RawInputProvisioner extends BaseJsonInputProvisioner<String, String> {
   public static InputProvisionerProvider provider() {
     return new InputProvisionerProvider() {

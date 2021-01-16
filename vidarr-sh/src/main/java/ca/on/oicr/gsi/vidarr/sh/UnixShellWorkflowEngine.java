@@ -14,7 +14,7 @@ import java.util.OptionalInt;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
-/** Run commands using UNIX shell locall */
+/** Run commands using UNIX shell locally */
 public final class UnixShellWorkflowEngine
     extends BaseJsonWorkflowEngine<ShellState, String, String> {
   private static final ObjectMapper MAPPER = new ObjectMapper();

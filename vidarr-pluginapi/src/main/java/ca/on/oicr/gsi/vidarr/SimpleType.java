@@ -459,7 +459,7 @@ public abstract class SimpleType {
    * <p>This is functionally similar to a two-element tuple, but WDL has special encoding for pairs.
    *
    * @param left the type of the first/left element
-   * @param right the type of teh second/right element
+   * @param right the type of the second/right element
    */
   public static SimpleType pair(SimpleType left, SimpleType right) {
     return new PairSimpleType(left, right);

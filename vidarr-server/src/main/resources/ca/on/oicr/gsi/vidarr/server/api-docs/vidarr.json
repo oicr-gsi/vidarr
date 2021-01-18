@@ -1169,6 +1169,72 @@
         ]
       }
     },
+    "/api/versions": {
+      "post": {
+        "description": "Update external IDs with new equivalences in bulk.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "newVersionKey": {
+                    "description": "The version key to add. If adding a new version of the same type, this might be the same as the old version key.",
+                    "type": "string"
+                  },
+                  "oldVersionKey": {
+                    "description": "The version key to search for. An external identifier will be updated if this key is present and matches the per record value",
+                    "type": "string"
+                  },
+                  "provider": {
+                    "description": "The provider to be used for all identifiers",
+                    "type": "string"
+                  },
+                  "updates": {
+                    "description": "The updates to make.",
+                    "items": {
+                      "properties": {
+                        "add": {
+                          "description": "The new value to insert using the new version key.",
+                          "type": "string"
+                        },
+                        "identifer": {
+                          "description": "The external identifier's name.",
+                          "type": "string"
+                        },
+                        "old": {
+                          "description": "The existing value that must be present as a value under the old version key to permit the new value to be inserted.",
+                          "type": "string"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "type": "array"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "description": "TODO"
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "description": "The number of records update."
+          }
+        },
+        "summary": "Update external versions",
+        "tags": [
+          "workflow-run"
+        ]
+      }
+    },
     "/api/workflow/{name}": {
       "delete": {
         "description": "Deactivate a workflow. This does not stop inflight actions from using this workflow. It merely stops it from being available in the workflow catalogue.",

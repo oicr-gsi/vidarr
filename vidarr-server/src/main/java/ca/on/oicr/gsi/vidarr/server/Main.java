@@ -261,6 +261,12 @@ public final class Main implements ServerConfig {
                                         JsonPost.parse(
                                             AddWorkflowVersionRequest.class,
                                             server::addWorkflowVersion))))
+                            .post(
+                                "/api/versions",
+                                monitor(
+                                    new BlockingHandler(
+                                        JsonPost.parse(
+                                            BulkVersionRequest.class, server::updateVersions))))
                             .setFallbackHandler(
                                 new ResourceHandler(
                                     new ClassPathResourceManager(
@@ -1288,6 +1294,17 @@ public final class Main implements ServerConfig {
     } catch (JsonProcessingException e) {
       exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);
       exchange.getResponseSender().send(e.getMessage());
+      e.printStackTrace();
+    }
+  }
+
+  private void updateVersions(HttpServerExchange exchange, BulkVersionRequest request) {
+    final var result = processor.updateVersions(request);
+    exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, TextFormat.CONTENT_TYPE_004);
+    exchange.setStatusCode(StatusCodes.OK);
+    try (final var os = exchange.getOutputStream()) {
+      os.write(Integer.toString(result).getBytes(StandardCharsets.UTF_8));
+    } catch (Exception e) {
       e.printStackTrace();
     }
   }

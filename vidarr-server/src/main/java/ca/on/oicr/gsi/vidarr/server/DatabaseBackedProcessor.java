@@ -7,6 +7,7 @@ import ca.on.oicr.gsi.vidarr.OutputProvisionType;
 import ca.on.oicr.gsi.vidarr.SimpleType;
 import ca.on.oicr.gsi.vidarr.WorkflowDefinition;
 import ca.on.oicr.gsi.vidarr.core.*;
+import ca.on.oicr.gsi.vidarr.server.dto.BulkVersionRequest;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -22,6 +23,7 @@ import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -800,4 +802,42 @@ public abstract class DatabaseBackedProcessor
   }
 
   protected abstract Optional<Target> targetByName(String name);
+
+  int updateVersions(BulkVersionRequest request) {
+    final var counter = new AtomicInteger();
+    startTransaction(
+        context -> {
+          for (final var update : request.getUpdates()) {
+
+            counter.addAndGet(
+                context
+                    .insertInto(EXTERNAL_ID_VERSION)
+                    .columns(
+                        EXTERNAL_ID_VERSION.EXTERNAL_ID_ID,
+                        EXTERNAL_ID_VERSION.KEY,
+                        EXTERNAL_ID_VERSION.VALUE)
+                    .select(
+                        DSL.selectDistinct(
+                                EXTERNAL_ID_VERSION.EXTERNAL_ID_ID,
+                                DSL.val(request.getNewVersionKey()),
+                                DSL.val(update.getAdd()))
+                            .from(
+                                EXTERNAL_ID_VERSION
+                                    .join(EXTERNAL_ID)
+                                    .on(
+                                        EXTERNAL_ID_VERSION.EXTERNAL_ID_ID.eq(
+                                            EXTERNAL_ID_VERSION.EXTERNAL_ID_ID)))
+                            .where(
+                                EXTERNAL_ID
+                                    .PROVIDER
+                                    .eq(request.getProvider())
+                                    .and(EXTERNAL_ID.EXTERNAL_ID_.eq(update.getId()))
+                                    .and(EXTERNAL_ID_VERSION.KEY.eq(request.getOldVersionKey()))
+                                    .and(EXTERNAL_ID_VERSION.VALUE.eq(update.getOld()))))
+                    .onConflictDoNothing()
+                    .execute());
+          }
+        });
+    return counter.get();
+  }
 }

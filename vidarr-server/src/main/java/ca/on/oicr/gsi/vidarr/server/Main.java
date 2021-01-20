@@ -125,17 +125,20 @@ public final class Main implements ServerConfig {
         DSL.jsonEntry(
             "operationStatus",
             DSL.case_(
-                    DSL.field(
-                        DSL.select(
-                                DSL.max(
-                                    DSL.case_(ACTIVE_OPERATION.STATUS)
-                                        .when(OperationStatus.FAILED, 2)
-                                        .when(OperationStatus.SUCCEEDED, 0)
-                                        .otherwise(1)))
-                            .from(ACTIVE_OPERATION)
-                            .where(ACTIVE_OPERATION.WORKFLOW_RUN_ID.eq(WORKFLOW_RUN.ID))))
+                    DSL.nvl(
+                        DSL.field(
+                            DSL.select(
+                                    DSL.max(
+                                        DSL.case_(ACTIVE_OPERATION.STATUS)
+                                            .when(OperationStatus.FAILED, 2)
+                                            .when(OperationStatus.SUCCEEDED, 0)
+                                            .otherwise(1)))
+                                .from(ACTIVE_OPERATION)
+                                .where(ACTIVE_OPERATION.WORKFLOW_RUN_ID.eq(WORKFLOW_RUN.ID))),
+                        -1))
                 .when(0, "SUCCEEDED")
                 .when(2, "FAILED")
+                .when(-1, "N/A")
                 .otherwise("WAITING")));
     STATUS_FIELDS.add(DSL.jsonEntry("created", WORKFLOW_RUN.CREATED));
     STATUS_FIELDS.add(DSL.jsonEntry("id", WORKFLOW_RUN.HASH_ID));
@@ -224,7 +227,8 @@ public final class Main implements ServerConfig {
                             .get("/", monitor(new BlockingHandler(server::status)))
                             .get("/api/file/{hash}", monitor(server::fetchFile))
                             .get("/api/run/{hash}", monitor(new BlockingHandler(server::fetchRun)))
-                            .get("/api/status", monitor(new BlockingHandler(server::fetchAllActive)))
+                            .get(
+                                "/api/status", monitor(new BlockingHandler(server::fetchAllActive)))
                             .get("/api/status/{hash}", monitor(server::fetchStatus))
                             .get("/api/targets", monitor(server::fetchTargets))
                             .get("/api/url/{hash}", monitor(server::fetchUrl))

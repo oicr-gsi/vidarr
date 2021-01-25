@@ -33,7 +33,7 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
       String vidarrId,
       ObjectNode labels,
       JsonNode arguments,
-      ObjectNode engineParameters,
+      JsonNode engineParameters,
       JsonNode metadata,
       SortedSet<String> fileIds,
       Set<? extends ExternalId> ids,
@@ -243,7 +243,7 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
   private final JsonNode arguments;
   private final int attempt;
   private JsonNode cleanup;
-  private final ObjectNode engineArguments;
+  private final JsonNode engineArguments;
   private boolean extraInputIdsHandled;
   private final int id;
   private final Set<ExternalId> inputIds;
@@ -260,7 +260,7 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
       String vidarrId,
       int attempt,
       JsonNode arguments,
-      ObjectNode engineArguments,
+      JsonNode engineArguments,
       JsonNode metadata,
       JsonNode cleanup,
       boolean extraInputIdsHandled,
@@ -330,7 +330,7 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
   }
 
   @Override
-  public ObjectNode engineArguments() {
+  public JsonNode engineArguments() {
     return engineArguments;
   }
 

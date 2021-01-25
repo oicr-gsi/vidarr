@@ -710,7 +710,7 @@ public abstract class BaseProcessor<
       WorkflowDefinition workflow,
       JsonNode arguments,
       JsonNode metadata,
-      ObjectNode engineParameters) {
+      JsonNode engineParameters) {
     return Stream.concat(
         target.engine().supports(workflow.language())
             ? Stream.empty()

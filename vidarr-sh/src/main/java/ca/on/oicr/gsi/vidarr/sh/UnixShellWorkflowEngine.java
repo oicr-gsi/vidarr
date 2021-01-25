@@ -3,6 +3,7 @@ package ca.on.oicr.gsi.vidarr.sh;
 import ca.on.oicr.gsi.status.SectionRenderer;
 import ca.on.oicr.gsi.vidarr.*;
 import ca.on.oicr.gsi.vidarr.WorkMonitor.Status;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.File;
@@ -91,7 +92,7 @@ public final class UnixShellWorkflowEngine
       String workflow,
       String vidarrId,
       ObjectNode workflowParameters,
-      ObjectNode engineParameters,
+      JsonNode engineParameters,
       WorkMonitor<Result<String>, ShellState> monitor) {
     final var state = new ShellState();
     monitor.scheduleTask(

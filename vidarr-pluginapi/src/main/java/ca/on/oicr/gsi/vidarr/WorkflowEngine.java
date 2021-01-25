@@ -101,7 +101,7 @@ public interface WorkflowEngine {
       String workflow,
       String vidarrId,
       ObjectNode workflowParameters,
-      ObjectNode engineParameters,
+      JsonNode engineParameters,
       WorkMonitor<Result<JsonNode>, JsonNode> monitor);
 
   /**

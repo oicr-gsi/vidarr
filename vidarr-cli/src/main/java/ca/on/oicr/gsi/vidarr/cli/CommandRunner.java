@@ -3,6 +3,7 @@ package ca.on.oicr.gsi.vidarr.cli;
 import ca.on.oicr.gsi.vidarr.core.ExternalId;
 import ca.on.oicr.gsi.vidarr.core.OutputProvisioningHandler;
 import ca.on.oicr.gsi.vidarr.core.WorkflowConfiguration;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.File;
@@ -18,11 +19,11 @@ import picocli.CommandLine;
     name = "run",
     description = "Run a workflow and dump the provisioning records to a file")
 public class CommandRunner implements Callable<Integer> {
-  private static ObjectNode read(String argument) throws IOException {
+  private static <T> T read(String argument, Class<T> clazz) throws IOException {
     if (argument.startsWith("@")) {
-      return MAPPER.readValue(new File(argument.substring(1)), ObjectNode.class);
+      return MAPPER.readValue(new File(argument.substring(1)), clazz);
     } else {
-      return MAPPER.readValue(argument, ObjectNode.class);
+      return MAPPER.readValue(argument, clazz);
     }
   }
 
@@ -77,9 +78,9 @@ public class CommandRunner implements Callable<Integer> {
         "run",
         target,
         workflow,
-        read(arguments),
-        read(metadata),
-        read(engineArguments),
+        read(arguments, ObjectNode.class),
+        read(metadata, ObjectNode.class),
+        read(engineArguments, JsonNode.class),
         new OutputProvisioningHandler<>() {
 
           @Override

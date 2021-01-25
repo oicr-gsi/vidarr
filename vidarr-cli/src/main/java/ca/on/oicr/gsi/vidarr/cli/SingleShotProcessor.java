@@ -2,6 +2,7 @@ package ca.on.oicr.gsi.vidarr.cli;
 
 import ca.on.oicr.gsi.vidarr.WorkflowDefinition;
 import ca.on.oicr.gsi.vidarr.core.*;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.time.Instant;
@@ -43,7 +44,7 @@ final class SingleShotProcessor
       WorkflowDefinition workflow,
       ObjectNode arguments,
       ObjectNode metadata,
-      ObjectNode engineParameters,
+      JsonNode engineParameters,
       OutputProvisioningHandler<Void> outputHandler) {
     final SingleShotWorkflow active =
         startAsync(prefix, target, workflow, arguments, metadata, engineParameters, outputHandler);
@@ -57,7 +58,7 @@ final class SingleShotProcessor
       WorkflowDefinition workflow,
       ObjectNode arguments,
       ObjectNode metadata,
-      ObjectNode engineParameters,
+      JsonNode engineParameters,
       OutputProvisioningHandler<Void> outputHandler) {
     System.err.printf("%s: [%s] Validating input...%n", prefix, Instant.now());
     final List<String> errors =

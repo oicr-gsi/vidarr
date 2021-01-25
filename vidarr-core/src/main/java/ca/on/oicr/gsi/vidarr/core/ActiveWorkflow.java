@@ -30,8 +30,12 @@ public interface ActiveWorkflow<O extends ActiveOperation<TX>, TX>
    */
   void cleanup(JsonNode cleanupState, TX transaction);
 
-  /** Get the caller-supplied engine argument to the workflow run */
-  ObjectNode engineArguments();
+  /**
+   * Get the caller-supplied engine argument to the workflow run
+   *
+   * @return
+   */
+  JsonNode engineArguments();
 
   /**
    * Check if extra input is handled

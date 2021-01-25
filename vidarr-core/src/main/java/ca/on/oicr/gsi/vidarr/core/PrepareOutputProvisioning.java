@@ -142,14 +142,6 @@ final class PrepareOutputProvisioning
   }
 
   @Override
-  protected Stream<TaskStarter<Pair<ProvisionData, Result>>> taggedUnion(
-      OutputProvisionType type, JsonNode metadata) {
-    return type.apply(
-        new PrepareOutputProvisioning(
-            mapper, target, output, metadata, allInputIds, remainingInputIds));
-  }
-
-  @Override
   public Stream<TaskStarter<Pair<ProvisionData, Result>>> unknown() {
     throw new IllegalArgumentException();
   }

@@ -126,8 +126,6 @@ public interface OutputProvisioner {
   /**
    * Get the type of information required for provisioning out the files
    *
-   * <p>The fields will be mixed the Vidarr's own fields, which all start with <tt>vidarr</tt>.
-   *
    * @param format the input format
    * @return the metadata that the client must supply to be able to provision in this data
    */

@@ -5,7 +5,6 @@ import ca.on.oicr.gsi.vidarr.OutputProvisionType.IdentifierKey;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.*;
-import java.util.Map.Entry;
 import java.util.stream.Stream;
 
 /**
@@ -63,11 +62,17 @@ abstract class BaseOutputExtractor<R, E> implements OutputProvisionType.Visitor<
         && metadata.get("type").isTextual()
         && metadata.has("contents")) {
       final var contents = metadata.get("contents");
+      if (!contents.isArray()) {
+        return invalid();
+      }
       switch (metadata.get("type").asText()) {
         case "REMAINING":
+          if (contents.size() != 1) {
+            return invalid();
+          }
           return handle(
               format,
-              contents,
+              contents.get(0),
               output,
               new OutputData() {
                 @Override
@@ -76,9 +81,12 @@ abstract class BaseOutputExtractor<R, E> implements OutputProvisionType.Visitor<
                 }
               });
         case "ALL":
+          if (contents.size() != 1) {
+            return invalid();
+          }
           return handle(
               format,
-              contents,
+              contents.get(0),
               output,
               new OutputData() {
                 @Override
@@ -88,17 +96,13 @@ abstract class BaseOutputExtractor<R, E> implements OutputProvisionType.Visitor<
               });
         case "MANUAL":
           try {
-            if (!metadata.has(OutputProvisionType.MANUAL_FIELD__EXTERNAL_IDS)) {
+            if (contents.size() != 2) {
               return invalid();
             }
-            var externalIds =
-                mapper()
-                    .treeToValue(
-                        metadata.get(OutputProvisionType.MANUAL_FIELD__EXTERNAL_IDS),
-                        ExternalId[].class);
+            var externalIds = mapper().treeToValue(contents.get(1), ExternalId[].class);
             return handle(
                 format,
-                contents,
+                contents.get(0),
                 output,
                 new OutputData() {
                   @Override
@@ -222,23 +226,6 @@ abstract class BaseOutputExtractor<R, E> implements OutputProvisionType.Visitor<
   public final R qualityControl() {
     return handle(WorkflowOutputDataType.QUALITY_CONTROL);
   }
-
-  @Override
-  public final R taggedUnion(Stream<Entry<String, OutputProvisionType>> elements) {
-    if (metadata.isObject() && metadata.has("type") && metadata.has("contents")) {
-      final var type = metadata.get("type").asText("");
-      return elements
-          .filter(e -> e.getKey().equals(type))
-          .findFirst()
-          .map(e -> taggedUnion(e.getValue(), metadata.get("contents")))
-          .orElseGet(this::unknown);
-
-    } else {
-      return invalid();
-    }
-  }
-
-  protected abstract R taggedUnion(OutputProvisionType type, JsonNode metadata);
 
   @Override
   public final R warehouseRecords() {

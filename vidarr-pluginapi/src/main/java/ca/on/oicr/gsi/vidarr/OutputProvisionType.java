@@ -1,6 +1,5 @@
 package ca.on.oicr.gsi.vidarr;
 
-import ca.on.oicr.gsi.Pair;
 import com.fasterxml.jackson.core.*;
 import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.JsonDeserializer;
@@ -13,11 +12,9 @@ import com.fasterxml.jackson.databind.node.ValueNode;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Spliterators;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 /**
@@ -99,15 +96,6 @@ public abstract class OutputProvisionType {
     }
 
     /**
-     * The output is a discriminated union
-     *
-     * @param elements the possible values in the algebraic type
-     */
-    default T taggedUnion(Stream<Entry<String, OutputProvisionType>> elements) {
-      return unknown();
-    }
-
-    /**
      * The output is unknown
      *
      * <p>This will be used if implementations are not provided for the above methods and if future
@@ -170,11 +158,6 @@ public abstract class OutputProvisionType {
                           false)
                       .collect(
                           Collectors.toMap(Map.Entry::getKey, e -> deserialize(e.getValue())))));
-            case "tagged-union":
-              return taggedUnionFromPairs(
-                  StreamSupport.stream(
-                          Spliterators.spliteratorUnknownSize(obj.get("fields").fields(), 0), false)
-                      .map(e -> new Pair<>(e.getKey(), deserialize(e.getValue()))));
             default:
               throw new IllegalArgumentException("Invalid 'is' in JSON object");
           }
@@ -258,25 +241,6 @@ public abstract class OutputProvisionType {
                 }
 
                 @Override
-                public Printer taggedUnion(
-                    Stream<Map.Entry<String, OutputProvisionType>> elements) {
-                  final var unions =
-                      elements.collect(
-                          Collectors.toMap(Map.Entry::getKey, e -> e.getValue().apply(this)));
-                  return g -> {
-                    g.writeStartObject();
-                    g.writeStringField("is", "tagged-union");
-                    g.writeObjectFieldStart("unions");
-                    for (final var union : unions.entrySet()) {
-                      g.writeFieldName(union.getKey());
-                      union.getValue().print(g);
-                    }
-                    g.writeEndObject();
-                    g.writeEndObject();
-                  };
-                }
-
-                @Override
                 public Printer unknown() {
                   return g -> g.writeString("unknown");
                 }
@@ -314,63 +278,6 @@ public abstract class OutputProvisionType {
     };
   }
 
-  /**
-   * The output is a choice between multiple tagged data structures
-   *
-   * @param elements the possible data structures; the string identifiers must be unique
-   */
-  public static OutputProvisionType taggedUnion(
-      Stream<Entry<String, OutputProvisionType>> elements) {
-    return new OutputProvisionType() {
-      private final Map<String, OutputProvisionType> union =
-          Collections.unmodifiableMap(
-              elements.collect(Collectors.toMap(Entry::getKey, Entry::getValue)));
-
-      @Override
-      public <T> T apply(Visitor<T> visitor) {
-        return visitor.taggedUnion(union.entrySet().stream());
-      }
-    };
-  }
-
-  /**
-   * The output is a choice between multiple tagged data structures
-   *
-   * @param elements the possible data structures; the string identifiers must be unique
-   */
-  @SafeVarargs
-  public static OutputProvisionType taggedUnion(Entry<String, OutputProvisionType>... elements) {
-    return taggedUnion(Stream.of(elements));
-  }
-
-  /**
-   * The output is a choice between multiple tagged data structures
-   *
-   * @param elements the possible data structures; the string identifiers must be unique
-   */
-  @SafeVarargs
-  public static OutputProvisionType taggedUnion(Pair<String, OutputProvisionType>... elements) {
-    return taggedUnionFromPairs(Stream.of(elements));
-  }
-
-  /**
-   * The output is a choice between multiple tagged data structures
-   *
-   * @param elements the possible data structures; the string identifiers must be unique
-   */
-  public static OutputProvisionType taggedUnionFromPairs(
-      Stream<Pair<String, OutputProvisionType>> elements) {
-    return new OutputProvisionType() {
-      private final Map<String, OutputProvisionType> union =
-          Collections.unmodifiableMap(
-              elements.collect(Collectors.toMap(Pair::first, Pair::second)));
-
-      @Override
-      public <T> T apply(Visitor<T> visitor) {
-        return visitor.taggedUnion(union.entrySet().stream());
-      }
-    };
-  }
   /** The output is a single file */
   public static final OutputProvisionType FILE =
       new OutputProvisionType() {
@@ -416,8 +323,6 @@ public abstract class OutputProvisionType {
         }
       };
 
-  /** This is the name of the field in the JSON provided that holds the external IDs */
-  public static final String MANUAL_FIELD__EXTERNAL_IDS = "vidarrExternalIds";
   /** The output is quality control information */
   public static final OutputProvisionType QUALITY_CONTROL =
       new OutputProvisionType() {

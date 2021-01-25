@@ -1,6 +1,6 @@
 package ca.on.oicr.gsi.vidarr.cli;
 
-import ca.on.oicr.gsi.vidarr.core.ExternalId;
+import ca.on.oicr.gsi.vidarr.api.ExternalId;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.io.IOException;
 import java.io.UncheckedIOException;

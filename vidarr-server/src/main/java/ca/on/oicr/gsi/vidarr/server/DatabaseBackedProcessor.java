@@ -3,10 +3,12 @@ package ca.on.oicr.gsi.vidarr.server;
 import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.*;
 
 import ca.on.oicr.gsi.Pair;
+import ca.on.oicr.gsi.vidarr.BasicType;
 import ca.on.oicr.gsi.vidarr.InputType;
 import ca.on.oicr.gsi.vidarr.OutputType;
-import ca.on.oicr.gsi.vidarr.BasicType;
 import ca.on.oicr.gsi.vidarr.WorkflowDefinition;
+import ca.on.oicr.gsi.vidarr.api.ExternalId;
+import ca.on.oicr.gsi.vidarr.api.ExternalKey;
 import ca.on.oicr.gsi.vidarr.core.*;
 import ca.on.oicr.gsi.vidarr.server.dto.BulkVersionRequest;
 import com.fasterxml.jackson.core.JsonProcessingException;

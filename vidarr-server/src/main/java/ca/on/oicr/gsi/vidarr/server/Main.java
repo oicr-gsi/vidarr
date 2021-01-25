@@ -6,8 +6,22 @@ import ca.on.oicr.gsi.Pair;
 import ca.on.oicr.gsi.prometheus.LatencyHistogram;
 import ca.on.oicr.gsi.status.*;
 import ca.on.oicr.gsi.vidarr.*;
+import ca.on.oicr.gsi.vidarr.api.AddWorkflowRequest;
+import ca.on.oicr.gsi.vidarr.api.AddWorkflowVersionRequest;
+import ca.on.oicr.gsi.vidarr.api.AnalysisOutputType;
+import ca.on.oicr.gsi.vidarr.api.AnalysisProvenanceRequest;
+import ca.on.oicr.gsi.vidarr.api.AnalysisRecordDto;
+import ca.on.oicr.gsi.vidarr.api.ExternalKey;
+import ca.on.oicr.gsi.vidarr.api.SubmitMode;
+import ca.on.oicr.gsi.vidarr.api.SubmitWorkflowRequest;
+import ca.on.oicr.gsi.vidarr.api.SubmitWorkflowResponse;
+import ca.on.oicr.gsi.vidarr.api.SubmitWorkflowResponseConflict;
+import ca.on.oicr.gsi.vidarr.api.SubmitWorkflowResponseDryRun;
+import ca.on.oicr.gsi.vidarr.api.SubmitWorkflowResponseFailure;
+import ca.on.oicr.gsi.vidarr.api.SubmitWorkflowResponseMissingKeyVersions;
+import ca.on.oicr.gsi.vidarr.api.SubmitWorkflowResponseSuccess;
+import ca.on.oicr.gsi.vidarr.api.VersionPolicy;
 import ca.on.oicr.gsi.vidarr.core.BaseProcessor;
-import ca.on.oicr.gsi.vidarr.core.ExternalKey;
 import ca.on.oicr.gsi.vidarr.core.FileMetadata;
 import ca.on.oicr.gsi.vidarr.core.OperationStatus;
 import ca.on.oicr.gsi.vidarr.core.Phase;
@@ -71,6 +85,7 @@ import javax.xml.stream.XMLStreamException;
 import org.flywaydb.core.Flyway;
 import org.jooq.*;
 import org.jooq.impl.DSL;
+import org.jooq.impl.SQLDataType;
 import org.postgresql.ds.PGSimpleDataSource;
 
 public final class Main implements ServerConfig {
@@ -178,6 +193,72 @@ public final class Main implements ServerConfig {
                                 DSL.jsonEntry("type", ACTIVE_OPERATION.TYPE))))
                     .from(ACTIVE_OPERATION)
                     .where(ACTIVE_OPERATION.WORKFLOW_RUN_ID.eq(WORKFLOW_RUN.ID)))));
+  }
+
+  private static Field<?> createQuery(VersionPolicy policy, Set<String> allowedTypes) {
+    switch (policy) {
+      case ALL:
+        {
+          var condition = EXTERNAL_ID.ID.eq(EXTERNAL_ID_VERSION.EXTERNAL_ID_ID);
+          if (allowedTypes != null) {
+            condition = condition.and(EXTERNAL_ID_VERSION.KEY.in(allowedTypes));
+          }
+          final var externalIdVersionAlias = EXTERNAL_ID_VERSION.as("externalIdVersionInner");
+          final var table =
+              DSL.selectDistinct(EXTERNAL_ID_VERSION.KEY.as("desired_key"))
+                  .from(EXTERNAL_ID_VERSION)
+                  .where(condition)
+                  .asTable("keys");
+
+          return DSL.field(
+              DSL.select(
+                      DSL.jsonObjectAgg(
+                          DSL.jsonEntry(
+                              table.field(0, String.class),
+                              DSL.field(
+                                  DSL.select(DSL.jsonArrayAgg(externalIdVersionAlias.VALUE))
+                                      .from(externalIdVersionAlias)
+                                      .where(
+                                          externalIdVersionAlias
+                                              .KEY
+                                              .eq(table.field(0, String.class))
+                                              .and(
+                                                  externalIdVersionAlias.EXTERNAL_ID_ID.eq(
+                                                      EXTERNAL_ID.ID)))))))
+                  .from(table));
+        }
+      case LATEST:
+        {
+          var condition = EXTERNAL_ID.ID.eq(EXTERNAL_ID_VERSION.EXTERNAL_ID_ID);
+          if (allowedTypes != null) {
+            condition = condition.and(EXTERNAL_ID_VERSION.KEY.in(allowedTypes));
+          }
+          final var externalIdVersionAlias = EXTERNAL_ID_VERSION.as("externalIdVersionInner");
+          return DSL.field(
+              DSL.select(
+                      DSL.jsonObjectAgg(
+                          DSL.jsonEntry(
+                              EXTERNAL_ID_VERSION.KEY,
+                              DSL.field(
+                                  DSL.select(
+                                          DSL.lastValue(externalIdVersionAlias.VALUE)
+                                              .over()
+                                              .orderBy(externalIdVersionAlias.CREATED))
+                                      .from(externalIdVersionAlias)
+                                      .where(
+                                          externalIdVersionAlias
+                                              .KEY
+                                              .eq(EXTERNAL_ID_VERSION.KEY)
+                                              .and(
+                                                  externalIdVersionAlias.EXTERNAL_ID_ID.eq(
+                                                      EXTERNAL_ID.ID)))))))
+                  .from(EXTERNAL_ID_VERSION)
+                  .where(condition)
+                  .groupBy(EXTERNAL_ID_VERSION.KEY));
+        }
+      default:
+        return DSL.inline(null, SQLDataType.JSON);
+    }
   }
 
   private static void handleException(HttpServerExchange exchange) {
@@ -727,7 +808,7 @@ public final class Main implements ServerConfig {
       VersionPolicy policy,
       Set<String> allowedTypes,
       boolean includeParameters,
-      Set<AnalysisType> includedAnalyses,
+      Set<AnalysisOutputType> includedAnalyses,
       Condition condition)
       throws SQLException {
     final var fields = new ArrayList<JSONEntry<?>>();
@@ -772,7 +853,7 @@ public final class Main implements ServerConfig {
                                 DSL.jsonEntry("created", EXTERNAL_ID.CREATED),
                                 DSL.jsonEntry("modified", EXTERNAL_ID.MODIFIED),
                                 DSL.jsonEntry("requested", EXTERNAL_ID.REQUESTED),
-                                DSL.jsonEntry("versions", policy.createQuery(allowedTypes)))))
+                                DSL.jsonEntry("versions", createQuery(policy, allowedTypes)))))
                     .from(EXTERNAL_ID)
                     .where(EXTERNAL_ID.WORKFLOW_RUN_ID.eq(WORKFLOW_RUN.ID)))));
 
@@ -804,7 +885,12 @@ public final class Main implements ServerConfig {
                             .and(
                                 ANALYSIS.ANALYSIS_TYPE.in(
                                     includedAnalyses.stream()
-                                        .map(AnalysisType::dbType)
+                                        .map(
+                                            t ->
+                                                switch (t) {
+                                                  case FILE -> "file";
+                                                  case URL -> "url";
+                                                })
                                         .collect(Collectors.toList())))))));
     DSL.using(connection, SQLDialect.POSTGRES)
         .select(DSL.jsonObject(fields))
@@ -900,7 +986,7 @@ public final class Main implements ServerConfig {
                                         DSL.jsonEntry("modified", EXTERNAL_ID.MODIFIED),
                                         DSL.jsonEntry("requested", EXTERNAL_ID.REQUESTED),
                                         DSL.jsonEntry(
-                                            "versions", VersionPolicy.ALL.createQuery(null)))))
+                                            "versions", createQuery(VersionPolicy.ALL, null)))))
                             .from(
                                 EXTERNAL_ID
                                     .join(ANALYSIS_EXTERNAL_ID)
@@ -1007,7 +1093,7 @@ public final class Main implements ServerConfig {
                         VersionPolicy.ALL,
                         null,
                         true,
-                        Set.of(AnalysisType.FILE, AnalysisType.URL),
+                        Set.of(AnalysisOutputType.FILE, AnalysisOutputType.URL),
                         WORKFLOW_RUN.HASH_ID.eq(vidarrId));
                   } catch (IOException | SQLException e) {
                     e.printStackTrace();

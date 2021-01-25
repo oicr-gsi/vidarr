@@ -1,4 +1,4 @@
-package ca.on.oicr.gsi.vidarr.core;
+package ca.on.oicr.gsi.vidarr.api;
 
 import ca.on.oicr.gsi.vidarr.InputType;
 import ca.on.oicr.gsi.vidarr.OutputType;

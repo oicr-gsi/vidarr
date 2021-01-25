@@ -1,6 +1,5 @@
-package ca.on.oicr.gsi.vidarr.server.dto;
+package ca.on.oicr.gsi.vidarr.api;
 
-import ca.on.oicr.gsi.vidarr.core.ExternalKey;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.time.ZonedDateTime;
 import java.util.List;

@@ -6,6 +6,7 @@ import static ca.on.oicr.gsi.vidarr.core.BaseInputExtractor.EXTERNAL__IDS;
 import ca.on.oicr.gsi.Pair;
 import ca.on.oicr.gsi.vidarr.InputProvisionFormat;
 import ca.on.oicr.gsi.vidarr.InputType;
+import ca.on.oicr.gsi.vidarr.api.ExternalId;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;

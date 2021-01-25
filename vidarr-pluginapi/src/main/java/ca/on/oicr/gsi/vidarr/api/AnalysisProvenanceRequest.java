@@ -1,4 +1,4 @@
-package ca.on.oicr.gsi.vidarr.server.dto;
+package ca.on.oicr.gsi.vidarr.api;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.util.Collections;
@@ -6,15 +6,16 @@ import java.util.Set;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class AnalysisProvenanceRequest {
-  private Set<AnalysisType> analysisTypes = Collections.singleton(AnalysisType.FILE);
+  private Set<AnalysisOutputType> analysisOutputTypes =
+      Collections.singleton(AnalysisOutputType.FILE);
   private long epoch;
   private boolean includeParameters;
   private long timestamp;
   private VersionPolicy versionPolicy = VersionPolicy.NONE;
   private Set<String> versionTypes = Collections.emptySet();
 
-  public Set<AnalysisType> getAnalysisTypes() {
-    return analysisTypes;
+  public Set<AnalysisOutputType> getAnalysisTypes() {
+    return analysisOutputTypes;
   }
 
   public long getEpoch() {
@@ -37,8 +38,8 @@ public class AnalysisProvenanceRequest {
     return includeParameters;
   }
 
-  public void setAnalysisTypes(Set<AnalysisType> analysisTypes) {
-    this.analysisTypes = analysisTypes;
+  public void setAnalysisTypes(Set<AnalysisOutputType> analysisOutputTypes) {
+    this.analysisOutputTypes = analysisOutputTypes;
   }
 
   public void setEpoch(long epoch) {

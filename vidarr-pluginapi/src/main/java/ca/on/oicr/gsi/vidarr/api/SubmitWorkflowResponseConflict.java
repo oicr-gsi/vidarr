@@ -1,4 +1,4 @@
-package ca.on.oicr.gsi.vidarr.server.dto;
+package ca.on.oicr.gsi.vidarr.api;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.util.List;

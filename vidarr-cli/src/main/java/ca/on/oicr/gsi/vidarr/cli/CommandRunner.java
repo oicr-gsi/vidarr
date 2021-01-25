@@ -1,6 +1,6 @@
 package ca.on.oicr.gsi.vidarr.cli;
 
-import ca.on.oicr.gsi.vidarr.core.ExternalId;
+import ca.on.oicr.gsi.vidarr.api.ExternalId;
 import ca.on.oicr.gsi.vidarr.core.OutputProvisioningHandler;
 import ca.on.oicr.gsi.vidarr.core.WorkflowConfiguration;
 import com.fasterxml.jackson.databind.JsonNode;

@@ -1,5 +1,6 @@
 package ca.on.oicr.gsi.vidarr.core;
 
+import ca.on.oicr.gsi.vidarr.api.ExternalId;
 import java.util.Map;
 import java.util.Set;
 

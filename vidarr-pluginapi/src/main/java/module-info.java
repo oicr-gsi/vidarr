@@ -6,6 +6,7 @@
  */
 module ca.on.oicr.gsi.vidarr.pluginapi {
   exports ca.on.oicr.gsi.vidarr;
+  exports ca.on.oicr.gsi.vidarr.api;
 
   requires transitive com.fasterxml.jackson.core;
   requires transitive com.fasterxml.jackson.databind;

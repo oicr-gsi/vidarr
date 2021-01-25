@@ -4,6 +4,7 @@ import ca.on.oicr.gsi.Pair;
 import ca.on.oicr.gsi.vidarr.*;
 import ca.on.oicr.gsi.vidarr.OutputProvisioner.ResultVisitor;
 import ca.on.oicr.gsi.vidarr.WorkflowEngine.Result;
+import ca.on.oicr.gsi.vidarr.api.ExternalId;
 import ca.on.oicr.gsi.vidarr.core.PrepareOutputProvisioning.ProvisioningOutWorkMonitor;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;

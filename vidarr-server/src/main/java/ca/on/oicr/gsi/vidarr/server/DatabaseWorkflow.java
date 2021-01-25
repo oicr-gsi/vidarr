@@ -3,6 +3,7 @@ package ca.on.oicr.gsi.vidarr.server;
 import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.*;
 
 import ca.on.oicr.gsi.Pair;
+import ca.on.oicr.gsi.vidarr.api.ExternalId;
 import ca.on.oicr.gsi.vidarr.core.ActiveWorkflow;
 import ca.on.oicr.gsi.vidarr.core.BaseProcessor;
 import ca.on.oicr.gsi.vidarr.core.ExternalId;

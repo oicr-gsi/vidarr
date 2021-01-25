@@ -169,7 +169,8 @@ public abstract class InputType {
             case "tagged-union":
               return taggedUnionFromPairs(
                   StreamSupport.stream(
-                          Spliterators.spliteratorUnknownSize(obj.get("options").fields(), 0), false)
+                          Spliterators.spliteratorUnknownSize(obj.get("options").fields(), 0),
+                          false)
                       .map(e -> new Pair<>(e.getKey(), deserialize(e.getValue()))));
             case "tuple":
               return tuple(

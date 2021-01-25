@@ -1,4 +1,4 @@
-package ca.on.oicr.gsi.vidarr.core;
+package ca.on.oicr.gsi.vidarr.api;
 
 import java.util.Map;
 

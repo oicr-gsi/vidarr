@@ -178,9 +178,7 @@ public abstract class OutputType {
 
     @Override
     public void serialize(
-        OutputType outputType,
-        JsonGenerator jsonGenerator,
-        SerializerProvider serializerProvider)
+        OutputType outputType, JsonGenerator jsonGenerator, SerializerProvider serializerProvider)
         throws IOException {
       outputType
           .apply(
@@ -261,8 +259,7 @@ public abstract class OutputType {
    *     composite key)
    * @param outputs the entries in the structure
    */
-  public static OutputType list(
-      Map<String, IdentifierKey> keys, Map<String, OutputType> outputs) {
+  public static OutputType list(Map<String, IdentifierKey> keys, Map<String, OutputType> outputs) {
     if (keys.keySet().stream().anyMatch(outputs.keySet()::contains)) {
       throw new IllegalArgumentException("Overlap between input and output entry sets");
     }

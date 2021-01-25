@@ -1,5 +1,6 @@
 package ca.on.oicr.gsi.vidarr.core;
 
+import ca.on.oicr.gsi.vidarr.api.ExternalKey;
 import java.util.stream.Stream;
 
 /** Get file metadata for a Vidarr file that can be used as input */

@@ -1,4 +1,4 @@
-package ca.on.oicr.gsi.vidarr.server.dto;
+package ca.on.oicr.gsi.vidarr.api;
 
 /** How a request to submit a job should be handled */
 public enum SubmitMode {

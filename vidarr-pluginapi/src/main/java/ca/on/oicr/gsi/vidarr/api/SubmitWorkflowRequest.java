@@ -1,9 +1,10 @@
-package ca.on.oicr.gsi.vidarr.server.dto;
+package ca.on.oicr.gsi.vidarr.api;
 
-import ca.on.oicr.gsi.vidarr.core.ExternalKey;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -11,7 +12,7 @@ public final class SubmitWorkflowRequest {
   private ObjectNode arguments;
   private int attempt;
   private Map<String, Long> consumableResources;
-  private ObjectNode engineParameters;
+  private JsonNode engineParameters;
   private Set<ExternalKey> externalKeys;
   private ObjectNode labels;
   private ObjectNode metadata;
@@ -19,6 +20,28 @@ public final class SubmitWorkflowRequest {
   private String target;
   private String workflow;
   private String workflowVersion;
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+    SubmitWorkflowRequest that = (SubmitWorkflowRequest) o;
+    return attempt == that.attempt
+        && Objects.equals(arguments, that.arguments)
+        && Objects.equals(consumableResources, that.consumableResources)
+        && Objects.equals(engineParameters, that.engineParameters)
+        && Objects.equals(externalKeys, that.externalKeys)
+        && Objects.equals(labels, that.labels)
+        && Objects.equals(metadata, that.metadata)
+        && mode == that.mode
+        && Objects.equals(target, that.target)
+        && Objects.equals(workflow, that.workflow)
+        && Objects.equals(workflowVersion, that.workflowVersion);
+  }
 
   public ObjectNode getArguments() {
     return arguments;
@@ -32,7 +55,7 @@ public final class SubmitWorkflowRequest {
     return consumableResources;
   }
 
-  public ObjectNode getEngineParameters() {
+  public JsonNode getEngineParameters() {
     return engineParameters;
   }
 
@@ -64,6 +87,22 @@ public final class SubmitWorkflowRequest {
     return workflowVersion;
   }
 
+  @Override
+  public int hashCode() {
+    return Objects.hash(
+        arguments,
+        attempt,
+        consumableResources,
+        engineParameters,
+        externalKeys,
+        labels,
+        metadata,
+        mode,
+        target,
+        workflow,
+        workflowVersion);
+  }
+
   public void setArguments(ObjectNode arguments) {
     this.arguments = arguments;
   }
@@ -76,7 +115,7 @@ public final class SubmitWorkflowRequest {
     this.consumableResources = consumableResources;
   }
 
-  public void setEngineParameters(ObjectNode engineParameters) {
+  public void setEngineParameters(JsonNode engineParameters) {
     this.engineParameters = engineParameters;
   }
 

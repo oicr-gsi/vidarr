@@ -1,4 +1,4 @@
-package ca.on.oicr.gsi.vidarr.server.dto;
+package ca.on.oicr.gsi.vidarr.api;
 
 import ca.on.oicr.gsi.vidarr.BasicType;
 import java.util.Collections;

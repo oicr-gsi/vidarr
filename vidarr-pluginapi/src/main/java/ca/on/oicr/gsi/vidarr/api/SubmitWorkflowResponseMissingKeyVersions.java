@@ -1,6 +1,5 @@
-package ca.on.oicr.gsi.vidarr.server.dto;
+package ca.on.oicr.gsi.vidarr.api;
 
-import ca.on.oicr.gsi.vidarr.core.ExternalKey;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.util.List;
 
@@ -20,7 +19,15 @@ public final class SubmitWorkflowResponseMissingKeyVersions extends SubmitWorkfl
     return id;
   }
 
+  public List<ExternalKey> getKeys() {
+    return keys;
+  }
+
   public void setId(String id) {
     this.id = id;
+  }
+
+  public void setKeys(List<ExternalKey> keys) {
+    this.keys = keys;
   }
 }

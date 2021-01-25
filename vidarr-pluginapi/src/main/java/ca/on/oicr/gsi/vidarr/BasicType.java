@@ -164,7 +164,8 @@ public abstract class BasicType {
             case "tagged-union":
               return taggedUnionFromPairs(
                   StreamSupport.stream(
-                          Spliterators.spliteratorUnknownSize(obj.get("options").fields(), 0), false)
+                          Spliterators.spliteratorUnknownSize(obj.get("options").fields(), 0),
+                          false)
                       .map(e -> new Pair<>(e.getKey(), deserialize(e.getValue()))));
             case "tuple":
               return tuple(
@@ -363,8 +364,7 @@ public abstract class BasicType {
 
                 @Override
                 public void accept(Pair<String, BasicType> pair) {
-                  ObjectBasicType.this.fields.put(
-                      pair.first(), new Pair<>(pair.second(), index++));
+                  ObjectBasicType.this.fields.put(pair.first(), new Pair<>(pair.second(), index++));
                 }
               });
     }

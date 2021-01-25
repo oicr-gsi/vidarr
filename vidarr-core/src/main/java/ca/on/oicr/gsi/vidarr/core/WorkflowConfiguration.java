@@ -1,6 +1,7 @@
 package ca.on.oicr.gsi.vidarr.core;
 
 import ca.on.oicr.gsi.vidarr.WorkflowDefinition;
+import ca.on.oicr.gsi.vidarr.api.BaseWorkflowConfiguration;
 
 /** JSON representation of a workflow definition */
 public class WorkflowConfiguration extends BaseWorkflowConfiguration {

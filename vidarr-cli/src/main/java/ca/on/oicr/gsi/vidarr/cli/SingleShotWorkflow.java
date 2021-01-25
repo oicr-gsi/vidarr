@@ -15,7 +15,7 @@ import java.util.stream.Stream;
 final class SingleShotWorkflow implements ActiveWorkflow<SingleShotOperation, Void> {
   private final JsonNode arguments;
   private JsonNode cleanup;
-  private final ObjectNode engineArguments;
+  private final JsonNode engineArguments;
   private Set<ExternalId> externalIds;
   private boolean extraInputIdsHandled;
   private final CompletableFuture<Boolean> future = new CompletableFuture<>();
@@ -30,7 +30,7 @@ final class SingleShotWorkflow implements ActiveWorkflow<SingleShotOperation, Vo
   SingleShotWorkflow(
       String prefix,
       JsonNode arguments,
-      ObjectNode engineArguments,
+      JsonNode engineArguments,
       JsonNode metadata,
       Stream<ExternalId> inputIds,
       OutputProvisioningHandler<Void> resultHandler) {
@@ -62,7 +62,7 @@ final class SingleShotWorkflow implements ActiveWorkflow<SingleShotOperation, Vo
   }
 
   @Override
-  public ObjectNode engineArguments() {
+  public JsonNode engineArguments() {
     return engineArguments;
   }
 

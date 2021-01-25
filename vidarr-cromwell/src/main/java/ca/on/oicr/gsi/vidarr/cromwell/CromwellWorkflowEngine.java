@@ -298,7 +298,7 @@ public final class CromwellWorkflowEngine
       String workflow,
       String vidarrId,
       ObjectNode workflowParameters,
-      ObjectNode engineParameters,
+      JsonNode engineParameters,
       WorkMonitor<Result<String>, EngineState> monitor) {
     final var state = new EngineState();
     /* Cromwell and Shesmu/Vidarr handle optional parameters differently.

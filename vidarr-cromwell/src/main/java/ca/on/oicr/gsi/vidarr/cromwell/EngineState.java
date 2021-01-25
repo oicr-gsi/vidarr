@@ -1,12 +1,13 @@
 package ca.on.oicr.gsi.vidarr.cromwell;
 
 import ca.on.oicr.gsi.vidarr.WorkflowLanguage;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /** The current state of a running workflow to be recorded in the database */
 public final class EngineState {
   private String cromwellId;
-  private ObjectNode engineParameters;
+  private JsonNode engineParameters;
   private ObjectNode parameters;
   private String vidarrId;
   private WorkflowLanguage workflowLanguage;
@@ -16,7 +17,7 @@ public final class EngineState {
     return cromwellId;
   }
 
-  public ObjectNode getEngineParameters() {
+  public JsonNode getEngineParameters() {
     return engineParameters;
   }
 
@@ -40,7 +41,7 @@ public final class EngineState {
     this.cromwellId = cromwellId;
   }
 
-  public void setEngineParameters(ObjectNode engineParameters) {
+  public void setEngineParameters(JsonNode engineParameters) {
     this.engineParameters = engineParameters;
   }
 

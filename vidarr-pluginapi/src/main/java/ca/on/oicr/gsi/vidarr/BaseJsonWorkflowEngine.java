@@ -159,7 +159,7 @@ public abstract class BaseJsonWorkflowEngine<S, C, D> implements WorkflowEngine 
       String workflow,
       String vidarrId,
       ObjectNode workflowParameters,
-      ObjectNode engineParameters,
+      JsonNode engineParameters,
       WorkMonitor<Result<JsonNode>, JsonNode> monitor) {
     return mapper.valueToTree(
         runWorkflow(
@@ -173,13 +173,13 @@ public abstract class BaseJsonWorkflowEngine<S, C, D> implements WorkflowEngine 
   /**
    * Start a new workflow
    *
-   * @see WorkflowEngine#run(WorkflowLanguage, String, String, ObjectNode, ObjectNode, WorkMonitor)
+   * @see WorkflowEngine#run(WorkflowLanguage, String, String, ObjectNode, JsonNode, WorkMonitor)
    */
   protected abstract S runWorkflow(
       WorkflowLanguage workflowLanguage,
       String workflow,
       String vidarrId,
       ObjectNode workflowParameters,
-      ObjectNode engineParameters,
+      JsonNode engineParameters,
       WorkMonitor<Result<C>, S> monitor);
 }

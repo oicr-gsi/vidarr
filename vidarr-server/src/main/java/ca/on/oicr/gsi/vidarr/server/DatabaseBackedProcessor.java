@@ -374,7 +374,7 @@ public abstract class DatabaseBackedProcessor
       String version,
       ObjectNode labels,
       JsonNode arguments,
-      ObjectNode engineParameters,
+      JsonNode engineParameters,
       JsonNode metadata,
       Set<ExternalKey> externalKeys,
       int attempt,

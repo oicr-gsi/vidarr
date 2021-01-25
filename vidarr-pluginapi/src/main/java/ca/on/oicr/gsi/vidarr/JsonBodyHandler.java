@@ -1,5 +1,7 @@
 package ca.on.oicr.gsi.vidarr;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.io.InputStream;
@@ -14,7 +16,7 @@ import java.util.function.Supplier;
  */
 public final class JsonBodyHandler<W> implements HttpResponse.BodyHandler<Supplier<W>> {
   private static <W> HttpResponse.BodySubscriber<Supplier<W>> asJSON(
-      ObjectMapper objectMapper, Class<W> targetType) {
+      ObjectMapper objectMapper, JavaType targetType) {
     HttpResponse.BodySubscriber<InputStream> upstream =
         HttpResponse.BodySubscribers.ofInputStream();
 
@@ -23,7 +25,7 @@ public final class JsonBodyHandler<W> implements HttpResponse.BodyHandler<Suppli
   }
 
   private static <W> Supplier<W> toSupplierOfType(
-      ObjectMapper objectMapper, InputStream inputStream, Class<W> targetType) {
+      ObjectMapper objectMapper, InputStream inputStream, JavaType targetType) {
     return () -> {
       try (final var stream = inputStream) {
         return objectMapper.readValue(stream, targetType);
@@ -34,11 +36,16 @@ public final class JsonBodyHandler<W> implements HttpResponse.BodyHandler<Suppli
   }
 
   private final ObjectMapper mapper;
-  private final Class<W> targetType;
+  private final JavaType targetType;
 
   public JsonBodyHandler(ObjectMapper mapper, Class<W> targetType) {
     this.mapper = mapper;
-    this.targetType = targetType;
+    this.targetType = mapper.getTypeFactory().constructType(targetType);
+  }
+
+  public JsonBodyHandler(ObjectMapper mapper, TypeReference<W> targetType) {
+    this.mapper = mapper;
+    this.targetType = mapper.getTypeFactory().constructType(targetType);
   }
 
   @Override

@@ -89,13 +89,6 @@ final class PreparePreflightChecks extends BaseOutputExtractor<Boolean, Boolean>
   }
 
   @Override
-  protected Boolean taggedUnion(OutputProvisionType type, JsonNode metadata) {
-    return type.apply(
-        new PreparePreflightChecks(
-            mapper, target, metadata, extraInputIdsHandled, requestedExternalId, preflightTask));
-  }
-
-  @Override
   public Boolean unknown() {
     return false;
   }

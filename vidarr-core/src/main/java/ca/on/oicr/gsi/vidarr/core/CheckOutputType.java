@@ -50,11 +50,6 @@ public final class CheckOutputType extends BaseOutputExtractor<Stream<String>, S
   }
 
   @Override
-  protected Stream<String> taggedUnion(OutputProvisionType type, JsonNode metadata) {
-    return type.apply(new CheckOutputType(mapper, target, metadata));
-  }
-
-  @Override
   public Stream<String> unknown() {
     return Stream.of("Unknown data type");
   }

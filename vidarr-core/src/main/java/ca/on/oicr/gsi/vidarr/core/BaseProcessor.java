@@ -264,7 +264,7 @@ public abstract class BaseProcessor<
                                               return file;
                                             },
                                             provisionInTasks::add)));
-                          } else if (parameter.isRequired()) {
+                          } else {
                             throw new IllegalArgumentException(
                                 String.format("Missing required parameter: %s", parameter.name()));
                           }
@@ -685,9 +685,9 @@ public abstract class BaseProcessor<
         .parameters()
         .flatMap(
             p ->
-                p.isRequired() || arguments.has(p.name())
+                arguments.has(p.name())
                     ? p.type().apply(new ExtractInputVidarrIds(mapper, arguments.get(p.name())))
-                    : Stream.empty())
+                    : Stream.of("Missing input parameter: " + p.name()))
         .distinct();
   }
 
@@ -728,9 +728,7 @@ public abstract class BaseProcessor<
                             return p.type()
                                 .apply(new CheckInputType(mapper, target, arguments.get(p.name())));
                           } else {
-                            return p.isRequired()
-                                ? Stream.of("Required argument missing: " + p.name())
-                                : Stream.empty();
+                            return Stream.of("Argument missing: " + p.name());
                           }
                         }),
                 target

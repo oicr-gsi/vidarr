@@ -10,7 +10,7 @@ public final class EngineState {
   private ObjectNode parameters;
   private String vidarrId;
   private WorkflowLanguage workflowLanguage;
-  private String workflowUrl;
+  private String workflowSource;
 
   public String getCromwellId() {
     return cromwellId;
@@ -32,8 +32,8 @@ public final class EngineState {
     return workflowLanguage;
   }
 
-  public String getWorkflowUrl() {
-    return workflowUrl;
+  public String getWorkflowSource() {
+    return workflowSource;
   }
 
   public void setCromwellId(String cromwellId) {
@@ -56,7 +56,7 @@ public final class EngineState {
     this.workflowLanguage = workflowLanguage;
   }
 
-  public void setWorkflowUrl(String workflowUrl) {
-    this.workflowUrl = workflowUrl;
+  public void setWorkflowSource(String workflowSource) {
+    this.workflowSource = workflowSource;
   }
 }

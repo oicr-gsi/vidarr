@@ -3,6 +3,7 @@ package ca.on.oicr.gsi.vidarr.server;
 import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.*;
 
 import ca.on.oicr.gsi.Pair;
+import ca.on.oicr.gsi.vidarr.InputType;
 import ca.on.oicr.gsi.vidarr.OutputProvisionType;
 import ca.on.oicr.gsi.vidarr.SimpleType;
 import ca.on.oicr.gsi.vidarr.WorkflowDefinition;
@@ -126,8 +127,8 @@ public abstract class DatabaseBackedProcessor
   static final ObjectMapper MAPPER = new ObjectMapper();
   public static final TypeReference<Map<String, OutputProvisionType>> OUTPUT_JSON_TYPE =
       new TypeReference<>() {};
-  public static final TypeReference<Map<String, WorkflowConfiguration.Parameter>>
-      PARAMETER_JSON_TYPE = new TypeReference<>() {};
+  public static final TypeReference<Map<String, InputType>> PARAMETER_JSON_TYPE =
+      new TypeReference<>() {};
 
   private static WorkflowDefinition buildDefinitionFromRecord(org.jooq.Record record) {
     return new WorkflowDefinition(
@@ -138,10 +139,7 @@ public abstract class DatabaseBackedProcessor
             .convertValue(record.get(WORKFLOW_VERSION.PARAMETERS), PARAMETER_JSON_TYPE)
             .entrySet()
             .stream()
-            .map(
-                e ->
-                    new WorkflowDefinition.Parameter(
-                        e.getValue().getType(), e.getKey(), e.getValue().isRequired())),
+            .map(e -> new WorkflowDefinition.Parameter(e.getValue(), e.getKey())),
         MAPPER
             .convertValue(record.get(WORKFLOW_VERSION.METADATA), OUTPUT_JSON_TYPE)
             .entrySet()

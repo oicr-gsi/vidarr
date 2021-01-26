@@ -214,7 +214,7 @@ public final class CromwellWorkflowEngine
           System.Logger.Level.INFO, String.format("Starting Cromwell workflow on %s", baseUrl));
       final var body =
           new MultiPartBodyPublisher()
-              .addPart("workflowSource", state.getWorkflowUrl())
+              .addPart("workflowSource", state.getWorkflowSource())
               .addPart("workflowInputs", MAPPER.writeValueAsString(state.getParameters()))
               .addPart("workflowType", "WDL")
               .addPart(
@@ -293,11 +293,26 @@ public final class CromwellWorkflowEngine
       ObjectNode engineParameters,
       WorkMonitor<Result<String>, EngineState> monitor) {
     final var state = new EngineState();
+    /* Cromwell and Shesmu/Vidarr handle optional parameters differently.
+     * Shesmu/Vidarr encoding missing values as "null", but Cromwell encodes
+     * them as absent. If a value is "null", Cromwell will complain that it
+     * can't be parsed rather than drop the null and use its default.
+     * Therefore, we delete all the nulls so we have something Cromwell will
+     * accept. There's no situation where Cromwell would _need_ to see a null.
+     */
+    final var filteredParameters = MAPPER.createObjectNode();
+    final var iterator = workflowParameters.fields();
+    while (iterator.hasNext()) {
+      final var field = iterator.next();
+      if (!field.getValue().isNull()) {
+        filteredParameters.set(field.getKey(), field.getValue());
+      }
+    }
     state.setEngineParameters(engineParameters);
-    state.setParameters(workflowParameters);
+    state.setParameters(filteredParameters);
     state.setVidarrId(vidarrId);
     state.setWorkflowLanguage(workflowLanguage);
-    state.setWorkflowUrl(workflow);
+    state.setWorkflowSource(workflow);
     monitor.scheduleTask(() -> startTask(state, monitor));
     return state;
   }

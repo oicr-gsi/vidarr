@@ -737,7 +737,15 @@ public abstract class BaseProcessor<
                     .engine()
                     .engineParameters()
                     .map(p -> p.apply(new CheckEngineType(engineParameters)))
-                    .orElseGet(Stream::empty))
+                    .orElseGet(
+                        () ->
+                            engineParameters == null
+                                    || engineParameters.isNull()
+                                    || engineParameters.isEmpty()
+                                ? Stream.empty()
+                                : Stream.of(
+                                    "Workflow engine does not support engine parameters, but they"
+                                        + " are present.")))
             .flatMap(Function.identity()));
   }
 

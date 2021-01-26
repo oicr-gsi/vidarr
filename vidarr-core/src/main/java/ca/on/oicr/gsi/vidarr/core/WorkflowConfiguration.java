@@ -17,10 +17,7 @@ public class WorkflowConfiguration extends BaseWorkflowConfiguration {
         id,
         getWorkflow(),
         getParameters().entrySet().stream()
-            .map(
-                p ->
-                    new WorkflowDefinition.Parameter(
-                        p.getValue().getType(), p.getKey(), p.getValue().isRequired())),
+            .map(p -> new WorkflowDefinition.Parameter(p.getValue(), p.getKey())),
         getOutputs().entrySet().stream()
             .map(o -> new WorkflowDefinition.Output(o.getValue(), o.getKey())));
   }

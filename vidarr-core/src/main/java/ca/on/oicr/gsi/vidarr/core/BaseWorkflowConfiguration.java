@@ -7,30 +7,10 @@ import java.util.Map;
 
 /** JSON representation of a workflow definition */
 public abstract class BaseWorkflowConfiguration {
-  public static final class Parameter {
-    private boolean required = true;
-    private InputType type;
-
-    public InputType getType() {
-      return type;
-    }
-
-    public boolean isRequired() {
-      return required;
-    }
-
-    public void setRequired(boolean required) {
-      this.required = required;
-    }
-
-    public void setType(InputType type) {
-      this.type = type;
-    }
-  }
 
   private WorkflowLanguage language;
   private Map<String, OutputProvisionType> outputs;
-  private Map<String, Parameter> parameters;
+  private Map<String, InputType> parameters;
   private String workflow;
 
   public final WorkflowLanguage getLanguage() {
@@ -41,7 +21,7 @@ public abstract class BaseWorkflowConfiguration {
     return outputs;
   }
 
-  public final Map<String, Parameter> getParameters() {
+  public final Map<String, InputType> getParameters() {
     return parameters;
   }
 
@@ -57,7 +37,7 @@ public abstract class BaseWorkflowConfiguration {
     this.outputs = outputs;
   }
 
-  public final void setParameters(Map<String, Parameter> parameters) {
+  public final void setParameters(Map<String, InputType> parameters) {
     this.parameters = parameters;
   }
 

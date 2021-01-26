@@ -38,7 +38,6 @@ public final class WorkflowDefinition {
   /** A parameter that can be supplied to a workflow. */
   public static final class Parameter {
     private final String name;
-    private final boolean required;
     private final InputType type;
 
     /**
@@ -46,17 +45,10 @@ public final class WorkflowDefinition {
      *
      * @param type the type of the value the caller must supply
      * @param name the name the caller must supply
-     * @param required whether this parameter is strictly required
      */
-    public Parameter(InputType type, String name, boolean required) {
+    public Parameter(InputType type, String name) {
       this.type = type;
       this.name = name;
-      this.required = required;
-    }
-
-    /** Whether this parameter is strictly required */
-    public boolean isRequired() {
-      return required;
     }
 
     /** The name the caller must supply */

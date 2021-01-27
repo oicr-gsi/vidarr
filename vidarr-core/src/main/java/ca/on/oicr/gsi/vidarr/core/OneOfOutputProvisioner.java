@@ -100,8 +100,8 @@ public final class OneOfOutputProvisioner implements OutputProvisioner {
   }
 
   @Override
-  public SimpleType typeFor(OutputProvisionFormat format) {
-    return SimpleType.taggedUnion(
+  public BasicType typeFor(OutputProvisionFormat format) {
+    return BasicType.taggedUnion(
         provisioners.entrySet().stream()
             .map(e -> Map.entry(e.getKey(), e.getValue().typeFor(format))));
   }

@@ -375,9 +375,9 @@ public class CromwellOutputProvisioner
   }
 
   @Override
-  public SimpleType typeFor(OutputProvisionFormat format) {
+  public BasicType typeFor(OutputProvisionFormat format) {
     if (format == OutputProvisionFormat.FILES) {
-      return SimpleType.object(new Pair<>("outputDirectory", SimpleType.STRING));
+      return BasicType.object(new Pair<>("outputDirectory", BasicType.STRING));
     } else {
       throw new IllegalArgumentException("Cannot provision non-file output");
     }

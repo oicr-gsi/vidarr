@@ -67,7 +67,7 @@ public interface WorkflowEngine {
    * <p>Vidarr is conceptually neutral as to what goes here. This is provided as a side channel to
    * get configuration parameters to the backend.
    */
-  Optional<SimpleType> engineParameters();
+  Optional<BasicType> engineParameters();
 
   /**
    * Restart a running process from state saved in the database

@@ -1,7 +1,7 @@
 package ca.on.oicr.gsi.vidarr.core;
 
-import ca.on.oicr.gsi.vidarr.OutputProvisionType;
-import ca.on.oicr.gsi.vidarr.OutputProvisionType.IdentifierKey;
+import ca.on.oicr.gsi.vidarr.OutputType;
+import ca.on.oicr.gsi.vidarr.OutputType.IdentifierKey;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.*;
@@ -13,7 +13,7 @@ import java.util.stream.Stream;
  * @param <R> the return type
  * @param <E> the return type for an entry in a list
  */
-abstract class BaseOutputExtractor<R, E> implements OutputProvisionType.Visitor<R> {
+abstract class BaseOutputExtractor<R, E> implements OutputType.Visitor<R> {
 
   public interface OutputData {
     <T> T visit(OutputDataVisitor<T> visitor);
@@ -130,7 +130,7 @@ abstract class BaseOutputExtractor<R, E> implements OutputProvisionType.Visitor<
   }
 
   @Override
-  public final R list(Map<String, IdentifierKey> keys, Map<String, OutputProvisionType> outputs) {
+  public final R list(Map<String, IdentifierKey> keys, Map<String, OutputType> outputs) {
     if (metadata.isArray() && (output == null || output.isArray())) {
       final var outputMappings = new HashMap<Map<String, Object>, Map<String, JsonNode>>();
       for (final var child : metadata) {
@@ -220,7 +220,7 @@ abstract class BaseOutputExtractor<R, E> implements OutputProvisionType.Visitor<
   protected abstract R mergeChildren(Stream<E> stream);
 
   protected abstract E processChild(
-      Map<String, Object> key, OutputProvisionType type, JsonNode metadata, JsonNode output);
+      Map<String, Object> key, OutputType type, JsonNode metadata, JsonNode output);
 
   @Override
   public final R qualityControl() {

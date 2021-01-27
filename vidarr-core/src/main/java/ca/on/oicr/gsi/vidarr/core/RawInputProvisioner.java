@@ -49,9 +49,9 @@ public final class RawInputProvisioner extends BaseJsonInputProvisioner<String, 
   }
 
   @Override
-  public SimpleType externalTypeFor(InputProvisionFormat format) {
+  public BasicType externalTypeFor(InputProvisionFormat format) {
     if (formats.contains(format)) {
-      return SimpleType.STRING;
+      return BasicType.STRING;
     } else {
       throw new IllegalArgumentException();
     }

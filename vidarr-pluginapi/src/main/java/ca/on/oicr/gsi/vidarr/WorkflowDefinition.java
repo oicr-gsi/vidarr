@@ -11,7 +11,7 @@ public final class WorkflowDefinition {
    */
   public static final class Output {
     private final String name;
-    private final OutputProvisionType type;
+    private final OutputType type;
 
     /**
      * Create a new output information type
@@ -19,7 +19,7 @@ public final class WorkflowDefinition {
      * @param type the type the caller must provide
      * @param name the name the caller must provide
      */
-    public Output(OutputProvisionType type, String name) {
+    public Output(OutputType type, String name) {
       this.type = type;
       this.name = name;
     }
@@ -30,7 +30,7 @@ public final class WorkflowDefinition {
     }
 
     /** The type the caller must provide for this output parameter */
-    public OutputProvisionType type() {
+    public OutputType type() {
       return type;
     }
   }

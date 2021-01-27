@@ -19,7 +19,7 @@ public interface InputProvisioner {
    * @param format the input format
    * @return the metadata that the client must supply to be able to provision in this data
    */
-  SimpleType externalTypeFor(InputProvisionFormat format);
+  BasicType externalTypeFor(InputProvisionFormat format);
 
   /**
    * Begin provisioning out a new input that was registered in Vidarr

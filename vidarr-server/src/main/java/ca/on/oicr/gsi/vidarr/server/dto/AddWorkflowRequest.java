@@ -1,19 +1,19 @@
 package ca.on.oicr.gsi.vidarr.server.dto;
 
-import ca.on.oicr.gsi.vidarr.SimpleType;
+import ca.on.oicr.gsi.vidarr.BasicType;
 import java.util.Collections;
 import java.util.Map;
 
 public class AddWorkflowRequest {
   private Map<String, Long> consumableResources = Collections.emptyMap();
-  private Map<String, SimpleType> labels = Collections.emptyMap();
+  private Map<String, BasicType> labels = Collections.emptyMap();
   private int maxInFlight;
 
   public Map<String, Long> getConsumableResources() {
     return consumableResources;
   }
 
-  public Map<String, SimpleType> getLabels() {
+  public Map<String, BasicType> getLabels() {
     return labels;
   }
 
@@ -25,7 +25,7 @@ public class AddWorkflowRequest {
     this.consumableResources = consumableResources;
   }
 
-  public void setLabels(Map<String, SimpleType> labels) {
+  public void setLabels(Map<String, BasicType> labels) {
     this.labels = labels;
   }
 

@@ -1,7 +1,7 @@
 package ca.on.oicr.gsi.vidarr.core;
 
 import ca.on.oicr.gsi.Pair;
-import ca.on.oicr.gsi.vidarr.OutputProvisionType;
+import ca.on.oicr.gsi.vidarr.OutputType;
 import ca.on.oicr.gsi.vidarr.OutputProvisioner;
 import ca.on.oicr.gsi.vidarr.OutputProvisioner.Result;
 import ca.on.oicr.gsi.vidarr.WorkMonitor;
@@ -131,7 +131,7 @@ final class PrepareOutputProvisioning
 
   @Override
   protected Stream<TaskStarter<Pair<ProvisionData, Result>>> processChild(
-      Map<String, Object> key, OutputProvisionType type, JsonNode metadata, JsonNode output) {
+      Map<String, Object> key, OutputType type, JsonNode metadata, JsonNode output) {
     return type.apply(
         new PrepareOutputProvisioning(
             mapper, target, output, metadata, allInputIds, remainingInputIds));

@@ -1,6 +1,6 @@
 package ca.on.oicr.gsi.vidarr.core;
 
-import ca.on.oicr.gsi.vidarr.OutputProvisionType;
+import ca.on.oicr.gsi.vidarr.OutputType;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Map;
@@ -45,7 +45,7 @@ public final class CheckOutputType extends BaseOutputExtractor<Stream<String>, S
 
   @Override
   protected Stream<String> processChild(
-      Map<String, Object> key, OutputProvisionType type, JsonNode metadata, JsonNode output) {
+      Map<String, Object> key, OutputType type, JsonNode metadata, JsonNode output) {
     return type.apply(new CheckOutputType(mapper, target, metadata));
   }
 

@@ -1,7 +1,7 @@
 package ca.on.oicr.gsi.vidarr.core;
 
 import ca.on.oicr.gsi.vidarr.InputType;
-import ca.on.oicr.gsi.vidarr.OutputProvisionType;
+import ca.on.oicr.gsi.vidarr.OutputType;
 import ca.on.oicr.gsi.vidarr.WorkflowLanguage;
 import java.util.Map;
 
@@ -9,7 +9,7 @@ import java.util.Map;
 public abstract class BaseWorkflowConfiguration {
 
   private WorkflowLanguage language;
-  private Map<String, OutputProvisionType> outputs;
+  private Map<String, OutputType> outputs;
   private Map<String, InputType> parameters;
   private String workflow;
 
@@ -17,7 +17,7 @@ public abstract class BaseWorkflowConfiguration {
     return language;
   }
 
-  public final Map<String, OutputProvisionType> getOutputs() {
+  public final Map<String, OutputType> getOutputs() {
     return outputs;
   }
 
@@ -33,7 +33,7 @@ public abstract class BaseWorkflowConfiguration {
     this.language = language;
   }
 
-  public final void setOutputs(Map<String, OutputProvisionType> outputs) {
+  public final void setOutputs(Map<String, OutputType> outputs) {
     this.outputs = outputs;
   }
 

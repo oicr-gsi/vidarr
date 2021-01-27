@@ -169,7 +169,7 @@ public abstract class InputType {
             case "tagged-union":
               return taggedUnionFromPairs(
                   StreamSupport.stream(
-                          Spliterators.spliteratorUnknownSize(obj.get("fields").fields(), 0), false)
+                          Spliterators.spliteratorUnknownSize(obj.get("options").fields(), 0), false)
                       .map(e -> new Pair<>(e.getKey(), deserialize(e.getValue()))));
             case "tuple":
               return tuple(
@@ -322,7 +322,7 @@ public abstract class InputType {
                   return g -> {
                     g.writeStartObject();
                     g.writeStringField("is", "tagged-union");
-                    g.writeObjectFieldStart("unions");
+                    g.writeObjectFieldStart("options");
                     for (final var union : unions.entrySet()) {
                       g.writeFieldName(union.getKey());
                       union.getValue().print(g);

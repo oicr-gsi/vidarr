@@ -74,8 +74,8 @@ public final class OneOfInputProvisioner implements InputProvisioner {
   }
 
   @Override
-  public SimpleType externalTypeFor(InputProvisionFormat format) {
-    return SimpleType.taggedUnion(
+  public BasicType externalTypeFor(InputProvisionFormat format) {
+    return BasicType.taggedUnion(
         provisioners.entrySet().stream()
             .map(e -> Map.entry(e.getKey(), e.getValue().externalTypeFor(format))));
   }

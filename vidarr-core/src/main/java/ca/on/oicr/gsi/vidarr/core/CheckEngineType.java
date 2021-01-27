@@ -1,7 +1,7 @@
 package ca.on.oicr.gsi.vidarr.core;
 
 import ca.on.oicr.gsi.Pair;
-import ca.on.oicr.gsi.vidarr.SimpleType;
+import ca.on.oicr.gsi.vidarr.BasicType;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
@@ -15,7 +15,7 @@ import java.util.stream.StreamSupport;
  *
  * <p>The result will be a stream of errors; if empty, no errors were found.
  */
-public final class CheckEngineType implements SimpleType.Visitor<Stream<String>> {
+public final class CheckEngineType implements BasicType.Visitor<Stream<String>> {
   private final JsonNode input;
 
   public CheckEngineType(JsonNode input) {
@@ -43,8 +43,8 @@ public final class CheckEngineType implements SimpleType.Visitor<Stream<String>>
   }
 
   @Override
-  public Stream<String> dictionary(SimpleType key, SimpleType value) {
-    if (input.isObject() && key == SimpleType.STRING) {
+  public Stream<String> dictionary(BasicType key, BasicType value) {
+    if (input.isObject() && key == BasicType.STRING) {
       return StreamSupport.stream(input.spliterator(), false)
           .flatMap(v -> value.apply(new CheckEngineType(v)));
     }
@@ -84,7 +84,7 @@ public final class CheckEngineType implements SimpleType.Visitor<Stream<String>>
   }
 
   @Override
-  public Stream<String> list(SimpleType inner) {
+  public Stream<String> list(BasicType inner) {
     if (input.isArray()) {
       return StreamSupport.stream(input.spliterator(), false)
           .flatMap(e -> inner.apply(new CheckEngineType(e)));
@@ -94,7 +94,7 @@ public final class CheckEngineType implements SimpleType.Visitor<Stream<String>>
   }
 
   @Override
-  public Stream<String> object(Stream<Pair<String, SimpleType>> contents) {
+  public Stream<String> object(Stream<Pair<String, BasicType>> contents) {
     if (input.isObject()) {
       return contents.flatMap(
           p ->
@@ -107,7 +107,7 @@ public final class CheckEngineType implements SimpleType.Visitor<Stream<String>>
   }
 
   @Override
-  public Stream<String> taggedUnion(Stream<Map.Entry<String, SimpleType>> elements) {
+  public Stream<String> taggedUnion(Stream<Map.Entry<String, BasicType>> elements) {
     if (input.isObject() && input.has("type") && input.has("contents")) {
       final var type = input.get("type");
       if (type.isTextual()) {
@@ -126,12 +126,12 @@ public final class CheckEngineType implements SimpleType.Visitor<Stream<String>>
   }
 
   @Override
-  public Stream<String> optional(SimpleType inner) {
+  public Stream<String> optional(BasicType inner) {
     return input.isNull() ? Stream.empty() : inner.apply(this);
   }
 
   @Override
-  public Stream<String> pair(SimpleType left, SimpleType right) {
+  public Stream<String> pair(BasicType left, BasicType right) {
     if (input.isObject() && input.has("left") && input.has("right")) {
       return Stream.concat(
           left.apply(new CheckEngineType(input.get("left"))),
@@ -150,14 +150,14 @@ public final class CheckEngineType implements SimpleType.Visitor<Stream<String>>
   }
 
   @Override
-  public Stream<String> tuple(Stream<SimpleType> contents) {
+  public Stream<String> tuple(Stream<BasicType> contents) {
     if (input.isArray()) {
       return contents.flatMap(
-          new Function<SimpleType, Stream<String>>() {
+          new Function<BasicType, Stream<String>>() {
             private int index;
 
             @Override
-            public Stream<String> apply(SimpleType inputType) {
+            public Stream<String> apply(BasicType inputType) {
               return inputType.apply(new CheckEngineType(input.get(index++)));
             }
           });

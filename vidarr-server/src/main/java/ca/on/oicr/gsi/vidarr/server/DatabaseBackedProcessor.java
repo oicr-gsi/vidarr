@@ -4,8 +4,8 @@ import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.*;
 
 import ca.on.oicr.gsi.Pair;
 import ca.on.oicr.gsi.vidarr.InputType;
-import ca.on.oicr.gsi.vidarr.OutputProvisionType;
-import ca.on.oicr.gsi.vidarr.SimpleType;
+import ca.on.oicr.gsi.vidarr.OutputType;
+import ca.on.oicr.gsi.vidarr.BasicType;
 import ca.on.oicr.gsi.vidarr.WorkflowDefinition;
 import ca.on.oicr.gsi.vidarr.core.*;
 import ca.on.oicr.gsi.vidarr.server.dto.BulkVersionRequest;
@@ -72,10 +72,10 @@ public abstract class DatabaseBackedProcessor
   protected static final class WorkflowInformation {
     private final WorkflowDefinition definition;
     private final int id;
-    private final Map<String, SimpleType> labels;
+    private final Map<String, BasicType> labels;
 
     private WorkflowInformation(
-        int id, WorkflowDefinition definition, SortedMap<String, SimpleType> labels) {
+        int id, WorkflowDefinition definition, SortedMap<String, BasicType> labels) {
       this.id = id;
       this.definition = definition;
       this.labels = labels;
@@ -128,10 +128,10 @@ public abstract class DatabaseBackedProcessor
     }
   }
 
-  public static final TypeReference<SortedMap<String, SimpleType>> LABELS_JSON_TYPE =
+  public static final TypeReference<SortedMap<String, BasicType>> LABELS_JSON_TYPE =
       new TypeReference<>() {};
   static final ObjectMapper MAPPER = new ObjectMapper();
-  public static final TypeReference<Map<String, OutputProvisionType>> OUTPUT_JSON_TYPE =
+  public static final TypeReference<Map<String, OutputType>> OUTPUT_JSON_TYPE =
       new TypeReference<>() {};
   public static final TypeReference<Map<String, InputType>> PARAMETER_JSON_TYPE =
       new TypeReference<>() {};

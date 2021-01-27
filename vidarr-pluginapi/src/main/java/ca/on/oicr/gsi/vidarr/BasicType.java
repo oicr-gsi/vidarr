@@ -18,7 +18,7 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 /**
- * Primitive input information
+ * Basic types that do not include files
  *
  * <p>This is used in three contents:
  *
@@ -28,9 +28,9 @@ import java.util.stream.StreamSupport;
  *   <li>additional information required by input provisioners for external files
  * </ul>
  */
-@JsonSerialize(using = SimpleType.JacksonSerializer.class)
-@JsonDeserialize(using = SimpleType.JacksonDeserializer.class)
-public abstract class SimpleType {
+@JsonSerialize(using = BasicType.JacksonSerializer.class)
+@JsonDeserialize(using = BasicType.JacksonDeserializer.class)
+public abstract class BasicType {
   /**
    * Convert an engine type into another value
    *
@@ -50,7 +50,7 @@ public abstract class SimpleType {
      * @param key the type of the keys
      * @param value the type of the values
      */
-    R dictionary(SimpleType key, SimpleType value);
+    R dictionary(BasicType key, BasicType value);
 
     /** Convert a <tt>float</tt> type */
     R floating();
@@ -66,24 +66,24 @@ public abstract class SimpleType {
      *
      * @param inner the type of the contents of the list
      */
-    R list(SimpleType inner);
+    R list(BasicType inner);
 
     /**
      * Convert an object type
      *
      * @param contents a list of fields in the object and their types
      */
-    R object(Stream<Pair<String, SimpleType>> contents);
+    R object(Stream<Pair<String, BasicType>> contents);
 
     /**
      * Convert an optional type
      *
      * @param inner the type inside the optional; may be null
      */
-    R optional(SimpleType inner);
+    R optional(BasicType inner);
 
     /** Convert a pair of values */
-    R pair(SimpleType left, SimpleType right);
+    R pair(BasicType left, BasicType right);
 
     /** Convert a <tt>string</tt> type */
     R string();
@@ -92,20 +92,20 @@ public abstract class SimpleType {
      *
      * @param elements the possible values in the algebraic type
      */
-    R taggedUnion(Stream<Map.Entry<String, SimpleType>> elements);
+    R taggedUnion(Stream<Map.Entry<String, BasicType>> elements);
     /**
      * Convert a tuple type
      *
      * @param contents the types of the items in the tuple, in order
      */
-    R tuple(Stream<SimpleType> contents);
+    R tuple(Stream<BasicType> contents);
   }
 
-  private static final class DictionarySimpleType extends SimpleType {
-    private final SimpleType key;
-    private final SimpleType value;
+  private static final class DictionaryBasicType extends BasicType {
+    private final BasicType key;
+    private final BasicType value;
 
-    DictionarySimpleType(SimpleType key, SimpleType value) {
+    DictionaryBasicType(BasicType key, BasicType value) {
       this.key = key;
       this.value = value;
     }
@@ -116,31 +116,31 @@ public abstract class SimpleType {
     }
   }
 
-  public static final class JacksonDeserializer extends JsonDeserializer<SimpleType> {
+  public static final class JacksonDeserializer extends JsonDeserializer<BasicType> {
 
     @Override
-    public SimpleType deserialize(
+    public BasicType deserialize(
         JsonParser jsonParser, DeserializationContext deserializationContext)
         throws IOException, JsonProcessingException {
       return deserialize(jsonParser.readValueAsTree());
     }
 
-    private SimpleType deserialize(TreeNode node) {
+    private BasicType deserialize(TreeNode node) {
       if (node.isValueNode() && ((ValueNode) node).isTextual()) {
         final var str = ((ValueNode) node).asText();
         switch (str) {
           case "boolean":
-            return SimpleType.BOOLEAN;
+            return BasicType.BOOLEAN;
           case "date":
-            return SimpleType.DATE;
+            return BasicType.DATE;
           case "floating":
-            return SimpleType.FLOAT;
+            return BasicType.FLOAT;
           case "integer":
-            return SimpleType.INTEGER;
+            return BasicType.INTEGER;
           case "json":
-            return SimpleType.JSON;
+            return BasicType.JSON;
           case "string":
-            return SimpleType.STRING;
+            return BasicType.STRING;
           default:
             throw new IllegalArgumentException("Unknown engine type: " + str);
         }
@@ -164,13 +164,13 @@ public abstract class SimpleType {
             case "tagged-union":
               return taggedUnionFromPairs(
                   StreamSupport.stream(
-                          Spliterators.spliteratorUnknownSize(obj.get("fields").fields(), 0), false)
+                          Spliterators.spliteratorUnknownSize(obj.get("options").fields(), 0), false)
                       .map(e -> new Pair<>(e.getKey(), deserialize(e.getValue()))));
             case "tuple":
               return tuple(
                   StreamSupport.stream(obj.get("elements").spliterator(), false)
                       .map(this::deserialize)
-                      .toArray(SimpleType[]::new));
+                      .toArray(BasicType[]::new));
             default:
               throw new IllegalArgumentException("Invalid 'is' in JSON object");
           }
@@ -184,16 +184,16 @@ public abstract class SimpleType {
     }
   }
 
-  public static final class JacksonSerializer extends JsonSerializer<SimpleType> {
+  public static final class JacksonSerializer extends JsonSerializer<BasicType> {
     private interface Printer {
       void print(JsonGenerator jsonGenerator) throws IOException;
     }
 
     @Override
     public void serialize(
-        SimpleType simpleType, JsonGenerator jsonGenerator, SerializerProvider serializerProvider)
+        BasicType basicType, JsonGenerator jsonGenerator, SerializerProvider serializerProvider)
         throws IOException {
-      simpleType
+      basicType
           .apply(
               new Visitor<Printer>() {
                 @Override
@@ -207,7 +207,7 @@ public abstract class SimpleType {
                 }
 
                 @Override
-                public Printer dictionary(SimpleType key, SimpleType value) {
+                public Printer dictionary(BasicType key, BasicType value) {
                   final var printKey = key.apply(this);
                   final var printValue = value.apply(this);
                   return g -> {
@@ -237,7 +237,7 @@ public abstract class SimpleType {
                 }
 
                 @Override
-                public Printer list(SimpleType inner) {
+                public Printer list(BasicType inner) {
                   final var printInner = inner.apply(this);
                   return g -> {
                     g.writeStartObject();
@@ -249,7 +249,7 @@ public abstract class SimpleType {
                 }
 
                 @Override
-                public Printer object(Stream<Pair<String, SimpleType>> contents) {
+                public Printer object(Stream<Pair<String, BasicType>> contents) {
                   final var fields =
                       contents
                           .map(p -> new Pair<>(p.first(), p.second().apply(this)))
@@ -268,7 +268,7 @@ public abstract class SimpleType {
                 }
 
                 @Override
-                public Printer optional(SimpleType inner) {
+                public Printer optional(BasicType inner) {
                   final var printInner = inner.apply(this);
                   return g -> {
                     g.writeStartObject();
@@ -280,7 +280,7 @@ public abstract class SimpleType {
                 }
 
                 @Override
-                public Printer pair(SimpleType left, SimpleType right) {
+                public Printer pair(BasicType left, BasicType right) {
                   final var printLeft = left.apply(this);
                   final var printRight = right.apply(this);
                   return g -> {
@@ -300,14 +300,14 @@ public abstract class SimpleType {
                 }
 
                 @Override
-                public Printer taggedUnion(Stream<Map.Entry<String, SimpleType>> elements) {
+                public Printer taggedUnion(Stream<Map.Entry<String, BasicType>> elements) {
                   final var unions =
                       elements.collect(
                           Collectors.toMap(Map.Entry::getKey, e -> e.getValue().apply(this)));
                   return g -> {
                     g.writeStartObject();
                     g.writeStringField("is", "tagged-union");
-                    g.writeObjectFieldStart("unions");
+                    g.writeObjectFieldStart("options");
                     for (final var union : unions.entrySet()) {
                       g.writeFieldName(union.getKey());
                       union.getValue().print(g);
@@ -318,7 +318,7 @@ public abstract class SimpleType {
                 }
 
                 @Override
-                public Printer tuple(Stream<SimpleType> contents) {
+                public Printer tuple(Stream<BasicType> contents) {
                   final var elements =
                       contents.map(e -> e.apply(this)).collect(Collectors.toList());
                   return g -> {
@@ -337,10 +337,10 @@ public abstract class SimpleType {
     }
   }
 
-  private static final class ListSimpleType extends SimpleType {
-    private final SimpleType inner;
+  private static final class ListBasicType extends BasicType {
+    private final BasicType inner;
 
-    private ListSimpleType(SimpleType inner) {
+    private ListBasicType(BasicType inner) {
       this.inner = inner;
     }
 
@@ -350,11 +350,11 @@ public abstract class SimpleType {
     }
   }
 
-  private static final class ObjectSimpleType extends SimpleType {
+  private static final class ObjectBasicType extends BasicType {
 
-    private final Map<String, Pair<SimpleType, Integer>> fields = new TreeMap<>();
+    private final Map<String, Pair<BasicType, Integer>> fields = new TreeMap<>();
 
-    public ObjectSimpleType(Stream<Pair<String, SimpleType>> fields) {
+    public ObjectBasicType(Stream<Pair<String, BasicType>> fields) {
       fields
           .sorted(Comparator.comparing(Pair::first))
           .forEach(
@@ -362,8 +362,8 @@ public abstract class SimpleType {
                 int index;
 
                 @Override
-                public void accept(Pair<String, SimpleType> pair) {
-                  ObjectSimpleType.this.fields.put(
+                public void accept(Pair<String, BasicType> pair) {
+                  ObjectBasicType.this.fields.put(
                       pair.first(), new Pair<>(pair.second(), index++));
                 }
               });
@@ -376,10 +376,10 @@ public abstract class SimpleType {
     }
   }
 
-  private static final class OptionalSimpleType extends SimpleType {
-    private final SimpleType inner;
+  private static final class OptionalBasicType extends BasicType {
+    private final BasicType inner;
 
-    public OptionalSimpleType(SimpleType inner) {
+    public OptionalBasicType(BasicType inner) {
       this.inner = inner;
     }
 
@@ -389,16 +389,16 @@ public abstract class SimpleType {
     }
 
     @Override
-    public SimpleType asOptional() {
+    public BasicType asOptional() {
       return this;
     }
   }
 
-  private static final class PairSimpleType extends SimpleType {
-    private final SimpleType left;
-    private final SimpleType right;
+  private static final class PairBasicType extends BasicType {
+    private final BasicType left;
+    private final BasicType right;
 
-    PairSimpleType(SimpleType left, SimpleType right) {
+    PairBasicType(BasicType left, BasicType right) {
       this.left = left;
       this.right = right;
     }
@@ -409,10 +409,10 @@ public abstract class SimpleType {
     }
   }
 
-  private static final class TupleSimpleType extends SimpleType {
-    private final SimpleType[] types;
+  private static final class TupleBasicType extends BasicType {
+    private final BasicType[] types;
 
-    private TupleSimpleType(SimpleType[] types) {
+    private TupleBasicType(BasicType[] types) {
       this.types = types;
     }
 
@@ -428,8 +428,8 @@ public abstract class SimpleType {
    * @param key the type of the keys
    * @param value the type of the values
    */
-  public static SimpleType dictionary(SimpleType key, SimpleType value) {
-    return new DictionarySimpleType(key, value);
+  public static BasicType dictionary(BasicType key, BasicType value) {
+    return new DictionaryBasicType(key, value);
   }
 
   /**
@@ -438,8 +438,8 @@ public abstract class SimpleType {
    * @param fields a collection of field names and the type for that field; duplicate field names
    *     are not permitted and will result in an exception
    */
-  public static SimpleType object(Stream<Pair<String, SimpleType>> fields) {
-    return new ObjectSimpleType(fields);
+  public static BasicType object(Stream<Pair<String, BasicType>> fields) {
+    return new ObjectBasicType(fields);
   }
 
   /**
@@ -449,7 +449,7 @@ public abstract class SimpleType {
    *     are not permitted and will result in an exception
    */
   @SafeVarargs
-  public static SimpleType object(Pair<String, SimpleType>... fields) {
+  public static BasicType object(Pair<String, BasicType>... fields) {
     return object(Stream.of(fields));
   }
 
@@ -461,8 +461,8 @@ public abstract class SimpleType {
    * @param left the type of the first/left element
    * @param right the type of the second/right element
    */
-  public static SimpleType pair(SimpleType left, SimpleType right) {
-    return new PairSimpleType(left, right);
+  public static BasicType pair(BasicType left, BasicType right) {
+    return new PairBasicType(left, right);
   }
 
   /**
@@ -470,9 +470,9 @@ public abstract class SimpleType {
    *
    * @param elements the possible data structures; the string identifiers must be unique
    */
-  public static SimpleType taggedUnion(Stream<Map.Entry<String, SimpleType>> elements) {
-    return new SimpleType() {
-      private final Map<String, SimpleType> union =
+  public static BasicType taggedUnion(Stream<Map.Entry<String, BasicType>> elements) {
+    return new BasicType() {
+      private final Map<String, BasicType> union =
           Collections.unmodifiableMap(
               elements.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
 
@@ -489,7 +489,7 @@ public abstract class SimpleType {
    * @param elements the possible data structures; the string identifiers must be unique
    */
   @SafeVarargs
-  public static SimpleType taggedUnion(Map.Entry<String, SimpleType>... elements) {
+  public static BasicType taggedUnion(Map.Entry<String, BasicType>... elements) {
     return taggedUnion(Stream.of(elements));
   }
 
@@ -499,7 +499,7 @@ public abstract class SimpleType {
    * @param elements the possible data structures; the string identifiers must be unique
    */
   @SafeVarargs
-  public static SimpleType taggedUnion(Pair<String, SimpleType>... elements) {
+  public static BasicType taggedUnion(Pair<String, BasicType>... elements) {
     return taggedUnionFromPairs(Stream.of(elements));
   }
 
@@ -508,9 +508,9 @@ public abstract class SimpleType {
    *
    * @param elements the possible data structures; the string identifiers must be unique
    */
-  public static SimpleType taggedUnionFromPairs(Stream<Pair<String, SimpleType>> elements) {
-    return new SimpleType() {
-      private final Map<String, SimpleType> union =
+  public static BasicType taggedUnionFromPairs(Stream<Pair<String, BasicType>> elements) {
+    return new BasicType() {
+      private final Map<String, BasicType> union =
           Collections.unmodifiableMap(
               elements.collect(Collectors.toMap(Pair::first, Pair::second)));
 
@@ -526,12 +526,12 @@ public abstract class SimpleType {
    *
    * @param types the element types, in order
    */
-  public static SimpleType tuple(SimpleType... types) {
-    return new TupleSimpleType(types);
+  public static BasicType tuple(BasicType... types) {
+    return new TupleBasicType(types);
   }
   /** The type of a Boolean value */
-  public static final SimpleType BOOLEAN =
-      new SimpleType() {
+  public static final BasicType BOOLEAN =
+      new BasicType() {
 
         @Override
         public <R> R apply(Visitor<R> transformer) {
@@ -543,8 +543,8 @@ public abstract class SimpleType {
    *
    * <p>The expected encoding for a date is as an ISO-8601 timestamp in UTC
    */
-  public static final SimpleType DATE =
-      new SimpleType() {
+  public static final BasicType DATE =
+      new BasicType() {
 
         @Override
         public <R> R apply(Visitor<R> transformer) {
@@ -556,8 +556,8 @@ public abstract class SimpleType {
    *
    * <p>Precision is not specified
    */
-  public static final SimpleType FLOAT =
-      new SimpleType() {
+  public static final BasicType FLOAT =
+      new BasicType() {
 
         @Override
         public <R> R apply(Visitor<R> transformer) {
@@ -569,8 +569,8 @@ public abstract class SimpleType {
    *
    * <p>Precision is not specified
    */
-  public static final SimpleType INTEGER =
-      new SimpleType() {
+  public static final BasicType INTEGER =
+      new BasicType() {
 
         @Override
         public <R> R apply(Visitor<R> transformer) {
@@ -578,8 +578,8 @@ public abstract class SimpleType {
         }
       };
   /** The type of arbitrary JSON content */
-  public static final SimpleType JSON =
-      new SimpleType() {
+  public static final BasicType JSON =
+      new BasicType() {
 
         @Override
         public <R> R apply(Visitor<R> transformer) {
@@ -587,8 +587,8 @@ public abstract class SimpleType {
         }
       };
   /** The type of a string */
-  public static final SimpleType STRING =
-      new SimpleType() {
+  public static final BasicType STRING =
+      new BasicType() {
 
         @Override
         public <R> R apply(Visitor<R> transformer) {
@@ -596,7 +596,7 @@ public abstract class SimpleType {
         }
       };
 
-  private SimpleType() {}
+  private BasicType() {}
 
   /**
    * Transform this type into a another representation
@@ -606,12 +606,12 @@ public abstract class SimpleType {
   public abstract <R> R apply(Visitor<R> transformer);
 
   /** Create a list type containing the current type. */
-  public final SimpleType asList() {
-    return new ListSimpleType(this);
+  public final BasicType asList() {
+    return new ListBasicType(this);
   }
 
   /** Create an optional type containing the current type. */
-  public SimpleType asOptional() {
-    return new OptionalSimpleType(this);
+  public BasicType asOptional() {
+    return new OptionalBasicType(this);
   }
 }

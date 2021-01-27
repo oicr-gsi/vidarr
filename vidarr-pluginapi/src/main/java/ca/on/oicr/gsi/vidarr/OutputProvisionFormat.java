@@ -3,24 +3,24 @@ package ca.on.oicr.gsi.vidarr;
 /** The type of data the provision is expecting to receive */
 public enum OutputProvisionFormat {
   /** The provisioner can handle structured records that can go in a data warehouse */
-  DATAWAREHOUSE_RECORDS(OutputProvisionType.WAREHOUSE_RECORDS),
+  DATAWAREHOUSE_RECORDS(OutputType.WAREHOUSE_RECORDS),
   /** The provisioner can handle file metadata */
-  FILES(OutputProvisionType.FILES),
+  FILES(OutputType.FILES),
   /**
    * The provisioner can handle logs (text files that are for debugging purposes, not further
    * analysis)
    */
-  LOGS(OutputProvisionType.LOGS),
+  LOGS(OutputType.LOGS),
   /** The provisioner can handle quality control metadata */
-  QUALITY_CONTROL(OutputProvisionType.QUALITY_CONTROL);
-  private final OutputProvisionType outputType;
+  QUALITY_CONTROL(OutputType.QUALITY_CONTROL);
+  private final OutputType outputType;
 
-  OutputProvisionFormat(OutputProvisionType outputType) {
+  OutputProvisionFormat(OutputType outputType) {
     this.outputType = outputType;
   }
 
   /** The type of output data that must be provided for this provisioner */
-  public OutputProvisionType outputType() {
+  public OutputType outputType() {
     return outputType;
   }
 }

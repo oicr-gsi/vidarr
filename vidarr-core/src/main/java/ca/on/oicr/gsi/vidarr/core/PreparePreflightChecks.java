@@ -1,7 +1,7 @@
 package ca.on.oicr.gsi.vidarr.core;
 
 import ca.on.oicr.gsi.Pair;
-import ca.on.oicr.gsi.vidarr.OutputProvisionType;
+import ca.on.oicr.gsi.vidarr.OutputType;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Map;
@@ -82,7 +82,7 @@ final class PreparePreflightChecks extends BaseOutputExtractor<Boolean, Boolean>
 
   @Override
   protected Boolean processChild(
-      Map<String, Object> key, OutputProvisionType type, JsonNode metadata, JsonNode output) {
+      Map<String, Object> key, OutputType type, JsonNode metadata, JsonNode output) {
     return type.apply(
         new PreparePreflightChecks(
             mapper, target, metadata, extraInputIdsHandled, requestedExternalId, preflightTask));

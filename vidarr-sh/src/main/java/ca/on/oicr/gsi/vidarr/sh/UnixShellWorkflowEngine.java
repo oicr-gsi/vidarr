@@ -49,7 +49,7 @@ public final class UnixShellWorkflowEngine
   }
 
   @Override
-  public Optional<SimpleType> engineParameters() {
+  public Optional<BasicType> engineParameters() {
     return Optional.empty();
   }
 

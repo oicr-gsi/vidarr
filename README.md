@@ -6,6 +6,7 @@ tracked without modifying existing workflows.
 - [Vidarr Architecture](architecture.md)
 - [Administrator's Guide](admin-guide.md)
 - [Plugin Developer's Guide](plugin-guide.md)
+- [Understanding the Vidarr Type System](types.md)
 
 Current plugins:
 

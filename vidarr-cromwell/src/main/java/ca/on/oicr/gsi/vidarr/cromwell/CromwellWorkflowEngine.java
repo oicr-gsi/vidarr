@@ -22,11 +22,11 @@ public final class CromwellWorkflowEngine
     return new WorkflowEngineProvider() {
       @Override
       public WorkflowEngine readConfiguration(ObjectNode node) {
-        var engineParameters = Optional.<SimpleType>empty();
+        var engineParameters = Optional.<BasicType>empty();
         if (node.has("engineParameters")) {
           engineParameters =
               Optional.ofNullable(
-                  MAPPER.convertValue(node.get("engineParameters"), SimpleType.class));
+                  MAPPER.convertValue(node.get("engineParameters"), BasicType.class));
         }
         return new CromwellWorkflowEngine(node.get("url").asText(), engineParameters);
       }
@@ -68,9 +68,9 @@ public final class CromwellWorkflowEngine
           .register();
   static final ObjectMapper MAPPER = new ObjectMapper();
   private final String baseUrl;
-  private final Optional<SimpleType> engineParameters;
+  private final Optional<BasicType> engineParameters;
 
-  protected CromwellWorkflowEngine(String baseUrl, Optional<SimpleType> engineParameters) {
+  protected CromwellWorkflowEngine(String baseUrl, Optional<BasicType> engineParameters) {
     super(MAPPER, EngineState.class, String.class, Void.class);
     this.baseUrl = baseUrl;
     this.engineParameters = engineParameters;
@@ -152,7 +152,7 @@ public final class CromwellWorkflowEngine
   }
 
   @Override
-  public Optional<SimpleType> engineParameters() {
+  public Optional<BasicType> engineParameters() {
     return engineParameters;
   }
 

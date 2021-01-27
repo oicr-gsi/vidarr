@@ -129,5 +129,5 @@ public interface OutputProvisioner {
    * @param format the input format
    * @return the metadata that the client must supply to be able to provision in this data
    */
-  SimpleType typeFor(OutputProvisionFormat format);
+  BasicType typeFor(OutputProvisionFormat format);
 }

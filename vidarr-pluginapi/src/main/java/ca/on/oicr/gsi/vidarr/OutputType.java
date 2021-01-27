@@ -26,9 +26,9 @@ import java.util.stream.StreamSupport;
  * metadata (<i>e.g.</i>, the LIMS keys for a file) while the workflow is providing data
  * (<i>e.g.</i> the file path) and the provision out process will marry the two.
  */
-@JsonSerialize(using = OutputProvisionType.JacksonSerializer.class)
-@JsonDeserialize(using = OutputProvisionType.JacksonDeserializer.class)
-public abstract class OutputProvisionType {
+@JsonSerialize(using = OutputType.JacksonSerializer.class)
+@JsonDeserialize(using = OutputType.JacksonDeserializer.class)
+public abstract class OutputType {
   /**
    * The type of elements to used as keys when provisioning out structures
    *
@@ -81,7 +81,7 @@ public abstract class OutputProvisionType {
      * @param keys the key that uniquely identify entries in the structure
      * @param outputs the outputs that are present in the structure, previously converted
      */
-    default T list(Map<String, IdentifierKey> keys, Map<String, OutputProvisionType> outputs) {
+    default T list(Map<String, IdentifierKey> keys, Map<String, OutputType> outputs) {
       return unknown();
     }
 
@@ -109,35 +109,35 @@ public abstract class OutputProvisionType {
     }
   }
 
-  public static final class JacksonDeserializer extends JsonDeserializer<OutputProvisionType> {
+  public static final class JacksonDeserializer extends JsonDeserializer<OutputType> {
 
     @Override
-    public OutputProvisionType deserialize(
+    public OutputType deserialize(
         JsonParser jsonParser, DeserializationContext deserializationContext)
         throws IOException, JsonProcessingException {
       return deserialize(jsonParser.readValueAsTree());
     }
 
-    private OutputProvisionType deserialize(TreeNode node) {
+    private OutputType deserialize(TreeNode node) {
       if (node.isValueNode() && ((ValueNode) node).isTextual()) {
         final var str = ((ValueNode) node).asText();
         switch (str) {
           case "file":
-            return OutputProvisionType.FILE;
+            return OutputType.FILE;
           case "files":
-            return OutputProvisionType.FILES;
+            return OutputType.FILES;
           case "file-with-labels":
-            return OutputProvisionType.FILE_WITH_LABELS;
+            return OutputType.FILE_WITH_LABELS;
           case "files-with-labels":
-            return OutputProvisionType.FILES_WITH_LABELS;
+            return OutputType.FILES_WITH_LABELS;
           case "logs":
-            return OutputProvisionType.LOGS;
+            return OutputType.LOGS;
           case "quality-control":
-            return OutputProvisionType.QUALITY_CONTROL;
+            return OutputType.QUALITY_CONTROL;
           case "unknown":
-            return OutputProvisionType.UNKNOWN;
+            return OutputType.UNKNOWN;
           case "warehouse-records":
-            return OutputProvisionType.WAREHOUSE_RECORDS;
+            return OutputType.WAREHOUSE_RECORDS;
           default:
             throw new IllegalArgumentException("Unknown output type: " + str);
         }
@@ -171,14 +171,14 @@ public abstract class OutputProvisionType {
     }
   }
 
-  public static final class JacksonSerializer extends JsonSerializer<OutputProvisionType> {
+  public static final class JacksonSerializer extends JsonSerializer<OutputType> {
     private interface Printer {
       void print(JsonGenerator jsonGenerator) throws IOException;
     }
 
     @Override
     public void serialize(
-        OutputProvisionType outputType,
+        OutputType outputType,
         JsonGenerator jsonGenerator,
         SerializerProvider serializerProvider)
         throws IOException {
@@ -207,7 +207,7 @@ public abstract class OutputProvisionType {
 
                 @Override
                 public Printer list(
-                    Map<String, IdentifierKey> keys, Map<String, OutputProvisionType> outputs) {
+                    Map<String, IdentifierKey> keys, Map<String, OutputType> outputs) {
                   final var printOuputs =
                       outputs.entrySet().stream()
                           .collect(
@@ -261,14 +261,14 @@ public abstract class OutputProvisionType {
    *     composite key)
    * @param outputs the entries in the structure
    */
-  public static OutputProvisionType list(
-      Map<String, IdentifierKey> keys, Map<String, OutputProvisionType> outputs) {
+  public static OutputType list(
+      Map<String, IdentifierKey> keys, Map<String, OutputType> outputs) {
     if (keys.keySet().stream().anyMatch(outputs.keySet()::contains)) {
       throw new IllegalArgumentException("Overlap between input and output entry sets");
     }
-    return new OutputProvisionType() {
+    return new OutputType() {
       final Map<String, IdentifierKey> inputKeys = Collections.unmodifiableMap(new TreeMap<>(keys));
-      final Map<String, OutputProvisionType> outputValues =
+      final Map<String, OutputType> outputValues =
           Collections.unmodifiableMap(new TreeMap<>(outputs));
 
       @Override
@@ -279,8 +279,8 @@ public abstract class OutputProvisionType {
   }
 
   /** The output is a single file */
-  public static final OutputProvisionType FILE =
-      new OutputProvisionType() {
+  public static final OutputType FILE =
+      new OutputType() {
         @Override
         public <T> T apply(Visitor<T> visitor) {
           return visitor.file();
@@ -288,8 +288,8 @@ public abstract class OutputProvisionType {
       };
 
   /** The output is a collection files that should have identical metadata */
-  public static final OutputProvisionType FILES =
-      new OutputProvisionType() {
+  public static final OutputType FILES =
+      new OutputType() {
         @Override
         public <T> T apply(Visitor<T> visitor) {
           return visitor.files();
@@ -299,24 +299,24 @@ public abstract class OutputProvisionType {
    * The output is a collection files with workflow-derived labels that should have identical
    * metadata
    */
-  public static final OutputProvisionType FILES_WITH_LABELS =
-      new OutputProvisionType() {
+  public static final OutputType FILES_WITH_LABELS =
+      new OutputType() {
         @Override
         public <T> T apply(Visitor<T> visitor) {
           return visitor.filesWithLabels();
         }
       };
   /** The output is a single files with workflow-derived labels */
-  public static final OutputProvisionType FILE_WITH_LABELS =
-      new OutputProvisionType() {
+  public static final OutputType FILE_WITH_LABELS =
+      new OutputType() {
         @Override
         public <T> T apply(Visitor<T> visitor) {
           return visitor.fileWithLabels();
         }
       };
   /** The output is logs */
-  public static final OutputProvisionType LOGS =
-      new OutputProvisionType() {
+  public static final OutputType LOGS =
+      new OutputType() {
         @Override
         public <T> T apply(Visitor<T> visitor) {
           return visitor.logs();
@@ -324,31 +324,31 @@ public abstract class OutputProvisionType {
       };
 
   /** The output is quality control information */
-  public static final OutputProvisionType QUALITY_CONTROL =
-      new OutputProvisionType() {
+  public static final OutputType QUALITY_CONTROL =
+      new OutputType() {
         @Override
         public <T> T apply(Visitor<T> visitor) {
           return visitor.qualityControl();
         }
       };
   /** The output is unknown or an error */
-  public static final OutputProvisionType UNKNOWN =
-      new OutputProvisionType() {
+  public static final OutputType UNKNOWN =
+      new OutputType() {
         @Override
         public <T> T apply(Visitor<T> visitor) {
           return visitor.unknown();
         }
       };
   /** The output is data warehouse records */
-  public static final OutputProvisionType WAREHOUSE_RECORDS =
-      new OutputProvisionType() {
+  public static final OutputType WAREHOUSE_RECORDS =
+      new OutputType() {
         @Override
         public <T> T apply(Visitor<T> visitor) {
           return visitor.warehouseRecords();
         }
       };
 
-  private OutputProvisionType() {}
+  private OutputType() {}
 
   /**
    * Transform the output type structure using the visitor

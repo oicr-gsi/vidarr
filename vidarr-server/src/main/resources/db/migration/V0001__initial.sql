@@ -1,38 +1,8 @@
 --
--- PostgreSQL database dump
---
-
--- Dumped from database version 12.5 (Ubuntu 12.5-0ubuntu0.20.04.1)
--- Dumped by pg_dump version 12.5 (Ubuntu 12.5-0ubuntu0.20.04.1)
-
-SET statement_timeout = 0;
-SET lock_timeout = 0;
-SET idle_in_transaction_session_timeout = 0;
-SET client_encoding = 'UTF8';
-SET standard_conforming_strings = on;
-SELECT pg_catalog.set_config('search_path', '', false);
-SET check_function_bodies = false;
-SET xmloption = content;
-SET client_min_messages = warning;
-SET row_security = off;
-
---
 -- Name: update_modified(); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.update_modified() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-BEGIN
-	NEW.modified = now()::timestamptz(0);
-	RETURN NEW;
-END;
-$$;
-
-
-SET default_tablespace = '';
-
-SET default_table_access_method = heap;
+CREATE FUNCTION public.update_modified() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN NEW.modified = now()::timestamptz(0); RETURN NEW; END; $$;
 
 --
 -- Name: active_operation; Type: TABLE; Schema: public; Owner: -
@@ -43,7 +13,9 @@ CREATE TABLE public.active_operation (
     workflow_run_id integer NOT NULL,
     recovery_state jsonb NOT NULL,
     status character varying(20) NOT NULL,
-    type character varying(255) NOT NULL
+    type character varying(255) NOT NULL,
+    debug_info jsonb NOT NULL DEFAULT 'null'::jsonb,
+    attempt integer NOT NULL DEFAULT 0
 );
 
 
@@ -52,7 +24,6 @@ CREATE TABLE public.active_operation (
 --
 
 CREATE SEQUENCE public.active_operation_id_seq
-    AS integer
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
@@ -72,7 +43,6 @@ ALTER SEQUENCE public.active_operation_id_seq OWNED BY public.active_operation.i
 --
 
 CREATE SEQUENCE public.active_operation_workflow_run_id_seq
-    AS integer
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
@@ -102,7 +72,6 @@ CREATE TABLE public.active_workflow_run_extra_input_ids (
 --
 
 CREATE SEQUENCE public.active_workflow_extra_input_ids_active_workflow_run_id_seq
-    AS integer
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
@@ -122,7 +91,6 @@ ALTER SEQUENCE public.active_workflow_extra_input_ids_active_workflow_run_id_seq
 --
 
 CREATE SEQUENCE public.active_workflow_extra_input_ids_external_id_id_seq
-    AS integer
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
@@ -153,7 +121,8 @@ CREATE TABLE public.active_workflow_run (
     completed timestamp with time zone,
     created timestamp with time zone DEFAULT (now())::timestamp(0) with time zone NOT NULL,
     modified timestamp with time zone NOT NULL,
-    target character varying(255)
+    target character varying(255),
+    attempt integer NOT NULL DEFAULT 0
 );
 
 
@@ -162,7 +131,6 @@ CREATE TABLE public.active_workflow_run (
 --
 
 CREATE SEQUENCE public.active_workflow_run_id_seq
-    AS integer
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
@@ -211,7 +179,6 @@ CREATE TABLE public.analysis_external_id (
 --
 
 CREATE SEQUENCE public.analysis_id_seq
-    AS integer
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
@@ -246,7 +213,6 @@ CREATE TABLE public.external_id (
 --
 
 CREATE SEQUENCE public.external_id_id_seq
-    AS integer
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
@@ -280,7 +246,6 @@ CREATE TABLE public.external_id_version (
 --
 
 CREATE SEQUENCE public.external_id_version_id_seq
-    AS integer
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
@@ -330,7 +295,6 @@ CREATE TABLE public.workflow_definition (
 --
 
 CREATE SEQUENCE public.workflow_definition_id_seq
-    AS integer
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
@@ -350,7 +314,6 @@ ALTER SEQUENCE public.workflow_definition_id_seq OWNED BY public.workflow_defini
 --
 
 CREATE SEQUENCE public.workflow_id_seq
-    AS integer
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
@@ -391,7 +354,6 @@ CREATE TABLE public.workflow_run (
 --
 
 CREATE SEQUENCE public.workflow_run_id_seq
-    AS integer
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
@@ -428,7 +390,6 @@ CREATE TABLE public.workflow_version (
 --
 
 CREATE SEQUENCE public.workflow_version_id_seq
-    AS integer
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
@@ -447,84 +408,84 @@ ALTER SEQUENCE public.workflow_version_id_seq OWNED BY public.workflow_version.i
 -- Name: active_operation id; Type: DEFAULT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.active_operation ALTER COLUMN id SET DEFAULT nextval('public.active_operation_id_seq'::regclass);
+ALTER TABLE public.active_operation ALTER COLUMN id SET DEFAULT nextval('public.active_operation_id_seq');
 
 
 --
 -- Name: active_operation workflow_run_id; Type: DEFAULT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.active_operation ALTER COLUMN workflow_run_id SET DEFAULT nextval('public.active_operation_workflow_run_id_seq'::regclass);
+ALTER TABLE public.active_operation ALTER COLUMN workflow_run_id SET DEFAULT nextval('public.active_operation_workflow_run_id_seq');
 
 
 --
 -- Name: active_workflow_run_extra_input_ids active_workflow_run_id; Type: DEFAULT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.active_workflow_run_extra_input_ids ALTER COLUMN active_workflow_run_id SET DEFAULT nextval('public.active_workflow_extra_input_ids_active_workflow_run_id_seq'::regclass);
+ALTER TABLE public.active_workflow_run_extra_input_ids ALTER COLUMN active_workflow_run_id SET DEFAULT nextval('public.active_workflow_extra_input_ids_active_workflow_run_id_seq');
 
 
 --
 -- Name: active_workflow_run_extra_input_ids external_id_id; Type: DEFAULT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.active_workflow_run_extra_input_ids ALTER COLUMN external_id_id SET DEFAULT nextval('public.active_workflow_extra_input_ids_external_id_id_seq'::regclass);
+ALTER TABLE public.active_workflow_run_extra_input_ids ALTER COLUMN external_id_id SET DEFAULT nextval('public.active_workflow_extra_input_ids_external_id_id_seq');
 
 
 --
 -- Name: analysis id; Type: DEFAULT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.analysis ALTER COLUMN id SET DEFAULT nextval('public.analysis_id_seq'::regclass);
+ALTER TABLE public.analysis ALTER COLUMN id SET DEFAULT nextval('public.analysis_id_seq');
 
 
 --
 -- Name: external_id id; Type: DEFAULT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.external_id ALTER COLUMN id SET DEFAULT nextval('public.external_id_id_seq'::regclass);
+ALTER TABLE public.external_id ALTER COLUMN id SET DEFAULT nextval('public.external_id_id_seq');
 
 
 --
 -- Name: external_id_version id; Type: DEFAULT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.external_id_version ALTER COLUMN id SET DEFAULT nextval('public.external_id_version_id_seq'::regclass);
+ALTER TABLE public.external_id_version ALTER COLUMN id SET DEFAULT nextval('public.external_id_version_id_seq');
 
 
 --
 -- Name: workflow id; Type: DEFAULT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.workflow ALTER COLUMN id SET DEFAULT nextval('public.workflow_id_seq'::regclass);
+ALTER TABLE public.workflow ALTER COLUMN id SET DEFAULT nextval('public.workflow_id_seq');
 
 
 --
 -- Name: workflow_definition id; Type: DEFAULT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.workflow_definition ALTER COLUMN id SET DEFAULT nextval('public.workflow_definition_id_seq'::regclass);
+ALTER TABLE public.workflow_definition ALTER COLUMN id SET DEFAULT nextval('public.workflow_definition_id_seq');
 
 
 --
 -- Name: workflow_run id; Type: DEFAULT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.workflow_run ALTER COLUMN id SET DEFAULT nextval('public.workflow_run_id_seq'::regclass);
+ALTER TABLE public.workflow_run ALTER COLUMN id SET DEFAULT nextval('public.workflow_run_id_seq');
 
 
 --
 -- Name: workflow_version id; Type: DEFAULT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.workflow_version ALTER COLUMN id SET DEFAULT nextval('public.workflow_version_id_seq'::regclass);
+ALTER TABLE public.workflow_version ALTER COLUMN id SET DEFAULT nextval('public.workflow_version_id_seq');
 
 
 --
 -- Name: active_operation active_operation_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.active_operation
+ALTER TABLE public.active_operation
     ADD CONSTRAINT active_operation_pkey PRIMARY KEY (id);
 
 
@@ -532,7 +493,7 @@ ALTER TABLE ONLY public.active_operation
 -- Name: active_workflow_run_extra_input_ids active_workflow_extra_input_ids_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.active_workflow_run_extra_input_ids
+ALTER TABLE public.active_workflow_run_extra_input_ids
     ADD CONSTRAINT active_workflow_extra_input_ids_pkey PRIMARY KEY (active_workflow_run_id, external_id_id);
 
 
@@ -540,7 +501,7 @@ ALTER TABLE ONLY public.active_workflow_run_extra_input_ids
 -- Name: active_workflow_run active_workflow_run_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.active_workflow_run
+ALTER TABLE public.active_workflow_run
     ADD CONSTRAINT active_workflow_run_pkey PRIMARY KEY (id);
 
 
@@ -548,7 +509,7 @@ ALTER TABLE ONLY public.active_workflow_run
 -- Name: analysis_external_id analysis_external_id_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.analysis_external_id
+ALTER TABLE public.analysis_external_id
     ADD CONSTRAINT analysis_external_id_pkey PRIMARY KEY (external_id_id, analysis_id);
 
 
@@ -556,7 +517,7 @@ ALTER TABLE ONLY public.analysis_external_id
 -- Name: analysis analysis_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.analysis
+ALTER TABLE public.analysis
     ADD CONSTRAINT analysis_pkey PRIMARY KEY (id);
 
 
@@ -564,7 +525,7 @@ ALTER TABLE ONLY public.analysis
 -- Name: external_id external_id_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.external_id
+ALTER TABLE public.external_id
     ADD CONSTRAINT external_id_pkey PRIMARY KEY (id);
 
 
@@ -572,7 +533,7 @@ ALTER TABLE ONLY public.external_id
 -- Name: external_id_version external_id_version_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.external_id_version
+ALTER TABLE public.external_id_version
     ADD CONSTRAINT external_id_version_pkey PRIMARY KEY (id);
 
 
@@ -580,7 +541,7 @@ ALTER TABLE ONLY public.external_id_version
 -- Name: workflow workflow_name_unique; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.workflow
+ALTER TABLE public.workflow
     ADD CONSTRAINT workflow_name_unique UNIQUE (name);
 
 
@@ -588,7 +549,7 @@ ALTER TABLE ONLY public.workflow
 -- Name: workflow workflow_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.workflow
+ALTER TABLE public.workflow
     ADD CONSTRAINT workflow_pkey PRIMARY KEY (id);
 
 
@@ -596,7 +557,7 @@ ALTER TABLE ONLY public.workflow
 -- Name: workflow_run workflow_run_hash_id_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.workflow_run
+ALTER TABLE public.workflow_run
     ADD CONSTRAINT workflow_run_hash_id_key UNIQUE (hash_id);
 
 
@@ -604,7 +565,7 @@ ALTER TABLE ONLY public.workflow_run
 -- Name: workflow_run workflow_run_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.workflow_run
+ALTER TABLE public.workflow_run
     ADD CONSTRAINT workflow_run_pkey PRIMARY KEY (id);
 
 
@@ -612,7 +573,7 @@ ALTER TABLE ONLY public.workflow_run
 -- Name: workflow_version workflow_version_hash_id_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.workflow_version
+ALTER TABLE public.workflow_version
     ADD CONSTRAINT workflow_version_hash_id_key UNIQUE (hash_id);
 
 
@@ -620,7 +581,7 @@ ALTER TABLE ONLY public.workflow_version
 -- Name: workflow_version workflow_version_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.workflow_version
+ALTER TABLE public.workflow_version
     ADD CONSTRAINT workflow_version_pkey PRIMARY KEY (id);
 
 
@@ -677,7 +638,7 @@ CREATE TRIGGER workflow_version_update BEFORE INSERT OR UPDATE ON public.workflo
 -- Name: active_workflow_run_extra_input_ids active_workflow_run_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.active_workflow_run_extra_input_ids
+ALTER TABLE public.active_workflow_run_extra_input_ids
     ADD CONSTRAINT active_workflow_run_id_fkey FOREIGN KEY (active_workflow_run_id) REFERENCES public.active_workflow_run(id);
 
 
@@ -685,7 +646,7 @@ ALTER TABLE ONLY public.active_workflow_run_extra_input_ids
 -- Name: analysis_external_id analysis_external_id_analysis_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.analysis_external_id
+ALTER TABLE public.analysis_external_id
     ADD CONSTRAINT analysis_external_id_analysis_id_fkey FOREIGN KEY (analysis_id) REFERENCES public.analysis(id);
 
 
@@ -693,7 +654,7 @@ ALTER TABLE ONLY public.analysis_external_id
 -- Name: analysis_external_id analysis_external_id_external_id_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.analysis_external_id
+ALTER TABLE public.analysis_external_id
     ADD CONSTRAINT analysis_external_id_external_id_id_fkey FOREIGN KEY (external_id_id) REFERENCES public.external_id(id);
 
 
@@ -701,7 +662,7 @@ ALTER TABLE ONLY public.analysis_external_id
 -- Name: analysis analysis_workflow_run_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.analysis
+ALTER TABLE public.analysis
     ADD CONSTRAINT analysis_workflow_run_id_fkey FOREIGN KEY (workflow_run_id) REFERENCES public.workflow_run(id);
 
 
@@ -709,7 +670,7 @@ ALTER TABLE ONLY public.analysis
 -- Name: active_workflow_run_extra_input_ids external_id_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.active_workflow_run_extra_input_ids
+ALTER TABLE public.active_workflow_run_extra_input_ids
     ADD CONSTRAINT external_id_id_fkey FOREIGN KEY (external_id_id) REFERENCES public.external_id(id);
 
 
@@ -717,7 +678,7 @@ ALTER TABLE ONLY public.active_workflow_run_extra_input_ids
 -- Name: external_id_version external_id_version_external_id_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.external_id_version
+ALTER TABLE public.external_id_version
     ADD CONSTRAINT external_id_version_external_id_id_fkey FOREIGN KEY (external_id_id) REFERENCES public.external_id(id) NOT VALID;
 
 
@@ -725,7 +686,7 @@ ALTER TABLE ONLY public.external_id_version
 -- Name: external_id external_id_workflow_run_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.external_id
+ALTER TABLE public.external_id
     ADD CONSTRAINT external_id_workflow_run_id_fkey FOREIGN KEY (workflow_run_id) REFERENCES public.workflow_run(id) NOT VALID;
 
 
@@ -733,7 +694,7 @@ ALTER TABLE ONLY public.external_id
 -- Name: active_operation workflow_run_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.active_operation
+ALTER TABLE public.active_operation
     ADD CONSTRAINT workflow_run_id_fkey FOREIGN KEY (workflow_run_id) REFERENCES public.workflow_run(id);
 
 
@@ -741,11 +702,11 @@ ALTER TABLE ONLY public.active_operation
 -- Name: workflow_run workflow_run_workflow_version_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.workflow_run
+ALTER TABLE public.workflow_run
     ADD CONSTRAINT workflow_run_workflow_version_id_fkey FOREIGN KEY (workflow_version_id) REFERENCES public.workflow_version(id) NOT VALID;
 
 
 --
--- PostgreSQL database dump complete
+-- End
 --
 

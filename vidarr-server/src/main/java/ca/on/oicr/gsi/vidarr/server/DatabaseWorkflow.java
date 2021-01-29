@@ -103,7 +103,7 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
       int workflowVersionId,
       String vidarrId,
       JsonNode arguments,
-      ObjectNode engineParameters,
+      JsonNode engineParameters,
       JsonNode metadata,
       Set<? extends ExternalId> ids,
       AtomicBoolean liveness,

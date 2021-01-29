@@ -911,8 +911,6 @@ public abstract class DatabaseBackedProcessor
                               });
                   connection.commit();
                   return submitResult;
-                } finally {
-                  connection.close();
                 }
               } catch (SQLException e) {
                 throw new RuntimeException(e);

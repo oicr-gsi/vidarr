@@ -1,6 +1,5 @@
-
 *.iml
 .*.sw*
 .idea
-db-generate.properties
 target
+vidarr-server/src/main/java/ca/on/oicr/gsi/vidarr/server/jooq/

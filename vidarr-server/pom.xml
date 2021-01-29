@@ -72,24 +72,78 @@
     </dependency>
   </dependencies>
   <build>
+    <pluginManagement>
+      <plugins>
+        <plugin>
+          <groupId>io.fabric8</groupId>
+          <artifactId>docker-maven-plugin</artifactId>
+          <version>0.21.0</version>
+          <configuration>
+            <removeVolumes>true</removeVolumes>
+            <images>
+              <image>
+                <name>postgres:12-alpine</name>
+                <alias>postgres</alias>
+                <run>
+                  <env>
+                    <POSTGRES_USER>vidarr</POSTGRES_USER>
+                    <POSTGRES_PASSWORD>vidarr</POSTGRES_PASSWORD>
+                    <POSTGRES_DB>vidarr</POSTGRES_DB>
+                  </env>
+                  <ports>
+                    <port>${pg.port}:5432</port>
+                  </ports>
+                  <wait>
+                    <time>15000</time>
+                  </wait>
+                </run>
+              </image>
+            </images>
+          </configuration>
+        </plugin>
+      </plugins>
+    </pluginManagement>
     <plugins>
       <plugin>
-        <groupId>org.codehaus.mojo</groupId>
-        <artifactId>properties-maven-plugin</artifactId>
-        <version>1.0.0</version>
+        <groupId>io.fabric8</groupId>
+        <artifactId>docker-maven-plugin</artifactId>
         <executions>
           <execution>
-            <phase>validate</phase>
+            <id>start</id>
+            <phase>generate-sources</phase>
             <goals>
-              <goal>read-project-properties</goal>
+              <goal>start</goal>
             </goals>
-            <configuration>
-              <files>
-                <file>${basedir}/db-generate.properties</file>
-              </files>
-            </configuration>
+          </execution>
+          <execution>
+            <id>stop</id>
+            <phase>process-sources</phase>
+            <goals>
+              <goal>stop</goal>
+            </goals>
           </execution>
         </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.flywaydb</groupId>
+        <artifactId>flyway-maven-plugin</artifactId>
+        <version>3.0</version>
+        <executions>
+          <execution>
+            <phase>generate-sources</phase>
+            <goals>
+              <goal>migrate</goal>
+            </goals>
+          </execution>
+        </executions>
+        <configuration>
+          <url>jdbc:postgresql://localhost:${pg.port}/vidarr</url>
+          <user>vidarr</user>
+          <password>vidarr</password>
+          <locations>
+            <location>filesystem:src/main/resources/db/migration</location>
+          </locations>
+        </configuration>
       </plugin>
       <plugin>
         <groupId>org.jooq</groupId>
@@ -104,10 +158,9 @@
             </goals>
             <configuration>
               <jdbc>
-                <driver>org.postgresql.Driver</driver>
-                <url>${dbUrl}</url>
-                <user>${dbUser}</user>
-                <password>${dbPassword}</password>
+                <url>jdbc:postgresql://localhost:${pg.port}/vidarr</url>
+                <user>vidarr</user>
+                <password>vidarr</password>
               </jdbc>
               <generator>
                 <name>org.jooq.codegen.JavaGenerator</name>

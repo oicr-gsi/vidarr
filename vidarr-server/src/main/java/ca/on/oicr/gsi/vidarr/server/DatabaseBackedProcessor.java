@@ -31,6 +31,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.jooq.Condition;
@@ -183,6 +184,13 @@ public abstract class DatabaseBackedProcessor
             .entrySet()
             .stream()
             .map(e -> new WorkflowDefinition.Output(e.getValue(), e.getKey())));
+  }
+
+  private static Stream<String> checkConsumableResource(
+      Map<String, JsonNode> consumableResources, Pair<String, BasicType> resource) {
+    return consumableResources.containsKey(resource.first())
+        ? resource.second().apply(new CheckEngineType(consumableResources.get(resource.first())))
+        : Stream.of(String.format("Missing required consumable resource %s", resource.first()));
   }
 
   private static String hashFromAnalysisId(String id) {
@@ -367,31 +375,55 @@ public abstract class DatabaseBackedProcessor
                                 .ifPresent(
                                     target -> {
                                       if (record.get(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE)
-                                          == Phase.INITIALIZING) {
+                                          == Phase.WAITING_FOR_RESOURCES) {
                                         final var definition = buildDefinitionFromRecord(record);
                                         final var workflow =
                                             DatabaseWorkflow.recover(
+                                                target,
                                                 record,
                                                 liveness(record.get(ACTIVE_WORKFLOW_RUN.ID)),
                                                 dsl);
                                         final var activeOperations =
                                             operations.getOrDefault(
                                                 record.get(ACTIVE_WORKFLOW_RUN.ID), List.of());
+                                        final var consumableResources =
+                                            MAPPER.convertValue(
+                                                record.get(
+                                                    ACTIVE_WORKFLOW_RUN.CONSUMABLE_RESOURCES),
+                                                new TypeReference<Map<String, JsonNode>>() {});
                                         startRaw.accept(
-                                            () ->
-                                                recover(
-                                                    target,
-                                                    definition,
-                                                    workflow,
-                                                    activeOperations));
+                                            new ConsumableResourceChecker(
+                                                target,
+                                                dataSource,
+                                                executor(),
+                                                record.get(ACTIVE_WORKFLOW_RUN.ID),
+                                                record.get(WORKFLOW.NAME),
+                                                record.get(WORKFLOW_VERSION.VERSION),
+                                                record.get(WORKFLOW_RUN.HASH_ID),
+                                                consumableResources,
+                                                () ->
+                                                    recover(
+                                                        target,
+                                                        definition,
+                                                        workflow,
+                                                        activeOperations)));
                                       } else {
                                         System.err.printf(
                                             "Recovering workflow %s...\n",
                                             record.get(WORKFLOW_RUN.HASH_ID));
+                                        target
+                                            .consumableResources()
+                                            .forEach(
+                                                cr ->
+                                                    cr.recover(
+                                                        record.get(WORKFLOW_VERSION.NAME),
+                                                        record.get(WORKFLOW_VERSION.VERSION),
+                                                        record.get(WORKFLOW_RUN.HASH_ID)));
                                         recover(
                                             target,
                                             buildDefinitionFromRecord(record),
                                             DatabaseWorkflow.recover(
+                                                target,
                                                 record,
                                                 liveness(record.get(ACTIVE_WORKFLOW_RUN.ID)),
                                                 dsl),
@@ -487,6 +519,7 @@ public abstract class DatabaseBackedProcessor
       JsonNode engineParameters,
       JsonNode metadata,
       Set<ExternalKey> externalKeys,
+      Map<String, JsonNode> consumableResources,
       int attempt,
       SubmissionResultHandler<T> handler) {
     return targetByName(targetName)
@@ -504,7 +537,7 @@ public abstract class DatabaseBackedProcessor
                                       .map(
                                           workflow -> {
                                             final var errors =
-                                                Stream.concat(
+                                                Stream.of(
                                                         validateInput(
                                                             MAPPER,
                                                             target,
@@ -512,7 +545,16 @@ public abstract class DatabaseBackedProcessor
                                                             arguments,
                                                             metadata,
                                                             engineParameters),
-                                                        workflow.validateLabels(labels))
+                                                        workflow.validateLabels(labels),
+                                                        target
+                                                            .consumableResources()
+                                                            .flatMap(
+                                                                r -> r.inputFromUser().stream())
+                                                            .flatMap(
+                                                                cr ->
+                                                                    checkConsumableResource(
+                                                                        consumableResources, cr)))
+                                                    .flatMap(Function.identity())
                                                     .collect(Collectors.toSet());
                                             if (!errors.isEmpty()) {
                                               return handler.invalidWorkflow(errors);
@@ -669,7 +711,10 @@ public abstract class DatabaseBackedProcessor
                                                   final var dbWorkflow =
                                                       DatabaseWorkflow.create(
                                                           targetName,
+                                                          target,
                                                           workflow.id(),
+                                                          name,
+                                                          version,
                                                           candidateIds.get(0),
                                                           labels,
                                                           arguments,
@@ -677,6 +722,7 @@ public abstract class DatabaseBackedProcessor
                                                           metadata,
                                                           inputIds,
                                                           externalIds,
+                                                          consumableResources,
                                                           this::liveness,
                                                           transaction);
                                                   var externalVersionInsert =
@@ -718,27 +764,36 @@ public abstract class DatabaseBackedProcessor
                                                   externalVersionInsert.execute();
                                                   return handler.launched(
                                                       candidateIds.get(0),
-                                                      new Runnable() {
-                                                        private boolean launched;
+                                                      new ConsumableResourceChecker(
+                                                          target,
+                                                          dataSource,
+                                                          executor(),
+                                                          dbWorkflow.dbId(),
+                                                          name,
+                                                          version,
+                                                          candidateIds.get(0),
+                                                          consumableResources,
+                                                          new Runnable() {
+                                                            private boolean launched;
 
-                                                        @Override
-                                                        public void run() {
-                                                          if (launched) {
-                                                            throw new IllegalStateException(
-                                                                "Workflow has already been"
-                                                                    + " launched");
-                                                          }
-                                                          launched = true;
-                                                          startTransaction(
-                                                              runTransaction ->
-                                                                  DatabaseBackedProcessor.this
-                                                                      .start(
-                                                                          target,
-                                                                          workflow.definition(),
-                                                                          dbWorkflow,
-                                                                          runTransaction));
-                                                        }
-                                                      });
+                                                            @Override
+                                                            public void run() {
+                                                              if (launched) {
+                                                                throw new IllegalStateException(
+                                                                    "Workflow has already been"
+                                                                        + " launched");
+                                                              }
+                                                              launched = true;
+                                                              startTransaction(
+                                                                  runTransaction ->
+                                                                      DatabaseBackedProcessor.this
+                                                                          .start(
+                                                                              target,
+                                                                              workflow.definition(),
+                                                                              dbWorkflow,
+                                                                              runTransaction));
+                                                            }
+                                                          }));
                                                 } else {
                                                   return handler.dryRunResult();
                                                 }
@@ -939,8 +994,11 @@ public abstract class DatabaseBackedProcessor
                                                   }
                                                   final var dbWorkflow =
                                                       DatabaseWorkflow.reinitialise(
+                                                          target,
                                                           workflowRunId,
                                                           workflow.id(),
+                                                          name,
+                                                          version,
                                                           candidateIds.get(0),
                                                           arguments,
                                                           engineParameters,
@@ -948,6 +1006,7 @@ public abstract class DatabaseBackedProcessor
                                                           externalIds,
                                                           liveness(workflowRunId),
                                                           externalKeys,
+                                                          consumableResources,
                                                           transaction);
                                                   return handler.reinitialise(
                                                       candidateIds.get(0),

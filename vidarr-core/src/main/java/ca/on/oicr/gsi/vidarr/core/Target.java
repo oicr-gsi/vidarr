@@ -1,5 +1,6 @@
 package ca.on.oicr.gsi.vidarr.core;
 
+import ca.on.oicr.gsi.vidarr.ConsumableResource;
 import ca.on.oicr.gsi.vidarr.InputProvisionFormat;
 import ca.on.oicr.gsi.vidarr.InputProvisioner;
 import ca.on.oicr.gsi.vidarr.OutputProvisionFormat;
@@ -10,6 +11,9 @@ import java.util.stream.Stream;
 
 /** The workflow engine configuration for the processor to use */
 public interface Target {
+
+  /** All consumable resources */
+  Stream<ConsumableResource> consumableResources();
   /** The workflow engine plugin to use */
   WorkflowEngine engine();
 

@@ -771,11 +771,16 @@ public abstract class BaseProcessor<
     this.executor = executor;
   }
 
+  protected final ScheduledExecutorService executor() {
+    return executor;
+  }
+
   protected abstract ObjectMapper mapper();
 
   protected void recover(
       Target target, WorkflowDefinition definition, W workflow, List<PO> activeOperations) {
     switch (workflow.phase()) {
+      case WAITING_FOR_RESOURCES:
       case INITIALIZING:
         startTransaction(transaction -> start(target, definition, workflow, transaction));
         break;

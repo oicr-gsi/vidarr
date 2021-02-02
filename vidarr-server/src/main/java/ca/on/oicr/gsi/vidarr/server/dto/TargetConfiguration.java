@@ -5,10 +5,15 @@ import java.util.List;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class TargetConfiguration {
+  private List<String> consumableResources;
   private List<String> inputProvisioners;
   private List<String> outputProvisioners;
   private List<String> runtimeProvisioners;
   private String workflowEngine;
+
+  public List<String> getConsumableResources() {
+    return consumableResources;
+  }
 
   public List<String> getInputProvisioners() {
     return inputProvisioners;
@@ -24,6 +29,10 @@ public class TargetConfiguration {
 
   public String getWorkflowEngine() {
     return workflowEngine;
+  }
+
+  public void setConsumableResources(List<String> consumableResources) {
+    this.consumableResources = consumableResources;
   }
 
   public void setInputProvisioners(List<String> inputProvisioners) {

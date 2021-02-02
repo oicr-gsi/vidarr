@@ -11,7 +11,7 @@ import java.util.Set;
 public final class SubmitWorkflowRequest {
   private ObjectNode arguments;
   private int attempt;
-  private Map<String, Long> consumableResources;
+  private Map<String, JsonNode> consumableResources;
   private JsonNode engineParameters;
   private Set<ExternalKey> externalKeys;
   private ObjectNode labels;
@@ -51,7 +51,7 @@ public final class SubmitWorkflowRequest {
     return attempt;
   }
 
-  public Map<String, Long> getConsumableResources() {
+  public Map<String, JsonNode> getConsumableResources() {
     return consumableResources;
   }
 
@@ -111,7 +111,7 @@ public final class SubmitWorkflowRequest {
     this.attempt = attempt;
   }
 
-  public void setConsumableResources(Map<String, Long> consumableResources) {
+  public void setConsumableResources(Map<String, JsonNode> consumableResources) {
     this.consumableResources = consumableResources;
   }
 

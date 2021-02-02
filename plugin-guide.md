@@ -30,6 +30,16 @@ expected to journal their current state to the database. The `WorkMonitor`
 provides methods to journal state to the database for crash recovery and to
 provide status information to users.
 
+# Consumable Resource
+Consumable resources implement
+`ca.on.oicr.gsi.vidarr.ConsumableResourceProvider` and
+`ca.on.oicr.gsi.vidarr.ConsumableResource`. These plugins are responsible for
+delaying workflow run execution until resources are available.
+
+The plugins can be associated with targets in the server configuration.
+Consumable resources _may_ request that submitters provide information or
+operate on the existence of a workflow run.
+
 # Input Provisioners
 Input provisioners implement `ca.on.oicr.gsi.vidarr.InputProvisionerProvider`
 and `ca.on.oicr.gsi.vidarr.InputProvisioner`. These plugins are responsible for

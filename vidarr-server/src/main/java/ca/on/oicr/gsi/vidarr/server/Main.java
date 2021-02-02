@@ -36,7 +36,6 @@ import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.zaxxer.hikari.HikariConfig;
@@ -172,6 +171,7 @@ public final class Main implements ServerConfig {
     STATUS_FIELDS.add(DSL.jsonEntry("arguments", WORKFLOW_RUN.ARGUMENTS));
     STATUS_FIELDS.add(DSL.jsonEntry("engineParameters", WORKFLOW_RUN.ENGINE_PARAMETERS));
     STATUS_FIELDS.add(DSL.jsonEntry("metadata", WORKFLOW_RUN.METADATA));
+    STATUS_FIELDS.add(DSL.jsonEntry("waiting_resource", ACTIVE_WORKFLOW_RUN.WAITING_RESOURCE));
     STATUS_FIELDS.add(
         DSL.jsonEntry(
             "running",
@@ -301,6 +301,32 @@ public final class Main implements ServerConfig {
     return output;
   }
 
+  private static Map<String, ConsumableResource> loadConsumableResources(
+      Map<String, ObjectNode> configuration) {
+    final var providers =
+        ServiceLoader.load(ConsumableResourceProvider.class).stream()
+            .map(Provider::get)
+            .collect(Collectors.toMap(ConsumableResourceProvider::type, Function.identity()));
+    final var output = new TreeMap<String, ConsumableResource>();
+    for (final var entry : configuration.entrySet()) {
+      if (!entry.getValue().has("type")) {
+        throw new IllegalArgumentException(
+            String.format("Consumable resource record %s lacks type", entry.getKey()));
+      }
+      final var type = entry.getValue().get("type").asText();
+      final var provider = providers.get(type);
+      if (provider == null) {
+        throw new IllegalArgumentException(
+            String.format(
+                "Consumable resource record %s has type %s, but this is not registered. Maybe a"
+                    + " missing module?",
+                entry.getKey(), type));
+      }
+      output.put(entry.getKey(), provider.readConfiguration(entry.getKey(), entry.getValue()));
+    }
+    return output;
+  }
+
   public static void main(String[] args) throws IOException, SQLException {
     if (args.length != 1) {
       System.err.println(
@@ -399,6 +425,7 @@ public final class Main implements ServerConfig {
   private final ScheduledExecutorService executor =
       Executors.newScheduledThreadPool(Runtime.getRuntime().availableProcessors());
   private final Map<String, InputProvisioner> inputProvisioners;
+  private final MaxInFlightByWorkflow maxInFlightPerWorkflow = new MaxInFlightByWorkflow();
   private final Map<String, Optional<FileMetadata>> metadataCache = new ConcurrentHashMap<>();
   private final Map<String, String> otherServers;
   private final Map<String, OutputProvisioner> outputProvisioners;
@@ -466,7 +493,7 @@ public final class Main implements ServerConfig {
         }
       };
 
-  private Main(ServerConfiguration configuration) {
+  private Main(ServerConfiguration configuration) throws SQLException {
     selfUrl = configuration.getUrl();
     selfName = configuration.getName();
     port = configuration.getPort();
@@ -503,6 +530,7 @@ public final class Main implements ServerConfig {
             RuntimeProvisionerProvider::readConfiguration,
             configuration.getRuntimeProvisioners(),
             new RemoteRuntimeProvisionerProvider());
+    final var consumableResources = loadConsumableResources(configuration.getConsumableResources());
     targets =
         configuration.getTargets().entrySet().stream()
             .collect(
@@ -544,6 +572,17 @@ public final class Main implements ServerConfig {
                               e.getValue().getRuntimeProvisioners().stream()
                                   .map(Main.this.runtimeProvisioners::get)
                                   .collect(Collectors.toList());
+                          private final List<ConsumableResource> consumables =
+                              Stream.concat(
+                                      e.getValue().getConsumableResources().stream()
+                                          .map(consumableResources::get),
+                                      Stream.of(maxInFlightPerWorkflow))
+                                  .collect(Collectors.toList());
+
+                          @Override
+                          public Stream<ConsumableResource> consumableResources() {
+                            return consumables.stream();
+                          }
 
                           @Override
                           public WorkflowEngine engine() {
@@ -652,6 +691,13 @@ public final class Main implements ServerConfig {
             return Optional.ofNullable(targets.get(name));
           }
         };
+
+    try (var connection = dataSource.getConnection()) {
+      DSL.using(connection, SQLDialect.POSTGRES)
+          .select(WORKFLOW.NAME, WORKFLOW.MAX_IN_FLIGHT)
+          .from(WORKFLOW)
+          .forEach(record -> maxInFlightPerWorkflow.set(record.value1(), record.value2()));
+    }
   }
 
   private void addWorkflow(HttpServerExchange exchange, AddWorkflowRequest request) {
@@ -659,35 +705,24 @@ public final class Main implements ServerConfig {
         exchange.getAttachment(PathTemplateMatch.ATTACHMENT_KEY).getParameters().get("name");
 
     try {
-      final var connection = dataSource.getConnection();
-      try {
+      try (var connection = dataSource.getConnection()) {
         final var dsl = DSL.using(connection, SQLDialect.POSTGRES);
         dsl.insertInto(WORKFLOW)
-            .columns(
-                WORKFLOW.NAME,
-                WORKFLOW.CONSUMABLE_RESOURCES,
-                WORKFLOW.LABELS,
-                WORKFLOW.IS_ACTIVE,
-                WORKFLOW.MAX_IN_FLIGHT)
+            .columns(WORKFLOW.NAME, WORKFLOW.LABELS, WORKFLOW.IS_ACTIVE, WORKFLOW.MAX_IN_FLIGHT)
             .values(
                 name,
-                MAPPER.valueToTree(request.getConsumableResources()),
                 JSONB.valueOf(MAPPER.writeValueAsString(request.getLabels())),
                 true,
                 request.getMaxInFlight())
-            .onDuplicateKeyUpdate()
-            .set(
-                WORKFLOW.CONSUMABLE_RESOURCES,
-                MAPPER.<JsonNode>valueToTree(request.getConsumableResources()))
+            .onConflict(WORKFLOW.NAME)
+            .doUpdate()
             .set(WORKFLOW.IS_ACTIVE, true)
             .set(WORKFLOW.MAX_IN_FLIGHT, request.getMaxInFlight())
             .execute();
         connection.commit();
+        maxInFlightPerWorkflow.set(name, request.getMaxInFlight());
         exchange.setStatusCode(StatusCodes.OK);
         exchange.getResponseSender().send("");
-
-      } finally {
-        connection.close();
       }
     } catch (SQLException | JsonProcessingException e) {
       e.printStackTrace();
@@ -1213,6 +1248,12 @@ public final class Main implements ServerConfig {
           outputProvisioners.putPOJO(outputFormat.name(), provisioner.typeFor(outputFormat));
         }
       }
+      final var consumableResources = targetOutput.putObject("consumableResources");
+      target
+          .getValue()
+          .consumableResources()
+          .flatMap(cr -> cr.inputFromUser().stream())
+          .forEach(cr -> consumableResources.putPOJO(cr.first(), cr.second()));
     }
     try {
       exchange.getResponseSender().send(MAPPER.writeValueAsString(targetsOutput));
@@ -1227,8 +1268,7 @@ public final class Main implements ServerConfig {
 
   private void fetchWorkflows(HttpServerExchange exchange) {
     try {
-      final var connection = dataSource.getConnection();
-      try {
+      try (var connection = dataSource.getConnection()) {
         final var workflowVersionAlias = WORKFLOW_VERSION.as("other_workflow_version");
         final var response =
             DSL.using(connection, SQLDialect.POSTGRES)
@@ -1265,8 +1305,6 @@ public final class Main implements ServerConfig {
         exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/json");
         exchange.setStatusCode(StatusCodes.OK);
         exchange.getResponseSender().send(response.data());
-      } finally {
-        connection.close();
       }
     } catch (SQLException e) {
       e.printStackTrace();
@@ -1298,7 +1336,6 @@ public final class Main implements ServerConfig {
     } else {
       System.err.printf(
           "Recovering %d unstarted workflows fom the database.", recoveredWorkflows.size());
-      // TODO: check consumable resources
       recoveredWorkflows.forEach(Runnable::run);
     }
   }
@@ -1321,6 +1358,7 @@ public final class Main implements ServerConfig {
             body.getEngineParameters(),
             body.getMetadata(),
             body.getExternalKeys(),
+            body.getConsumableResources(),
             body.getAttempt(),
             new DatabaseBackedProcessor.SubmissionResultHandler<
                 Pair<Integer, SubmitWorkflowResponse>>() {
@@ -1425,7 +1463,7 @@ public final class Main implements ServerConfig {
     exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/json");
     exchange.setStatusCode(response.first());
     if (postCommitAction.get() != null) {
-      postCommitAction.get().run(); // TODO need to figure out consumable resources
+      postCommitAction.get().run();
     }
     try {
       exchange.getResponseSender().send(MAPPER.writeValueAsString(response.second()));

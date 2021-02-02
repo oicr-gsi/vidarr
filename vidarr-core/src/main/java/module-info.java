@@ -1,7 +1,9 @@
+import ca.on.oicr.gsi.vidarr.ConsumableResourceProvider;
 import ca.on.oicr.gsi.vidarr.InputProvisionerProvider;
 import ca.on.oicr.gsi.vidarr.OutputProvisionerProvider;
 import ca.on.oicr.gsi.vidarr.UnloaderProvider;
 import ca.on.oicr.gsi.vidarr.WorkflowEngineProvider;
+import ca.on.oicr.gsi.vidarr.core.MaxInFlightConsumableResource;
 import ca.on.oicr.gsi.vidarr.core.OneOfInputProvisioner;
 import ca.on.oicr.gsi.vidarr.core.OneOfOutputProvisioner;
 import ca.on.oicr.gsi.vidarr.core.RawInputProvisioner;
@@ -24,6 +26,8 @@ module ca.on.oicr.gsi.vidarr.core {
   uses UnloaderProvider;
   uses WorkflowEngineProvider;
 
+  provides ConsumableResourceProvider with
+      MaxInFlightConsumableResource;
   provides InputProvisionerProvider with
       OneOfInputProvisioner,
       RawInputProvisioner;

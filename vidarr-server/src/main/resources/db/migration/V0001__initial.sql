@@ -65,6 +65,7 @@ CREATE TABLE public.active_workflow_run (
     attempt integer NOT NULL DEFAULT 0,
     cleanup_state jsonb,
     completed timestamp with time zone,
+    consumable_resources jsonb NOT NULL,
     created timestamp with time zone DEFAULT (now())::timestamp(0) with time zone NOT NULL,
     engine_phase integer,
     external_input_ids_handled boolean NOT NULL,
@@ -73,6 +74,7 @@ CREATE TABLE public.active_workflow_run (
     real_input jsonb,
     started timestamp with time zone,
     target character varying(255),
+    waiting_resource character varying(255),
     workflow_run_url character varying
 );
 
@@ -217,7 +219,6 @@ ALTER SEQUENCE public.external_id_version_id_seq OWNED BY public.external_id_ver
 
 CREATE TABLE public.workflow (
     id integer NOT NULL,
-    consumable_resources jsonb,
     created timestamp with time zone DEFAULT (now())::timestamp(0) with time zone NOT NULL,
     is_active boolean NOT NULL,
     labels jsonb,

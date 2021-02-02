@@ -8,6 +8,7 @@ import ca.on.oicr.gsi.vidarr.api.ExternalKey;
 import ca.on.oicr.gsi.vidarr.core.ActiveWorkflow;
 import ca.on.oicr.gsi.vidarr.core.BaseProcessor;
 import ca.on.oicr.gsi.vidarr.core.Phase;
+import ca.on.oicr.gsi.vidarr.core.Target;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
@@ -28,8 +29,11 @@ import org.jooq.impl.DSL;
 
 public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLContext> {
   public static DatabaseWorkflow create(
-      String target,
+      String targetName,
+      Target target,
       int workflowVersionId,
+      String workflowName,
+      String workflowVersion,
       String vidarrId,
       ObjectNode labels,
       JsonNode arguments,
@@ -37,6 +41,7 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
       JsonNode metadata,
       SortedSet<String> fileIds,
       Set<? extends ExternalId> ids,
+      Map<String, JsonNode> consumableResources,
       IntFunction<AtomicBoolean> liveness,
       DSLContext dsl)
       throws SQLException {
@@ -77,14 +82,24 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
             ACTIVE_WORKFLOW_RUN.ENGINE_PHASE,
             ACTIVE_WORKFLOW_RUN.EXTERNAL_INPUT_IDS_HANDLED,
             ACTIVE_WORKFLOW_RUN.PREFLIGHT_OKAY,
-            ACTIVE_WORKFLOW_RUN.TARGET)
-        .values(dbId, Phase.INITIALIZING, false, true, target)
+            ACTIVE_WORKFLOW_RUN.TARGET,
+            ACTIVE_WORKFLOW_RUN.CONSUMABLE_RESOURCES)
+        .values(
+            dbId,
+            Phase.WAITING_FOR_RESOURCES,
+            false,
+            true,
+            targetName,
+            Main.MAPPER.valueToTree(consumableResources))
         .execute();
 
     return new DatabaseWorkflow(
+        target,
         dbId,
         vidarrId,
         0,
+        workflowName,
+        workflowVersion,
         arguments,
         engineParameters,
         metadata,
@@ -93,7 +108,7 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
         new HashSet<>(ids),
         Collections.emptySet(),
         true,
-        Phase.INITIALIZING,
+        Phase.WAITING_FOR_RESOURCES,
         null,
         liveness.apply(dbId));
   }
@@ -118,7 +133,8 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
     }
   }
 
-  public static DatabaseWorkflow recover(Record record, AtomicBoolean liveness, DSLContext dsl) {
+  public static DatabaseWorkflow recover(
+      Target target, Record record, AtomicBoolean liveness, DSLContext dsl) {
     final var inputIds = new HashSet<ExternalId>();
     final var requestedInputIds = new HashSet<ExternalId>();
     dsl.select(EXTERNAL_ID.asterisk())
@@ -137,11 +153,14 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
             });
 
     return new DatabaseWorkflow(
+        target,
         record.get(ACTIVE_WORKFLOW_RUN.ID),
         record.get(WORKFLOW_RUN.HASH_ID),
         record.get(ACTIVE_WORKFLOW_RUN.ATTEMPT),
+        record.get(WORKFLOW_VERSION.NAME),
+        record.get(WORKFLOW_VERSION.VERSION),
         record.get(WORKFLOW_RUN.ARGUMENTS),
-        (ObjectNode) record.get(WORKFLOW_RUN.ENGINE_PARAMETERS),
+        record.get(WORKFLOW_RUN.ENGINE_PARAMETERS),
         record.get(WORKFLOW_RUN.METADATA),
         record.get(ACTIVE_WORKFLOW_RUN.CLEANUP_STATE),
         record.get(ACTIVE_WORKFLOW_RUN.EXTERNAL_INPUT_IDS_HANDLED),
@@ -156,8 +175,11 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
   }
 
   public static DatabaseWorkflow reinitialise(
+      Target target,
       int dbId,
       int workflowVersionId,
+      String workflowName,
+      String workflowVersion,
       String vidarrId,
       JsonNode arguments,
       JsonNode engineParameters,
@@ -165,12 +187,16 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
       Set<? extends ExternalId> ids,
       AtomicBoolean liveness,
       Set<ExternalKey> keys,
+      Map<String, JsonNode> consumableResources,
       DSLContext dsl)
       throws SQLException {
     final var attempt =
         dsl.update(ACTIVE_WORKFLOW_RUN)
             .set(ACTIVE_WORKFLOW_RUN.ATTEMPT, ACTIVE_WORKFLOW_RUN.ATTEMPT.plus(1))
-            .set(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE, Phase.INITIALIZING)
+            .set(
+                ACTIVE_WORKFLOW_RUN.CONSUMABLE_RESOURCES,
+                Main.MAPPER.<JsonNode>valueToTree(consumableResources))
+            .set(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE, Phase.WAITING_FOR_RESOURCES)
             .set(ACTIVE_WORKFLOW_RUN.EXTERNAL_INPUT_IDS_HANDLED, false)
             .set(ACTIVE_WORKFLOW_RUN.PREFLIGHT_OKAY, true)
             .where(ACTIVE_WORKFLOW_RUN.ID.eq(dbId))
@@ -226,9 +252,12 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
     }
 
     return new DatabaseWorkflow(
+        target,
         dbId,
         vidarrId,
         attempt,
+        workflowName,
+        workflowVersion,
         arguments,
         engineParameters,
         metadata,
@@ -237,7 +266,7 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
         new HashSet<>(ids),
         Collections.emptySet(),
         true,
-        Phase.INITIALIZING,
+        Phase.WAITING_FOR_RESOURCES,
         null,
         liveness);
   }
@@ -255,12 +284,18 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
   private Phase phase;
   private ObjectNode realInput;
   private Set<ExternalId> requestedInputIds;
+  private final Target target;
   private final String vidarrId;
+  private final String workflowName;
+  private final String workflowVersion;
 
   private DatabaseWorkflow(
+      Target target,
       int id,
       String vidarrId,
       int attempt,
+      String workflowName,
+      String workflowVersion,
       JsonNode arguments,
       JsonNode engineArguments,
       JsonNode metadata,
@@ -272,7 +307,10 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
       Phase phase,
       ObjectNode realInput,
       AtomicBoolean liveness) {
+    this.target = target;
     this.attempt = attempt;
+    this.workflowName = workflowName;
+    this.workflowVersion = workflowVersion;
     this.arguments = arguments;
     this.engineArguments = engineArguments;
     this.id = id;
@@ -381,6 +419,11 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
       }
       this.phase = phase;
       updateField(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE, phase, transaction);
+      if (phase == Phase.FAILED) {
+        target
+            .consumableResources()
+            .forEach(cr -> cr.release(workflowName, workflowVersion, vidarrId));
+      }
       return operationInitialStates.stream()
           .map(
               state ->
@@ -511,6 +554,7 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
         .where(ACTIVE_OPERATION.WORKFLOW_RUN_ID.eq(id))
         .execute();
     transaction.deleteFrom(ACTIVE_WORKFLOW_RUN).where(ACTIVE_WORKFLOW_RUN.ID.eq(id)).execute();
+    target.consumableResources().forEach(cr -> cr.release(workflowName, workflowVersion, vidarrId));
   }
 
   private <T> void updateField(Field<T> field, T value, DSLContext dsl) {

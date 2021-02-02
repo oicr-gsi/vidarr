@@ -9,7 +9,7 @@ public interface InputProvisionerProvider {
    * Prepare an input provisioner from a JSON configuration
    *
    * @param node the JSON data
-   * @return the workflow engine
+   * @return the input provisioner
    */
   InputProvisioner readConfiguration(ObjectNode node);
 

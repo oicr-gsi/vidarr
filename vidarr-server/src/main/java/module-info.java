@@ -1,3 +1,4 @@
+import ca.on.oicr.gsi.vidarr.ConsumableResourceProvider;
 import ca.on.oicr.gsi.vidarr.InputProvisionerProvider;
 import ca.on.oicr.gsi.vidarr.OutputProvisionerProvider;
 import ca.on.oicr.gsi.vidarr.RuntimeProvisionerProvider;
@@ -36,6 +37,7 @@ module ca.on.oicr.gsi.vidarr.server {
       org.jooq;
   opens db.migration;
 
+  uses ConsumableResourceProvider;
   uses InputProvisionerProvider;
   uses OutputProvisionerProvider;
   uses RuntimeProvisionerProvider;

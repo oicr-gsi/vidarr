@@ -123,6 +123,11 @@ public final class TargetConfiguration {
               .collect(Collectors.toList());
 
       @Override
+      public Stream<ConsumableResource> consumableResources() {
+        return Stream.empty();
+      }
+
+      @Override
       public WorkflowEngine engine() {
         return engine;
       }

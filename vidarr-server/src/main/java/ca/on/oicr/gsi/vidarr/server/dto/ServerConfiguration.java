@@ -2,10 +2,12 @@ package ca.on.oicr.gsi.vidarr.server.dto;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.util.Collections;
 import java.util.Map;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public final class ServerConfiguration {
+  private Map<String, ObjectNode> consumableResources = Collections.emptyMap();
   private String dbHost;
   private String dbName;
   private String dbPass;
@@ -20,6 +22,10 @@ public final class ServerConfiguration {
   private Map<String, TargetConfiguration> targets;
   private String url;
   private Map<String, ObjectNode> workflowEngines;
+
+  public Map<String, ObjectNode> getConsumableResources() {
+    return consumableResources;
+  }
 
   public String getDbHost() {
     return dbHost;
@@ -75,6 +81,10 @@ public final class ServerConfiguration {
 
   public Map<String, ObjectNode> getWorkflowEngines() {
     return workflowEngines;
+  }
+
+  public void setConsumableResources(Map<String, ObjectNode> consumableResources) {
+    this.consumableResources = consumableResources;
   }
 
   public void setDbHost(String dbHost) {

@@ -4,10 +4,9 @@ import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.*;
 
 import ca.on.oicr.gsi.Pair;
 import ca.on.oicr.gsi.vidarr.api.ExternalId;
+import ca.on.oicr.gsi.vidarr.api.ExternalKey;
 import ca.on.oicr.gsi.vidarr.core.ActiveWorkflow;
 import ca.on.oicr.gsi.vidarr.core.BaseProcessor;
-import ca.on.oicr.gsi.vidarr.core.ExternalId;
-import ca.on.oicr.gsi.vidarr.core.ExternalKey;
 import ca.on.oicr.gsi.vidarr.core.Phase;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -99,6 +98,61 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
         liveness.apply(dbId));
   }
 
+  private static JSONB labelsToJson(Map<String, String> labels) {
+    final var labelNode = JsonNodeFactory.instance.objectNode();
+    for (final var label : labels.entrySet()) {
+      labelNode.put(label.getKey(), label.getValue());
+    }
+    try {
+      return JSONB.valueOf(DatabaseBackedProcessor.MAPPER.writeValueAsString(labelNode));
+    } catch (JsonProcessingException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  private static JSONB labelsToJson(ObjectNode labels) {
+    try {
+      return JSONB.valueOf(DatabaseBackedProcessor.MAPPER.writeValueAsString(labels));
+    } catch (JsonProcessingException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  public static DatabaseWorkflow recover(Record record, AtomicBoolean liveness, DSLContext dsl) {
+    final var inputIds = new HashSet<ExternalId>();
+    final var requestedInputIds = new HashSet<ExternalId>();
+    dsl.select(EXTERNAL_ID.asterisk())
+        .from(EXTERNAL_ID)
+        .where(EXTERNAL_ID.WORKFLOW_RUN_ID.eq(record.get(ACTIVE_WORKFLOW_RUN.ID)))
+        .forEach(
+            externalIdRecord -> {
+              final var externalId =
+                  new ExternalId(
+                      externalIdRecord.get(EXTERNAL_ID.PROVIDER),
+                      externalIdRecord.get(EXTERNAL_ID.EXTERNAL_ID_));
+              inputIds.add(externalId);
+              if (externalIdRecord.get(EXTERNAL_ID.REQUESTED)) {
+                requestedInputIds.add(externalId);
+              }
+            });
+
+    return new DatabaseWorkflow(
+        record.get(ACTIVE_WORKFLOW_RUN.ID),
+        record.get(WORKFLOW_RUN.HASH_ID),
+        record.get(ACTIVE_WORKFLOW_RUN.ATTEMPT),
+        record.get(WORKFLOW_RUN.ARGUMENTS),
+        (ObjectNode) record.get(WORKFLOW_RUN.ENGINE_PARAMETERS),
+        record.get(WORKFLOW_RUN.METADATA),
+        record.get(ACTIVE_WORKFLOW_RUN.CLEANUP_STATE),
+        record.get(ACTIVE_WORKFLOW_RUN.EXTERNAL_INPUT_IDS_HANDLED),
+        inputIds,
+        requestedInputIds,
+        record.get(ACTIVE_WORKFLOW_RUN.PREFLIGHT_OKAY),
+        record.get(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE),
+        (ObjectNode) record.get(ACTIVE_WORKFLOW_RUN.REAL_INPUT),
+        liveness);
+  }
+
   public static DatabaseWorkflow reinitialise(
       int dbId,
       int workflowVersionId,
@@ -183,61 +237,6 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
         true,
         Phase.INITIALIZING,
         null,
-        liveness);
-  }
-
-  private static JSONB labelsToJson(Map<String, String> labels) {
-    final var labelNode = JsonNodeFactory.instance.objectNode();
-    for (final var label : labels.entrySet()) {
-      labelNode.put(label.getKey(), label.getValue());
-    }
-    try {
-      return JSONB.valueOf(DatabaseBackedProcessor.MAPPER.writeValueAsString(labelNode));
-    } catch (JsonProcessingException e) {
-      throw new RuntimeException(e);
-    }
-  }
-
-  private static JSONB labelsToJson(ObjectNode labels) {
-    try {
-      return JSONB.valueOf(DatabaseBackedProcessor.MAPPER.writeValueAsString(labels));
-    } catch (JsonProcessingException e) {
-      throw new RuntimeException(e);
-    }
-  }
-
-  public static DatabaseWorkflow recover(Record record, AtomicBoolean liveness, DSLContext dsl) {
-    final var inputIds = new HashSet<ExternalId>();
-    final var requestedInputIds = new HashSet<ExternalId>();
-    dsl.select(EXTERNAL_ID.asterisk())
-        .from(EXTERNAL_ID)
-        .where(EXTERNAL_ID.WORKFLOW_RUN_ID.eq(record.get(ACTIVE_WORKFLOW_RUN.ID)))
-        .forEach(
-            externalIdRecord -> {
-              final var externalId =
-                  new ExternalId(
-                      externalIdRecord.get(EXTERNAL_ID.PROVIDER),
-                      externalIdRecord.get(EXTERNAL_ID.EXTERNAL_ID_));
-              inputIds.add(externalId);
-              if (externalIdRecord.get(EXTERNAL_ID.REQUESTED)) {
-                requestedInputIds.add(externalId);
-              }
-            });
-
-    return new DatabaseWorkflow(
-        record.get(ACTIVE_WORKFLOW_RUN.ID),
-        record.get(WORKFLOW_RUN.HASH_ID),
-        record.get(ACTIVE_WORKFLOW_RUN.ATTEMPT),
-        record.get(WORKFLOW_RUN.ARGUMENTS),
-        (ObjectNode) record.get(WORKFLOW_RUN.ENGINE_PARAMETERS),
-        record.get(WORKFLOW_RUN.METADATA),
-        record.get(ACTIVE_WORKFLOW_RUN.CLEANUP_STATE),
-        record.get(ACTIVE_WORKFLOW_RUN.EXTERNAL_INPUT_IDS_HANDLED),
-        inputIds,
-        requestedInputIds,
-        record.get(ACTIVE_WORKFLOW_RUN.PREFLIGHT_OKAY),
-        record.get(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE),
-        (ObjectNode) record.get(ACTIVE_WORKFLOW_RUN.REAL_INPUT),
         liveness);
   }
 

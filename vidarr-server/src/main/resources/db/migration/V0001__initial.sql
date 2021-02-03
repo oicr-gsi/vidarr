@@ -10,12 +10,12 @@ CREATE FUNCTION public.update_modified() RETURNS trigger LANGUAGE plpgsql AS $$ 
 
 CREATE TABLE public.active_operation (
     id integer NOT NULL,
-    workflow_run_id integer NOT NULL,
+    attempt integer NOT NULL DEFAULT 0,
+    debug_info jsonb NOT NULL DEFAULT 'null'::jsonb,
     recovery_state jsonb NOT NULL,
     status character varying(20) NOT NULL,
     type character varying(255) NOT NULL,
-    debug_info jsonb NOT NULL DEFAULT 'null'::jsonb,
-    attempt integer NOT NULL DEFAULT 0
+    workflow_run_id integer NOT NULL
 );
 
 
@@ -111,18 +111,18 @@ ALTER SEQUENCE public.active_workflow_extra_input_ids_external_id_id_seq OWNED B
 
 CREATE TABLE public.active_workflow_run (
     id integer NOT NULL,
-    external_input_ids_handled boolean NOT NULL,
-    preflight_okay boolean NOT NULL,
-    real_input jsonb,
-    workflow_run_url character varying,
+    attempt integer NOT NULL DEFAULT 0,
     cleanup_state jsonb,
-    engine_phase integer,
-    started timestamp with time zone,
     completed timestamp with time zone,
     created timestamp with time zone DEFAULT (now())::timestamp(0) with time zone NOT NULL,
+    engine_phase integer,
+    external_input_ids_handled boolean NOT NULL,
     modified timestamp with time zone NOT NULL,
+    preflight_okay boolean NOT NULL,
+    real_input jsonb,
+    started timestamp with time zone,
     target character varying(255),
-    attempt integer NOT NULL DEFAULT 0
+    workflow_run_url character varying
 );
 
 
@@ -151,16 +151,16 @@ ALTER SEQUENCE public.active_workflow_run_id_seq OWNED BY public.active_workflow
 
 CREATE TABLE public.analysis (
     id integer NOT NULL,
-    workflow_run_id integer NOT NULL,
-    hash_id character varying NOT NULL,
     analysis_type character varying NOT NULL,
-    file_path character varying,
-    file_size bigint,
+    created timestamp with time zone DEFAULT (now())::timestamp(0) with time zone NOT NULL,
     file_md5sum character varying,
     file_metatype character varying,
+    file_path character varying,
+    file_size bigint,
+    hash_id character varying NOT NULL,
     labels jsonb,
-    created timestamp with time zone DEFAULT (now())::timestamp(0) with time zone NOT NULL,
-    modified timestamp with time zone NOT NULL
+    modified timestamp with time zone NOT NULL,
+    workflow_run_id integer NOT NULL
 );
 
 
@@ -233,11 +233,11 @@ ALTER SEQUENCE public.external_id_id_seq OWNED BY public.external_id.id;
 
 CREATE TABLE public.external_id_version (
     id integer NOT NULL,
+    created timestamp with time zone DEFAULT (now())::timestamp(0) with time zone NOT NULL,
     external_id_id integer NOT NULL,
     key character varying NOT NULL,
-    value character varying NOT NULL,
-    created timestamp with time zone DEFAULT (now())::timestamp(0) with time zone NOT NULL,
-    requested timestamp with time zone DEFAULT (now())::timestamp(0) with time zone NOT NULL
+    requested timestamp with time zone DEFAULT (now())::timestamp(0) with time zone NOT NULL,
+    value character varying NOT NULL
 );
 
 
@@ -266,13 +266,13 @@ ALTER SEQUENCE public.external_id_version_id_seq OWNED BY public.external_id_ver
 
 CREATE TABLE public.workflow (
     id integer NOT NULL,
-    name character varying NOT NULL,
+    consumable_resources jsonb,
+    created timestamp with time zone DEFAULT (now())::timestamp(0) with time zone NOT NULL,
     is_active boolean NOT NULL,
     labels jsonb,
     max_in_flight integer,
-    consumable_resources jsonb,
-    created timestamp with time zone DEFAULT (now())::timestamp(0) with time zone NOT NULL,
-    modified timestamp with time zone NOT NULL
+    modified timestamp with time zone NOT NULL,
+    name character varying NOT NULL
 );
 
 
@@ -282,11 +282,11 @@ CREATE TABLE public.workflow (
 
 CREATE TABLE public.workflow_definition (
     id integer NOT NULL,
-    workflow_language character varying,
-    workflow_file character varying,
-    hash_id character varying,
     created timestamp with time zone DEFAULT (now())::timestamp(0) with time zone NOT NULL,
-    modified timestamp with time zone NOT NULL
+    hash_id character varying,
+    modified timestamp with time zone NOT NULL,
+    workflow_file character varying,
+    workflow_language character varying
 );
 
 
@@ -334,18 +334,18 @@ ALTER SEQUENCE public.workflow_id_seq OWNED BY public.workflow.id;
 
 CREATE TABLE public.workflow_run (
     id integer NOT NULL,
-    workflow_version_id integer NOT NULL,
-    hash_id character varying NOT NULL,
-    labels jsonb,
-    input_file_ids character varying[],
     arguments jsonb,
-    metadata jsonb,
-    last_accessed timestamp with time zone,
-    started timestamp with time zone,
     completed timestamp with time zone,
     created timestamp with time zone DEFAULT (now())::timestamp(0) with time zone NOT NULL,
+    engine_parameters jsonb,
+    hash_id character varying NOT NULL,
+    input_file_ids character varying[],
+    labels jsonb,
+    last_accessed timestamp with time zone,
+    metadata jsonb,
     modified timestamp with time zone NOT NULL,
-    engine_parameters jsonb
+    started timestamp with time zone,
+    workflow_version_id integer NOT NULL
 );
 
 
@@ -374,14 +374,14 @@ ALTER SEQUENCE public.workflow_run_id_seq OWNED BY public.workflow_run.id;
 
 CREATE TABLE public.workflow_version (
     id integer NOT NULL,
-    name character varying NOT NULL,
-    version character varying NOT NULL,
-    hash_id character varying NOT NULL,
-    workflow_definition integer,
-    parameters jsonb,
-    metadata jsonb,
     created timestamp with time zone DEFAULT (now())::timestamp(0) with time zone NOT NULL,
-    modified timestamp with time zone NOT NULL
+    hash_id character varying NOT NULL,
+    metadata jsonb,
+    modified timestamp with time zone NOT NULL,
+    name character varying NOT NULL,
+    parameters jsonb,
+    version character varying NOT NULL,
+    workflow_definition integer
 );
 
 

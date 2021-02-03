@@ -11,15 +11,15 @@ public final class ServerConfiguration {
   private String dbPass;
   private int dbPort;
   private String dbUser;
-  private Map<String, String> otherServers;
-  private int port = 8080;
-  private Map<String, ObjectNode> outputProvisioners;
   private Map<String, ObjectNode> inputProvisioners;
-  private Map<String, ObjectNode> runtimeProvisioners;
-  private String url;
   private String name;
-  private Map<String, ObjectNode> workflowEngines;
+  private Map<String, String> otherServers;
+  private Map<String, ObjectNode> outputProvisioners;
+  private int port = 8080;
+  private Map<String, ObjectNode> runtimeProvisioners;
   private Map<String, TargetConfiguration> targets;
+  private String url;
+  private Map<String, ObjectNode> workflowEngines;
 
   public String getDbHost() {
     return dbHost;
@@ -53,12 +53,12 @@ public final class ServerConfiguration {
     return otherServers;
   }
 
-  public int getPort() {
-    return port;
-  }
-
   public Map<String, ObjectNode> getOutputProvisioners() {
     return outputProvisioners;
+  }
+
+  public int getPort() {
+    return port;
   }
 
   public Map<String, ObjectNode> getRuntimeProvisioners() {
@@ -109,12 +109,12 @@ public final class ServerConfiguration {
     this.otherServers = otherServers;
   }
 
-  public void setPort(int port) {
-    this.port = port;
-  }
-
   public void setOutputProvisioners(Map<String, ObjectNode> outputProvisioners) {
     this.outputProvisioners = outputProvisioners;
+  }
+
+  public void setPort(int port) {
+    this.port = port;
   }
 
   public void setRuntimeProvisioners(Map<String, ObjectNode> runtimeProvisioners) {

@@ -104,15 +104,6 @@ public abstract class BaseProcessor<
     }
 
     @Override
-    public void storeDebugInfo(JsonNode information) {
-      if (finished) {
-        throw new IllegalStateException(
-            "Operation is already complete. Cannot debugging information.");
-      }
-      startTransaction(transaction -> operation.debugInfo(information, transaction));
-    }
-
-    @Override
     public final synchronized void scheduleTask(long delay, TimeUnit units, Runnable task) {
       if (finished) {
         throw new IllegalStateException("Operation is already complete. Cannot schedule task.");
@@ -129,6 +120,15 @@ public abstract class BaseProcessor<
     }
 
     protected abstract JsonNode serialize(R result);
+
+    @Override
+    public void storeDebugInfo(JsonNode information) {
+      if (finished) {
+        throw new IllegalStateException(
+            "Operation is already complete. Cannot debugging information.");
+      }
+      startTransaction(transaction -> operation.debugInfo(information, transaction));
+    }
 
     @Override
     public final synchronized void storeRecoveryInformation(JsonNode state) {
@@ -684,6 +684,19 @@ public abstract class BaseProcessor<
     }
   }
 
+  public static final Pattern ANALYSIS_RECORD_ID =
+      Pattern.compile(
+          "vidarr:(?<instance>[a-z][a-z0-9_]*|_)/(?:workflow/(?<name>[a-z][a-zA-Z0-9_])/(?<version>[0-9]+(?:\\.[0-9]+)*(?:-[0-9]+)?)/(?<workflowhash>[0-9a-fA-F]+)/run/)?(?<type>file|url)/(?<hash>[0-9a-fA-F]+)");
+  public static final Pattern WORKFLOW_DEFINITION_ID =
+      Pattern.compile(
+          "vidarr:(?<instance>[a-z][a-z0-9_]*|_)/workflow/(?<hash>[0-9a-fA-F]+)\\.(?<lang>wdl|cwl|nf)");
+  public static final Pattern WORKFLOW_RECORD_ID =
+      Pattern.compile(
+          "vidarr:(?<instance>[a-z][a-z0-9_]*|_)/workflow/(?<name>[a-z][a-zA-Z0-9_])?/(?<version>[0-9]+(?:\\.[0-9]+)*(?:-[0-9]+)?)");
+  public static final Pattern WORKFLOW_RUN_ID =
+      Pattern.compile(
+          "vidarr:(?<instance>[a-z][a-z0-9_]*|_)/(?:workflow/(?<name>[a-z][a-zA-Z0-9_])/(?<version>[0-9]+(?:\\.[0-9]+)*(?:-[0-9]+)?)/)?run/(?<hash>[0-9a-fA-F]+)");
+
   public static Stream<String> extractInputVidarrIds(
       ObjectMapper mapper, WorkflowDefinition definition, JsonNode arguments) {
     return definition
@@ -752,18 +765,6 @@ public abstract class BaseProcessor<
             .flatMap(Function.identity()));
   }
 
-  public static final Pattern ANALYSIS_RECORD_ID =
-      Pattern.compile(
-          "vidarr:(?<instance>[a-z][a-z0-9_]*|_)/(?:workflow/(?<name>[a-z][a-zA-Z0-9_])/(?<version>[0-9]+(?:\\.[0-9]+)*(?:-[0-9]+)?)/(?<workflowhash>[0-9a-fA-F]+)/run/)?(?<type>file|url)/(?<hash>[0-9a-fA-F]+)");
-  public static final Pattern WORKFLOW_DEFINITION_ID =
-      Pattern.compile(
-          "vidarr:(?<instance>[a-z][a-z0-9_]*|_)/workflow/(?<hash>[0-9a-fA-F]+)\\.(?<lang>wdl|cwl|nf)");
-  public static final Pattern WORKFLOW_RECORD_ID =
-      Pattern.compile(
-          "vidarr:(?<instance>[a-z][a-z0-9_]*|_)/workflow/(?<name>[a-z][a-zA-Z0-9_])?/(?<version>[0-9]+(?:\\.[0-9]+)*(?:-[0-9]+)?)");
-  public static final Pattern WORKFLOW_RUN_ID =
-      Pattern.compile(
-          "vidarr:(?<instance>[a-z][a-z0-9_]*|_)/(?:workflow/(?<name>[a-z][a-zA-Z0-9_])/(?<version>[0-9]+(?:\\.[0-9]+)*(?:-[0-9]+)?)/)?run/(?<hash>[0-9a-fA-F]+)");
   private final ScheduledExecutorService executor;
 
   protected BaseProcessor(ScheduledExecutorService executor) {

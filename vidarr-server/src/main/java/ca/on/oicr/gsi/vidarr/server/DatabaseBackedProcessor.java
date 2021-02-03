@@ -161,6 +161,7 @@ public abstract class DatabaseBackedProcessor
 
   private final HikariDataSource dataSource;
   private final Semaphore databaseLock = new Semaphore(1);
+  private final Map<Integer, SoftReference<AtomicBoolean>> liveness = new ConcurrentHashMap<>();
 
   protected DatabaseBackedProcessor(
       ScheduledExecutorService executor, HikariDataSource dataSource) {
@@ -193,17 +194,15 @@ public abstract class DatabaseBackedProcessor
             });
   }
 
-  @Override
-  protected final ObjectMapper mapper() {
-    return MAPPER;
-  }
-
-  private final Map<Integer, SoftReference<AtomicBoolean>> liveness = new ConcurrentHashMap<>();
-
   private AtomicBoolean liveness(int workflowRunId) {
     return liveness
         .computeIfAbsent(workflowRunId, k -> new SoftReference<>(new AtomicBoolean(true)))
         .get();
+  }
+
+  @Override
+  protected final ObjectMapper mapper() {
+    return MAPPER;
   }
 
   public final void recover(Consumer<Runnable> startRaw) throws SQLException {

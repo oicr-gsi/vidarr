@@ -23,6 +23,11 @@ public final class CheckOutputType extends BaseOutputExtractor<Stream<String>, S
   }
 
   @Override
+  protected Stream<String> invalid(String error) {
+    return Stream.of(error);
+  }
+
+  @Override
   protected Stream<String> handle(
       WorkflowOutputDataType format, JsonNode metadata, JsonNode output, OutputData outputData) {
     final var provision = target.provisionerFor(format.format());

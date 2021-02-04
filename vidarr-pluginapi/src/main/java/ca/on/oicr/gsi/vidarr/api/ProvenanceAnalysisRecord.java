@@ -6,9 +6,9 @@ import java.util.List;
 import java.util.Map;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class AnalysisRecordDto {
+public class ProvenanceAnalysisRecord<K extends ExternalId> {
   private ZonedDateTime created;
-  private List<ExternalKey> externalKeys;
+  private List<K> externalKeys;
   private String filePath;
   private long fileSize;
   private String id;
@@ -23,7 +23,7 @@ public class AnalysisRecordDto {
     return created;
   }
 
-  public List<ExternalKey> getExternalKeys() {
+  public List<K> getExternalKeys() {
     return externalKeys;
   }
 
@@ -67,7 +67,7 @@ public class AnalysisRecordDto {
     this.created = created;
   }
 
-  public void setExternalKeys(List<ExternalKey> externalKeys) {
+  public void setExternalKeys(List<K> externalKeys) {
     this.externalKeys = externalKeys;
   }
 

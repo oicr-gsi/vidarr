@@ -10,8 +10,8 @@ import ca.on.oicr.gsi.vidarr.api.AddWorkflowRequest;
 import ca.on.oicr.gsi.vidarr.api.AddWorkflowVersionRequest;
 import ca.on.oicr.gsi.vidarr.api.AnalysisOutputType;
 import ca.on.oicr.gsi.vidarr.api.AnalysisProvenanceRequest;
-import ca.on.oicr.gsi.vidarr.api.AnalysisRecordDto;
 import ca.on.oicr.gsi.vidarr.api.ExternalKey;
+import ca.on.oicr.gsi.vidarr.api.ProvenanceAnalysisRecord;
 import ca.on.oicr.gsi.vidarr.api.SubmitMode;
 import ca.on.oicr.gsi.vidarr.api.SubmitWorkflowRequest;
 import ca.on.oicr.gsi.vidarr.api.SubmitWorkflowResponse;
@@ -34,6 +34,7 @@ import ca.on.oicr.gsi.vidarr.server.remote.RemoteWorkflowEngineProvider;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -607,7 +608,8 @@ public final class Main implements ServerConfig {
                           .timeout(Duration.ofMinutes(1))
                           .GET()
                           .build(),
-                      new JsonBodyHandler<>(MAPPER, AnalysisRecordDto.class));
+                      new JsonBodyHandler<>(
+                          MAPPER, new TypeReference<ProvenanceAnalysisRecord<ExternalKey>>() {}));
               if (response.statusCode() == HttpURLConnection.HTTP_OK) {
                 final var result = response.body().get();
                 return Optional.of(

@@ -1,8 +1,10 @@
 package ca.on.oicr.gsi.vidarr.api;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.util.Map;
 
 /** A reference to an external key with version information */
+@JsonIgnoreProperties(ignoreUnknown = true)
 public final class ExternalKey extends ExternalId {
 
   private Map<String, String> versions;

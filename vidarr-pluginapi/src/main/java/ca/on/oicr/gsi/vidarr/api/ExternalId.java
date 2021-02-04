@@ -1,8 +1,10 @@
 package ca.on.oicr.gsi.vidarr.api;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.util.Objects;
 
 /** A reference to an external key */
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class ExternalId {
 
   private String id;

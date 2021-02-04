@@ -1,9 +1,11 @@
 package ca.on.oicr.gsi.vidarr.api;
 
 import ca.on.oicr.gsi.vidarr.BasicType;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.util.Collections;
 import java.util.Map;
 
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class AddWorkflowRequest {
   private Map<String, Long> consumableResources = Collections.emptyMap();
   private Map<String, BasicType> labels = Collections.emptyMap();

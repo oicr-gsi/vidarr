@@ -67,7 +67,7 @@ final class PreparePreflightChecks extends BaseOutputExtractor<Boolean, Boolean>
   }
 
   @Override
-  protected Boolean invalid() {
+  protected Boolean invalid(String error) {
     return false;
   }
 

@@ -6,6 +6,7 @@ import ca.on.oicr.gsi.vidarr.api.ExternalId;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.*;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -64,12 +65,13 @@ abstract class BaseOutputExtractor<R, E> implements OutputType.Visitor<R> {
         && metadata.has("contents")) {
       final var contents = metadata.get("contents");
       if (!contents.isArray()) {
-        return invalid();
+        return invalid("Contents are not array.");
       }
       switch (metadata.get("type").asText()) {
         case "REMAINING":
           if (contents.size() != 1) {
-            return invalid();
+            return invalid(
+                String.format("Incorrect number of contents in REMAINING in %s.", format));
           }
           return handle(
               format,
@@ -83,7 +85,7 @@ abstract class BaseOutputExtractor<R, E> implements OutputType.Visitor<R> {
               });
         case "ALL":
           if (contents.size() != 1) {
-            return invalid();
+            return invalid(String.format("Incorrect number of contents in ALL in %s.", format));
           }
           return handle(
               format,
@@ -98,7 +100,8 @@ abstract class BaseOutputExtractor<R, E> implements OutputType.Visitor<R> {
         case "MANUAL":
           try {
             if (contents.size() != 2) {
-              return invalid();
+              return invalid(
+                  String.format("Incorrect number of contents in MANUAL in %s.", format));
             }
             var externalIds = mapper().treeToValue(contents.get(1), ExternalId[].class);
             return handle(
@@ -113,21 +116,23 @@ abstract class BaseOutputExtractor<R, E> implements OutputType.Visitor<R> {
                 });
 
           } catch (Exception e) {
-            return invalid();
+            return invalid(e.getMessage());
           }
         default:
-          return invalid();
+          return invalid(
+              String.format(
+                  "Unknown metadata type %s in %s.", metadata.get("type").asText(), format));
       }
     } else {
-      return invalid();
+      return invalid(String.format("Metadata is not an object in %s.", format));
     }
   }
 
   protected abstract R handle(
       WorkflowOutputDataType format, JsonNode metadata, JsonNode output, OutputData outputData);
 
-  protected R invalid() {
-    throw new IllegalArgumentException();
+  protected R invalid(String error) {
+    throw new IllegalArgumentException(error);
   }
 
   @Override
@@ -136,7 +141,7 @@ abstract class BaseOutputExtractor<R, E> implements OutputType.Visitor<R> {
       final var outputMappings = new HashMap<Map<String, Object>, Map<String, JsonNode>>();
       for (final var child : metadata) {
         if (!child.isObject()) {
-          return invalid();
+          return invalid("Entry in list is not an object");
         }
         final var key = new TreeMap<String, Object>();
         for (final var identifier : keys.entrySet()) {
@@ -167,11 +172,11 @@ abstract class BaseOutputExtractor<R, E> implements OutputType.Visitor<R> {
         final var outputValues = new ArrayList<E>();
         final var unusedKeys = new HashSet<>(outputMappings.keySet());
         if (output.isEmpty()) {
-          return invalid();
+          return invalid("No output values provided");
         }
         for (final var child : output) {
           if (!child.isObject()) {
-            return invalid();
+            return invalid("Element of list is not object.");
           }
           final var key = new TreeMap<String, Object>();
           for (final var identifier : keys.entrySet()) {
@@ -184,12 +189,15 @@ abstract class BaseOutputExtractor<R, E> implements OutputType.Visitor<R> {
           }
           final var mapping = outputMappings.get(key);
           if (mapping == null) {
-            return invalid();
+            return invalid(
+                key.entrySet().stream()
+                    .map(e -> e.getKey() + " = " + e.getValue())
+                    .collect(Collectors.joining(", ", "Missing output mapping for (", ")")));
           }
           unusedKeys.remove(key);
           for (final var output : outputs.entrySet()) {
             if (!child.has(output.getKey())) {
-              return invalid();
+              return invalid("Child is missing output key " + output.getKey());
             }
             outputValues.add(
                 processChild(
@@ -198,16 +206,22 @@ abstract class BaseOutputExtractor<R, E> implements OutputType.Visitor<R> {
                     mapping.get(output.getKey()),
                     child.get(output.getKey())));
           }
-          if (unusedKeys.isEmpty()) {
-            return mergeChildren(outputValues.stream());
-          } else {
-            return invalid();
-          }
+        }
+        if (unusedKeys.isEmpty()) {
+          return mergeChildren(outputValues.stream());
+        } else {
+          return invalid(
+              unusedKeys.stream()
+                  .map(
+                      unusedKey ->
+                          unusedKey.entrySet().stream()
+                              .map(e -> e.getKey() + " = " + e.getValue())
+                              .collect(Collectors.joining(", ", "(", ")")))
+                  .collect(Collectors.joining(", ", "Unused keys: ", "")));
         }
       }
-      return invalid();
     } else {
-      return invalid();
+      return invalid("List is not an array.");
     }
   }
 

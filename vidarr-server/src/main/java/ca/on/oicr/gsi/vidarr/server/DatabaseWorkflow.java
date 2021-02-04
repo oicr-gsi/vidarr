@@ -149,7 +149,9 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
         requestedInputIds,
         record.get(ACTIVE_WORKFLOW_RUN.PREFLIGHT_OKAY),
         record.get(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE),
-        (ObjectNode) record.get(ACTIVE_WORKFLOW_RUN.REAL_INPUT),
+        record.get(ACTIVE_WORKFLOW_RUN.REAL_INPUT).isNull()
+            ? null
+            : (ObjectNode) record.get(ACTIVE_WORKFLOW_RUN.REAL_INPUT),
         liveness);
   }
 

@@ -41,6 +41,17 @@ import org.jooq.impl.DSL;
 
 public abstract class DatabaseBackedProcessor
     extends BaseProcessor<DatabaseWorkflow, DatabaseOperation, DSLContext> {
+  public interface DeleteResultHandler<T> {
+
+    T deleted();
+
+    T internalError(SQLException e);
+
+    T noWorkflowRun();
+
+    T stillActive();
+  }
+
   public interface SubmissionResultHandler<T> {
     boolean allowLaunch();
 
@@ -130,6 +141,25 @@ public abstract class DatabaseBackedProcessor
     }
   }
 
+  private static final Condition IS_DEAD =
+      WORKFLOW_RUN
+          .COMPLETED
+          .isNull()
+          .and(
+              ACTIVE_WORKFLOW_RUN
+                  .ENGINE_PHASE
+                  .eq(Phase.FAILED)
+                  .or(
+                      DSL.exists(
+                          DSL.select()
+                              .from(ACTIVE_OPERATION)
+                              .where(
+                                  ACTIVE_OPERATION
+                                      .WORKFLOW_RUN_ID
+                                      .eq(ACTIVE_WORKFLOW_RUN.ID)
+                                      .and(ACTIVE_OPERATION.ATTEMPT.eq(ACTIVE_WORKFLOW_RUN.ATTEMPT))
+                                      .and(ACTIVE_OPERATION.STATUS.eq(OperationStatus.FAILED))))));
+
   public static final TypeReference<SortedMap<String, BasicType>> LABELS_JSON_TYPE =
       new TypeReference<>() {};
   static final ObjectMapper MAPPER = new ObjectMapper();
@@ -167,6 +197,85 @@ public abstract class DatabaseBackedProcessor
       ScheduledExecutorService executor, HikariDataSource dataSource) {
     super(executor);
     this.dataSource = dataSource;
+  }
+
+  protected final <T> T delete(String workflowRunId, DeleteResultHandler<T> handler) {
+    try (final var connection = dataSource.getConnection()) {
+      return DSL.using(connection, SQLDialect.POSTGRES)
+          .transactionResult(
+              context -> {
+                final var transaction = DSL.using(context);
+                return transaction
+                    .select(ACTIVE_WORKFLOW_RUN.ID, DSL.field(IS_DEAD))
+                    .from(
+                        ACTIVE_WORKFLOW_RUN
+                            .join(WORKFLOW_RUN)
+                            .on(WORKFLOW_RUN.ID.eq(ACTIVE_WORKFLOW_RUN.ID)))
+                    .where(WORKFLOW_RUN.HASH_ID.eq(workflowRunId))
+                    .fetchOptional()
+                    .map(
+                        (id_and_dead) -> {
+                          if (id_and_dead.component2()) {
+                            final var oldLiveness = liveness.remove(id_and_dead.component1());
+                            if (oldLiveness != null) {
+                              final var oldLivenessLock = oldLiveness.get();
+                              if (oldLivenessLock != null) {
+                                oldLivenessLock.set(false);
+                              }
+                            }
+
+                            transaction
+                                .delete(ANALYSIS_EXTERNAL_ID)
+                                .where(
+                                    ANALYSIS_EXTERNAL_ID.EXTERNAL_ID_ID.in(
+                                        DSL.select(EXTERNAL_ID.ID)
+                                            .from(EXTERNAL_ID)
+                                            .where(
+                                                EXTERNAL_ID.WORKFLOW_RUN_ID.eq(
+                                                    id_and_dead.component1()))))
+                                .execute();
+                            transaction
+                                .delete(EXTERNAL_ID_VERSION)
+                                .where(
+                                    EXTERNAL_ID_VERSION.EXTERNAL_ID_ID.in(
+                                        DSL.select(EXTERNAL_ID.ID)
+                                            .from(EXTERNAL_ID)
+                                            .where(
+                                                EXTERNAL_ID.WORKFLOW_RUN_ID.eq(
+                                                    id_and_dead.component1()))))
+                                .execute();
+                            transaction
+                                .delete(EXTERNAL_ID)
+                                .where(EXTERNAL_ID.WORKFLOW_RUN_ID.eq(id_and_dead.component1()))
+                                .execute();
+                            transaction
+                                .delete(ANALYSIS)
+                                .where(ANALYSIS.WORKFLOW_RUN_ID.eq(id_and_dead.component1()))
+                                .execute();
+                            transaction
+                                .delete(ACTIVE_OPERATION)
+                                .where(
+                                    ACTIVE_OPERATION.WORKFLOW_RUN_ID.eq(id_and_dead.component1()))
+                                .execute();
+                            transaction
+                                .delete(ACTIVE_WORKFLOW_RUN)
+                                .where(ACTIVE_WORKFLOW_RUN.ID.eq(id_and_dead.component1()))
+                                .execute();
+                            transaction
+                                .delete(WORKFLOW_RUN)
+                                .where(WORKFLOW_RUN.ID.eq(id_and_dead.component1()))
+                                .execute();
+                            return handler.deleted();
+                          } else {
+                            return handler.stillActive();
+                          }
+                        })
+                    .orElseGet(handler::noWorkflowRun);
+              });
+    } catch (SQLException e) {
+      e.printStackTrace();
+      return handler.internalError(e);
+    }
   }
 
   protected final Optional<WorkflowInformation> getWorkflowByName(
@@ -807,35 +916,7 @@ public abstract class DatabaseBackedProcessor
                                                             WORKFLOW_RUN
                                                                 .ID
                                                                 .eq(workflowRunId)
-                                                                .and(
-                                                                    WORKFLOW_RUN.COMPLETED.isNull())
-                                                                .and(
-                                                                    ACTIVE_WORKFLOW_RUN
-                                                                        .ENGINE_PHASE
-                                                                        .eq(Phase.FAILED)
-                                                                        .or(
-                                                                            DSL.exists(
-                                                                                DSL.select()
-                                                                                    .from(
-                                                                                        ACTIVE_OPERATION)
-                                                                                    .where(
-                                                                                        ACTIVE_OPERATION
-                                                                                            .WORKFLOW_RUN_ID
-                                                                                            .eq(
-                                                                                                ACTIVE_WORKFLOW_RUN
-                                                                                                    .ID)
-                                                                                            .and(
-                                                                                                ACTIVE_OPERATION
-                                                                                                    .ATTEMPT
-                                                                                                    .eq(
-                                                                                                        ACTIVE_WORKFLOW_RUN
-                                                                                                            .ATTEMPT))
-                                                                                            .and(
-                                                                                                ACTIVE_OPERATION
-                                                                                                    .STATUS
-                                                                                                    .eq(
-                                                                                                        OperationStatus
-                                                                                                            .FAILED))))))
+                                                                .and(IS_DEAD)
                                                                 .and(
                                                                     ACTIVE_WORKFLOW_RUN
                                                                         .ATTEMPT

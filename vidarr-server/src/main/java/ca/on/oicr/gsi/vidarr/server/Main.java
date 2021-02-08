@@ -26,6 +26,7 @@ import ca.on.oicr.gsi.vidarr.core.FileMetadata;
 import ca.on.oicr.gsi.vidarr.core.OperationStatus;
 import ca.on.oicr.gsi.vidarr.core.Phase;
 import ca.on.oicr.gsi.vidarr.core.Target;
+import ca.on.oicr.gsi.vidarr.server.DatabaseBackedProcessor.DeleteResultHandler;
 import ca.on.oicr.gsi.vidarr.server.dto.*;
 import ca.on.oicr.gsi.vidarr.server.remote.RemoteInputProvisionerProvider;
 import ca.on.oicr.gsi.vidarr.server.remote.RemoteOutputProvisionerProvider;
@@ -331,6 +332,9 @@ public final class Main implements ServerConfig {
                                         JsonPost.parse(
                                             AnalysisProvenanceRequest.class,
                                             server::fetchProvenance))))
+                            .delete(
+                                "/api/status/{hash}",
+                                monitor(new BlockingHandler(server::deleteWorkflowRun)))
                             .post(
                                 "/api/submit",
                                 monitor(
@@ -906,6 +910,36 @@ public final class Main implements ServerConfig {
                 throw new RuntimeException(e);
               }
             });
+  }
+
+  private void deleteWorkflowRun(HttpServerExchange exchange) {
+    final var vidarrId =
+        exchange.getAttachment(PathTemplateMatch.ATTACHMENT_KEY).getParameters().get("hash");
+    exchange.setStatusCode(
+        processor.delete(
+            vidarrId,
+            new DeleteResultHandler<>() {
+              @Override
+              public Integer deleted() {
+                return StatusCodes.OK;
+              }
+
+              @Override
+              public Integer internalError(SQLException e) {
+                return StatusCodes.INTERNAL_SERVER_ERROR;
+              }
+
+              @Override
+              public Integer noWorkflowRun() {
+                return StatusCodes.NOT_FOUND;
+              }
+
+              @Override
+              public Integer stillActive() {
+                return StatusCodes.CONFLICT;
+              }
+            }));
+    exchange.getResponseSender().send("");
   }
 
   private void disableWorkflow(HttpServerExchange exchange) {

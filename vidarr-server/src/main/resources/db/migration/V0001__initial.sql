@@ -56,55 +56,6 @@ CREATE SEQUENCE public.active_operation_workflow_run_id_seq
 
 ALTER SEQUENCE public.active_operation_workflow_run_id_seq OWNED BY public.active_operation.workflow_run_id;
 
-
---
--- Name: active_workflow_run_extra_input_ids; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.active_workflow_run_extra_input_ids (
-    active_workflow_run_id integer NOT NULL,
-    external_id_id integer NOT NULL
-);
-
-
---
--- Name: active_workflow_extra_input_ids_active_workflow_run_id_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
-CREATE SEQUENCE public.active_workflow_extra_input_ids_active_workflow_run_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: active_workflow_extra_input_ids_active_workflow_run_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
---
-
-ALTER SEQUENCE public.active_workflow_extra_input_ids_active_workflow_run_id_seq OWNED BY public.active_workflow_run_extra_input_ids.active_workflow_run_id;
-
-
---
--- Name: active_workflow_extra_input_ids_external_id_id_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
-CREATE SEQUENCE public.active_workflow_extra_input_ids_external_id_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: active_workflow_extra_input_ids_external_id_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
---
-
-ALTER SEQUENCE public.active_workflow_extra_input_ids_external_id_id_seq OWNED BY public.active_workflow_run_extra_input_ids.external_id_id;
-
-
 --
 -- Name: active_workflow_run; Type: TABLE; Schema: public; Owner: -
 --
@@ -419,20 +370,6 @@ ALTER TABLE public.active_operation ALTER COLUMN workflow_run_id SET DEFAULT nex
 
 
 --
--- Name: active_workflow_run_extra_input_ids active_workflow_run_id; Type: DEFAULT; Schema: public; Owner: -
---
-
-ALTER TABLE public.active_workflow_run_extra_input_ids ALTER COLUMN active_workflow_run_id SET DEFAULT nextval('public.active_workflow_extra_input_ids_active_workflow_run_id_seq');
-
-
---
--- Name: active_workflow_run_extra_input_ids external_id_id; Type: DEFAULT; Schema: public; Owner: -
---
-
-ALTER TABLE public.active_workflow_run_extra_input_ids ALTER COLUMN external_id_id SET DEFAULT nextval('public.active_workflow_extra_input_ids_external_id_id_seq');
-
-
---
 -- Name: analysis id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -487,14 +424,6 @@ ALTER TABLE public.workflow_version ALTER COLUMN id SET DEFAULT nextval('public.
 
 ALTER TABLE public.active_operation
     ADD CONSTRAINT active_operation_pkey PRIMARY KEY (id);
-
-
---
--- Name: active_workflow_run_extra_input_ids active_workflow_extra_input_ids_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE public.active_workflow_run_extra_input_ids
-    ADD CONSTRAINT active_workflow_extra_input_ids_pkey PRIMARY KEY (active_workflow_run_id, external_id_id);
 
 
 --
@@ -635,14 +564,6 @@ CREATE TRIGGER workflow_version_update BEFORE INSERT OR UPDATE ON public.workflo
 
 
 --
--- Name: active_workflow_run_extra_input_ids active_workflow_run_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE public.active_workflow_run_extra_input_ids
-    ADD CONSTRAINT active_workflow_run_id_fkey FOREIGN KEY (active_workflow_run_id) REFERENCES public.active_workflow_run(id);
-
-
---
 -- Name: analysis_external_id analysis_external_id_analysis_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -664,14 +585,6 @@ ALTER TABLE public.analysis_external_id
 
 ALTER TABLE public.analysis
     ADD CONSTRAINT analysis_workflow_run_id_fkey FOREIGN KEY (workflow_run_id) REFERENCES public.workflow_run(id);
-
-
---
--- Name: active_workflow_run_extra_input_ids external_id_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE public.active_workflow_run_extra_input_ids
-    ADD CONSTRAINT external_id_id_fkey FOREIGN KEY (external_id_id) REFERENCES public.external_id(id);
 
 
 --

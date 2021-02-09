@@ -1,8 +1,8 @@
 package ca.on.oicr.gsi.vidarr.api;
 
+import ca.on.oicr.gsi.vidarr.BasicType;
 import ca.on.oicr.gsi.vidarr.InputType;
 import ca.on.oicr.gsi.vidarr.OutputType;
-import ca.on.oicr.gsi.vidarr.BasicType;
 import ca.on.oicr.gsi.vidarr.WorkflowLanguage;
 import java.util.Map;
 

@@ -1,9 +1,11 @@
 package ca.on.oicr.gsi.vidarr;
 
+import ca.on.oicr.gsi.Pair;
 import ca.on.oicr.gsi.status.SectionRenderer;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.util.Optional;
+import java.util.stream.Stream;
 import javax.xml.stream.XMLStreamException;
 
 /** Defines an engine that knows how to execute workflows and track the results */
@@ -89,7 +91,8 @@ public interface WorkflowEngine {
    * Start a new workflow
    *
    * @param workflowLanguage the language the workflow was written in
-   * @param workflow the URL of the workflow
+   * @param workflow the contents of the workflow
+   * @param accessoryFiles additional files that should be included with the workflow
    * @param vidarrId the ID of the workflow being executed
    * @param workflowParameters the input parameters to the workflow
    * @param engineParameters the input configuration parameters to the workflow engine
@@ -99,6 +102,7 @@ public interface WorkflowEngine {
   JsonNode run(
       WorkflowLanguage workflowLanguage,
       String workflow,
+      Stream<Pair<String, String>> accessoryFiles,
       String vidarrId,
       ObjectNode workflowParameters,
       JsonNode engineParameters,

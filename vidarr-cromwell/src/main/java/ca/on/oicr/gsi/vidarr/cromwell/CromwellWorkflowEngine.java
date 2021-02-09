@@ -1,19 +1,27 @@
 package ca.on.oicr.gsi.vidarr.cromwell;
 
+import ca.on.oicr.gsi.Pair;
 import ca.on.oicr.gsi.status.SectionRenderer;
 import ca.on.oicr.gsi.vidarr.*;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.prometheus.client.Counter;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 import javax.xml.stream.XMLStreamException;
 
 /** Run workflows using Cromwell */
@@ -242,6 +250,22 @@ public final class CromwellWorkflowEngine
                               .getVidarrId()
                               .substring(Math.max(0, state.getVidarrId().length() - 255)))))
               .addPart("workflowOptions", MAPPER.writeValueAsString(state.getEngineParameters()));
+      if (!state.getWorkflowInputFiles().isEmpty()) {
+        // Cromwell doesn't deduplicate these and stores them all in its database, so it doesn't
+        // matter if we make the effort to ensure these ZIP files are byte-for-byte identical.
+        final var zipOutput = new ByteArrayOutputStream();
+        try (final var zipFile = new ZipOutputStream(zipOutput)) {
+          for (final var accessory : state.getWorkflowInputFiles().entrySet()) {
+            zipFile.putNextEntry(new ZipEntry(accessory.getKey()));
+            zipFile.write(accessory.getValue().getBytes(StandardCharsets.UTF_8));
+            zipFile.closeEntry();
+          }
+        }
+        final var zipContents = zipOutput.toByteArray();
+        body.addPart(
+            "workflowDependencies", () -> new ByteArrayInputStream(zipContents), null, null);
+      }
+
       CROMWELL_REQUESTS.labels(baseUrl).inc();
       CLIENT
           .sendAsync(
@@ -257,7 +281,7 @@ public final class CromwellWorkflowEngine
               s -> {
                 final var result = s.get();
                 if (result.getId() == null) {
-                  monitor.permanentFailure("Cromwell to launch workflow.");
+                  monitor.permanentFailure("Cromwell failed to launch workflow.");
                   return;
                 }
                 state.setCromwellId(result.getId());
@@ -297,6 +321,7 @@ public final class CromwellWorkflowEngine
   protected EngineState runWorkflow(
       WorkflowLanguage workflowLanguage,
       String workflow,
+      Stream<Pair<String, String>> accessoryFiles,
       String vidarrId,
       ObjectNode workflowParameters,
       JsonNode engineParameters,
@@ -317,6 +342,8 @@ public final class CromwellWorkflowEngine
         filteredParameters.set(field.getKey(), field.getValue());
       }
     }
+    state.setWorkflowInputFiles(
+        accessoryFiles.collect(Collectors.toMap(Pair::first, Pair::second)));
     state.setEngineParameters(engineParameters);
     state.setParameters(filteredParameters);
     state.setVidarrId(vidarrId);

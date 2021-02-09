@@ -17,6 +17,7 @@ public class WorkflowConfiguration extends BaseWorkflowConfiguration {
         getLanguage(),
         id,
         getWorkflow(),
+        getAccessoryFiles(),
         getParameters().entrySet().stream()
             .map(p -> new WorkflowDefinition.Parameter(p.getValue(), p.getKey())),
         getOutputs().entrySet().stream()

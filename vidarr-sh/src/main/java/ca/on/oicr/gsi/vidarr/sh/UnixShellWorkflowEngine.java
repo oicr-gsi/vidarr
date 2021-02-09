@@ -1,5 +1,6 @@
 package ca.on.oicr.gsi.vidarr.sh;
 
+import ca.on.oicr.gsi.Pair;
 import ca.on.oicr.gsi.status.SectionRenderer;
 import ca.on.oicr.gsi.vidarr.*;
 import ca.on.oicr.gsi.vidarr.WorkMonitor.Status;
@@ -13,6 +14,7 @@ import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 /** Run commands using UNIX shell locally */
 public final class UnixShellWorkflowEngine
@@ -90,13 +92,19 @@ public final class UnixShellWorkflowEngine
   public ShellState runWorkflow(
       WorkflowLanguage workflowLanguage,
       String workflow,
+      Stream<Pair<String, String>> accessoryFiles,
       String vidarrId,
       ObjectNode workflowParameters,
       JsonNode engineParameters,
       WorkMonitor<Result<String>, ShellState> monitor) {
     final var state = new ShellState();
+    final var fail = accessoryFiles.count() > 0;
     monitor.scheduleTask(
         () -> {
+          if (fail) {
+            monitor.permanentFailure("Cannot handle accessory files.");
+            return;
+          }
           try {
             final File outputFile = File.createTempFile("vidarr-sh", ".out");
             state.setOutputPath(outputFile.getAbsolutePath());

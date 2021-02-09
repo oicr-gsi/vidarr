@@ -365,6 +365,7 @@ public abstract class BaseProcessor<
                                       .run(
                                           definition.language(),
                                           definition.contents(),
+                                          definition.accessoryFiles(),
                                           activeWorkflow.id(),
                                           input,
                                           activeWorkflow.engineArguments(),

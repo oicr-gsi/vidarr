@@ -3,6 +3,7 @@ package ca.on.oicr.gsi.vidarr.cromwell;
 import ca.on.oicr.gsi.vidarr.WorkflowLanguage;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.util.Map;
 
 /** The current state of a running workflow to be recorded in the database */
 public final class EngineState {
@@ -10,6 +11,7 @@ public final class EngineState {
   private JsonNode engineParameters;
   private ObjectNode parameters;
   private String vidarrId;
+  private Map<String, String> workflowInputFiles;
   private WorkflowLanguage workflowLanguage;
   private String workflowSource;
 
@@ -27,6 +29,10 @@ public final class EngineState {
 
   public String getVidarrId() {
     return vidarrId;
+  }
+
+  public Map<String, String> getWorkflowInputFiles() {
+    return workflowInputFiles;
   }
 
   public WorkflowLanguage getWorkflowLanguage() {
@@ -51,6 +57,10 @@ public final class EngineState {
 
   public void setVidarrId(String vidarrId) {
     this.vidarrId = vidarrId;
+  }
+
+  public void setWorkflowInputFiles(Map<String, String> workflowInputFiles) {
+    this.workflowInputFiles = workflowInputFiles;
   }
 
   public void setWorkflowLanguage(WorkflowLanguage workflowLanguage) {

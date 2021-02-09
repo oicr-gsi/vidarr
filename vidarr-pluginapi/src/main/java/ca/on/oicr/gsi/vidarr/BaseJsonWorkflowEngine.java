@@ -1,10 +1,12 @@
 package ca.on.oicr.gsi.vidarr;
 
+import ca.on.oicr.gsi.Pair;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 
 /**
  * A workflow engine where the state is serialised using Jackson
@@ -157,6 +159,7 @@ public abstract class BaseJsonWorkflowEngine<S, C, D> implements WorkflowEngine 
   public final JsonNode run(
       WorkflowLanguage workflowLanguage,
       String workflow,
+      Stream<Pair<String, String>> accessoryFiles,
       String vidarrId,
       ObjectNode workflowParameters,
       JsonNode engineParameters,
@@ -165,6 +168,7 @@ public abstract class BaseJsonWorkflowEngine<S, C, D> implements WorkflowEngine 
         runWorkflow(
             workflowLanguage,
             workflow,
+            accessoryFiles,
             vidarrId,
             workflowParameters,
             engineParameters,
@@ -173,11 +177,13 @@ public abstract class BaseJsonWorkflowEngine<S, C, D> implements WorkflowEngine 
   /**
    * Start a new workflow
    *
-   * @see WorkflowEngine#run(WorkflowLanguage, String, String, ObjectNode, JsonNode, WorkMonitor)
+   * @see WorkflowEngine#run(WorkflowLanguage, String, Stream, String, ObjectNode, JsonNode,
+   *     WorkMonitor)
    */
   protected abstract S runWorkflow(
       WorkflowLanguage workflowLanguage,
       String workflow,
+      Stream<Pair<String, String>> accessoryFiles,
       String vidarrId,
       ObjectNode workflowParameters,
       JsonNode engineParameters,

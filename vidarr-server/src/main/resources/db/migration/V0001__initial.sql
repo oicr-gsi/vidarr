@@ -619,6 +619,16 @@ ALTER TABLE public.active_operation
 ALTER TABLE public.workflow_run
     ADD CONSTRAINT workflow_run_workflow_version_id_fkey FOREIGN KEY (workflow_version_id) REFERENCES public.workflow_version(id) NOT VALID;
 
+--
+-- Name: workflow_version_accessory; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.workflow_version_accessory (
+    workflow_version integer NOT NULL,
+    workflow_definition integer NOT NULL,
+    filename character varying NOT NULL,
+    PRIMARY KEY (workflow_version, workflow_definition, filename)
+);
 
 --
 -- End

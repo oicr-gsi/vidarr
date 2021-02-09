@@ -756,6 +756,7 @@ public final class Main implements ServerConfig {
                 .fetchOptional()
                 .orElseThrow()
                 .value1();
+
         final var versionDigest = MessageDigest.getInstance("SHA-256");
         versionDigest.update(name.getBytes(StandardCharsets.UTF_8));
         versionDigest.update(new byte[] {0});
@@ -764,6 +765,31 @@ public final class Main implements ServerConfig {
         versionDigest.update(definitionHash.getBytes(StandardCharsets.UTF_8));
         versionDigest.update(MAPPER.writeValueAsBytes(request.getOutputs()));
         versionDigest.update(MAPPER.writeValueAsBytes(request.getParameters()));
+
+        final var accessoryIds = new TreeMap<String, Integer>();
+        for (final var accessory : new TreeMap<>(request.getAccessoryFiles()).entrySet()) {
+          final var accessoryHash =
+              BaseProcessor.hexDigits(
+                  MessageDigest.getInstance("SHA-256")
+                      .digest(request.getWorkflow().getBytes(StandardCharsets.UTF_8)));
+          versionDigest.update(new byte[] {0});
+          versionDigest.update(accessory.getKey().getBytes(StandardCharsets.UTF_8));
+          versionDigest.update(new byte[] {0});
+          versionDigest.update(accessoryHash.getBytes(StandardCharsets.UTF_8));
+          accessoryIds.put(
+              accessory.getKey(),
+              dsl.insertInto(WORKFLOW_DEFINITION)
+                  .columns(
+                      WORKFLOW_DEFINITION.HASH_ID,
+                      WORKFLOW_DEFINITION.WORKFLOW_FILE,
+                      WORKFLOW_DEFINITION.WORKFLOW_LANGUAGE)
+                  .values(accessoryHash, accessory.getValue(), request.getLanguage())
+                  .onDuplicateKeyIgnore()
+                  .returningResult(WORKFLOW_DEFINITION.ID)
+                  .fetchOptional()
+                  .orElseThrow()
+                  .value1());
+        }
         final var versionHash = BaseProcessor.hexDigits(versionDigest.digest());
         dsl.select(DSL.field(WORKFLOW_VERSION.HASH_ID.eq(versionHash)))
             .from(WORKFLOW_VERSION)
@@ -805,6 +831,22 @@ public final class Main implements ServerConfig {
                     exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);
                     exchange.getResponseSender().send("Failed to insert");
                   } else {
+                    if (!accessoryIds.isEmpty()) {
+
+                      var accessoryQuery =
+                          dsl.insertInto(
+                              WORKFLOW_VERSION_ACCESSORY,
+                              WORKFLOW_VERSION_ACCESSORY.WORKFLOW_VERSION,
+                              WORKFLOW_VERSION_ACCESSORY.FILENAME,
+                              WORKFLOW_VERSION_ACCESSORY.WORKFLOW_DEFINITION);
+
+                      for (final var accessory : accessoryIds.entrySet()) {
+                        accessoryQuery =
+                            accessoryQuery.values(
+                                id.value1(), accessory.getKey(), accessory.getValue());
+                      }
+                      accessoryQuery.execute();
+                    }
                     exchange.setStatusCode(StatusCodes.OK);
                     exchange.getResponseSender().send("");
                   }

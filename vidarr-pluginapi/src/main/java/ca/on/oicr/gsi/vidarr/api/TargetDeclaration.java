@@ -1,8 +1,8 @@
 package ca.on.oicr.gsi.vidarr.api;
 
+import ca.on.oicr.gsi.vidarr.BasicType;
 import ca.on.oicr.gsi.vidarr.InputProvisionFormat;
 import ca.on.oicr.gsi.vidarr.OutputProvisionFormat;
-import ca.on.oicr.gsi.vidarr.BasicType;
 import ca.on.oicr.gsi.vidarr.WorkflowLanguage;
 import java.util.Collections;
 import java.util.List;
@@ -35,8 +35,7 @@ public final class TargetDeclaration {
     return outputProvisioners;
   }
 
-  public void setConsumableResources(
-      Map<String, BasicType> consumableResources) {
+  public void setConsumableResources(Map<String, BasicType> consumableResources) {
     this.consumableResources = consumableResources;
   }
 

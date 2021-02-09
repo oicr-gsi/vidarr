@@ -37,6 +37,7 @@ import java.util.stream.Stream;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Record1;
+import org.jooq.Record2;
 import org.jooq.SQLDialect;
 import org.jooq.impl.DSL;
 
@@ -169,11 +170,23 @@ public abstract class DatabaseBackedProcessor
   public static final TypeReference<Map<String, InputType>> PARAMETER_JSON_TYPE =
       new TypeReference<>() {};
 
-  private static WorkflowDefinition buildDefinitionFromRecord(org.jooq.Record record) {
+  private static WorkflowDefinition buildDefinitionFromRecord(
+      DSLContext context, org.jooq.Record record) {
+    final var accessoryFiles =
+        context
+            .select(WORKFLOW_VERSION_ACCESSORY.FILENAME, WORKFLOW_DEFINITION.WORKFLOW_FILE)
+            .from(
+                WORKFLOW_VERSION_ACCESSORY
+                    .join(WORKFLOW_DEFINITION)
+                    .on(WORKFLOW_VERSION_ACCESSORY.WORKFLOW_DEFINITION.eq(WORKFLOW_DEFINITION.ID)))
+            .where(WORKFLOW_VERSION_ACCESSORY.WORKFLOW_VERSION.eq(record.get(WORKFLOW_VERSION.ID)))
+            .stream()
+            .collect(Collectors.toMap(Record2::value1, Record2::value2));
     return new WorkflowDefinition(
         record.get(WORKFLOW_DEFINITION.WORKFLOW_LANGUAGE),
         record.get(WORKFLOW_VERSION.HASH_ID),
         record.get(WORKFLOW_DEFINITION.WORKFLOW_FILE),
+        accessoryFiles,
         MAPPER
             .convertValue(record.get(WORKFLOW_VERSION.PARAMETERS), PARAMETER_JSON_TYPE)
             .entrySet()
@@ -303,7 +316,7 @@ public abstract class DatabaseBackedProcessor
               try {
                 return new WorkflowInformation(
                     record.get(WORKFLOW_VERSION.ID),
-                    buildDefinitionFromRecord(record),
+                    buildDefinitionFromRecord(transaction, record),
                     MAPPER.readValue(record.get(WORKFLOW.LABELS).data(), LABELS_JSON_TYPE));
               } catch (JsonProcessingException e) {
                 throw new RuntimeException(e);
@@ -376,7 +389,8 @@ public abstract class DatabaseBackedProcessor
                                     target -> {
                                       if (record.get(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE)
                                           == Phase.WAITING_FOR_RESOURCES) {
-                                        final var definition = buildDefinitionFromRecord(record);
+                                        final var definition =
+                                            buildDefinitionFromRecord(context.dsl(), record);
                                         final var workflow =
                                             DatabaseWorkflow.recover(
                                                 target,
@@ -421,7 +435,7 @@ public abstract class DatabaseBackedProcessor
                                                         record.get(WORKFLOW_RUN.HASH_ID)));
                                         recover(
                                             target,
-                                            buildDefinitionFromRecord(record),
+                                            buildDefinitionFromRecord(context.dsl(), record),
                                             DatabaseWorkflow.recover(
                                                 target,
                                                 record,

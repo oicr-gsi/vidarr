@@ -128,6 +128,18 @@
       </dependency>
     </dependencies>
   </dependencyManagement>
+  <distributionManagement>
+    <repository>
+      <id>deploy.artifacts.oicr</id>
+      <name>GSI Releases</name>
+      <url>https://artifacts.oicr.on.ca/artifactory/gsi-release</url>
+    </repository>
+    <snapshotRepository>
+      <id>deploy.artifacts.oicr</id>
+      <name>GSI Snapshots</name>
+      <url>https://artifacts.oicr.on.ca/artifactory/gsi-snapshots</url>
+    </snapshotRepository>
+  </distributionManagement>
   <modules>
     <module>vidarr-pluginapi</module>
     <module>vidarr-cromwell</module>
@@ -146,13 +158,6 @@
           <source>14</source>
           <target>14</target>
           <compilerArgument>-Xlint:unchecked</compilerArgument>
-        </configuration>
-      </plugin>
-      <plugin>
-        <artifactId>maven-deploy-plugin</artifactId>
-        <version>3.0.0-M1</version>
-        <configuration>
-          <skip>true</skip>
         </configuration>
       </plugin>
     </plugins>

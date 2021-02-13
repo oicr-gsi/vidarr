@@ -220,8 +220,11 @@ public abstract class DatabaseBackedProcessor
     this.dataSource = dataSource;
   }
 
-  private void addNewExternalKeyVersions(Set<ExternalKey> externalKeys, DSLContext transaction,
-      Integer workflowRunId, HashMap<Pair<String, String>, List<String>> knownMatches) {
+  private void addNewExternalKeyVersions(
+      Set<ExternalKey> externalKeys,
+      DSLContext transaction,
+      Integer workflowRunId,
+      HashMap<Pair<String, String>, List<String>> knownMatches) {
     var externalVersionInsert =
         transaction
             .insertInto(EXTERNAL_ID_VERSION)
@@ -231,15 +234,10 @@ public abstract class DatabaseBackedProcessor
                 EXTERNAL_ID_VERSION.VALUE);
     for (final var externalKey : externalKeys) {
       final var matchKeys =
-          knownMatches.get(
-              new Pair<>(
-                  externalKey.getProvider(),
-                  externalKey.getId()));
+          knownMatches.get(new Pair<>(externalKey.getProvider(), externalKey.getId()));
       transaction
           .update(EXTERNAL_ID_VERSION)
-          .set(
-              EXTERNAL_ID_VERSION.REQUESTED,
-              OffsetDateTime.now())
+          .set(EXTERNAL_ID_VERSION.REQUESTED, OffsetDateTime.now())
           .where(
               EXTERNAL_ID_VERSION
                   .EXTERNAL_ID_ID
@@ -249,19 +247,9 @@ public abstract class DatabaseBackedProcessor
                           .where(
                               EXTERNAL_ID
                                   .EXTERNAL_ID_
-                                  .eq(
-                                      externalKey
-                                          .getId())
-                                  .and(
-                                      EXTERNAL_ID
-                                          .PROVIDER.eq(
-                                          externalKey
-                                              .getProvider()))
-                                  .and(
-                                      EXTERNAL_ID
-                                          .WORKFLOW_RUN_ID
-                                          .eq(
-                                              workflowRunId))))
+                                  .eq(externalKey.getId())
+                                  .and(EXTERNAL_ID.PROVIDER.eq(externalKey.getProvider()))
+                                  .and(EXTERNAL_ID.WORKFLOW_RUN_ID.eq(workflowRunId))))
                   .and(
                       matchKeys.stream()
                           .map(
@@ -270,17 +258,12 @@ public abstract class DatabaseBackedProcessor
                                       .KEY
                                       .eq(k)
                                       .and(
-                                          EXTERNAL_ID_VERSION
-                                              .VALUE.eq(
-                                              externalKey
-                                                  .getVersions()
-                                                  .get(
-                                                      k))))
+                                          EXTERNAL_ID_VERSION.VALUE.eq(
+                                              externalKey.getVersions().get(k))))
                           .reduce(Condition::or)
                           .orElseThrow()))
           .execute();
-      for (final var entry :
-          externalKey.getVersions().entrySet()) {
+      for (final var entry : externalKey.getVersions().entrySet()) {
         if (matchKeys.contains(entry.getKey())) {
           continue;
         }
@@ -293,16 +276,8 @@ public abstract class DatabaseBackedProcessor
                             EXTERNAL_ID
                                 .EXTERNAL_ID_
                                 .eq(externalKey.getId())
-                                .and(
-                                    EXTERNAL_ID.PROVIDER
-                                        .eq(
-                                            externalKey
-                                                .getProvider()))
-                                .and(
-                                    EXTERNAL_ID
-                                        .WORKFLOW_RUN_ID
-                                        .eq(
-                                            workflowRunId)))),
+                                .and(EXTERNAL_ID.PROVIDER.eq(externalKey.getProvider()))
+                                .and(EXTERNAL_ID.WORKFLOW_RUN_ID.eq(workflowRunId)))),
                 DSL.val(entry.getKey()),
                 DSL.val(entry.getValue()));
       }
@@ -310,8 +285,13 @@ public abstract class DatabaseBackedProcessor
     externalVersionInsert.execute();
   }
 
-  private List<String> computeWorkflowRunHashIds(String name, ObjectNode labels, DSLContext transaction,
-      WorkflowInformation workflow, TreeSet<String> inputIds, TreeSet<ExternalId> externalIds) {
+  private List<String> computeWorkflowRunHashIds(
+      String name,
+      ObjectNode labels,
+      DSLContext transaction,
+      WorkflowInformation workflow,
+      TreeSet<String> inputIds,
+      TreeSet<ExternalId> externalIds) {
     // This is sorted so our output ID is first if we have
     // to run
     final var candidateDigesters =
@@ -319,25 +299,14 @@ public abstract class DatabaseBackedProcessor
             .select()
             .from(WORKFLOW_VERSION)
             .where(WORKFLOW_VERSION.NAME.eq(name))
-            .orderBy(
-                DSL.case_()
-                    .when(
-                        WORKFLOW_VERSION.ID.eq(
-                            workflow.id()),
-                        0)
-                    .else_(1)
-                    .asc())
+            .orderBy(DSL.case_().when(WORKFLOW_VERSION.ID.eq(workflow.id()), 0).else_(1).asc())
             .fetch(WORKFLOW_VERSION.HASH_ID)
             .stream()
             .map(
                 id -> {
                   try {
-                    final var digest =
-                        MessageDigest.getInstance(
-                            "SHA-256");
-                    digest.update(
-                        id.getBytes(
-                            StandardCharsets.UTF_8));
+                    final var digest = MessageDigest.getInstance("SHA-256");
+                    digest.update(id.getBytes(StandardCharsets.UTF_8));
                     return digest;
                   } catch (NoSuchAlgorithmException e) {
                     throw new RuntimeException(e);
@@ -345,9 +314,7 @@ public abstract class DatabaseBackedProcessor
                 })
             .collect(Collectors.toList());
     for (final var id : inputIds) {
-      final var idBytes =
-          hashFromAnalysisId(id)
-              .getBytes(StandardCharsets.UTF_8);
+      final var idBytes = hashFromAnalysisId(id).getBytes(StandardCharsets.UTF_8);
       for (final var digest : candidateDigesters) {
         digest.update(new byte[] {0});
         digest.update(idBytes);
@@ -357,12 +324,9 @@ public abstract class DatabaseBackedProcessor
       final var buffer = ByteBuffer.allocate(1024);
       buffer.put((byte) 0);
       buffer.put((byte) 0);
-      buffer.put(
-          id.getProvider()
-              .getBytes(StandardCharsets.UTF_8));
+      buffer.put(id.getProvider().getBytes(StandardCharsets.UTF_8));
       buffer.put((byte) 0);
-      buffer.put(
-          id.getId().getBytes(StandardCharsets.UTF_8));
+      buffer.put(id.getId().getBytes(StandardCharsets.UTF_8));
       buffer.put((byte) 0);
       final var idBytes = buffer.array();
       for (final var digest : candidateDigesters) {
@@ -456,8 +420,8 @@ public abstract class DatabaseBackedProcessor
     }
   }
 
-  private TreeSet<ExternalId> extractExternalIds(JsonNode arguments, WorkflowInformation workflow,
-      TreeSet<String> unresolvedIds) {
+  private TreeSet<ExternalId> extractExternalIds(
+      JsonNode arguments, WorkflowInformation workflow, TreeSet<String> unresolvedIds) {
     return workflow
         .definition()
         .parameters()
@@ -465,32 +429,28 @@ public abstract class DatabaseBackedProcessor
             p ->
                 arguments.has(p.name())
                     ? p.type()
-                    .apply(
-                        new ExtractInputExternalIds(
-                            MAPPER,
-                            arguments.get(p.name()),
-                            id -> {
-                              final var result =
-                                  pathForId(id);
-                              if (result
-                                  .isEmpty()) {
-                                unresolvedIds.add(
-                                    id);
-                              }
-                              return result;
-                            }))
+                        .apply(
+                            new ExtractInputExternalIds(
+                                MAPPER,
+                                arguments.get(p.name()),
+                                id -> {
+                                  final var result = pathForId(id);
+                                  if (result.isEmpty()) {
+                                    unresolvedIds.add(id);
+                                  }
+                                  return result;
+                                }))
                     : Stream.empty())
         .collect(
             Collectors.toCollection(
                 () ->
                     new TreeSet<>(
-                        Comparator.comparing(
-                            ExternalId::getProvider)
-                            .thenComparing(
-                                ExternalId::getId))));
+                        Comparator.comparing(ExternalId::getProvider)
+                            .thenComparing(ExternalId::getId))));
   }
 
-  private TreeSet<String> extractWorkflowInputIds(JsonNode arguments, WorkflowInformation workflow) {
+  private TreeSet<String> extractWorkflowInputIds(
+      JsonNode arguments, WorkflowInformation workflow) {
     return workflow
         .definition()
         .parameters()
@@ -498,17 +458,12 @@ public abstract class DatabaseBackedProcessor
             p ->
                 arguments.has(p.name())
                     ? Stream.empty()
-                    : p.type()
-                        .apply(
-                            new ExtractInputVidarrIds(
-                                MAPPER,
-                                arguments.get(
-                                    p.name()))))
+                    : p.type().apply(new ExtractInputVidarrIds(MAPPER, arguments.get(p.name()))))
         .collect(Collectors.toCollection(TreeSet::new));
   }
 
-  private List<String> findMatchingVersionKeysMatchingExternalId(DSLContext transaction, Integer workflowRunId,
-      ExternalKey externalKey) {
+  private List<String> findMatchingVersionKeysMatchingExternalId(
+      DSLContext transaction, Integer workflowRunId, ExternalKey externalKey) {
     return transaction
         .select()
         .from(EXTERNAL_ID_VERSION)
@@ -521,38 +476,17 @@ public abstract class DatabaseBackedProcessor
                         .where(
                             EXTERNAL_ID
                                 .EXTERNAL_ID_
-                                .eq(
-                                    externalKey
-                                        .getId())
-                                .and(
-                                    EXTERNAL_ID
-                                        .PROVIDER
-                                        .eq(
-                                            externalKey
-                                                .getProvider()))
-                                .and(
-                                    EXTERNAL_ID
-                                        .WORKFLOW_RUN_ID
-                                        .eq(
-                                            workflowRunId))))
+                                .eq(externalKey.getId())
+                                .and(EXTERNAL_ID.PROVIDER.eq(externalKey.getProvider()))
+                                .and(EXTERNAL_ID.WORKFLOW_RUN_ID.eq(workflowRunId))))
                 .and(
-                    externalKey
-                        .getVersions()
-                        .entrySet()
-                        .stream()
+                    externalKey.getVersions().entrySet().stream()
                         .map(
                             e ->
                                 EXTERNAL_ID_VERSION
                                     .KEY
-                                    .eq(
-                                        e
-                                            .getKey())
-                                    .and(
-                                        EXTERNAL_ID_VERSION
-                                            .VALUE
-                                            .eq(
-                                                e
-                                                    .getValue())))
+                                    .eq(e.getKey())
+                                    .and(EXTERNAL_ID_VERSION.VALUE.eq(e.getValue())))
                         .reduce(Condition::or)
                         .orElseThrow()))
         .fetch(EXTERNAL_ID_VERSION.KEY);
@@ -583,12 +517,24 @@ public abstract class DatabaseBackedProcessor
             });
   }
 
-  private <T> T launchNewWorkflowRun(String targetName, String name, String version, ObjectNode labels,
-      JsonNode arguments, JsonNode engineParameters, JsonNode metadata,
-      Set<ExternalKey> externalKeys, Map<String, JsonNode> consumableResources,
-      SubmissionResultHandler<T> handler, Target target, DSLContext transaction,
-      WorkflowInformation workflow, TreeSet<String> inputIds, TreeSet<ExternalId> externalIds,
-      List<String> candidateIds) throws SQLException {
+  private <T> T launchNewWorkflowRun(
+      String targetName,
+      String name,
+      String version,
+      ObjectNode labels,
+      JsonNode arguments,
+      JsonNode engineParameters,
+      JsonNode metadata,
+      Set<ExternalKey> externalKeys,
+      Map<String, JsonNode> consumableResources,
+      SubmissionResultHandler<T> handler,
+      Target target,
+      DSLContext transaction,
+      WorkflowInformation workflow,
+      TreeSet<String> inputIds,
+      TreeSet<ExternalId> externalIds,
+      List<String> candidateIds)
+      throws SQLException {
     final var dbWorkflow =
         DatabaseWorkflow.create(
             targetName,
@@ -614,8 +560,7 @@ public abstract class DatabaseBackedProcessor
                 EXTERNAL_ID_VERSION.KEY,
                 EXTERNAL_ID_VERSION.VALUE);
     for (final var externalKey : externalKeys) {
-      for (final var entry :
-          externalKey.getVersions().entrySet()) {
+      for (final var entry : externalKey.getVersions().entrySet()) {
         externalVersionInsert =
             externalVersionInsert.values(
                 DSL.field(
@@ -624,20 +569,9 @@ public abstract class DatabaseBackedProcessor
                         .where(
                             EXTERNAL_ID
                                 .EXTERNAL_ID_
-                                .eq(
-                                    externalKey
-                                        .getId())
-                                .and(
-                                    EXTERNAL_ID
-                                        .PROVIDER.eq(
-                                        externalKey
-                                            .getProvider()))
-                                .and(
-                                    EXTERNAL_ID
-                                        .WORKFLOW_RUN_ID
-                                        .eq(
-                                            dbWorkflow
-                                                .dbId())))),
+                                .eq(externalKey.getId())
+                                .and(EXTERNAL_ID.PROVIDER.eq(externalKey.getProvider()))
+                                .and(EXTERNAL_ID.WORKFLOW_RUN_ID.eq(dbWorkflow.dbId())))),
                 DSL.val(entry.getKey()),
                 DSL.val(entry.getValue()));
       }
@@ -660,19 +594,13 @@ public abstract class DatabaseBackedProcessor
               @Override
               public void run() {
                 if (launched) {
-                  throw new IllegalStateException(
-                      "Workflow has already been"
-                          + " launched");
+                  throw new IllegalStateException("Workflow has already been" + " launched");
                 }
                 launched = true;
                 startTransaction(
                     runTransaction ->
-                        DatabaseBackedProcessor.this
-                            .start(
-                                target,
-                                workflow.definition(),
-                                dbWorkflow,
-                                runTransaction));
+                        DatabaseBackedProcessor.this.start(
+                            target, workflow.definition(), dbWorkflow, runTransaction));
               }
             }));
   }
@@ -904,8 +832,13 @@ public abstract class DatabaseBackedProcessor
                                       .map(
                                           workflow -> {
                                             final var errors =
-                                                validateWorkflowInputs(labels, arguments, engineParameters,
-                                                    metadata, consumableResources, target,
+                                                validateWorkflowInputs(
+                                                    labels,
+                                                    arguments,
+                                                    engineParameters,
+                                                    metadata,
+                                                    consumableResources,
+                                                    target,
                                                     workflow);
                                             if (!errors.isEmpty()) {
                                               return handler.invalidWorkflow(errors);
@@ -917,7 +850,8 @@ public abstract class DatabaseBackedProcessor
                                             final var unresolvedIds = new TreeSet<String>();
 
                                             final var externalIds =
-                                                extractExternalIds(arguments, workflow, unresolvedIds);
+                                                extractExternalIds(
+                                                    arguments, workflow, unresolvedIds);
                                             if (!unresolvedIds.isEmpty()) {
                                               return handler.unresolvedIds(unresolvedIds);
                                             }
@@ -940,9 +874,14 @@ public abstract class DatabaseBackedProcessor
                                               return handler.externalIdMismatch();
                                             }
                                             try {
-                                              final List<String> candidateIds = computeWorkflowRunHashIds(name,
-                                                  labels, transaction, workflow,
-                                                  inputIds, externalIds);
+                                              final List<String> candidateIds =
+                                                  computeWorkflowRunHashIds(
+                                                      name,
+                                                      labels,
+                                                      transaction,
+                                                      workflow,
+                                                      inputIds,
+                                                      externalIds);
                                               final var candidates =
                                                   transaction
                                                       .select(WORKFLOW_RUN.ID, WORKFLOW_RUN.HASH_ID)
@@ -957,11 +896,22 @@ public abstract class DatabaseBackedProcessor
                                                       .collect(Collectors.toList());
                                               if (candidates.isEmpty()) {
                                                 if (handler.allowLaunch()) {
-                                                  return launchNewWorkflowRun(targetName, name, version, labels,
-                                                      arguments, engineParameters, metadata,
+                                                  return launchNewWorkflowRun(
+                                                      targetName,
+                                                      name,
+                                                      version,
+                                                      labels,
+                                                      arguments,
+                                                      engineParameters,
+                                                      metadata,
                                                       externalKeys,
-                                                      consumableResources, handler, target,
-                                                      transaction, workflow, inputIds, externalIds,
+                                                      consumableResources,
+                                                      handler,
+                                                      target,
+                                                      transaction,
+                                                      workflow,
+                                                      inputIds,
+                                                      externalIds,
                                                       candidateIds);
                                                 } else {
                                                   return handler.dryRunResult();
@@ -975,8 +925,8 @@ public abstract class DatabaseBackedProcessor
                                                     new ArrayList<ExternalKey>();
                                                 for (final var externalKey : externalKeys) {
                                                   final var matchKeys =
-                                                      findMatchingVersionKeysMatchingExternalId(transaction, workflowRunId,
-                                                          externalKey);
+                                                      findMatchingVersionKeysMatchingExternalId(
+                                                          transaction, workflowRunId, externalKey);
 
                                                   if (matchKeys.isEmpty()) {
                                                     missingKeys.add(externalKey);
@@ -993,7 +943,10 @@ public abstract class DatabaseBackedProcessor
                                                       candidates.get(0).second(), missingKeys);
                                                 }
 
-                                                addNewExternalKeyVersions(externalKeys, transaction, workflowRunId,
+                                                addNewExternalKeyVersions(
+                                                    externalKeys,
+                                                    transaction,
+                                                    workflowRunId,
                                                     knownMatches);
                                                 // If this workflow is active, but failed, and the
                                                 // attempt number is higher or this is a different
@@ -1140,26 +1093,22 @@ public abstract class DatabaseBackedProcessor
     return counter.get();
   }
 
-  private Set<String> validateWorkflowInputs(ObjectNode labels, JsonNode arguments, JsonNode engineParameters,
-      JsonNode metadata, Map<String, JsonNode> consumableResources, Target target,
+  private Set<String> validateWorkflowInputs(
+      ObjectNode labels,
+      JsonNode arguments,
+      JsonNode engineParameters,
+      JsonNode metadata,
+      Map<String, JsonNode> consumableResources,
+      Target target,
       WorkflowInformation workflow) {
     return Stream.of(
-        validateInput(
-            MAPPER,
-            target,
-            workflow.definition(),
-            arguments,
-            metadata,
-            engineParameters),
-        workflow.validateLabels(labels),
-        target
-            .consumableResources()
-            .flatMap(
-                r -> r.inputFromUser().stream())
-            .flatMap(
-                cr ->
-                    checkConsumableResource(
-                        consumableResources, cr)))
+            validateInput(
+                MAPPER, target, workflow.definition(), arguments, metadata, engineParameters),
+            workflow.validateLabels(labels),
+            target
+                .consumableResources()
+                .flatMap(r -> r.inputFromUser().stream())
+                .flatMap(cr -> checkConsumableResource(consumableResources, cr)))
         .flatMap(Function.identity())
         .collect(Collectors.toSet());
   }

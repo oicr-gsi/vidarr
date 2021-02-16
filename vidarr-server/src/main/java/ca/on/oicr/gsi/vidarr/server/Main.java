@@ -43,6 +43,7 @@ import com.zaxxer.hikari.HikariDataSource;
 import io.prometheus.client.CollectorRegistry;
 import io.prometheus.client.Counter;
 import io.prometheus.client.exporter.common.TextFormat;
+import io.prometheus.client.hotspot.DefaultExports;
 import io.undertow.Handlers;
 import io.undertow.Undertow;
 import io.undertow.server.HttpHandler;
@@ -333,6 +334,7 @@ public final class Main implements ServerConfig {
           "Usage: java --module-path MODULES --module ca.on.oicr.gsi.vidarr.server"
               + " configuration.json");
     }
+    DefaultExports.initialize();
     final var server = new Main(MAPPER.readValue(new File(args[0]), ServerConfiguration.class));
     final var undertow =
         Undertow.builder()

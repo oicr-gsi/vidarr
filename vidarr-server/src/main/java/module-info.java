@@ -27,6 +27,7 @@ module ca.on.oicr.gsi.vidarr.server {
   requires server.utils;
   requires simpleclient.common;
   requires simpleclient;
+  requires simpleclient.hotspot;
   requires undertow.core;
 
   opens ca.on.oicr.gsi.vidarr.server.dto to

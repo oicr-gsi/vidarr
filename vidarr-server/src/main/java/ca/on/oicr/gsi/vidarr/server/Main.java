@@ -1,16 +1,50 @@
 package ca.on.oicr.gsi.vidarr.server;
 
-import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.*;
+import static ca.on.oicr.gsi.vidarr.core.BaseProcessor.hexDigits;
+import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.ACTIVE_OPERATION;
+import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.ACTIVE_WORKFLOW_RUN;
+import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.ANALYSIS;
+import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.ANALYSIS_EXTERNAL_ID;
+import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.EXTERNAL_ID;
+import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.EXTERNAL_ID_VERSION;
+import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.WORKFLOW;
+import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.WORKFLOW_DEFINITION;
+import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.WORKFLOW_RUN;
+import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.WORKFLOW_VERSION;
+import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.WORKFLOW_VERSION_ACCESSORY;
 
 import ca.on.oicr.gsi.Pair;
 import ca.on.oicr.gsi.prometheus.LatencyHistogram;
-import ca.on.oicr.gsi.status.*;
-import ca.on.oicr.gsi.vidarr.*;
+import ca.on.oicr.gsi.status.ConfigurationSection;
+import ca.on.oicr.gsi.status.Header;
+import ca.on.oicr.gsi.status.NavigationMenu;
+import ca.on.oicr.gsi.status.SectionRenderer;
+import ca.on.oicr.gsi.status.ServerConfig;
+import ca.on.oicr.gsi.status.StatusPage;
+import ca.on.oicr.gsi.vidarr.BasicType;
+import ca.on.oicr.gsi.vidarr.ConsumableResource;
+import ca.on.oicr.gsi.vidarr.ConsumableResourceProvider;
+import ca.on.oicr.gsi.vidarr.InputProvisionFormat;
+import ca.on.oicr.gsi.vidarr.InputProvisioner;
+import ca.on.oicr.gsi.vidarr.InputProvisionerProvider;
+import ca.on.oicr.gsi.vidarr.InputType;
+import ca.on.oicr.gsi.vidarr.JsonBodyHandler;
+import ca.on.oicr.gsi.vidarr.OutputProvisionFormat;
+import ca.on.oicr.gsi.vidarr.OutputProvisioner;
+import ca.on.oicr.gsi.vidarr.OutputProvisionerProvider;
+import ca.on.oicr.gsi.vidarr.OutputType;
+import ca.on.oicr.gsi.vidarr.RuntimeProvisioner;
+import ca.on.oicr.gsi.vidarr.RuntimeProvisionerProvider;
+import ca.on.oicr.gsi.vidarr.UnloadFilter;
+import ca.on.oicr.gsi.vidarr.WorkflowEngine;
+import ca.on.oicr.gsi.vidarr.WorkflowEngineProvider;
+import ca.on.oicr.gsi.vidarr.WorkflowLanguage;
 import ca.on.oicr.gsi.vidarr.api.AddWorkflowRequest;
 import ca.on.oicr.gsi.vidarr.api.AddWorkflowVersionRequest;
 import ca.on.oicr.gsi.vidarr.api.AnalysisOutputType;
 import ca.on.oicr.gsi.vidarr.api.AnalysisProvenanceRequest;
 import ca.on.oicr.gsi.vidarr.api.ExternalKey;
+import ca.on.oicr.gsi.vidarr.api.ExternalMultiVersionKey;
 import ca.on.oicr.gsi.vidarr.api.InFlightCountsByWorkflow;
 import ca.on.oicr.gsi.vidarr.api.ProvenanceAnalysisRecord;
 import ca.on.oicr.gsi.vidarr.api.SubmitMode;
@@ -21,14 +55,20 @@ import ca.on.oicr.gsi.vidarr.api.SubmitWorkflowResponseDryRun;
 import ca.on.oicr.gsi.vidarr.api.SubmitWorkflowResponseFailure;
 import ca.on.oicr.gsi.vidarr.api.SubmitWorkflowResponseMissingKeyVersions;
 import ca.on.oicr.gsi.vidarr.api.SubmitWorkflowResponseSuccess;
+import ca.on.oicr.gsi.vidarr.api.UnloadRequest;
+import ca.on.oicr.gsi.vidarr.api.UnloadedData;
+import ca.on.oicr.gsi.vidarr.api.UnloadedWorkflow;
+import ca.on.oicr.gsi.vidarr.api.UnloadedWorkflowVersion;
 import ca.on.oicr.gsi.vidarr.api.VersionPolicy;
 import ca.on.oicr.gsi.vidarr.core.BaseProcessor;
+import ca.on.oicr.gsi.vidarr.core.ExtractInputVidarrIds;
 import ca.on.oicr.gsi.vidarr.core.FileMetadata;
 import ca.on.oicr.gsi.vidarr.core.OperationStatus;
 import ca.on.oicr.gsi.vidarr.core.Phase;
 import ca.on.oicr.gsi.vidarr.core.Target;
 import ca.on.oicr.gsi.vidarr.server.DatabaseBackedProcessor.DeleteResultHandler;
-import ca.on.oicr.gsi.vidarr.server.dto.*;
+import ca.on.oicr.gsi.vidarr.server.dto.BulkVersionRequest;
+import ca.on.oicr.gsi.vidarr.server.dto.ServerConfiguration;
 import ca.on.oicr.gsi.vidarr.server.remote.RemoteInputProvisionerProvider;
 import ca.on.oicr.gsi.vidarr.server.remote.RemoteOutputProvisionerProvider;
 import ca.on.oicr.gsi.vidarr.server.remote.RemoteRuntimeProvisionerProvider;
@@ -67,16 +107,28 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.sql.Connection;
 import java.sql.SQLException;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.EnumSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.ServiceLoader;
 import java.util.ServiceLoader.Provider;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -88,7 +140,15 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.xml.stream.XMLStreamException;
 import org.flywaydb.core.Flyway;
-import org.jooq.*;
+import org.jooq.Condition;
+import org.jooq.Configuration;
+import org.jooq.DSLContext;
+import org.jooq.Field;
+import org.jooq.JSON;
+import org.jooq.JSONB;
+import org.jooq.JSONEntry;
+import org.jooq.Record1;
+import org.jooq.SQLDialect;
 import org.jooq.impl.DSL;
 import org.jooq.impl.SQLDataType;
 import org.postgresql.ds.PGSimpleDataSource;
@@ -113,6 +173,11 @@ public final class Main implements ServerConfig {
     }
 
     void handleRequest(HttpServerExchange exchange, T body);
+  }
+
+  private interface UnloadProcessor<T> {
+    T process(Configuration configuration, Set<Integer> workflowRuns)
+        throws IOException, SQLException;
   }
 
   static final HttpClient CLIENT =
@@ -384,6 +449,21 @@ public final class Main implements ServerConfig {
                                         JsonPost.parse(
                                             AnalysisProvenanceRequest.class,
                                             server::fetchProvenance))))
+                            .post(
+                                "/api/copy-out",
+                                monitor(
+                                    new BlockingHandler(
+                                        JsonPost.parse(UnloadRequest.class, server::copyOut))))
+                            .post(
+                                "/api/unload",
+                                monitor(
+                                    new BlockingHandler(
+                                        JsonPost.parse(UnloadRequest.class, server::unload))))
+                            .post(
+                                "/api/load",
+                                monitor(
+                                    new BlockingHandler(
+                                        JsonPost.parse(UnloadedData.class, server::load))))
                             .delete(
                                 "/api/status/{hash}",
                                 monitor(new BlockingHandler(server::deleteWorkflowRun)))
@@ -461,6 +541,7 @@ public final class Main implements ServerConfig {
   private final String selfName;
   private final String selfUrl;
   private final Map<String, Target> targets;
+  private final Path unloadDirectory;
   private final Map<String, WorkflowEngine> workflowEngines;
   private final StatusPage status =
       new StatusPage(this) {
@@ -724,6 +805,7 @@ public final class Main implements ServerConfig {
           .from(WORKFLOW)
           .forEach(record -> maxInFlightPerWorkflow.set(record.value1(), record.value2()));
     }
+    unloadDirectory = Path.of(configuration.getUnloadDirectory());
   }
 
   private void addWorkflow(HttpServerExchange exchange, AddWorkflowRequest request) {
@@ -773,7 +855,7 @@ public final class Main implements ServerConfig {
     try (final var connection = dataSource.getConnection()) {
       final var dsl = DSL.using(connection, SQLDialect.POSTGRES);
       final var definitionHash =
-          BaseProcessor.hexDigits(
+          hexDigits(
               MessageDigest.getInstance("SHA-256")
                   .digest(request.getWorkflow().getBytes(StandardCharsets.UTF_8)));
       final var definitionId =
@@ -801,7 +883,7 @@ public final class Main implements ServerConfig {
       final var accessoryIds = new TreeMap<String, Integer>();
       for (final var accessory : new TreeMap<>(request.getAccessoryFiles()).entrySet()) {
         final var accessoryHash =
-            BaseProcessor.hexDigits(
+            hexDigits(
                 MessageDigest.getInstance("SHA-256")
                     .digest(accessory.getValue().getBytes(StandardCharsets.UTF_8)));
         versionDigest.update(new byte[] {0});
@@ -822,7 +904,7 @@ public final class Main implements ServerConfig {
                 .orElseThrow()
                 .value1());
       }
-      final var versionHash = BaseProcessor.hexDigits(versionDigest.digest());
+      final var versionHash = hexDigits(versionDigest.digest());
       dsl.select(DSL.field(WORKFLOW_VERSION.HASH_ID.eq(versionHash)))
           .from(WORKFLOW_VERSION)
           .where(WORKFLOW_VERSION.NAME.eq(name).and(WORKFLOW_VERSION.VERSION.eq(version)))
@@ -891,6 +973,38 @@ public final class Main implements ServerConfig {
     }
   }
 
+  private void associateDefinitionAsAccessory(
+      Configuration configuration, int id, String fileName, String accessoryWorkflowHash) {
+    DSL.using(configuration)
+        .insertInto(WORKFLOW_VERSION_ACCESSORY)
+        .set(WORKFLOW_VERSION_ACCESSORY.FILENAME, fileName)
+        .set(
+            WORKFLOW_VERSION_ACCESSORY.WORKFLOW_DEFINITION,
+            DSL.select(WORKFLOW_DEFINITION.ID)
+                .from(WORKFLOW_DEFINITION)
+                .where(WORKFLOW_DEFINITION.HASH_ID.eq(accessoryWorkflowHash)))
+        .set(WORKFLOW_VERSION_ACCESSORY.WORKFLOW_VERSION, id)
+        .execute();
+  }
+
+  private void copyOut(HttpServerExchange exchange, UnloadRequest request) {
+    try {
+      unloadSearch(
+          request,
+          (tx, ids) -> {
+            exchange.setStatusCode(StatusCodes.OK);
+            try (final var output = MAPPER_FACTORY.createGenerator(exchange.getOutputStream())) {
+              dumpUnloadDataToJson(tx, ids, output);
+            }
+            return null;
+          });
+    } catch (Exception e) {
+      e.printStackTrace();
+      exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);
+      exchange.getResponseSender().send(e.getMessage());
+    }
+  }
+
   private Field<JSON> createAnalysisJsonField(Field<JSON> externalKeys, JSONEntry<?>... extra) {
     final var analysisCommonFields = new ArrayList<>(List.of(extra));
     analysisCommonFields.add(DSL.jsonEntry("id", ANALYSIS.HASH_ID));
@@ -915,7 +1029,7 @@ public final class Main implements ServerConfig {
   }
 
   private void createAnalysisRecords(
-      Connection connection,
+      DSLContext context,
       JsonGenerator jsonGenerator,
       VersionPolicy policy,
       Set<String> allowedTypes,
@@ -1004,7 +1118,7 @@ public final class Main implements ServerConfig {
                                                   case URL -> "url";
                                                 })
                                         .collect(Collectors.toList())))))));
-    DSL.using(connection, SQLDialect.POSTGRES)
+    context
         .select(DSL.jsonObject(fields))
         .from(WORKFLOW_RUN)
         .where(condition)
@@ -1067,6 +1181,95 @@ public final class Main implements ServerConfig {
       exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);
       exchange.getResponseSender().send(e.getMessage());
     }
+  }
+
+  private void dumpUnloadDataToJson(Configuration tx, Set<Integer> ids, JsonGenerator output)
+      throws IOException, SQLException {
+    output.writeStartObject();
+    output.writeArrayFieldStart("workflows");
+    DSL.using(tx)
+        .select(
+            DSL.jsonObject(
+                DSL.jsonEntry("name", WORKFLOW.NAME), DSL.jsonEntry("labels", WORKFLOW.LABELS)))
+        .from(WORKFLOW)
+        .where(
+            DSL.exists(
+                DSL.select()
+                    .from(
+                        WORKFLOW_RUN
+                            .join(WORKFLOW_VERSION)
+                            .on(WORKFLOW_RUN.WORKFLOW_VERSION_ID.eq(WORKFLOW_VERSION.ID)))
+                    .where(WORKFLOW_RUN.ID.in(ids).and(WORKFLOW_VERSION.NAME.eq(WORKFLOW.NAME)))))
+        .forEach(
+            result -> {
+              try {
+                output.writeRawValue(result.value1().data());
+              } catch (IOException e) {
+                throw new RuntimeException(e);
+              }
+            });
+    output.writeEndArray();
+    output.writeArrayFieldStart("workflowVersions");
+    final var accessoryDefinition = WORKFLOW_DEFINITION.as("accessoryWorkflowDefinition");
+    DSL.using(tx)
+        .select(
+            DSL.jsonObject(
+                DSL.jsonEntry(
+                    "accessoryFiles",
+                    DSL.field(
+                        DSL.select(
+                                DSL.jsonObjectAgg(
+                                    WORKFLOW_VERSION_ACCESSORY.FILENAME,
+                                    accessoryDefinition.WORKFLOW_FILE))
+                            .from(
+                                WORKFLOW_VERSION_ACCESSORY
+                                    .join(accessoryDefinition)
+                                    .on(
+                                        accessoryDefinition.ID.eq(
+                                            WORKFLOW_VERSION_ACCESSORY.WORKFLOW_DEFINITION))
+                                    .where(
+                                        WORKFLOW_VERSION_ACCESSORY.WORKFLOW_VERSION.eq(
+                                            WORKFLOW_VERSION.ID))))),
+                DSL.jsonEntry("language", WORKFLOW_DEFINITION.WORKFLOW_LANGUAGE),
+                DSL.jsonEntry("name", WORKFLOW_VERSION.NAME),
+                DSL.jsonEntry("outputs", WORKFLOW_VERSION.METADATA),
+                DSL.jsonEntry("parameters", WORKFLOW_VERSION.PARAMETERS),
+                DSL.jsonEntry("version", WORKFLOW_VERSION.VERSION),
+                DSL.jsonEntry("workflow", WORKFLOW_DEFINITION.WORKFLOW_FILE)))
+        .from(
+            WORKFLOW_VERSION
+                .join(WORKFLOW_DEFINITION)
+                .on(WORKFLOW_VERSION.WORKFLOW_DEFINITION.eq(WORKFLOW_DEFINITION.ID)))
+        .where(
+            DSL.exists(
+                DSL.select()
+                    .from(WORKFLOW_RUN)
+                    .where(
+                        WORKFLOW_RUN
+                            .ID
+                            .in(ids)
+                            .and(WORKFLOW_RUN.WORKFLOW_VERSION_ID.eq(WORKFLOW_VERSION.ID)))))
+        .forEach(
+            result -> {
+              try {
+                output.writeRawValue(result.value1().data());
+              } catch (IOException e) {
+                throw new RuntimeException(e);
+              }
+            });
+
+    output.writeEndArray();
+    output.writeArrayFieldStart("workflowRuns");
+    createAnalysisRecords(
+        DSL.using(tx),
+        output,
+        VersionPolicy.ALL,
+        null,
+        true,
+        EnumSet.allOf(AnalysisOutputType.class),
+        WORKFLOW_RUN.ID.in(ids));
+    output.writeEndArray();
+    output.writeEndObject();
   }
 
   private void fetchAllActive(HttpServerExchange exchange) {
@@ -1193,7 +1396,7 @@ public final class Main implements ServerConfig {
       output.writeArrayFieldStart("results");
       try (final var connection = dataSource.getConnection()) {
         createAnalysisRecords(
-            connection,
+            DSL.using(connection, SQLDialect.POSTGRES),
             output,
             request.getVersionPolicy(),
             request.getVersionTypes(),
@@ -1235,7 +1438,7 @@ public final class Main implements ServerConfig {
                 try (final var output =
                     MAPPER_FACTORY.createGenerator(exchange.getOutputStream())) {
                   createAnalysisRecords(
-                      connection,
+                      DSL.using(connection, SQLDialect.POSTGRES),
                       output,
                       VersionPolicy.ALL,
                       null,
@@ -1429,6 +1632,528 @@ public final class Main implements ServerConfig {
     return Stream.empty();
   }
 
+  private void insertAnalysis(
+      Configuration configuration,
+      int id,
+      ProvenanceAnalysisRecord<ca.on.oicr.gsi.vidarr.api.ExternalId> analysis) {
+    final var analysisId =
+        DSL.using(configuration)
+            .insertInto(ANALYSIS)
+            .set(ANALYSIS.WORKFLOW_RUN_ID, id)
+            .set(ANALYSIS.HASH_ID, analysis.getId())
+            .set(ANALYSIS.ANALYSIS_TYPE, analysis.getType())
+            .set(ANALYSIS.CREATED, analysis.getCreated().toOffsetDateTime())
+            .set(
+                ANALYSIS.FILE_PATH,
+                analysis.getType().equals("file") ? analysis.getPath() : analysis.getUrl())
+            .set(ANALYSIS.FILE_MD5SUM, analysis.getType().equals("file") ? analysis.getMd5() : null)
+            .set(
+                ANALYSIS.FILE_METATYPE,
+                analysis.getType().equals("file") ? analysis.getMetatype() : null)
+            .set(ANALYSIS.FILE_SIZE, analysis.getType().equals("file") ? analysis.getSize() : null)
+            .set(ANALYSIS.LABELS, DatabaseWorkflow.labelsToJson(analysis.getLabels()))
+            .returningResult(ANALYSIS.ID)
+            .fetchOptional()
+            .orElseThrow()
+            .value1();
+    var associate =
+        DSL.using(configuration)
+            .insertInto(ANALYSIS_EXTERNAL_ID)
+            .columns(ANALYSIS_EXTERNAL_ID.ANALYSIS_ID, ANALYSIS_EXTERNAL_ID.EXTERNAL_ID_ID);
+    for (final var externalId : analysis.getExternalKeys()) {
+      associate =
+          associate.values(
+              DSL.val(analysisId),
+              DSL.field(
+                  DSL.select(EXTERNAL_ID.ID)
+                      .from(EXTERNAL_ID)
+                      .where(
+                          EXTERNAL_ID
+                              .WORKFLOW_RUN_ID
+                              .eq(id)
+                              .and(EXTERNAL_ID.PROVIDER.eq(externalId.getProvider()))
+                              .and(EXTERNAL_ID.EXTERNAL_ID_.eq(externalId.getId())))));
+    }
+    associate.execute();
+  }
+
+  private void insertExternalKey(
+      Configuration configuration, int id, ExternalMultiVersionKey externalId) {
+    final var externalIdDbId =
+        DSL.using(configuration)
+            .insertInto(EXTERNAL_ID)
+            .set(EXTERNAL_ID.PROVIDER, externalId.getProvider())
+            .set(EXTERNAL_ID.EXTERNAL_ID_, externalId.getId())
+            .set(EXTERNAL_ID.WORKFLOW_RUN_ID, id)
+            .returningResult(EXTERNAL_ID.ID)
+            .fetchOptional()
+            .orElseThrow()
+            .value1();
+    var insertVersions =
+        DSL.using(configuration)
+            .insertInto(EXTERNAL_ID_VERSION)
+            .columns(
+                EXTERNAL_ID_VERSION.EXTERNAL_ID_ID,
+                EXTERNAL_ID_VERSION.KEY,
+                EXTERNAL_ID_VERSION.VALUE);
+    for (final var version : externalId.getVersions().entrySet()) {
+      for (final var value : version.getValue()) {
+        insertVersions = insertVersions.values(externalIdDbId, version.getKey(), value);
+      }
+    }
+    insertVersions.execute();
+  }
+
+  private void insertWorkflowDefinition(
+      Configuration configuration,
+      String workflowScript,
+      String rootWorkflowHash,
+      WorkflowLanguage workflowLanguage) {
+    DSL.using(configuration)
+        .insertInto(WORKFLOW_DEFINITION)
+        .set(WORKFLOW_DEFINITION.WORKFLOW_FILE, workflowScript)
+        .set(WORKFLOW_DEFINITION.WORKFLOW_LANGUAGE, workflowLanguage)
+        .set(WORKFLOW_DEFINITION.HASH_ID, rootWorkflowHash)
+        .onConflict(WORKFLOW_DEFINITION.HASH_ID)
+        .doNothing()
+        .execute();
+  }
+
+  private Optional<Integer> insertWorkflowRun(
+      Configuration configuration,
+      int workflowId,
+      OffsetDateTime now,
+      ca.on.oicr.gsi.vidarr.api.ProvenanceWorkflowRun<ExternalMultiVersionKey> run) {
+    return DSL.using(configuration)
+        .insertInto(WORKFLOW_RUN)
+        .set(WORKFLOW_RUN.HASH_ID, run.getId())
+        .set(WORKFLOW_RUN.WORKFLOW_VERSION_ID, workflowId)
+        .set(WORKFLOW_RUN.ENGINE_PARAMETERS, run.getEngineParameters())
+        .set(WORKFLOW_RUN.ARGUMENTS, run.getArguments())
+        .set(WORKFLOW_RUN.METADATA, run.getMetadata())
+        .set(WORKFLOW_RUN.LABELS, DatabaseWorkflow.labelsToJson(run.getLabels()))
+        .set(WORKFLOW_RUN.INPUT_FILE_IDS, run.getInputFiles().toArray(String[]::new))
+        .set(WORKFLOW_RUN.CREATED, run.getCreated().toOffsetDateTime())
+        .set(WORKFLOW_RUN.COMPLETED, run.getCompleted().toOffsetDateTime())
+        .set(WORKFLOW_RUN.LAST_ACCESSED, now)
+        .set(
+            WORKFLOW_RUN.STARTED,
+            run.getStarted() == null ? null : run.getStarted().toOffsetDateTime())
+        .onConflict(WORKFLOW_RUN.HASH_ID)
+        .doNothing()
+        .returningResult(WORKFLOW_RUN.ID)
+        .fetchOptional()
+        .map(Record1::value1);
+  }
+
+  private Optional<Record1<Integer>> insertWorkflowVersion(
+      Configuration configuration,
+      String workflowName,
+      String rootWorkflowHash,
+      String workflowHashId,
+      String workflowVersion,
+      Map<String, OutputType> outputs,
+      Map<String, InputType> parameters) {
+    return DSL.using(configuration)
+        .insertInto(WORKFLOW_VERSION)
+        .set(WORKFLOW_VERSION.HASH_ID, workflowHashId)
+        .set(WORKFLOW_VERSION.NAME, workflowName)
+        .set(WORKFLOW_VERSION.VERSION, workflowVersion)
+        .set(WORKFLOW_VERSION.METADATA, MAPPER.<ObjectNode>valueToTree(outputs))
+        .set(WORKFLOW_VERSION.PARAMETERS, MAPPER.<ObjectNode>valueToTree(parameters))
+        .set(
+            WORKFLOW_VERSION.WORKFLOW_DEFINITION,
+            DSL.select(WORKFLOW_DEFINITION.ID)
+                .from(WORKFLOW_DEFINITION)
+                .where(WORKFLOW_DEFINITION.HASH_ID.eq(rootWorkflowHash)))
+        .onConflict(WORKFLOW_VERSION.NAME, WORKFLOW_VERSION.VERSION)
+        .doNothing()
+        .returningResult(WORKFLOW_VERSION.ID)
+        .fetchOptional();
+  }
+
+  private void load(HttpServerExchange exchange, UnloadedData unloadedData) {
+    try {
+      // We have to hold a very expensive lock to load data in the database, so we're going to do an
+      // offline validation of the data to make sure it's self-consistent, then acquire the lock and
+      // do an online validation.
+      final var workflowInfo =
+          new TreeMap<
+              String, Pair<UnloadedWorkflow, Map<String, Pair<String, UnloadedWorkflowVersion>>>>();
+      for (final var workflow : unloadedData.getWorkflows()) {
+        if (workflowInfo.containsKey(workflow.getName())) {
+          exchange.setStatusCode(StatusCodes.BAD_REQUEST);
+          exchange
+              .getResponseSender()
+              .send(String.format("Duplicate workflow %s in load request.", workflow.getName()));
+          return;
+        }
+        workflowInfo.put(workflow.getName(), new Pair<>(workflow, new TreeMap<>()));
+      }
+      for (final var workflowVersion : unloadedData.getWorkflowVersions()) {
+        final var info = workflowInfo.get(workflowVersion.getName());
+        if (info == null) {
+          exchange.setStatusCode(StatusCodes.BAD_REQUEST);
+          exchange
+              .getResponseSender()
+              .send(
+                  String.format(
+                      "Workflow version references unknown workflow %s in load request.",
+                      workflowVersion.getName()));
+          return;
+        }
+        if (info.second().containsKey(workflowVersion.getVersion())) {
+          exchange.setStatusCode(StatusCodes.BAD_REQUEST);
+          exchange
+              .getResponseSender()
+              .send(
+                  String.format(
+                      "Duplicate workflow version %s/%s in load request.",
+                      workflowVersion.getName(), workflowVersion.getVersion()));
+          return;
+        }
+
+        // Success; compute hash ID and store in map
+        final var versionDigest = MessageDigest.getInstance("SHA-256");
+        versionDigest.update(workflowVersion.getName().getBytes(StandardCharsets.UTF_8));
+        versionDigest.update(new byte[] {0});
+        versionDigest.update(workflowVersion.getVersion().getBytes(StandardCharsets.UTF_8));
+        versionDigest.update(new byte[] {0});
+        versionDigest.update(
+            hexDigits(
+                    MessageDigest.getInstance("SHA-256")
+                        .digest(workflowVersion.getWorkflow().getBytes(StandardCharsets.UTF_8)))
+                .getBytes(StandardCharsets.UTF_8));
+        versionDigest.update(MAPPER.writeValueAsBytes(workflowVersion.getOutputs()));
+        versionDigest.update(MAPPER.writeValueAsBytes(workflowVersion.getParameters()));
+        if (workflowVersion.getAccessoryFiles() != null) {
+          for (final var accessory :
+              new TreeMap<>(workflowVersion.getAccessoryFiles()).entrySet()) {
+            final var accessoryHash =
+                hexDigits(
+                    MessageDigest.getInstance("SHA-256")
+                        .digest(accessory.getValue().getBytes(StandardCharsets.UTF_8)));
+            versionDigest.update(new byte[] {0});
+            versionDigest.update(accessory.getKey().getBytes(StandardCharsets.UTF_8));
+            versionDigest.update(new byte[] {0});
+            versionDigest.update(accessoryHash.getBytes(StandardCharsets.UTF_8));
+          }
+        }
+        info.second()
+            .put(
+                workflowVersion.getVersion(),
+                new Pair<>(hexDigits(versionDigest.digest()), workflowVersion));
+      }
+
+      // Validate the workflow runs; all workflow data must be included, so we don't need the DB for
+      // this.
+      final var seenWorkflowRunIds = new TreeSet<String>();
+      for (final var workflowRun : unloadedData.getWorkflowRuns()) {
+        final var info = workflowInfo.get(workflowRun.getWorkflowName());
+        if (info == null) {
+          exchange.setStatusCode(StatusCodes.BAD_REQUEST);
+          exchange
+              .getResponseSender()
+              .send(
+                  String.format(
+                      "Workflow run %s references missing workflow %s in load request.",
+                      workflowRun.getId(), workflowRun.getWorkflowName()));
+          return;
+        }
+        final var versionInfo = info.second().get(workflowRun.getWorkflowVersion());
+        if (versionInfo == null) {
+          exchange.setStatusCode(StatusCodes.BAD_REQUEST);
+          exchange
+              .getResponseSender()
+              .send(
+                  String.format(
+                      "Workflow run %s references missing workflow %s/%s in load request.",
+                      workflowRun.getId(),
+                      workflowRun.getWorkflowName(),
+                      workflowRun.getWorkflowVersion()));
+          return;
+        }
+        // Validate labels
+        final var labelErrors =
+            DatabaseBackedProcessor.validateLabels(
+                    workflowRun.getLabels(), info.first().getLabels())
+                .collect(Collectors.toList());
+        if (!labelErrors.isEmpty()) {
+          exchange.setStatusCode(StatusCodes.BAD_REQUEST);
+          exchange
+              .getResponseSender()
+              .send(
+                  String.format(
+                      "Workflow run %s has bad labels: %s",
+                      workflowRun.getId(), String.join("; ", labelErrors)));
+          return;
+        }
+        final var knowExternalIds =
+            workflowRun.getExternalKeys().stream()
+                .map(e -> new Pair<>(e.getProvider(), e.getId()))
+                .collect(Collectors.toSet());
+        final var correctDigest = MessageDigest.getInstance("SHA-256");
+        correctDigest.update(versionInfo.first().getBytes(StandardCharsets.UTF_8));
+        final var inputIds =
+            versionInfo.second().getParameters().entrySet().stream()
+                .flatMap(
+                    param ->
+                        param
+                            .getValue()
+                            .apply(
+                                new ExtractInputVidarrIds(
+                                    MAPPER, workflowRun.getArguments().get(param.getKey()))))
+                .map(id -> BaseProcessor.ANALYSIS_RECORD_ID.matcher(id).group("hash"))
+                .collect(Collectors.toCollection(TreeSet::new));
+        for (final var id : inputIds) {
+          correctDigest.update(new byte[] {0});
+          correctDigest.update(id.getBytes(StandardCharsets.UTF_8));
+        }
+        workflowRun
+            .getExternalKeys()
+            .sort(
+                Comparator.comparing(ExternalMultiVersionKey::getProvider)
+                    .thenComparing(ExternalMultiVersionKey::getId));
+        for (final var id : workflowRun.getExternalKeys()) {
+          correctDigest.update((byte) 0);
+          correctDigest.update((byte) 0);
+          correctDigest.update(id.getProvider().getBytes(StandardCharsets.UTF_8));
+          correctDigest.update((byte) 0);
+          correctDigest.update(id.getId().getBytes(StandardCharsets.UTF_8));
+          correctDigest.update((byte) 0);
+        }
+
+        if (info.first().getLabels() != null) {
+          for (final var label : new TreeSet<>(info.first().getLabels().keySet())) {
+            correctDigest.update(new byte[] {0});
+            correctDigest.update(label.getBytes(StandardCharsets.UTF_8));
+            correctDigest.update(new byte[] {0});
+            correctDigest.update(MAPPER.writeValueAsBytes(workflowRun.getLabels().get(label)));
+          }
+        }
+
+        // Compute the hash ID this workflow run should have
+        final var correctId = hexDigits(correctDigest.digest());
+        if (!correctId.equals(workflowRun.getId())) {
+          exchange.setStatusCode(StatusCodes.BAD_REQUEST);
+          exchange
+              .getResponseSender()
+              .send(
+                  String.format(
+                      "Workflow run %s should have ID %s in load request.",
+                      workflowRun.getId(), correctId));
+          return;
+        }
+        if (!seenWorkflowRunIds.add(correctId)) {
+          exchange.setStatusCode(StatusCodes.BAD_REQUEST);
+          exchange
+              .getResponseSender()
+              .send(
+                  String.format(
+                      "Workflow run %s is included multiple times in the input.",
+                      workflowRun.getId()));
+          return;
+        }
+        // Validate output analyses for external IDs and hashes
+        if (workflowRun.getAnalysis() == null || workflowRun.getAnalysis().isEmpty()) {
+          exchange.setStatusCode(StatusCodes.BAD_REQUEST);
+          exchange
+              .getResponseSender()
+              .send(String.format("Workflow run %s has no analysis.", workflowRun.getId()));
+          return;
+        }
+
+        for (final var output : workflowRun.getAnalysis()) {
+          if (output.getExternalKeys().isEmpty()) {
+            exchange.setStatusCode(StatusCodes.BAD_REQUEST);
+            exchange
+                .getResponseSender()
+                .send(
+                    String.format(
+                        "Workflow run %s has output %s that is not associated with any external"
+                            + " identifiers.",
+                        workflowRun.getId(), output.getId()));
+            return;
+          }
+          for (final var externalId : output.getExternalKeys()) {
+            if (!knowExternalIds.contains(
+                new Pair<>(externalId.getProvider(), externalId.getId()))) {
+              exchange.setStatusCode(StatusCodes.BAD_REQUEST);
+              exchange
+                  .getResponseSender()
+                  .send(
+                      String.format(
+                          "Workflow run %s has output %s that references unknown external ID"
+                              + " %s/%s.",
+                          workflowRun.getId(),
+                          output.getId(),
+                          externalId.getProvider(),
+                          externalId.getId()));
+              return;
+            }
+          }
+          if (!output.getType().equals("file") && output.getType().equals("url")) {
+            exchange.setStatusCode(StatusCodes.BAD_REQUEST);
+            exchange
+                .getResponseSender()
+                .send(
+                    String.format(
+                        "Workflow run %s has output %s that unknown output type %s.",
+                        workflowRun.getId(), output.getId(), output.getType()));
+            return;
+          }
+          if (output.getType().equals("file")
+              && (output.getMetatype() == null
+                  || output.getMetatype().isBlank()
+                  || output.getMd5() == null
+                  || output.getMd5().isBlank())) {
+            exchange.setStatusCode(StatusCodes.BAD_REQUEST);
+            exchange
+                .getResponseSender()
+                .send(
+                    String.format(
+                        "Workflow run %s has file output %s with missing information.",
+                        workflowRun.getId(), output.getId()));
+            return;
+          }
+          final var fileDigest = MessageDigest.getInstance("SHA-256");
+          fileDigest.update(workflowRun.getId().getBytes(StandardCharsets.UTF_8));
+          fileDigest.update(
+              (output.getType().equals("file")
+                      ? Path.of(output.getPath()).getFileName().toString()
+                      : output.getUrl())
+                  .getBytes(StandardCharsets.UTF_8));
+          final var correctOutputId = hexDigits(fileDigest.digest());
+          if (!output.getId().equals(correctOutputId)) {
+            exchange.setStatusCode(StatusCodes.BAD_REQUEST);
+            exchange
+                .getResponseSender()
+                .send(
+                    String.format(
+                        "Workflow run %s has output %s that should have ID %s.",
+                        workflowRun.getId(), output.getId(), correctOutputId));
+            return;
+          }
+        }
+      }
+
+      // Okay, if we made it this far, the file is theoretically loadable. There needs to be
+      // additional validation against the database, but we will do that in a transaction with the
+      // expensive lock.
+      epochLock.writeLock().lock();
+      try (final var connection = dataSource.getConnection()) {
+        DSL.using(connection, SQLDialect.POSTGRES)
+            .transaction(
+                configuration -> loadDataIntoDatabase(unloadedData, workflowInfo, configuration));
+        exchange.setStatusCode(StatusCodes.OK);
+        exchange.getResponseSender().send("");
+      } catch (IllegalArgumentException e) {
+        exchange.setStatusCode(StatusCodes.BAD_REQUEST);
+        exchange.getResponseSender().send(e.getMessage());
+      } catch (Exception e) {
+        e.printStackTrace();
+        exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);
+        exchange.getResponseSender().send(e.getMessage());
+      } finally {
+        epochLock.writeLock().unlock();
+      }
+    } catch (JsonProcessingException | NoSuchAlgorithmException e) {
+      e.printStackTrace();
+      exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);
+      exchange.getResponseSender().send(e.getMessage());
+    }
+  }
+
+  private void loadDataIntoDatabase(
+      UnloadedData unloadedData,
+      TreeMap<String, Pair<UnloadedWorkflow, Map<String, Pair<String, UnloadedWorkflowVersion>>>>
+          workflowInfo,
+      Configuration configuration)
+      throws JsonProcessingException, NoSuchAlgorithmException {
+    final var workflowId = new TreeMap<String, Map<String, Integer>>();
+    for (final var info : workflowInfo.values()) {
+      final var workflowName = info.first().getName();
+      final var workflowLabels = info.first().getLabels();
+      var labels =
+          Objects.requireNonNullElse(
+              upsertWorkflowReturningLabels(configuration, workflowName, workflowLabels), Map.of());
+      if (!labels.equals(Objects.requireNonNullElse(workflowLabels, Map.of()))) {
+        throw new IllegalArgumentException(
+            String.format(
+                "Workflow %s has mismatched labels to what is in the database."
+                    + " Cannot load this data.",
+                workflowName));
+      }
+      final var workflowVersionIds = new TreeMap<String, Integer>();
+      workflowId.put(workflowName, workflowVersionIds);
+      for (final var version : info.second().values()) {
+        final var workflowScript = version.second().getWorkflow();
+        final var rootWorkflowHash =
+            hexDigits(
+                MessageDigest.getInstance("SHA-256")
+                    .digest(workflowScript.getBytes(StandardCharsets.UTF_8)));
+        WorkflowLanguage workflowLanguage = version.second().getLanguage();
+        insertWorkflowDefinition(configuration, workflowScript, rootWorkflowHash, workflowLanguage);
+
+        final var workflowHashId = version.first();
+        final var workflowVersion = version.second().getVersion();
+        final var outputs = version.second().getOutputs();
+        final var parameters = version.second().getParameters();
+        final var id =
+            insertWorkflowVersion(
+                configuration,
+                workflowName,
+                rootWorkflowHash,
+                workflowHashId,
+                workflowVersion,
+                outputs,
+                parameters);
+        // We will have no ID from the insert if it already there
+        if (id.isPresent()) {
+          workflowVersionIds.put(workflowVersion, id.get().value1());
+          for (final var accessory : version.second().getAccessoryFiles().entrySet()) {
+            final var accessoryWorkflowHash =
+                hexDigits(
+                    MessageDigest.getInstance("SHA-256")
+                        .digest(accessory.getValue().getBytes(StandardCharsets.UTF_8)));
+            insertWorkflowDefinition(
+                configuration, accessory.getValue(), accessoryWorkflowHash, workflowLanguage);
+            associateDefinitionAsAccessory(
+                configuration, id.get().value1(), accessory.getKey(), accessoryWorkflowHash);
+          }
+        } else {
+          workflowVersionIds.put(
+              workflowVersion,
+              DSL.using(configuration)
+                  .select(WORKFLOW_VERSION.ID)
+                  .from(WORKFLOW_VERSION)
+                  .where(WORKFLOW_VERSION.HASH_ID.eq(workflowHashId))
+                  .fetchOptional(WORKFLOW_VERSION.ID)
+                  .orElseThrow());
+        }
+      }
+    }
+    final var now = OffsetDateTime.now();
+    for (final var run : unloadedData.getWorkflowRuns()) {
+      final var id =
+          insertWorkflowRun(
+              configuration,
+              workflowId.get(run.getWorkflowName()).get(run.getWorkflowVersion()),
+              now,
+              run);
+      if (id.isPresent()) {
+        for (final var externalId : run.getExternalKeys()) {
+
+          insertExternalKey(configuration, id.get(), externalId);
+        }
+        for (final var analysis : run.getAnalysis()) {
+          insertAnalysis(configuration, id.get(), analysis);
+        }
+      }
+    }
+    epoch = Instant.now().toEpochMilli();
+  }
+
   @Override
   public String name() {
     return "Víðarr";
@@ -1585,6 +2310,219 @@ public final class Main implements ServerConfig {
     }
   }
 
+  private void unload(HttpServerExchange exchange, UnloadRequest request) {
+    epochLock.writeLock().lock();
+    try {
+      // Non-recursive unload is not allowed.
+      request.setRecursive(true);
+      final var id =
+          unloadSearch(
+              request,
+              (tx, ids) -> {
+                final var time = Instant.now();
+                final var filename = String.format("unload-%s.json", time);
+                try (final var output =
+                    MAPPER_FACTORY.createGenerator(
+                        Files.newOutputStream(unloadDirectory.resolve(filename)))) {
+                  dumpUnloadDataToJson(tx, ids, output);
+                }
+                tx.dsl()
+                    .delete(ANALYSIS_EXTERNAL_ID)
+                    .where(
+                        ANALYSIS_EXTERNAL_ID.ANALYSIS_ID.in(
+                            DSL.select(ANALYSIS.ID)
+                                .from(ANALYSIS)
+                                .where(ANALYSIS.WORKFLOW_RUN_ID.in(ids))))
+                    .execute();
+                tx.dsl().delete(ANALYSIS).where(ANALYSIS.WORKFLOW_RUN_ID.in(ids)).execute();
+                tx.dsl()
+                    .delete(EXTERNAL_ID_VERSION)
+                    .where(
+                        EXTERNAL_ID_VERSION.EXTERNAL_ID_ID.in(
+                            DSL.select(EXTERNAL_ID.ID)
+                                .from(EXTERNAL_ID)
+                                .where(EXTERNAL_ID.WORKFLOW_RUN_ID.in(ids))))
+                    .execute();
+                tx.dsl().delete(EXTERNAL_ID).where(EXTERNAL_ID.WORKFLOW_RUN_ID.in(ids)).execute();
+                tx.dsl().delete(WORKFLOW_RUN).where(WORKFLOW_RUN.ID.in(ids)).execute();
+                epoch = time.toEpochMilli();
+                return filename;
+              });
+      exchange.setStatusCode(StatusCodes.OK);
+      exchange.getResponseSender().send(MAPPER.writeValueAsString(id));
+    } catch (Exception e) {
+      exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);
+      exchange.getResponseSender().send(e.getMessage());
+      e.printStackTrace();
+    } finally {
+      epochLock.writeLock().unlock();
+    }
+  }
+
+  private <T> T unloadSearch(UnloadRequest request, UnloadProcessor<T> handleWorkflowRuns)
+      throws SQLException {
+    try (var connection = dataSource.getConnection()) {
+      return DSL.using(connection, SQLDialect.POSTGRES)
+          .transactionResult(
+              configuration -> {
+                final var workflowRuns =
+                    new TreeSet<>(
+                        DSL.using(configuration)
+                            .select(WORKFLOW_RUN.ID)
+                            .from(
+                                WORKFLOW_RUN
+                                    .join(WORKFLOW_VERSION)
+                                    .on(WORKFLOW_RUN.WORKFLOW_VERSION_ID.eq(WORKFLOW_VERSION.ID)))
+                            .where(
+                                WORKFLOW_RUN
+                                    .COMPLETED
+                                    .isNotNull()
+                                    .and(
+                                        request
+                                            .getFilter()
+                                            .convert(
+                                                new UnloadFilter.Visitor<Condition>() {
+                                                  @Override
+                                                  public Condition analysisId(Stream<String> ids) {
+                                                    return DSL.exists(
+                                                        DSL.select()
+                                                            .from(ANALYSIS)
+                                                            .where(
+                                                                WORKFLOW_RUN
+                                                                    .ID
+                                                                    .eq(ANALYSIS.WORKFLOW_RUN_ID)
+                                                                    .and(
+                                                                        match(
+                                                                            ANALYSIS.HASH_ID,
+                                                                            ids))));
+                                                  }
+
+                                                  @Override
+                                                  public Condition and(Stream<Condition> clauses) {
+                                                    return clauses
+                                                        .reduce(Condition::and)
+                                                        .orElseGet(() -> DSL.condition(false));
+                                                  }
+
+                                                  @Override
+                                                  public Condition completedAfter(Instant time) {
+                                                    return WORKFLOW_RUN.COMPLETED.ge(
+                                                        time.atOffset(ZoneOffset.UTC));
+                                                  }
+
+                                                  @Override
+                                                  public Condition externalKey(
+                                                      Stream<String> providers) {
+                                                    return DSL.exists(
+                                                        DSL.select()
+                                                            .from(EXTERNAL_ID)
+                                                            .where(
+                                                                WORKFLOW_RUN
+                                                                    .ID
+                                                                    .eq(EXTERNAL_ID.WORKFLOW_RUN_ID)
+                                                                    .and(
+                                                                        match(
+                                                                            EXTERNAL_ID.PROVIDER,
+                                                                            providers))));
+                                                  }
+
+                                                  @Override
+                                                  public Condition externalKey(
+                                                      String provider, Stream<String> ids) {
+                                                    return DSL.exists(
+                                                        DSL.select()
+                                                            .from(EXTERNAL_ID)
+                                                            .where(
+                                                                WORKFLOW_RUN
+                                                                    .ID
+                                                                    .eq(EXTERNAL_ID.WORKFLOW_RUN_ID)
+                                                                    .and(
+                                                                        EXTERNAL_ID.PROVIDER.eq(
+                                                                            provider))
+                                                                    .and(
+                                                                        match(
+                                                                            EXTERNAL_ID
+                                                                                .EXTERNAL_ID_,
+                                                                            ids))));
+                                                  }
+
+                                                  @Override
+                                                  public Condition lastSubmittedAfter(
+                                                      Instant time) {
+                                                    return WORKFLOW_RUN.LAST_ACCESSED.ge(
+                                                        time.atOffset(ZoneOffset.UTC));
+                                                  }
+
+                                                  private Condition match(
+                                                      Field<String> field, Stream<String> values) {
+                                                    final var items =
+                                                        values.collect(Collectors.toSet());
+                                                    switch (items.size()) {
+                                                      case 0:
+                                                        return DSL.condition(false);
+                                                      case 1:
+                                                        return field.eq(items.iterator().next());
+                                                      default:
+                                                        return field.in(items);
+                                                    }
+                                                  }
+
+                                                  @Override
+                                                  public Condition not(Condition clause) {
+                                                    return clause.not();
+                                                  }
+
+                                                  @Override
+                                                  public Condition of(boolean value) {
+                                                    return DSL.condition(value);
+                                                  }
+
+                                                  @Override
+                                                  public Condition or(Stream<Condition> clauses) {
+                                                    return clauses
+                                                        .reduce(Condition::or)
+                                                        .orElseGet(() -> DSL.condition(false));
+                                                  }
+
+                                                  @Override
+                                                  public Condition workflowId(Stream<String> ids) {
+                                                    return match(WORKFLOW_VERSION.HASH_ID, ids);
+                                                  }
+
+                                                  @Override
+                                                  public Condition workflowName(
+                                                      Stream<String> names) {
+                                                    return match(WORKFLOW_VERSION.NAME, names);
+                                                  }
+
+                                                  @Override
+                                                  public Condition workflowRunId(
+                                                      Stream<String> ids) {
+                                                    return match(WORKFLOW_RUN.HASH_ID, ids);
+                                                  }
+                                                })))
+                            .fetch(WORKFLOW_RUN.ID));
+                if (request.isRecursive()) {
+                  Collection<Integer> latestIds = workflowRuns;
+                  do {
+                    latestIds =
+                        DSL.using(configuration)
+                            .select(WORKFLOW_RUN.ID)
+                            .from(WORKFLOW_RUN)
+                            .where(
+                                WORKFLOW_RUN
+                                    .COMPLETED
+                                    .isNotNull()
+                                    .and(workflowUsesInputFrom(latestIds)))
+                            .fetch(WORKFLOW_RUN.ID);
+                    workflowRuns.addAll(latestIds);
+                  } while (!latestIds.isEmpty());
+                }
+                return handleWorkflowRuns.process(configuration, workflowRuns);
+              });
+    }
+  }
+
   private void updateVersions(HttpServerExchange exchange, BulkVersionRequest request) {
     final var result = processor.updateVersions(request);
     exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, TextFormat.CONTENT_TYPE_004);
@@ -1594,5 +2532,39 @@ public final class Main implements ServerConfig {
     } catch (Exception e) {
       e.printStackTrace();
     }
+  }
+
+  private Map<String, BasicType> upsertWorkflowReturningLabels(
+      Configuration configuration, String workflowName, Map<String, BasicType> workflowLabels)
+      throws JsonProcessingException {
+    return MAPPER.readValue(
+        DSL.using(configuration)
+            .insertInto(WORKFLOW)
+            .set(WORKFLOW.NAME, workflowName)
+            .set(WORKFLOW.IS_ACTIVE, false)
+            .set(WORKFLOW.MAX_IN_FLIGHT, 0)
+            .set(WORKFLOW.LABELS, JSONB.valueOf(MAPPER.writeValueAsString(workflowLabels)))
+            .onConflict(WORKFLOW.NAME)
+            .doUpdate()
+            .set(
+                WORKFLOW.IS_ACTIVE, WORKFLOW.IS_ACTIVE) // We do this pointless update because if we
+            // don't, Postgres will return no rows
+            .returningResult(WORKFLOW.LABELS)
+            .fetchOptional()
+            .orElseThrow()
+            .value1()
+            .data(),
+        new TypeReference<>() {});
+  }
+
+  private Condition workflowUsesInputFrom(Collection<Integer> workflowIds) {
+    return DSL.exists(
+        DSL.select()
+            .from(ANALYSIS)
+            .where(
+                ANALYSIS
+                    .WORKFLOW_RUN_ID
+                    .in(workflowIds)
+                    .and(ANALYSIS.HASH_ID.eq(DSL.any(WORKFLOW_RUN.INPUT_FILE_IDS)))));
   }
 }

@@ -20,6 +20,7 @@ public final class ServerConfiguration {
   private int port = 8080;
   private Map<String, ObjectNode> runtimeProvisioners;
   private Map<String, TargetConfiguration> targets;
+  private String unloadDirectory = ".";
   private String url;
   private Map<String, ObjectNode> workflowEngines;
 
@@ -73,6 +74,10 @@ public final class ServerConfiguration {
 
   public Map<String, TargetConfiguration> getTargets() {
     return targets;
+  }
+
+  public String getUnloadDirectory() {
+    return unloadDirectory;
   }
 
   public String getUrl() {
@@ -133,6 +138,10 @@ public final class ServerConfiguration {
 
   public void setTargets(Map<String, TargetConfiguration> targets) {
     this.targets = targets;
+  }
+
+  public void setUnloadDirectory(String unloadDirectory) {
+    this.unloadDirectory = unloadDirectory;
   }
 
   public void setUrl(String url) {

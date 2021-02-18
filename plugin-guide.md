@@ -96,9 +96,27 @@ The class `BaseJsonWorkflowEngine` is a partial implementation that can store
 crash recovery information in a JSON object of the implementor's choosing,
 making recovery easier.
 
-# Unloaders
-Unloader implement `ca.on.oicr.gsi.vidarr.UnloaderProvider`
-and `ca.on.oicr.gsi.vidarr.Unloader`. This feature is not complete, so these
-interfaces are not ready for use.
+# Unload Filters
+Unload filters implement `ca.on.oicr.gsi.vidarr.UnloadFilterProvider` and
+`ca.on.oicr.gsi.vidarr.UnloadFilter`. These plugins allow customisable
+selection of workflows for unloading. For an understanding of unloading
+filters, see [Loading and Unloading](load-unload.md).
 
-TODO
+The user will specify a filter as a JSON object with a `"type"` property. The
+classes implementing `UnloadFilter` will be deserialized by Jackson. The
+`UnloadFilterProvider` associates the strings used in `"type"` to the objects.
+One provider can provide multiple filter types. The types used should be
+_plugin_`-`_filter_; names without dashes and names starting with `vidarr-` are
+reserved by Vidarr. The _filter_ can have dashes in it if desired. If two
+plugins provide duplicate type names, Vidarr will fail to load.
+
+Once a filter is deserialised, it needs to convert the request into a query
+Vidarr can apply to its database. That is, it needs to be converted to a query
+made of only workflow, workflow run, and external key matches. The server will
+call `convert` with an `UnloadFilter.Visitor` so that the filter can determine
+whatever information it needs and generate an output query.
+
+For example, if external keys are connected to Pinery, then a filter might want
+to filter on runs. A filter could query Pinery and get all the external
+identifiers associated with that run and then construct a query based on those
+to match workflow runs that use any of those identifiers.

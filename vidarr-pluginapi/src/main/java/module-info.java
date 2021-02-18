@@ -1,3 +1,5 @@
+import ca.on.oicr.gsi.vidarr.UnloadFilterProvider;
+
 /**
  * The API plugins are expected to implement
  *
@@ -5,6 +7,8 @@
  * plugins are expected to provide as well as accessory data required or provided.
  */
 module ca.on.oicr.gsi.vidarr.pluginapi {
+  uses UnloadFilterProvider;
+
   exports ca.on.oicr.gsi.vidarr;
   exports ca.on.oicr.gsi.vidarr.api;
 

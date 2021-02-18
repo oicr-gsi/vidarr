@@ -113,7 +113,7 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
         liveness.apply(dbId));
   }
 
-  private static JSONB labelsToJson(Map<String, String> labels) {
+  public static JSONB labelsToJson(Map<String, String> labels) {
     final var labelNode = JsonNodeFactory.instance.objectNode();
     for (final var label : labels.entrySet()) {
       labelNode.put(label.getKey(), label.getValue());
@@ -125,7 +125,7 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
     }
   }
 
-  private static JSONB labelsToJson(ObjectNode labels) {
+  public static JSONB labelsToJson(ObjectNode labels) {
     try {
       return JSONB.valueOf(DatabaseBackedProcessor.MAPPER.writeValueAsString(labels));
     } catch (JsonProcessingException e) {

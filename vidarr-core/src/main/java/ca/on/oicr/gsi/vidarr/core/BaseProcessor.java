@@ -702,11 +702,7 @@ public abstract class BaseProcessor<
       ObjectMapper mapper, WorkflowDefinition definition, JsonNode arguments) {
     return definition
         .parameters()
-        .flatMap(
-            p ->
-                arguments.has(p.name())
-                    ? p.type().apply(new ExtractInputVidarrIds(mapper, arguments.get(p.name())))
-                    : Stream.of("Missing input parameter: " + p.name()))
+        .flatMap(p -> p.type().apply(new ExtractInputVidarrIds(mapper, arguments.get(p.name()))))
         .distinct();
   }
 

@@ -118,9 +118,21 @@ public final class CheckInputType implements InputType.Visitor<Stream<String>> {
               .externalTypeFor(format)
               .apply(new CheckEngineType(contents.get(EXTERNAL__CONFIG)));
         case "INTERNAL":
-          return (contents.isArray() && contents.size() == 1 && contents.get(0).isTextual())
-              ? Stream.empty()
-              : Stream.of("Reference to internal data lacks a single ID");
+          if (contents.isArray() && contents.size() == 1 && contents.get(0).isTextual()) {
+            final var id = contents.get(0).asText();
+            final var matcher = BaseProcessor.ANALYSIS_RECORD_ID.matcher(id);
+            if (matcher.matches()) {
+              if (matcher.group("type").equals("file")) {
+                return Stream.empty();
+              } else {
+                return Stream.of(String.format("Analysis record ID “%s” is not a file", id));
+              }
+            } else {
+              return Stream.of(String.format("Analysis record ID “%s” is malformed", id));
+            }
+          } else {
+            return Stream.of("Reference to internal data lacks a single ID");
+          }
         default:
           return Stream.of(
               "Unknown type " + input.get("type").asText() + " in tagged union for " + format);

@@ -694,7 +694,7 @@ public final class Main implements ServerConfig {
           }
         };
 
-    try (var connection = dataSource.getConnection()) {
+    try (final var connection = dataSource.getConnection()) {
       DSL.using(connection, SQLDialect.POSTGRES)
           .select(WORKFLOW.NAME, WORKFLOW.MAX_IN_FLIGHT)
           .from(WORKFLOW)
@@ -706,26 +706,24 @@ public final class Main implements ServerConfig {
     final var name =
         exchange.getAttachment(PathTemplateMatch.ATTACHMENT_KEY).getParameters().get("name");
 
-    try {
-      try (var connection = dataSource.getConnection()) {
-        final var dsl = DSL.using(connection, SQLDialect.POSTGRES);
-        dsl.insertInto(WORKFLOW)
-            .columns(WORKFLOW.NAME, WORKFLOW.LABELS, WORKFLOW.IS_ACTIVE, WORKFLOW.MAX_IN_FLIGHT)
-            .values(
-                name,
-                JSONB.valueOf(MAPPER.writeValueAsString(request.getLabels())),
-                true,
-                request.getMaxInFlight())
-            .onConflict(WORKFLOW.NAME)
-            .doUpdate()
-            .set(WORKFLOW.IS_ACTIVE, true)
-            .set(WORKFLOW.MAX_IN_FLIGHT, request.getMaxInFlight())
-            .execute();
-        connection.commit();
-        maxInFlightPerWorkflow.set(name, request.getMaxInFlight());
-        exchange.setStatusCode(StatusCodes.OK);
-        exchange.getResponseSender().send("");
-      }
+    try (final var connection = dataSource.getConnection()) {
+      final var dsl = DSL.using(connection, SQLDialect.POSTGRES);
+      dsl.insertInto(WORKFLOW)
+          .columns(WORKFLOW.NAME, WORKFLOW.LABELS, WORKFLOW.IS_ACTIVE, WORKFLOW.MAX_IN_FLIGHT)
+          .values(
+              name,
+              JSONB.valueOf(MAPPER.writeValueAsString(request.getLabels())),
+              true,
+              request.getMaxInFlight())
+          .onConflict(WORKFLOW.NAME)
+          .doUpdate()
+          .set(WORKFLOW.IS_ACTIVE, true)
+          .set(WORKFLOW.MAX_IN_FLIGHT, request.getMaxInFlight())
+          .execute();
+      connection.commit();
+      maxInFlightPerWorkflow.set(name, request.getMaxInFlight());
+      exchange.setStatusCode(StatusCodes.OK);
+      exchange.getResponseSender().send("");
     } catch (SQLException | JsonProcessingException e) {
       e.printStackTrace();
       exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);
@@ -738,125 +736,120 @@ public final class Main implements ServerConfig {
         exchange.getAttachment(PathTemplateMatch.ATTACHMENT_KEY).getParameters().get("name");
     final var version =
         exchange.getAttachment(PathTemplateMatch.ATTACHMENT_KEY).getParameters().get("version");
-    try {
-      final var connection = dataSource.getConnection();
-      try {
-        final var dsl = DSL.using(connection, SQLDialect.POSTGRES);
-        final var definitionHash =
+    try (final var connection = dataSource.getConnection()) {
+      final var dsl = DSL.using(connection, SQLDialect.POSTGRES);
+      final var definitionHash =
+          BaseProcessor.hexDigits(
+              MessageDigest.getInstance("SHA-256")
+                  .digest(request.getWorkflow().getBytes(StandardCharsets.UTF_8)));
+      final var definitionId =
+          dsl.insertInto(WORKFLOW_DEFINITION)
+              .columns(
+                  WORKFLOW_DEFINITION.HASH_ID,
+                  WORKFLOW_DEFINITION.WORKFLOW_FILE,
+                  WORKFLOW_DEFINITION.WORKFLOW_LANGUAGE)
+              .values(definitionHash, request.getWorkflow(), request.getLanguage())
+              .onDuplicateKeyIgnore()
+              .returningResult(WORKFLOW_DEFINITION.ID)
+              .fetchOptional()
+              .orElseThrow()
+              .value1();
+
+      final var versionDigest = MessageDigest.getInstance("SHA-256");
+      versionDigest.update(name.getBytes(StandardCharsets.UTF_8));
+      versionDigest.update(new byte[] {0});
+      versionDigest.update(version.getBytes(StandardCharsets.UTF_8));
+      versionDigest.update(new byte[] {0});
+      versionDigest.update(definitionHash.getBytes(StandardCharsets.UTF_8));
+      versionDigest.update(MAPPER.writeValueAsBytes(request.getOutputs()));
+      versionDigest.update(MAPPER.writeValueAsBytes(request.getParameters()));
+
+      final var accessoryIds = new TreeMap<String, Integer>();
+      for (final var accessory : new TreeMap<>(request.getAccessoryFiles()).entrySet()) {
+        final var accessoryHash =
             BaseProcessor.hexDigits(
                 MessageDigest.getInstance("SHA-256")
                     .digest(request.getWorkflow().getBytes(StandardCharsets.UTF_8)));
-        final var definitionId =
+        versionDigest.update(new byte[] {0});
+        versionDigest.update(accessory.getKey().getBytes(StandardCharsets.UTF_8));
+        versionDigest.update(new byte[] {0});
+        versionDigest.update(accessoryHash.getBytes(StandardCharsets.UTF_8));
+        accessoryIds.put(
+            accessory.getKey(),
             dsl.insertInto(WORKFLOW_DEFINITION)
                 .columns(
                     WORKFLOW_DEFINITION.HASH_ID,
                     WORKFLOW_DEFINITION.WORKFLOW_FILE,
                     WORKFLOW_DEFINITION.WORKFLOW_LANGUAGE)
-                .values(definitionHash, request.getWorkflow(), request.getLanguage())
+                .values(accessoryHash, accessory.getValue(), request.getLanguage())
                 .onDuplicateKeyIgnore()
                 .returningResult(WORKFLOW_DEFINITION.ID)
                 .fetchOptional()
                 .orElseThrow()
-                .value1();
-
-        final var versionDigest = MessageDigest.getInstance("SHA-256");
-        versionDigest.update(name.getBytes(StandardCharsets.UTF_8));
-        versionDigest.update(new byte[] {0});
-        versionDigest.update(version.getBytes(StandardCharsets.UTF_8));
-        versionDigest.update(new byte[] {0});
-        versionDigest.update(definitionHash.getBytes(StandardCharsets.UTF_8));
-        versionDigest.update(MAPPER.writeValueAsBytes(request.getOutputs()));
-        versionDigest.update(MAPPER.writeValueAsBytes(request.getParameters()));
-
-        final var accessoryIds = new TreeMap<String, Integer>();
-        for (final var accessory : new TreeMap<>(request.getAccessoryFiles()).entrySet()) {
-          final var accessoryHash =
-              BaseProcessor.hexDigits(
-                  MessageDigest.getInstance("SHA-256")
-                      .digest(request.getWorkflow().getBytes(StandardCharsets.UTF_8)));
-          versionDigest.update(new byte[] {0});
-          versionDigest.update(accessory.getKey().getBytes(StandardCharsets.UTF_8));
-          versionDigest.update(new byte[] {0});
-          versionDigest.update(accessoryHash.getBytes(StandardCharsets.UTF_8));
-          accessoryIds.put(
-              accessory.getKey(),
-              dsl.insertInto(WORKFLOW_DEFINITION)
-                  .columns(
-                      WORKFLOW_DEFINITION.HASH_ID,
-                      WORKFLOW_DEFINITION.WORKFLOW_FILE,
-                      WORKFLOW_DEFINITION.WORKFLOW_LANGUAGE)
-                  .values(accessoryHash, accessory.getValue(), request.getLanguage())
-                  .onDuplicateKeyIgnore()
-                  .returningResult(WORKFLOW_DEFINITION.ID)
-                  .fetchOptional()
-                  .orElseThrow()
-                  .value1());
-        }
-        final var versionHash = BaseProcessor.hexDigits(versionDigest.digest());
-        dsl.select(DSL.field(WORKFLOW_VERSION.HASH_ID.eq(versionHash)))
-            .from(WORKFLOW_VERSION)
-            .where(WORKFLOW_VERSION.NAME.eq(name).and(WORKFLOW_VERSION.VERSION.eq(version)))
-            .fetchOptional()
-            .ifPresentOrElse(
-                record -> {
-                  if (record.value1()) {
-                    dsl.update(WORKFLOW)
-                        .set(WORKFLOW.IS_ACTIVE, true)
-                        .where(WORKFLOW.NAME.eq(name))
-                        .execute();
-                    exchange.setStatusCode(StatusCodes.OK);
-                  } else {
-                    exchange.setStatusCode(StatusCodes.CONFLICT);
-                  }
-                  exchange.getResponseSender().send("");
-                },
-                () -> {
-                  final var id =
-                      dsl.insertInto(
-                              WORKFLOW_VERSION,
-                              WORKFLOW_VERSION.HASH_ID,
-                              WORKFLOW_VERSION.METADATA,
-                              WORKFLOW_VERSION.NAME,
-                              WORKFLOW_VERSION.PARAMETERS,
-                              WORKFLOW_VERSION.WORKFLOW_DEFINITION,
-                              WORKFLOW_VERSION.VERSION)
-                          .values(
-                              versionHash,
-                              MAPPER.valueToTree(request.getOutputs()),
-                              name,
-                              MAPPER.valueToTree(request.getParameters()),
-                              definitionId,
-                              version)
-                          .returningResult(WORKFLOW_VERSION.ID)
-                          .fetchOne();
-                  if (id == null) {
-                    exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);
-                    exchange.getResponseSender().send("Failed to insert");
-                  } else {
-                    if (!accessoryIds.isEmpty()) {
-
-                      var accessoryQuery =
-                          dsl.insertInto(
-                              WORKFLOW_VERSION_ACCESSORY,
-                              WORKFLOW_VERSION_ACCESSORY.WORKFLOW_VERSION,
-                              WORKFLOW_VERSION_ACCESSORY.FILENAME,
-                              WORKFLOW_VERSION_ACCESSORY.WORKFLOW_DEFINITION);
-
-                      for (final var accessory : accessoryIds.entrySet()) {
-                        accessoryQuery =
-                            accessoryQuery.values(
-                                id.value1(), accessory.getKey(), accessory.getValue());
-                      }
-                      accessoryQuery.execute();
-                    }
-                    exchange.setStatusCode(StatusCodes.OK);
-                    exchange.getResponseSender().send("");
-                  }
-                });
-        connection.commit();
-      } finally {
-        connection.close();
+                .value1());
       }
+      final var versionHash = BaseProcessor.hexDigits(versionDigest.digest());
+      dsl.select(DSL.field(WORKFLOW_VERSION.HASH_ID.eq(versionHash)))
+          .from(WORKFLOW_VERSION)
+          .where(WORKFLOW_VERSION.NAME.eq(name).and(WORKFLOW_VERSION.VERSION.eq(version)))
+          .fetchOptional()
+          .ifPresentOrElse(
+              record -> {
+                if (record.value1()) {
+                  dsl.update(WORKFLOW)
+                      .set(WORKFLOW.IS_ACTIVE, true)
+                      .where(WORKFLOW.NAME.eq(name))
+                      .execute();
+                  exchange.setStatusCode(StatusCodes.OK);
+                } else {
+                  exchange.setStatusCode(StatusCodes.CONFLICT);
+                }
+                exchange.getResponseSender().send("");
+              },
+              () -> {
+                final var id =
+                    dsl.insertInto(
+                            WORKFLOW_VERSION,
+                            WORKFLOW_VERSION.HASH_ID,
+                            WORKFLOW_VERSION.METADATA,
+                            WORKFLOW_VERSION.NAME,
+                            WORKFLOW_VERSION.PARAMETERS,
+                            WORKFLOW_VERSION.WORKFLOW_DEFINITION,
+                            WORKFLOW_VERSION.VERSION)
+                        .values(
+                            versionHash,
+                            MAPPER.valueToTree(request.getOutputs()),
+                            name,
+                            MAPPER.valueToTree(request.getParameters()),
+                            definitionId,
+                            version)
+                        .returningResult(WORKFLOW_VERSION.ID)
+                        .fetchOne();
+                if (id == null) {
+                  exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);
+                  exchange.getResponseSender().send("Failed to insert");
+                } else {
+                  if (!accessoryIds.isEmpty()) {
+
+                    var accessoryQuery =
+                        dsl.insertInto(
+                            WORKFLOW_VERSION_ACCESSORY,
+                            WORKFLOW_VERSION_ACCESSORY.WORKFLOW_VERSION,
+                            WORKFLOW_VERSION_ACCESSORY.FILENAME,
+                            WORKFLOW_VERSION_ACCESSORY.WORKFLOW_DEFINITION);
+
+                    for (final var accessory : accessoryIds.entrySet()) {
+                      accessoryQuery =
+                          accessoryQuery.values(
+                              id.value1(), accessory.getKey(), accessory.getValue());
+                    }
+                    accessoryQuery.execute();
+                  }
+                  exchange.setStatusCode(StatusCodes.OK);
+                  exchange.getResponseSender().send("");
+                }
+              });
+      connection.commit();
     } catch (SQLException | NoSuchAlgorithmException | JsonProcessingException e) {
       e.printStackTrace();
       exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);
@@ -864,9 +857,8 @@ public final class Main implements ServerConfig {
     }
   }
 
-  @SafeVarargs
   private Field<JSON> createAnalysisJsonField(Field<JSON> externalIds, JSONEntry<?>... extra) {
-    final var analysisCommonFields = new ArrayList<JSONEntry<?>>(List.of(extra));
+    final var analysisCommonFields = new ArrayList<>(List.of(extra));
     analysisCommonFields.add(DSL.jsonEntry("id", ANALYSIS.HASH_ID));
     analysisCommonFields.add(DSL.jsonEntry("created", ANALYSIS.CREATED));
     analysisCommonFields.add(DSL.jsonEntry("labels", ANALYSIS.LABELS));
@@ -1025,21 +1017,16 @@ public final class Main implements ServerConfig {
     final var name =
         exchange.getAttachment(PathTemplateMatch.ATTACHMENT_KEY).getParameters().get("name");
 
-    try {
-      final var connection = dataSource.getConnection();
-      try {
-        final var dsl = DSL.using(connection, SQLDialect.POSTGRES);
-        final var count =
-            dsl.update(WORKFLOW)
-                .set(WORKFLOW.IS_ACTIVE, false)
-                .where(WORKFLOW.NAME.eq(name))
-                .execute();
-        connection.commit();
-        exchange.setStatusCode(count == 0 ? StatusCodes.NOT_FOUND : StatusCodes.OK);
-        exchange.getResponseSender().send("");
-      } finally {
-        connection.close();
-      }
+    try (final var connection = dataSource.getConnection()) {
+      final var dsl = DSL.using(connection, SQLDialect.POSTGRES);
+      final var count =
+          dsl.update(WORKFLOW)
+              .set(WORKFLOW.IS_ACTIVE, false)
+              .where(WORKFLOW.NAME.eq(name))
+              .execute();
+      connection.commit();
+      exchange.setStatusCode(count == 0 ? StatusCodes.NOT_FOUND : StatusCodes.OK);
+      exchange.getResponseSender().send("");
     } catch (SQLException e) {
       e.printStackTrace();
       exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);
@@ -1048,33 +1035,28 @@ public final class Main implements ServerConfig {
   }
 
   private void fetchAllActive(HttpServerExchange exchange) {
-    try {
 
-      final var connection = dataSource.getConnection();
+    try (final var connection = dataSource.getConnection();
+        final var output = MAPPER_FACTORY.createGenerator(exchange.getOutputStream())) {
       exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/json");
       exchange.setStatusCode(StatusCodes.OK);
-      try (final var output = MAPPER_FACTORY.createGenerator(exchange.getOutputStream())) {
-        output.writeStartArray();
-        DSL.using(connection, SQLDialect.POSTGRES)
-            .select(DSL.jsonObject(STATUS_FIELDS))
-            .from(
-                WORKFLOW_RUN
-                    .leftJoin(ACTIVE_WORKFLOW_RUN)
-                    .on(WORKFLOW_RUN.ID.eq(ACTIVE_WORKFLOW_RUN.ID)))
-            .where(ACTIVE_WORKFLOW_RUN.ID.isNotNull())
-            .forEach(
-                result -> {
-                  try {
-                    output.writeRawValue(result.value1().data());
-                  } catch (IOException e) {
-                    throw new RuntimeException(e);
-                  }
-                });
-        output.writeEndArray();
-
-      } finally {
-        connection.close();
-      }
+      output.writeStartArray();
+      DSL.using(connection, SQLDialect.POSTGRES)
+          .select(DSL.jsonObject(STATUS_FIELDS))
+          .from(
+              WORKFLOW_RUN
+                  .leftJoin(ACTIVE_WORKFLOW_RUN)
+                  .on(WORKFLOW_RUN.ID.eq(ACTIVE_WORKFLOW_RUN.ID)))
+          .where(ACTIVE_WORKFLOW_RUN.ID.isNotNull())
+          .forEach(
+              result -> {
+                try {
+                  output.writeRawValue(result.value1().data());
+                } catch (IOException e) {
+                  throw new RuntimeException(e);
+                }
+              });
+      output.writeEndArray();
     } catch (SQLException | IOException e) {
       e.printStackTrace();
       exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);
@@ -1083,53 +1065,48 @@ public final class Main implements ServerConfig {
   }
 
   private void fetchAnalysis(HttpServerExchange exchange, String type) {
-    try {
-      final var vidarrId =
-          exchange.getAttachment(PathTemplateMatch.ATTACHMENT_KEY).getParameters().get("hash");
-      final var connection = dataSource.getConnection();
-      try {
-        DSL.using(connection, SQLDialect.POSTGRES)
-            .select(
-                createAnalysisJsonField(
-                    DSL.field(
-                        DSL.select(
-                                DSL.jsonArrayAgg(
-                                    DSL.jsonObject(
-                                        DSL.jsonEntry("id", EXTERNAL_ID.EXTERNAL_ID_),
-                                        DSL.jsonEntry("provider", EXTERNAL_ID.PROVIDER),
-                                        DSL.jsonEntry("created", EXTERNAL_ID.CREATED),
-                                        DSL.jsonEntry("modified", EXTERNAL_ID.MODIFIED),
-                                        DSL.jsonEntry("requested", EXTERNAL_ID.REQUESTED),
-                                        DSL.jsonEntry(
-                                            "versions", createQuery(VersionPolicy.ALL, null)))))
-                            .from(
-                                EXTERNAL_ID
-                                    .join(ANALYSIS_EXTERNAL_ID)
-                                    .on(EXTERNAL_ID.ID.eq(ANALYSIS_EXTERNAL_ID.EXTERNAL_ID_ID)))
-                            .where(ANALYSIS_EXTERNAL_ID.ANALYSIS_ID.eq(ANALYSIS.ID))),
-                    DSL.jsonEntry(
-                        "run",
-                        DSL.field(
-                            DSL.select(WORKFLOW_RUN.HASH_ID)
-                                .from(WORKFLOW_RUN)
-                                .where(WORKFLOW_RUN.ID.eq(ANALYSIS.WORKFLOW_RUN_ID))))))
-            .from(ANALYSIS)
-            .where(ANALYSIS.HASH_ID.eq(vidarrId).and(ANALYSIS.ANALYSIS_TYPE.eq(type)))
-            .fetchOptional()
-            .map(Record1::value1)
-            .ifPresentOrElse(
-                result -> {
-                  exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/json");
-                  exchange.setStatusCode(StatusCodes.OK);
-                  exchange.getResponseSender().send(result.data());
-                },
-                () -> {
-                  exchange.setStatusCode(StatusCodes.NOT_FOUND);
-                  exchange.getResponseSender().send("");
-                });
-      } finally {
-        connection.close();
-      }
+    final var vidarrId =
+        exchange.getAttachment(PathTemplateMatch.ATTACHMENT_KEY).getParameters().get("hash");
+    try (final var connection = dataSource.getConnection()) {
+      DSL.using(connection, SQLDialect.POSTGRES)
+          .select(
+              createAnalysisJsonField(
+                  DSL.field(
+                      DSL.select(
+                              DSL.jsonArrayAgg(
+                                  DSL.jsonObject(
+                                      DSL.jsonEntry("id", EXTERNAL_ID.EXTERNAL_ID_),
+                                      DSL.jsonEntry("provider", EXTERNAL_ID.PROVIDER),
+                                      DSL.jsonEntry("created", EXTERNAL_ID.CREATED),
+                                      DSL.jsonEntry("modified", EXTERNAL_ID.MODIFIED),
+                                      DSL.jsonEntry("requested", EXTERNAL_ID.REQUESTED),
+                                      DSL.jsonEntry(
+                                          "versions", createQuery(VersionPolicy.ALL, null)))))
+                          .from(
+                              EXTERNAL_ID
+                                  .join(ANALYSIS_EXTERNAL_ID)
+                                  .on(EXTERNAL_ID.ID.eq(ANALYSIS_EXTERNAL_ID.EXTERNAL_ID_ID)))
+                          .where(ANALYSIS_EXTERNAL_ID.ANALYSIS_ID.eq(ANALYSIS.ID))),
+                  DSL.jsonEntry(
+                      "run",
+                      DSL.field(
+                          DSL.select(WORKFLOW_RUN.HASH_ID)
+                              .from(WORKFLOW_RUN)
+                              .where(WORKFLOW_RUN.ID.eq(ANALYSIS.WORKFLOW_RUN_ID))))))
+          .from(ANALYSIS)
+          .where(ANALYSIS.HASH_ID.eq(vidarrId).and(ANALYSIS.ANALYSIS_TYPE.eq(type)))
+          .fetchOptional()
+          .map(Record1::value1)
+          .ifPresentOrElse(
+              result -> {
+                exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/json");
+                exchange.setStatusCode(StatusCodes.OK);
+                exchange.getResponseSender().send(result.data());
+              },
+              () -> {
+                exchange.setStatusCode(StatusCodes.NOT_FOUND);
+                exchange.getResponseSender().send("");
+              });
     } catch (SQLException e) {
       e.printStackTrace();
       exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);
@@ -1154,8 +1131,7 @@ public final class Main implements ServerConfig {
       output.writeNumberField("epoch", epoch);
       output.writeNumberField("timestamp", endTime.toInstant().toEpochMilli());
       output.writeArrayFieldStart("results");
-      final var connection = dataSource.getConnection();
-      try {
+      try (final var connection = dataSource.getConnection()) {
         createAnalysisRecords(
             connection,
             output,
@@ -1170,8 +1146,6 @@ public final class Main implements ServerConfig {
                 .and(WORKFLOW_RUN.COMPLETED.isNotNull()));
         output.writeEndArray();
         output.writeEndObject();
-      } finally {
-        connection.close();
       }
     } catch (IOException | SQLException e) {
       e.printStackTrace();
@@ -1183,44 +1157,39 @@ public final class Main implements ServerConfig {
   }
 
   private void fetchRun(HttpServerExchange exchange) {
-    try {
-      final var connection = dataSource.getConnection();
-      try {
-        final var vidarrId =
-            exchange.getAttachment(PathTemplateMatch.ATTACHMENT_KEY).getParameters().get("hash");
-        exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/json");
-        DSL.using(connection, SQLDialect.POSTGRES)
-            .select(DSL.field(ACTIVE_WORKFLOW_RUN.ID.isNull()))
-            .from(
-                WORKFLOW_RUN
-                    .leftJoin(ACTIVE_WORKFLOW_RUN)
-                    .on(WORKFLOW_RUN.ID.eq(ACTIVE_WORKFLOW_RUN.ID)))
-            .where(WORKFLOW_RUN.HASH_ID.eq(vidarrId))
-            .fetchOptional(Record1::value1)
-            .ifPresentOrElse(
-                complete -> {
-                  exchange.setStatusCode(complete ? StatusCodes.OK : StatusCodes.PARTIAL_CONTENT);
-                  try (final var output =
-                      MAPPER_FACTORY.createGenerator(exchange.getOutputStream())) {
-                    createAnalysisRecords(
-                        connection,
-                        output,
-                        VersionPolicy.ALL,
-                        null,
-                        true,
-                        Set.of(AnalysisOutputType.FILE, AnalysisOutputType.URL),
-                        WORKFLOW_RUN.HASH_ID.eq(vidarrId));
-                  } catch (IOException | SQLException e) {
-                    e.printStackTrace();
-                  }
-                },
-                () -> {
-                  exchange.setStatusCode(StatusCodes.NOT_FOUND);
-                  exchange.getResponseSender().send("");
-                });
-      } finally {
-        connection.close();
-      }
+    try (final var connection = dataSource.getConnection()) {
+      final var vidarrId =
+          exchange.getAttachment(PathTemplateMatch.ATTACHMENT_KEY).getParameters().get("hash");
+      exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/json");
+      DSL.using(connection, SQLDialect.POSTGRES)
+          .select(DSL.field(ACTIVE_WORKFLOW_RUN.ID.isNull()))
+          .from(
+              WORKFLOW_RUN
+                  .leftJoin(ACTIVE_WORKFLOW_RUN)
+                  .on(WORKFLOW_RUN.ID.eq(ACTIVE_WORKFLOW_RUN.ID)))
+          .where(WORKFLOW_RUN.HASH_ID.eq(vidarrId))
+          .fetchOptional(Record1::value1)
+          .ifPresentOrElse(
+              complete -> {
+                exchange.setStatusCode(complete ? StatusCodes.OK : StatusCodes.PARTIAL_CONTENT);
+                try (final var output =
+                    MAPPER_FACTORY.createGenerator(exchange.getOutputStream())) {
+                  createAnalysisRecords(
+                      connection,
+                      output,
+                      VersionPolicy.ALL,
+                      null,
+                      true,
+                      Set.of(AnalysisOutputType.FILE, AnalysisOutputType.URL),
+                      WORKFLOW_RUN.HASH_ID.eq(vidarrId));
+                } catch (IOException | SQLException e) {
+                  e.printStackTrace();
+                }
+              },
+              () -> {
+                exchange.setStatusCode(StatusCodes.NOT_FOUND);
+                exchange.getResponseSender().send("");
+              });
     } catch (SQLException e) {
       e.printStackTrace();
       exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);
@@ -1229,34 +1198,27 @@ public final class Main implements ServerConfig {
   }
 
   private void fetchStatus(HttpServerExchange exchange) {
-    try {
-
+    try (final var connection = dataSource.getConnection()) {
       final var vidarrId =
           exchange.getAttachment(PathTemplateMatch.ATTACHMENT_KEY).getParameters().get("hash");
-      final var connection = dataSource.getConnection();
-      try {
-        DSL.using(connection, SQLDialect.POSTGRES)
-            .select(DSL.jsonObject(STATUS_FIELDS))
-            .from(
-                WORKFLOW_RUN
-                    .leftJoin(ACTIVE_WORKFLOW_RUN)
-                    .on(WORKFLOW_RUN.ID.eq(ACTIVE_WORKFLOW_RUN.ID)))
-            .where(WORKFLOW_RUN.HASH_ID.eq(vidarrId))
-            .fetchOptional(Record1::value1)
-            .ifPresentOrElse(
-                record -> {
-                  exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/json");
-                  exchange.setStatusCode(StatusCodes.OK);
-                  exchange.getResponseSender().send(record.data());
-                },
-                () -> {
-                  exchange.setStatusCode(StatusCodes.NOT_FOUND);
-                  exchange.getResponseSender().send("null");
-                });
-
-      } finally {
-        connection.close();
-      }
+      DSL.using(connection, SQLDialect.POSTGRES)
+          .select(DSL.jsonObject(STATUS_FIELDS))
+          .from(
+              WORKFLOW_RUN
+                  .leftJoin(ACTIVE_WORKFLOW_RUN)
+                  .on(WORKFLOW_RUN.ID.eq(ACTIVE_WORKFLOW_RUN.ID)))
+          .where(WORKFLOW_RUN.HASH_ID.eq(vidarrId))
+          .fetchOptional(Record1::value1)
+          .ifPresentOrElse(
+              record -> {
+                exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/json");
+                exchange.setStatusCode(StatusCodes.OK);
+                exchange.getResponseSender().send(record.data());
+              },
+              () -> {
+                exchange.setStatusCode(StatusCodes.NOT_FOUND);
+                exchange.getResponseSender().send("null");
+              });
     } catch (SQLException e) {
       e.printStackTrace();
       exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);
@@ -1311,45 +1273,43 @@ public final class Main implements ServerConfig {
   }
 
   private void fetchWorkflows(HttpServerExchange exchange) {
-    try {
-      try (var connection = dataSource.getConnection()) {
-        final var workflowVersionAlias = WORKFLOW_VERSION.as("other_workflow_version");
-        final var response =
-            DSL.using(connection, SQLDialect.POSTGRES)
-                .select(
-                    DSL.jsonArrayAgg(
-                        DSL.jsonObject(
-                            DSL.jsonEntry("name", WORKFLOW_VERSION.NAME),
-                            DSL.jsonEntry("version", WORKFLOW_VERSION.VERSION),
-                            DSL.jsonEntry("metadata", WORKFLOW_VERSION.METADATA),
-                            DSL.jsonEntry("parameters", WORKFLOW_VERSION.PARAMETERS),
-                            DSL.jsonEntry(
-                                "labels",
-                                DSL.field(
-                                    DSL.select(WORKFLOW.LABELS)
-                                        .from(WORKFLOW)
-                                        .where(WORKFLOW.NAME.eq(WORKFLOW_VERSION.NAME)))),
-                            DSL.jsonEntry("language", WORKFLOW_DEFINITION.WORKFLOW_LANGUAGE))))
-                .from(
-                    WORKFLOW_VERSION
-                        .join(WORKFLOW_DEFINITION)
-                        .on(WORKFLOW_VERSION.WORKFLOW_DEFINITION.eq(WORKFLOW_DEFINITION.ID)))
-                .where(
-                    WORKFLOW_VERSION
-                        .NAME
-                        .in(DSL.select(WORKFLOW.NAME).from(WORKFLOW).where(WORKFLOW.IS_ACTIVE))
-                        .and(
-                            WORKFLOW_VERSION.MODIFIED.eq(
-                                DSL.select(DSL.max(workflowVersionAlias.MODIFIED))
-                                    .from(workflowVersionAlias)
-                                    .where(workflowVersionAlias.NAME.eq(WORKFLOW_VERSION.NAME)))))
-                .fetchOptional()
-                .orElseThrow()
-                .value1();
-        exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/json");
-        exchange.setStatusCode(StatusCodes.OK);
-        exchange.getResponseSender().send(response.data());
-      }
+    try (final var connection = dataSource.getConnection()) {
+      final var workflowVersionAlias = WORKFLOW_VERSION.as("other_workflow_version");
+      final var response =
+          DSL.using(connection, SQLDialect.POSTGRES)
+              .select(
+                  DSL.jsonArrayAgg(
+                      DSL.jsonObject(
+                          DSL.jsonEntry("name", WORKFLOW_VERSION.NAME),
+                          DSL.jsonEntry("version", WORKFLOW_VERSION.VERSION),
+                          DSL.jsonEntry("metadata", WORKFLOW_VERSION.METADATA),
+                          DSL.jsonEntry("parameters", WORKFLOW_VERSION.PARAMETERS),
+                          DSL.jsonEntry(
+                              "labels",
+                              DSL.field(
+                                  DSL.select(WORKFLOW.LABELS)
+                                      .from(WORKFLOW)
+                                      .where(WORKFLOW.NAME.eq(WORKFLOW_VERSION.NAME)))),
+                          DSL.jsonEntry("language", WORKFLOW_DEFINITION.WORKFLOW_LANGUAGE))))
+              .from(
+                  WORKFLOW_VERSION
+                      .join(WORKFLOW_DEFINITION)
+                      .on(WORKFLOW_VERSION.WORKFLOW_DEFINITION.eq(WORKFLOW_DEFINITION.ID)))
+              .where(
+                  WORKFLOW_VERSION
+                      .NAME
+                      .in(DSL.select(WORKFLOW.NAME).from(WORKFLOW).where(WORKFLOW.IS_ACTIVE))
+                      .and(
+                          WORKFLOW_VERSION.MODIFIED.eq(
+                              DSL.select(DSL.max(workflowVersionAlias.MODIFIED))
+                                  .from(workflowVersionAlias)
+                                  .where(workflowVersionAlias.NAME.eq(WORKFLOW_VERSION.NAME)))))
+              .fetchOptional()
+              .orElseThrow()
+              .value1();
+      exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/json");
+      exchange.setStatusCode(StatusCodes.OK);
+      exchange.getResponseSender().send(response.data());
     } catch (SQLException e) {
       e.printStackTrace();
       exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);

@@ -334,11 +334,9 @@ public abstract class DatabaseBackedProcessor
       }
     }
     workflow.digestLabels(candidateDigesters, labels);
-    final var candidateIds =
-        candidateDigesters.stream()
-            .map(digest -> hexDigits(digest.digest()))
-            .collect(Collectors.toList());
-    return candidateIds;
+    return candidateDigesters.stream()
+        .map(digest -> hexDigits(digest.digest()))
+        .collect(Collectors.toList());
   }
 
   protected final <T> T delete(String workflowRunId, DeleteResultHandler<T> handler) {

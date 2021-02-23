@@ -3,6 +3,7 @@ package ca.on.oicr.gsi.vidarr.cromwell;
 import ca.on.oicr.gsi.Pair;
 import ca.on.oicr.gsi.status.SectionRenderer;
 import ca.on.oicr.gsi.vidarr.*;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -16,6 +17,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Collections;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -33,9 +35,15 @@ public final class CromwellWorkflowEngine
       public WorkflowEngine readConfiguration(ObjectNode node) {
         var engineParameters = Optional.<BasicType>empty();
         if (node.has("engineParameters")) {
-          engineParameters =
-              Optional.ofNullable(
-                  MAPPER.convertValue(node.get("engineParameters"), BasicType.class));
+          final var fields =
+              MAPPER.convertValue(
+                  node.get("engineParameters"), new TypeReference<Map<String, BasicType>>() {});
+          if (!fields.isEmpty()) {
+            engineParameters =
+                Optional.of(
+                    BasicType.object(
+                        fields.entrySet().stream().map(e -> new Pair<>(e.getKey(), e.getValue()))));
+          }
         }
         return new CromwellWorkflowEngine(node.get("url").asText(), engineParameters);
       }

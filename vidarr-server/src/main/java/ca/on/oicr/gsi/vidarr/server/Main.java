@@ -769,7 +769,7 @@ public final class Main implements ServerConfig {
         final var accessoryHash =
             BaseProcessor.hexDigits(
                 MessageDigest.getInstance("SHA-256")
-                    .digest(request.getWorkflow().getBytes(StandardCharsets.UTF_8)));
+                    .digest(accessory.getValue().getBytes(StandardCharsets.UTF_8)));
         versionDigest.update(new byte[] {0});
         versionDigest.update(accessory.getKey().getBytes(StandardCharsets.UTF_8));
         versionDigest.update(new byte[] {0});

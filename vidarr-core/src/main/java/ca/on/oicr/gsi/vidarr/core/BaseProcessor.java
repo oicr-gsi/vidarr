@@ -94,7 +94,8 @@ public abstract class BaseProcessor<
           try {
             task.run();
           } catch (Throwable e) {
-            System.err.println("Task threw exception. Failing workflow.");
+            log(Level.ERROR, "Task threw exception. Failing workflow: " + e.getMessage());
+            e.printStackTrace();
             permanentFailure(e.toString());
           }
         } else {

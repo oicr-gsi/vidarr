@@ -102,6 +102,9 @@ public abstract class DatabaseBackedProcessor
 
     public void digestLabels(List<MessageDigest> digesters, ObjectNode providedLabels) {
       try {
+        if (labels == null) {
+          return;
+        }
         for (final var label : labels.keySet()) {
           final var labelBytes = label.getBytes(StandardCharsets.UTF_8);
           final var valueBytes = MAPPER.writeValueAsBytes(providedLabels.get(label));

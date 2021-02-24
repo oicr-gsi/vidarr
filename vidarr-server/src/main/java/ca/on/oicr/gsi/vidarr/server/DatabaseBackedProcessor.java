@@ -122,11 +122,14 @@ public abstract class DatabaseBackedProcessor
     }
 
     public Stream<String> validateLabels(ObjectNode providedLabels) {
-      if (providedLabels.size() != labels.size()) {
+      final var providedCount = providedLabels == null ? 0 : providedLabels.size();
+      final var labelCount = labels == null ? 0 : labels.size();
+      if (labelCount == 0 && providedCount == 0) {
+        return Stream.empty();
+      }
+      if (providedCount != labelCount) {
         return Stream.of(
-            String.format(
-                "%d labels are provided by %d are expected.",
-                providedLabels.size(), labels.size()));
+            String.format("%d labels are provided by %d are expected.", providedCount, labelCount));
       }
       return labels.entrySet().stream()
           .flatMap(

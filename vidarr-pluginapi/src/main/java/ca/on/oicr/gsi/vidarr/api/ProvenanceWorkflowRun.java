@@ -3,22 +3,25 @@ package ca.on.oicr.gsi.vidarr.api;
 import ca.on.oicr.gsi.Pair;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.time.ZonedDateTime;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Stream;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public final class ProvenanceWorkflowRun<K extends ExternalId> {
-
   private List<ProvenanceAnalysisRecord<ExternalId>> analysis;
+  private ObjectNode arguments;
   private ZonedDateTime completed;
   private ZonedDateTime created;
+  private JsonNode engineParameters;
   private List<K> externalKeys;
   private String id;
   private List<String> inputFiles;
   private String instanceName;
-  private Map<String, String> labels;
+  private ObjectNode labels;
+  private ObjectNode metadata;
   private ZonedDateTime modified;
   private ZonedDateTime started;
   private String workflowName;
@@ -28,12 +31,20 @@ public final class ProvenanceWorkflowRun<K extends ExternalId> {
     return analysis;
   }
 
+  public ObjectNode getArguments() {
+    return arguments;
+  }
+
   public ZonedDateTime getCompleted() {
     return completed;
   }
 
   public ZonedDateTime getCreated() {
     return created;
+  }
+
+  public JsonNode getEngineParameters() {
+    return engineParameters;
   }
 
   public List<K> getExternalKeys() {
@@ -53,8 +64,12 @@ public final class ProvenanceWorkflowRun<K extends ExternalId> {
     return instanceName;
   }
 
-  public Map<String, String> getLabels() {
+  public ObjectNode getLabels() {
     return labels;
+  }
+
+  public ObjectNode getMetadata() {
+    return metadata;
   }
 
   public ZonedDateTime getModified() {
@@ -81,12 +96,20 @@ public final class ProvenanceWorkflowRun<K extends ExternalId> {
     this.analysis = analysis;
   }
 
+  public void setArguments(ObjectNode arguments) {
+    this.arguments = arguments;
+  }
+
   public void setCompleted(ZonedDateTime completed) {
     this.completed = completed;
   }
 
   public void setCreated(ZonedDateTime created) {
     this.created = created;
+  }
+
+  public void setEngineParameters(JsonNode engineParameters) {
+    this.engineParameters = engineParameters;
   }
 
   public void setExternalKeys(List<K> externalKeys) {
@@ -105,8 +128,12 @@ public final class ProvenanceWorkflowRun<K extends ExternalId> {
     this.instanceName = instanceName;
   }
 
-  public void setLabels(Map<String, String> labels) {
+  public void setLabels(ObjectNode labels) {
     this.labels = labels;
+  }
+
+  public void setMetadata(ObjectNode metadata) {
+    this.metadata = metadata;
   }
 
   public void setModified(ZonedDateTime modified) {

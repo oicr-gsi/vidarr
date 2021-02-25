@@ -176,7 +176,7 @@
                         <from>i -&gt; Phase.values()[i]</from>
                         <to>Phase::ordinal</to>
                       </lambdaConverter>
-                      <expression>public\.active_workflow_run\.engine_phase</expression>
+                      <expression>.*\.engine_phase</expression>
                       <types>.*</types>
                     </forcedType>
                     <forcedType>

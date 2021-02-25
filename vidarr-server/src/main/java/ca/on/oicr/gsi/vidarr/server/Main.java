@@ -178,7 +178,14 @@ public final class Main implements ServerConfig {
             "running",
             DSL.nvl(DSL.field(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE.ne(Phase.FAILED)), false)));
     STATUS_FIELDS.add(DSL.jsonEntry("attempt", ACTIVE_WORKFLOW_RUN.ATTEMPT));
-    STATUS_FIELDS.add(DSL.jsonEntry("enginePhase", ACTIVE_WORKFLOW_RUN.ENGINE_PHASE));
+    STATUS_FIELDS.add(
+        DSL.jsonEntry(
+            "enginePhase",
+            DSL.case_(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE)
+                .mapValues(
+                    Stream.of(Phase.values())
+                        .collect(Collectors.toMap(Function.identity(), Phase::name)))));
+
     STATUS_FIELDS.add(DSL.jsonEntry("preflightOk", ACTIVE_WORKFLOW_RUN.PREFLIGHT_OKAY));
     STATUS_FIELDS.add(DSL.jsonEntry("target", ACTIVE_WORKFLOW_RUN.TARGET));
     STATUS_FIELDS.add(DSL.jsonEntry("workflowRunUrl", ACTIVE_WORKFLOW_RUN.WORKFLOW_RUN_URL));

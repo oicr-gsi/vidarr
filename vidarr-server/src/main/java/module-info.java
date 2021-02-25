@@ -2,7 +2,6 @@ import ca.on.oicr.gsi.vidarr.ConsumableResourceProvider;
 import ca.on.oicr.gsi.vidarr.InputProvisionerProvider;
 import ca.on.oicr.gsi.vidarr.OutputProvisionerProvider;
 import ca.on.oicr.gsi.vidarr.RuntimeProvisionerProvider;
-import ca.on.oicr.gsi.vidarr.UnloaderProvider;
 import ca.on.oicr.gsi.vidarr.WorkflowEngineProvider;
 
 module ca.on.oicr.gsi.vidarr.server {
@@ -42,6 +41,5 @@ module ca.on.oicr.gsi.vidarr.server {
   uses InputProvisionerProvider;
   uses OutputProvisionerProvider;
   uses RuntimeProvisionerProvider;
-  uses UnloaderProvider;
   uses WorkflowEngineProvider;
 }

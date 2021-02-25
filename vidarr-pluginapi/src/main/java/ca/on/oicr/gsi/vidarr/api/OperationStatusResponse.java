@@ -7,12 +7,17 @@ import com.fasterxml.jackson.databind.JsonNode;
 public class OperationStatusResponse {
 
   private JsonNode debugInformation;
+  private String enginePhase;
   private JsonNode recoveryState;
   private String status;
   private String type;
 
   public JsonNode getDebugInformation() {
     return debugInformation;
+  }
+
+  public String getEnginePhase() {
+    return enginePhase;
   }
 
   public JsonNode getRecoveryState() {
@@ -29,6 +34,10 @@ public class OperationStatusResponse {
 
   public void setDebugInformation(JsonNode debugInformation) {
     this.debugInformation = debugInformation;
+  }
+
+  public void setEnginePhase(String enginePhase) {
+    this.enginePhase = enginePhase;
   }
 
   public void setRecoveryState(JsonNode recoveryState) {

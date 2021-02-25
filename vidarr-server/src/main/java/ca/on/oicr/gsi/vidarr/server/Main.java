@@ -197,6 +197,14 @@ public final class Main implements ServerConfig {
                         DSL.jsonArrayAgg(
                             DSL.jsonObject(
                                 DSL.jsonEntry("attempt", ACTIVE_OPERATION.ATTEMPT),
+                                DSL.jsonEntry(
+                                    "enginePhase",
+                                    DSL.case_(ACTIVE_OPERATION.ENGINE_PHASE)
+                                        .mapValues(
+                                            Stream.of(Phase.values())
+                                                .collect(
+                                                    Collectors.toMap(
+                                                        Function.identity(), Phase::name)))),
                                 DSL.jsonEntry("recoveryState", ACTIVE_OPERATION.RECOVERY_STATE),
                                 DSL.jsonEntry("debugInformation", ACTIVE_OPERATION.DEBUG_INFO),
                                 DSL.jsonEntry("status", ACTIVE_OPERATION.STATUS),

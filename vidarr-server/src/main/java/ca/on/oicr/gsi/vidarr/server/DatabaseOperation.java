@@ -17,6 +17,7 @@ public class DatabaseOperation implements ActiveOperation<DSLContext> {
   public static Optional<DatabaseOperation> create(
       DSLContext dsl,
       int workflowId,
+      Phase phase,
       String type,
       JsonNode recoveryState,
       int attempt,
@@ -25,6 +26,7 @@ public class DatabaseOperation implements ActiveOperation<DSLContext> {
     return dsl.insertInto(ACTIVE_OPERATION)
         .set(ACTIVE_OPERATION.TYPE, type)
         .set(ACTIVE_OPERATION.STATUS, OperationStatus.INITIALIZING)
+        .set(ACTIVE_OPERATION.ENGINE_PHASE, phase)
         .set(ACTIVE_OPERATION.WORKFLOW_RUN_ID, workflowId)
         .set(ACTIVE_OPERATION.ATTEMPT, attempt)
         .set(ACTIVE_OPERATION.RECOVERY_STATE, recoveryState)

@@ -85,6 +85,7 @@ public abstract class DatabaseBackedProcessor
   }
 
   protected static final class WorkflowInformation {
+
     private final WorkflowDefinition definition;
     private final int id;
     private final Map<String, BasicType> labels;
@@ -125,27 +126,7 @@ public abstract class DatabaseBackedProcessor
     }
 
     public Stream<String> validateLabels(ObjectNode providedLabels) {
-      final var providedCount = providedLabels == null ? 0 : providedLabels.size();
-      final var labelCount = labels == null ? 0 : labels.size();
-      if (labelCount == 0 && providedCount == 0) {
-        return Stream.empty();
-      }
-      if (providedCount != labelCount) {
-        return Stream.of(
-            String.format("%d labels are provided by %d are expected.", providedCount, labelCount));
-      }
-      return labels.entrySet().stream()
-          .flatMap(
-              entry -> {
-                if (providedLabels.has(entry.getKey())) {
-                  return entry
-                      .getValue()
-                      .apply(new CheckEngineType(providedLabels.get(entry.getKey())))
-                      .map(String.format("Label %s: ", entry.getKey())::concat);
-                } else {
-                  return Stream.of(String.format("Label %s is not provided.", entry.getKey()));
-                }
-              });
+      return DatabaseBackedProcessor.validateLabels(providedLabels, labels);
     }
   }
 
@@ -214,6 +195,31 @@ public abstract class DatabaseBackedProcessor
 
   private static String hashFromAnalysisId(String id) {
     return BaseProcessor.ANALYSIS_RECORD_ID.matcher(id).group("hash");
+  }
+
+  public static Stream<String> validateLabels(
+      ObjectNode providedLabels, Map<String, BasicType> labels) {
+    final var providedCount = providedLabels == null ? 0 : providedLabels.size();
+    final var labelCount = labels == null ? 0 : labels.size();
+    if (labelCount == 0 && providedCount == 0) {
+      return Stream.empty();
+    }
+    if (providedCount != labelCount) {
+      return Stream.of(
+          String.format("%d labels are provided by %d are expected.", providedCount, labelCount));
+    }
+    return labels.entrySet().stream()
+        .flatMap(
+            entry -> {
+              if (providedLabels.has(entry.getKey())) {
+                return entry
+                    .getValue()
+                    .apply(new CheckEngineType(providedLabels.get(entry.getKey())))
+                    .map(String.format("Label %s: ", entry.getKey())::concat);
+              } else {
+                return Stream.of(String.format("Label %s is not provided.", entry.getKey()));
+              }
+            });
   }
 
   private final HikariDataSource dataSource;

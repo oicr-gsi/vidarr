@@ -4,7 +4,9 @@ import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.*;
 
 import ca.on.oicr.gsi.vidarr.core.ActiveOperation;
 import ca.on.oicr.gsi.vidarr.core.OperationStatus;
+import ca.on.oicr.gsi.vidarr.core.Phase;
 import com.fasterxml.jackson.databind.JsonNode;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.jooq.DSLContext;
@@ -18,7 +20,8 @@ public class DatabaseOperation implements ActiveOperation<DSLContext> {
       String type,
       JsonNode recoveryState,
       int attempt,
-      AtomicBoolean liveness) {
+      AtomicBoolean liveness,
+      DatabaseWorkflow workflow) {
     return dsl.insertInto(ACTIVE_OPERATION)
         .set(ACTIVE_OPERATION.TYPE, type)
         .set(ACTIVE_OPERATION.STATUS, OperationStatus.INITIALIZING)
@@ -30,7 +33,12 @@ public class DatabaseOperation implements ActiveOperation<DSLContext> {
         .map(
             id ->
                 new DatabaseOperation(
-                    id.value1(), liveness, recoveryState, OperationStatus.INITIALIZING, ""));
+                    id.value1(),
+                    liveness,
+                    recoveryState,
+                    OperationStatus.INITIALIZING,
+                    "",
+                    workflow));
   }
 
   public static DatabaseOperation recover(Record record, AtomicBoolean liveness) {
@@ -39,7 +47,8 @@ public class DatabaseOperation implements ActiveOperation<DSLContext> {
         liveness,
         record.get(ACTIVE_OPERATION.RECOVERY_STATE),
         record.get(ACTIVE_OPERATION.STATUS),
-        record.get(ACTIVE_OPERATION.TYPE));
+        record.get(ACTIVE_OPERATION.TYPE),
+        null);
   }
 
   private final int id;
@@ -47,14 +56,21 @@ public class DatabaseOperation implements ActiveOperation<DSLContext> {
   private JsonNode recoveryState;
   private OperationStatus status;
   private String type;
+  private DatabaseWorkflow workflow;
 
   private DatabaseOperation(
-      int id, AtomicBoolean liveness, JsonNode recoveryState, OperationStatus status, String type) {
+      int id,
+      AtomicBoolean liveness,
+      JsonNode recoveryState,
+      OperationStatus status,
+      String type,
+      DatabaseWorkflow workflow) {
     this.id = id;
     this.liveness = liveness;
     this.recoveryState = recoveryState;
     this.status = status;
     this.type = type;
+    this.workflow = workflow;
   }
 
   @Override
@@ -65,6 +81,10 @@ public class DatabaseOperation implements ActiveOperation<DSLContext> {
   @Override
   public boolean isLive() {
     return liveness.get();
+  }
+
+  void linkTo(DatabaseWorkflow workflow) {
+    this.workflow = workflow;
   }
 
   @Override
@@ -92,6 +112,9 @@ public class DatabaseOperation implements ActiveOperation<DSLContext> {
   public void status(OperationStatus status, DSLContext transaction) {
     this.status = status;
     updateField(ACTIVE_OPERATION.STATUS, status, transaction);
+    if (status == OperationStatus.FAILED) {
+      workflow.phase(Phase.FAILED, List.of(), transaction);
+    }
   }
 
   @Override

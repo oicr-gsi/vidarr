@@ -428,7 +428,7 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
           .map(
               state ->
                   DatabaseOperation.create(
-                          transaction, id, state.first(), state.second(), attempt, liveness)
+                          transaction, id, state.first(), state.second(), attempt, liveness, this)
                       .orElseThrow())
           .collect(Collectors.toList());
     } else {

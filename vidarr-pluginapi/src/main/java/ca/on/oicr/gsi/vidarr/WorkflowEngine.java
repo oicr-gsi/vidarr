@@ -80,7 +80,7 @@ public interface WorkflowEngine {
   void recover(JsonNode state, WorkMonitor<Result<JsonNode>, JsonNode> monitor);
 
   /**
-   * Restart a running clean upprocess from state saved in the database
+   * Restart a running clean up process from state saved in the database
    *
    * @param state the frozen database state
    * @param monitor the monitor structure for writing the output of the cleanup process

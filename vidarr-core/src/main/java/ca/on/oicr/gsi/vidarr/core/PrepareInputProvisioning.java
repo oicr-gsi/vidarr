@@ -93,8 +93,7 @@ final class PrepareInputProvisioning implements InputType.Visitor<JsonNode> {
         if (!inputEntry.isArray() || inputEntry.size() != 2) {
           throw new IllegalArgumentException();
         }
-        outputEntry.set(
-            0,
+        outputEntry.add(
             key.apply(
                 new PrepareInputProvisioning(
                     target,
@@ -103,8 +102,7 @@ final class PrepareInputProvisioning implements InputType.Visitor<JsonNode> {
                         jsonPath.stream(), Stream.of(JsonPath.array(i), JsonPath.array(0))),
                     resolver,
                     consumer)));
-        outputEntry.set(
-            1,
+        outputEntry.add(
             key.apply(
                 new PrepareInputProvisioning(
                     target,
@@ -113,7 +111,7 @@ final class PrepareInputProvisioning implements InputType.Visitor<JsonNode> {
                         jsonPath.stream(), Stream.of(JsonPath.array(i), JsonPath.array(1))),
                     resolver,
                     consumer)));
-        output.set(i, outputEntry);
+        output.add(outputEntry);
       }
       return output;
     } else {
@@ -199,8 +197,7 @@ final class PrepareInputProvisioning implements InputType.Visitor<JsonNode> {
     if (input.isArray()) {
       final var output = JsonNodeFactory.instance.arrayNode(input.size());
       for (var i = 0; i < input.size(); i++) {
-        output.set(
-            i,
+        output.add(
             inner.apply(
                 new PrepareInputProvisioning(
                     target,
@@ -349,8 +346,7 @@ final class PrepareInputProvisioning implements InputType.Visitor<JsonNode> {
 
             @Override
             public void accept(InputType t) {
-              output.set(
-                  index,
+              output.add(
                   t.apply(
                       new PrepareInputProvisioning(
                           target,

@@ -686,6 +686,9 @@ public abstract class DatabaseBackedProcessor
                                         final var activeOperations =
                                             operations.getOrDefault(
                                                 record.get(ACTIVE_WORKFLOW_RUN.ID), List.of());
+                                        for (final var operation : activeOperations) {
+                                          operation.linkTo(workflow);
+                                        }
                                         final var consumableResources =
                                             MAPPER.convertValue(
                                                 record.get(
@@ -719,16 +722,23 @@ public abstract class DatabaseBackedProcessor
                                                         record.get(WORKFLOW_VERSION.NAME),
                                                         record.get(WORKFLOW_VERSION.VERSION),
                                                         record.get(WORKFLOW_RUN.HASH_ID)));
-                                        recover(
-                                            target,
-                                            buildDefinitionFromRecord(context.dsl(), record),
+                                        final var workflow =
                                             DatabaseWorkflow.recover(
                                                 target,
                                                 record,
                                                 liveness(record.get(ACTIVE_WORKFLOW_RUN.ID)),
-                                                dsl),
+                                                dsl);
+                                        final var activeOperations =
                                             operations.getOrDefault(
-                                                record.get(ACTIVE_WORKFLOW_RUN.ID), List.of()));
+                                                record.get(ACTIVE_WORKFLOW_RUN.ID), List.of());
+                                        for (final var operation : activeOperations) {
+                                          operation.linkTo(workflow);
+                                        }
+                                        recover(
+                                            target,
+                                            buildDefinitionFromRecord(context.dsl(), record),
+                                            workflow,
+                                            activeOperations);
                                       }
                                     }));
               });

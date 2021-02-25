@@ -9,6 +9,7 @@ location where the file is now stored.
 
     {
       "cromwellUrl": "http://cromwell-output.example.com:8000",
+      "chunks": [ 2, 4 ],
       "fileField": "provisionFileOut.inputFilePath",
       "fileSizeField": "provisionFileOut.fileSizeBytes",
       "md5Field": "provisionFileOut.fileMd5sum",
@@ -33,6 +34,16 @@ with two arguments, the file to copy (which will be provided as the argument
 (`"outputPrefixField"`). Once the workflow has completed, the plugin will
 collect the permanent location for the file (`"storagePathField"`), the MD5
 (`"md5Field"), and the file size ("fileSizeField").
+
+Your file system probably will not appreciate having thousands of files dumped
+in a single output directory, so the `"chunks"` parameter will create a
+hierarchy of directories based on the workflow run identifier. The numbers
+determine the number of characters to use in each directory. For example, `[2,
+4]` will take an ID of the form `AABBBBCCCCCCCCCCCCCC` and produce an output
+path that is `AA/BBBB/AABBBBCCCCCCCCCCCCCC`. Once files have been provisioned
+out, it is possible to change the chunking scheme, but the existing files are
+already recorded in the Vidarr database and should not be moved without
+updating the database.
 
 Here is an example WDL script to do provisioning out that uses rsync to do the file copying:
 

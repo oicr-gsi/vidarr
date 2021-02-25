@@ -5,6 +5,7 @@ import static ca.on.oicr.gsi.vidarr.cromwell.CromwellWorkflowEngine.*;
 import ca.on.oicr.gsi.Pair;
 import ca.on.oicr.gsi.status.SectionRenderer;
 import ca.on.oicr.gsi.vidarr.*;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.net.URI;
 import java.net.http.HttpRequest;
@@ -38,19 +39,24 @@ public class CromwellOutputProvisioner
           workflowTarget = node.get("workflowSource").asText();
           workflowTargetName = "workflowSource";
         }
-        return new CromwellOutputProvisioner(
-            node.get("cromwellUrl").asText(),
-            node.get("fileField").asText(),
-            node.get("fileSizeField").asText(),
-            node.get("md5Field").asText(),
-            node.get("outputPrefixField").asText(),
-            node.get("storagePathField").asText(),
-            node.get("wdlVersion").asText(),
-            node.has("workflowOptions")
-                ? (ObjectNode) node.get("workflowOptions")
-                : MAPPER.createObjectNode(),
-            workflowTargetName,
-            workflowTarget);
+        try {
+          return new CromwellOutputProvisioner(
+              node.get("cromwellUrl").asText(),
+              node.has("chunks") ? MAPPER.treeToValue(node.get("chunks"), int[].class) : new int[0],
+              node.get("fileField").asText(),
+              node.get("fileSizeField").asText(),
+              node.get("md5Field").asText(),
+              node.get("outputPrefixField").asText(),
+              node.get("storagePathField").asText(),
+              node.get("wdlVersion").asText(),
+              node.has("workflowOptions")
+                  ? (ObjectNode) node.get("workflowOptions")
+                  : MAPPER.createObjectNode(),
+              workflowTargetName,
+              workflowTarget);
+        } catch (JsonProcessingException e) {
+          throw new RuntimeException(e);
+        }
       }
 
       @Override
@@ -93,6 +99,7 @@ public class CromwellOutputProvisioner
           new Pair<>(".RData", "application/rdata"),
           new Pair<>("", "application/octet-stream"));
   private final String baseUrl;
+  private final int[] chunks;
   private final String fileField;
   private final String fileSizeField;
   private final String md5Field;
@@ -105,6 +112,7 @@ public class CromwellOutputProvisioner
 
   public CromwellOutputProvisioner(
       String baseUrl,
+      int[] chunks,
       String fileField,
       String fileSizeField,
       String md5Field,
@@ -116,6 +124,7 @@ public class CromwellOutputProvisioner
       String workflowTarget) {
     super(MAPPER, ProvisionState.class, Void.class, OutputMetadata.class);
     this.baseUrl = baseUrl;
+    this.chunks = chunks;
     this.fileField = fileField;
     this.fileSizeField = fileSizeField;
     this.md5Field = md5Field;
@@ -277,7 +286,21 @@ public class CromwellOutputProvisioner
     final var state = new ProvisionState();
     state.setFileName(data);
     state.setVidarrId(workflowId);
-    state.setOutputPrefix(Path.of(metadata.getOutputDirectory()).resolve(workflowId).toString());
+    var path = Path.of(metadata.getOutputDirectory());
+    int startIndex = 0;
+    for (final var length : chunks) {
+      if (length < 1) {
+        break;
+      }
+      final var endIndex = Math.min(workflowId.length(), startIndex + length);
+      if (endIndex == startIndex) {
+        break;
+      }
+      path = path.resolve(workflowId.substring(startIndex, endIndex));
+      startIndex = endIndex;
+    }
+
+    state.setOutputPrefix(path.resolve(workflowId).toString());
 
     state.setMetaType(
         EXTENSION_TO_META_TYPE.stream()

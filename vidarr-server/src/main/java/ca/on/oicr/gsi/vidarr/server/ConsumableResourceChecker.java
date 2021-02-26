@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import org.jooq.SQLDialect;
 import org.jooq.impl.DSL;
@@ -32,6 +33,7 @@ final class ConsumableResourceChecker implements Runnable {
   private final HikariDataSource dataSource;
   private final int dbId;
   private final ScheduledExecutorService executor;
+  private final AtomicBoolean isLive;
   private final Runnable next;
   private final Instant startTime = Instant.now();
   private final Target target;
@@ -44,6 +46,7 @@ final class ConsumableResourceChecker implements Runnable {
       HikariDataSource dataSource,
       ScheduledExecutorService executor,
       int dbId,
+      AtomicBoolean isLive,
       String workflow,
       String workflowVersion,
       String vidarrId,
@@ -53,6 +56,7 @@ final class ConsumableResourceChecker implements Runnable {
     this.dataSource = dataSource;
     this.executor = executor;
     this.dbId = dbId;
+    this.isLive = isLive;
     this.workflow = workflow;
     this.workflowVersion = workflowVersion;
     this.vidarrId = vidarrId;
@@ -62,6 +66,9 @@ final class ConsumableResourceChecker implements Runnable {
 
   @Override
   public void run() {
+    if (!isLive.get()) {
+      return;
+    }
     var i = 0;
     final var resourceBrokers = target.consumableResources().collect(Collectors.toList());
     for (i = 0; i < resourceBrokers.size(); i++) {

@@ -864,13 +864,13 @@ public final class Main implements ServerConfig {
     }
   }
 
-  private Field<JSON> createAnalysisJsonField(Field<JSON> externalIds, JSONEntry<?>... extra) {
+  private Field<JSON> createAnalysisJsonField(Field<JSON> externalKeys, JSONEntry<?>... extra) {
     final var analysisCommonFields = new ArrayList<>(List.of(extra));
     analysisCommonFields.add(DSL.jsonEntry("id", ANALYSIS.HASH_ID));
     analysisCommonFields.add(DSL.jsonEntry("created", ANALYSIS.CREATED));
     analysisCommonFields.add(DSL.jsonEntry("labels", ANALYSIS.LABELS));
     analysisCommonFields.add(DSL.jsonEntry("modified", ANALYSIS.MODIFIED));
-    analysisCommonFields.add(DSL.jsonEntry("externalIds", externalIds));
+    analysisCommonFields.add(DSL.jsonEntry("externalKeys", externalKeys));
 
     final var analysisFileFields = new ArrayList<>(analysisCommonFields);
     analysisFileFields.add(DSL.jsonEntry("path", ANALYSIS.FILE_PATH));

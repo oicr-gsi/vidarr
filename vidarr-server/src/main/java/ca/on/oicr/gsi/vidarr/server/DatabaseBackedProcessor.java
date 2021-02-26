@@ -137,7 +137,7 @@ public abstract class DatabaseBackedProcessor
           .and(
               ACTIVE_WORKFLOW_RUN
                   .ENGINE_PHASE
-                  .eq(Phase.FAILED)
+                  .in(Phase.FAILED, Phase.WAITING_FOR_RESOURCES)
                   .or(
                       DSL.exists(
                           DSL.select()
@@ -595,6 +595,7 @@ public abstract class DatabaseBackedProcessor
             dataSource,
             executor(),
             dbWorkflow.dbId(),
+            liveness(dbWorkflow.dbId()),
             name,
             version,
             candidateIds.get(0),
@@ -706,6 +707,7 @@ public abstract class DatabaseBackedProcessor
                                                 dataSource,
                                                 executor(),
                                                 record.get(ACTIVE_WORKFLOW_RUN.ID),
+                                                liveness(record.get(ACTIVE_WORKFLOW_RUN.ID)),
                                                 record.get(WORKFLOW.NAME),
                                                 record.get(WORKFLOW_VERSION.VERSION),
                                                 record.get(WORKFLOW_RUN.HASH_ID),

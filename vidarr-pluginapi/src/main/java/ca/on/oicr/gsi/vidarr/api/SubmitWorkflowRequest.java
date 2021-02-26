@@ -30,8 +30,11 @@ public final class SubmitWorkflowRequest {
       return false;
     }
     SubmitWorkflowRequest that = (SubmitWorkflowRequest) o;
-    return attempt == that.attempt
-        && Objects.equals(arguments, that.arguments)
+    return attempt == that.attempt && equalsIgnoreAttempt(that);
+  }
+
+  public boolean equalsIgnoreAttempt(SubmitWorkflowRequest that) {
+    return Objects.equals(arguments, that.arguments)
         && Objects.equals(consumableResources, that.consumableResources)
         && Objects.equals(engineParameters, that.engineParameters)
         && Objects.equals(externalKeys, that.externalKeys)
@@ -89,9 +92,12 @@ public final class SubmitWorkflowRequest {
 
   @Override
   public int hashCode() {
+    return hashCodeIgnoreAttempt() * 31 + Integer.hashCode(attempt);
+  }
+
+  public int hashCodeIgnoreAttempt() {
     return Objects.hash(
         arguments,
-        attempt,
         consumableResources,
         engineParameters,
         externalKeys,

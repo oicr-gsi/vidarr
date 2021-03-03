@@ -6,11 +6,16 @@ import com.fasterxml.jackson.databind.JsonNode;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class OperationStatusResponse {
 
+  private int attempt;
   private JsonNode debugInformation;
   private String enginePhase;
   private JsonNode recoveryState;
   private String status;
   private String type;
+
+  public int getAttempt() {
+    return attempt;
+  }
 
   public JsonNode getDebugInformation() {
     return debugInformation;
@@ -30,6 +35,10 @@ public class OperationStatusResponse {
 
   public String getType() {
     return type;
+  }
+
+  public void setAttempt(int attempt) {
+    this.attempt = attempt;
   }
 
   public void setDebugInformation(JsonNode debugInformation) {

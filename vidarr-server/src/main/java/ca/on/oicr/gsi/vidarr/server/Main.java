@@ -1324,7 +1324,7 @@ public final class Main implements ServerConfig {
               .value1();
       exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/json");
       exchange.setStatusCode(StatusCodes.OK);
-      exchange.getResponseSender().send(response.data());
+      exchange.getResponseSender().send(response == null? "[]" : response.data());
     } catch (SQLException e) {
       e.printStackTrace();
       exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);

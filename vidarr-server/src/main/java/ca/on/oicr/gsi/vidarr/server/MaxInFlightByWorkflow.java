@@ -1,5 +1,6 @@
 package ca.on.oicr.gsi.vidarr.server;
 
+import ca.on.oicr.gsi.vidarr.api.InFlightCountsByWorkflow;
 import ca.on.oicr.gsi.Pair;
 import ca.on.oicr.gsi.vidarr.BasicType;
 import ca.on.oicr.gsi.vidarr.ConsumableResource;
@@ -73,6 +74,22 @@ final class MaxInFlightByWorkflow implements ConsumableResource {
             String.format("The maximum number of %s workflows has been reached.", workflowName));
       }
     }
+  }
+
+  /**
+   * Get summary information for each workflow: workflowName -> (currentInFlight, maxInFlight)
+   */
+  public InFlightCountsByWorkflow getCountsByWorkflow() {
+
+    InFlightCountsByWorkflow counts = new InFlightCountsByWorkflow();
+    for (String name : workflows.keySet()) {
+      counts.add(
+		 name,
+		 workflows.get(name).running.size(),
+		 workflows.get(name).maximum
+		 );
+    }
+    return counts;
   }
 
   public void set(String workflowName, int maxInFlight) {

@@ -93,26 +93,6 @@ import org.postgresql.ds.PGSimpleDataSource;
 
 public final class Main implements ServerConfig {
 
-  private interface JsonPost<T> {
-    static <T> HttpHandler parse(Class<T> clazz, JsonPost<T> handler) {
-      return exchange ->
-          exchange
-              .getRequestReceiver()
-              .receiveFullBytes(
-                  (e, data) -> {
-                    try {
-                      handler.handleRequest(exchange, MAPPER.readValue(data, clazz));
-                    } catch (IOException exception) {
-                      exception.printStackTrace();
-                      e.setStatusCode(StatusCodes.BAD_REQUEST);
-                      e.getResponseSender().send(exception.getMessage());
-                    }
-                  });
-    }
-
-    void handleRequest(HttpServerExchange exchange, T body);
-  }
-
   static final HttpClient CLIENT =
       HttpClient.newBuilder()
           .version(HttpClient.Version.HTTP_1_1)
@@ -212,6 +192,286 @@ public final class Main implements ServerConfig {
                                 DSL.jsonEntry("type", ACTIVE_OPERATION.TYPE))))
                     .from(ACTIVE_OPERATION)
                     .where(ACTIVE_OPERATION.WORKFLOW_RUN_ID.eq(WORKFLOW_RUN.ID)))));
+  }
+
+  private final HikariDataSource dataSource;
+  private final ReentrantReadWriteLock epochLock = new ReentrantReadWriteLock();
+  private final ScheduledExecutorService executor =
+      Executors.newScheduledThreadPool(Runtime.getRuntime().availableProcessors());
+  private final Map<String, InputProvisioner> inputProvisioners;
+  private final MaxInFlightByWorkflow maxInFlightPerWorkflow = new MaxInFlightByWorkflow();
+  private final Map<String, Optional<FileMetadata>> metadataCache = new ConcurrentHashMap<>();
+  private final Map<String, String> otherServers;
+  private final Map<String, OutputProvisioner> outputProvisioners;
+  private final int port;
+  private final DatabaseBackedProcessor processor;
+  private final Map<String, RuntimeProvisioner> runtimeProvisioners;
+  private final String selfName;
+  private final String selfUrl;
+  private final Map<String, Target> targets;
+  private final Map<String, WorkflowEngine> workflowEngines;
+  private final StatusPage status =
+      new StatusPage(this) {
+        @Override
+        protected void emitCore(SectionRenderer sectionRenderer) {
+          sectionRenderer.line("Self-URL", selfUrl);
+          for (final var target : targets.keySet()) {
+            sectionRenderer.line("Target", target);
+          }
+        }
+
+        @Override
+        public Stream<ConfigurationSection> sections() {
+          return Stream.of(
+                  workflowEngines.entrySet().stream()
+                      .map(
+                          e ->
+                              new ConfigurationSection("Workflow Engine: " + e.getKey()) {
+                                @Override
+                                public void emit(SectionRenderer sectionRenderer)
+                                    throws XMLStreamException {
+                                  e.getValue().configuration(sectionRenderer);
+                                }
+                              }),
+                  inputProvisioners.entrySet().stream()
+                      .map(
+                          e ->
+                              new ConfigurationSection("Input Provisioner: " + e.getKey()) {
+                                @Override
+                                public void emit(SectionRenderer sectionRenderer)
+                                    throws XMLStreamException {
+                                  e.getValue().configuration(sectionRenderer);
+                                }
+                              }),
+                  outputProvisioners.entrySet().stream()
+                      .map(
+                          e ->
+                              new ConfigurationSection("Output Provisioner: " + e.getKey()) {
+                                @Override
+                                public void emit(SectionRenderer sectionRenderer)
+                                    throws XMLStreamException {
+                                  e.getValue().configuration(sectionRenderer);
+                                }
+                              }),
+                  runtimeProvisioners.entrySet().stream()
+                      .map(
+                          e ->
+                              new ConfigurationSection("Runtime Provisioner: " + e.getKey()) {
+                                @Override
+                                public void emit(SectionRenderer sectionRenderer)
+                                    throws XMLStreamException {
+                                  e.getValue().configuration(sectionRenderer);
+                                }
+                              }))
+              .flatMap(Function.identity());
+        }
+      };
+  private long epoch = ManagementFactory.getRuntimeMXBean().getStartTime();
+  private Main(ServerConfiguration configuration) throws SQLException {
+    selfUrl = configuration.getUrl();
+    selfName = configuration.getName();
+    port = configuration.getPort();
+    otherServers = configuration.getOtherServers();
+    workflowEngines =
+        load(
+            "Workflow engine",
+            WorkflowEngineProvider.class,
+            WorkflowEngineProvider::type,
+            WorkflowEngineProvider::readConfiguration,
+            configuration.getWorkflowEngines(),
+            new RemoteWorkflowEngineProvider());
+    inputProvisioners =
+        load(
+            "Input Provisioner",
+            InputProvisionerProvider.class,
+            InputProvisionerProvider::type,
+            InputProvisionerProvider::readConfiguration,
+            configuration.getInputProvisioners(),
+            new RemoteInputProvisionerProvider());
+    outputProvisioners =
+        load(
+            "Output Provisioner",
+            OutputProvisionerProvider.class,
+            OutputProvisionerProvider::type,
+            OutputProvisionerProvider::readConfiguration,
+            configuration.getOutputProvisioners(),
+            new RemoteOutputProvisionerProvider());
+    runtimeProvisioners =
+        load(
+            "Runtime Provisioner",
+            RuntimeProvisionerProvider.class,
+            RuntimeProvisionerProvider::name,
+            RuntimeProvisionerProvider::readConfiguration,
+            configuration.getRuntimeProvisioners(),
+            new RemoteRuntimeProvisionerProvider());
+    final var consumableResources = loadConsumableResources(configuration.getConsumableResources());
+    targets =
+        configuration.getTargets().entrySet().stream()
+            .collect(
+                Collectors.toMap(
+                    Map.Entry::getKey,
+                    e ->
+                        new Target() {
+                          private final WorkflowEngine engine =
+                              workflowEngines.get(e.getValue().getWorkflowEngine());
+                          private final Map<InputProvisionFormat, InputProvisioner>
+                              inputProvisioners =
+                                  e.getValue().getInputProvisioners().stream()
+                                      .map(Main.this.inputProvisioners::get)
+                                      .flatMap(
+                                          p ->
+                                              Stream.of(InputProvisionFormat.values())
+                                                  .filter(p::canProvision)
+                                                  .map(f -> new Pair<>(f, p)))
+                                      .collect(
+                                          Collectors
+                                              .<Pair<InputProvisionFormat, InputProvisioner>,
+                                                  InputProvisionFormat, InputProvisioner>
+                                                  toMap(Pair::first, Pair::second));
+                          private final Map<OutputProvisionFormat, OutputProvisioner>
+                              outputProvisioners =
+                                  e.getValue().getOutputProvisioners().stream()
+                                      .map(Main.this.outputProvisioners::get)
+                                      .flatMap(
+                                          p ->
+                                              Stream.of(OutputProvisionFormat.values())
+                                                  .filter(p::canProvision)
+                                                  .map(f -> new Pair<>(f, p)))
+                                      .collect(
+                                          Collectors
+                                              .<Pair<OutputProvisionFormat, OutputProvisioner>,
+                                                  OutputProvisionFormat, OutputProvisioner>
+                                                  toMap(Pair::first, Pair::second));
+                          private final List<RuntimeProvisioner> runtimeProvisioners =
+                              e.getValue().getRuntimeProvisioners().stream()
+                                  .map(Main.this.runtimeProvisioners::get)
+                                  .collect(Collectors.toList());
+                          private final List<ConsumableResource> consumables =
+                              Stream.concat(
+                                      e.getValue().getConsumableResources().stream()
+                                          .map(consumableResources::get),
+                                      Stream.of(maxInFlightPerWorkflow))
+                                  .collect(Collectors.toList());
+
+                          @Override
+                          public Stream<ConsumableResource> consumableResources() {
+                            return consumables.stream();
+                          }
+
+                          @Override
+                          public WorkflowEngine engine() {
+                            return engine;
+                          }
+
+                          @Override
+                          public InputProvisioner provisionerFor(InputProvisionFormat type) {
+                            return inputProvisioners.get(type);
+                          }
+
+                          @Override
+                          public OutputProvisioner provisionerFor(OutputProvisionFormat type) {
+                            return outputProvisioners.get(type);
+                          }
+
+                          @Override
+                          public Stream<RuntimeProvisioner> runtimeProvisioners() {
+                            return runtimeProvisioners.stream();
+                          }
+                        }));
+
+    final var simpleConnection = new PGSimpleDataSource();
+    simpleConnection.setServerNames(new String[] {configuration.getDbHost()});
+    simpleConnection.setPortNumbers(new int[] {configuration.getDbPort()});
+    simpleConnection.setDatabaseName(configuration.getDbName());
+    simpleConnection.setUser(configuration.getDbUser());
+    simpleConnection.setPassword(configuration.getDbPass());
+    Flyway.configure().dataSource(simpleConnection).load().migrate();
+
+    final var config = new HikariConfig();
+    config.setJdbcUrl(
+        String.format(
+            "jdbc:postgresql://%s:%d/%s",
+            configuration.getDbHost(), configuration.getDbPort(), configuration.getDbName()));
+    config.setUsername(configuration.getDbUser());
+    config.setPassword(configuration.getDbPass());
+    config.setAutoCommit(false);
+    config.setTransactionIsolation("TRANSACTION_REPEATABLE_READ");
+    dataSource = new HikariDataSource(config);
+    // This limit is selected because of the default maximum number of connections supported by
+    // Postgres
+    dataSource.setMaximumPoolSize(Math.min(10 * Runtime.getRuntime().availableProcessors(), 95));
+    processor =
+        new DatabaseBackedProcessor(executor, dataSource) {
+          private Optional<FileMetadata> fetchPathForId(String id) {
+            final var match = BaseProcessor.ANALYSIS_RECORD_ID.matcher(id);
+            if (!match.matches() || !match.group("type").equals("file")) {
+              return Optional.empty();
+            }
+            final var instance = match.group("instance");
+            final var hash = match.group("hash");
+            if (instance.equals("_") || instance.equals(selfName)) {
+              return resolveInDatabase(hash);
+            }
+            final var remote = otherServers.get(instance);
+            if (remote == null) {
+              return Optional.empty();
+            }
+
+            try (final var ignored = REMOTE_RESPONSE_TIME.start(remote)) {
+              final var response =
+                  CLIENT.send(
+                      HttpRequest.newBuilder()
+                          .uri(URI.create(String.format("%s/api/file/%s", remote, hash)))
+                          .timeout(Duration.ofMinutes(1))
+                          .GET()
+                          .build(),
+                      new JsonBodyHandler<>(
+                          MAPPER, new TypeReference<ProvenanceAnalysisRecord<ExternalKey>>() {}));
+              if (response.statusCode() == HttpURLConnection.HTTP_OK) {
+                final var result = response.body().get();
+                return Optional.of(
+                    new FileMetadata() {
+                      private final List<ExternalKey> keys = result.getExternalKeys();
+                      private final String path = result.getFilePath();
+
+                      @Override
+                      public Stream<ExternalKey> externalKeys() {
+                        return keys.stream();
+                      }
+
+                      @Override
+                      public String path() {
+                        return path;
+                      }
+                    });
+              } else {
+                return Optional.empty();
+              }
+
+            } catch (Exception e) {
+              e.printStackTrace();
+              REMOTE_ERROR_COUNT.labels(remote).inc();
+              return Optional.empty();
+            }
+          }
+
+          @Override
+          public Optional<FileMetadata> pathForId(String id) {
+            return metadataCache.computeIfAbsent(id, this::fetchPathForId);
+          }
+
+          @Override
+          protected Optional<Target> targetByName(String name) {
+            return Optional.ofNullable(targets.get(name));
+          }
+        };
+
+    try (final var connection = dataSource.getConnection()) {
+      DSL.using(connection, SQLDialect.POSTGRES)
+          .select(WORKFLOW.NAME, WORKFLOW.MAX_IN_FLIGHT)
+          .from(WORKFLOW)
+          .forEach(record -> maxInFlightPerWorkflow.set(record.value1(), record.value2()));
+    }
   }
 
   private static Field<?> createQuery(VersionPolicy policy, Set<String> allowedTypes) {
@@ -436,287 +696,6 @@ public final class Main implements ServerConfig {
         handler.handleRequest(exchange);
       }
     };
-  }
-
-  private final HikariDataSource dataSource;
-  private long epoch = ManagementFactory.getRuntimeMXBean().getStartTime();
-  private final ReentrantReadWriteLock epochLock = new ReentrantReadWriteLock();
-  private final ScheduledExecutorService executor =
-      Executors.newScheduledThreadPool(Runtime.getRuntime().availableProcessors());
-  private final Map<String, InputProvisioner> inputProvisioners;
-  private final MaxInFlightByWorkflow maxInFlightPerWorkflow = new MaxInFlightByWorkflow();
-  private final Map<String, Optional<FileMetadata>> metadataCache = new ConcurrentHashMap<>();
-  private final Map<String, String> otherServers;
-  private final Map<String, OutputProvisioner> outputProvisioners;
-  private final int port;
-  private final DatabaseBackedProcessor processor;
-  private final Map<String, RuntimeProvisioner> runtimeProvisioners;
-  private final String selfName;
-  private final String selfUrl;
-  private final Map<String, Target> targets;
-  private final Map<String, WorkflowEngine> workflowEngines;
-  private final StatusPage status =
-      new StatusPage(this) {
-        @Override
-        protected void emitCore(SectionRenderer sectionRenderer) {
-          sectionRenderer.line("Self-URL", selfUrl);
-          for (final var target : targets.keySet()) {
-            sectionRenderer.line("Target", target);
-          }
-        }
-
-        @Override
-        public Stream<ConfigurationSection> sections() {
-          return Stream.of(
-                  workflowEngines.entrySet().stream()
-                      .map(
-                          e ->
-                              new ConfigurationSection("Workflow Engine: " + e.getKey()) {
-                                @Override
-                                public void emit(SectionRenderer sectionRenderer)
-                                    throws XMLStreamException {
-                                  e.getValue().configuration(sectionRenderer);
-                                }
-                              }),
-                  inputProvisioners.entrySet().stream()
-                      .map(
-                          e ->
-                              new ConfigurationSection("Input Provisioner: " + e.getKey()) {
-                                @Override
-                                public void emit(SectionRenderer sectionRenderer)
-                                    throws XMLStreamException {
-                                  e.getValue().configuration(sectionRenderer);
-                                }
-                              }),
-                  outputProvisioners.entrySet().stream()
-                      .map(
-                          e ->
-                              new ConfigurationSection("Output Provisioner: " + e.getKey()) {
-                                @Override
-                                public void emit(SectionRenderer sectionRenderer)
-                                    throws XMLStreamException {
-                                  e.getValue().configuration(sectionRenderer);
-                                }
-                              }),
-                  runtimeProvisioners.entrySet().stream()
-                      .map(
-                          e ->
-                              new ConfigurationSection("Runtime Provisioner: " + e.getKey()) {
-                                @Override
-                                public void emit(SectionRenderer sectionRenderer)
-                                    throws XMLStreamException {
-                                  e.getValue().configuration(sectionRenderer);
-                                }
-                              }))
-              .flatMap(Function.identity());
-        }
-      };
-
-  private Main(ServerConfiguration configuration) throws SQLException {
-    selfUrl = configuration.getUrl();
-    selfName = configuration.getName();
-    port = configuration.getPort();
-    otherServers = configuration.getOtherServers();
-    workflowEngines =
-        load(
-            "Workflow engine",
-            WorkflowEngineProvider.class,
-            WorkflowEngineProvider::type,
-            WorkflowEngineProvider::readConfiguration,
-            configuration.getWorkflowEngines(),
-            new RemoteWorkflowEngineProvider());
-    inputProvisioners =
-        load(
-            "Input Provisioner",
-            InputProvisionerProvider.class,
-            InputProvisionerProvider::type,
-            InputProvisionerProvider::readConfiguration,
-            configuration.getInputProvisioners(),
-            new RemoteInputProvisionerProvider());
-    outputProvisioners =
-        load(
-            "Output Provisioner",
-            OutputProvisionerProvider.class,
-            OutputProvisionerProvider::type,
-            OutputProvisionerProvider::readConfiguration,
-            configuration.getOutputProvisioners(),
-            new RemoteOutputProvisionerProvider());
-    runtimeProvisioners =
-        load(
-            "Runtime Provisioner",
-            RuntimeProvisionerProvider.class,
-            RuntimeProvisionerProvider::name,
-            RuntimeProvisionerProvider::readConfiguration,
-            configuration.getRuntimeProvisioners(),
-            new RemoteRuntimeProvisionerProvider());
-    final var consumableResources = loadConsumableResources(configuration.getConsumableResources());
-    targets =
-        configuration.getTargets().entrySet().stream()
-            .collect(
-                Collectors.toMap(
-                    Map.Entry::getKey,
-                    e ->
-                        new Target() {
-                          private final WorkflowEngine engine =
-                              workflowEngines.get(e.getValue().getWorkflowEngine());
-                          private final Map<InputProvisionFormat, InputProvisioner>
-                              inputProvisioners =
-                                  e.getValue().getInputProvisioners().stream()
-                                      .map(Main.this.inputProvisioners::get)
-                                      .flatMap(
-                                          p ->
-                                              Stream.of(InputProvisionFormat.values())
-                                                  .filter(p::canProvision)
-                                                  .map(f -> new Pair<>(f, p)))
-                                      .collect(
-                                          Collectors
-                                              .<Pair<InputProvisionFormat, InputProvisioner>,
-                                                  InputProvisionFormat, InputProvisioner>
-                                                  toMap(Pair::first, Pair::second));
-                          private final Map<OutputProvisionFormat, OutputProvisioner>
-                              outputProvisioners =
-                                  e.getValue().getOutputProvisioners().stream()
-                                      .map(Main.this.outputProvisioners::get)
-                                      .flatMap(
-                                          p ->
-                                              Stream.of(OutputProvisionFormat.values())
-                                                  .filter(p::canProvision)
-                                                  .map(f -> new Pair<>(f, p)))
-                                      .collect(
-                                          Collectors
-                                              .<Pair<OutputProvisionFormat, OutputProvisioner>,
-                                                  OutputProvisionFormat, OutputProvisioner>
-                                                  toMap(Pair::first, Pair::second));
-                          private final List<RuntimeProvisioner> runtimeProvisioners =
-                              e.getValue().getRuntimeProvisioners().stream()
-                                  .map(Main.this.runtimeProvisioners::get)
-                                  .collect(Collectors.toList());
-                          private final List<ConsumableResource> consumables =
-                              Stream.concat(
-                                      e.getValue().getConsumableResources().stream()
-                                          .map(consumableResources::get),
-                                      Stream.of(maxInFlightPerWorkflow))
-                                  .collect(Collectors.toList());
-
-                          @Override
-                          public Stream<ConsumableResource> consumableResources() {
-                            return consumables.stream();
-                          }
-
-                          @Override
-                          public WorkflowEngine engine() {
-                            return engine;
-                          }
-
-                          @Override
-                          public InputProvisioner provisionerFor(InputProvisionFormat type) {
-                            return inputProvisioners.get(type);
-                          }
-
-                          @Override
-                          public OutputProvisioner provisionerFor(OutputProvisionFormat type) {
-                            return outputProvisioners.get(type);
-                          }
-
-                          @Override
-                          public Stream<RuntimeProvisioner> runtimeProvisioners() {
-                            return runtimeProvisioners.stream();
-                          }
-                        }));
-
-    final var simpleConnection = new PGSimpleDataSource();
-    simpleConnection.setServerNames(new String[] {configuration.getDbHost()});
-    simpleConnection.setPortNumbers(new int[] {configuration.getDbPort()});
-    simpleConnection.setDatabaseName(configuration.getDbName());
-    simpleConnection.setUser(configuration.getDbUser());
-    simpleConnection.setPassword(configuration.getDbPass());
-    Flyway.configure().dataSource(simpleConnection).load().migrate();
-
-    final var config = new HikariConfig();
-    config.setJdbcUrl(
-        String.format(
-            "jdbc:postgresql://%s:%d/%s",
-            configuration.getDbHost(), configuration.getDbPort(), configuration.getDbName()));
-    config.setUsername(configuration.getDbUser());
-    config.setPassword(configuration.getDbPass());
-    config.setAutoCommit(false);
-    config.setTransactionIsolation("TRANSACTION_REPEATABLE_READ");
-    dataSource = new HikariDataSource(config);
-    // This limit is selected because of the default maximum number of connections supported by
-    // Postgres
-    dataSource.setMaximumPoolSize(Math.min(10 * Runtime.getRuntime().availableProcessors(), 95));
-    processor =
-        new DatabaseBackedProcessor(executor, dataSource) {
-          private Optional<FileMetadata> fetchPathForId(String id) {
-            final var match = BaseProcessor.ANALYSIS_RECORD_ID.matcher(id);
-            if (!match.matches() || !match.group("type").equals("file")) {
-              return Optional.empty();
-            }
-            final var instance = match.group("instance");
-            final var hash = match.group("hash");
-            if (instance.equals("_") || instance.equals(selfName)) {
-              return resolveInDatabase(hash);
-            }
-            final var remote = otherServers.get(instance);
-            if (remote == null) {
-              return Optional.empty();
-            }
-
-            try (final var ignored = REMOTE_RESPONSE_TIME.start(remote)) {
-              final var response =
-                  CLIENT.send(
-                      HttpRequest.newBuilder()
-                          .uri(URI.create(String.format("%s/api/file/%s", remote, hash)))
-                          .timeout(Duration.ofMinutes(1))
-                          .GET()
-                          .build(),
-                      new JsonBodyHandler<>(
-                          MAPPER, new TypeReference<ProvenanceAnalysisRecord<ExternalKey>>() {}));
-              if (response.statusCode() == HttpURLConnection.HTTP_OK) {
-                final var result = response.body().get();
-                return Optional.of(
-                    new FileMetadata() {
-                      private final List<ExternalKey> keys = result.getExternalKeys();
-                      private final String path = result.getFilePath();
-
-                      @Override
-                      public Stream<ExternalKey> externalKeys() {
-                        return keys.stream();
-                      }
-
-                      @Override
-                      public String path() {
-                        return path;
-                      }
-                    });
-              } else {
-                return Optional.empty();
-              }
-
-            } catch (Exception e) {
-              e.printStackTrace();
-              REMOTE_ERROR_COUNT.labels(remote).inc();
-              return Optional.empty();
-            }
-          }
-
-          @Override
-          public Optional<FileMetadata> pathForId(String id) {
-            return metadataCache.computeIfAbsent(id, this::fetchPathForId);
-          }
-
-          @Override
-          protected Optional<Target> targetByName(String name) {
-            return Optional.ofNullable(targets.get(name));
-          }
-        };
-
-    try (final var connection = dataSource.getConnection()) {
-      DSL.using(connection, SQLDialect.POSTGRES)
-          .select(WORKFLOW.NAME, WORKFLOW.MAX_IN_FLIGHT)
-          .from(WORKFLOW)
-          .forEach(record -> maxInFlightPerWorkflow.set(record.value1(), record.value2()));
-    }
   }
 
   private void addWorkflow(HttpServerExchange exchange, AddWorkflowRequest request) {
@@ -1529,5 +1508,25 @@ public final class Main implements ServerConfig {
     } catch (Exception e) {
       e.printStackTrace();
     }
+  }
+
+  private interface JsonPost<T> {
+    static <T> HttpHandler parse(Class<T> clazz, JsonPost<T> handler) {
+      return exchange ->
+          exchange
+              .getRequestReceiver()
+              .receiveFullBytes(
+                  (e, data) -> {
+                    try {
+                      handler.handleRequest(exchange, MAPPER.readValue(data, clazz));
+                    } catch (IOException exception) {
+                      exception.printStackTrace();
+                      e.setStatusCode(StatusCodes.BAD_REQUEST);
+                      e.getResponseSender().send(exception.getMessage());
+                    }
+                  });
+    }
+
+    void handleRequest(HttpServerExchange exchange, T body);
   }
 }

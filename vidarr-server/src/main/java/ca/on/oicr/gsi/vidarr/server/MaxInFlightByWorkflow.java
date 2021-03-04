@@ -13,6 +13,10 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 final class MaxInFlightByWorkflow implements ConsumableResource {
+  private static final class MaxState {
+    private int maximum;
+    private final Set<String> running = ConcurrentHashMap.newKeySet();
+  }
   private static final Gauge currentInFlightCount =
       Gauge.build(
               "vidarr_in_flight_per_workflow_current",
@@ -26,6 +30,22 @@ final class MaxInFlightByWorkflow implements ConsumableResource {
           .labelNames("workflow")
           .register();
   private final Map<String, MaxState> workflows = new ConcurrentHashMap<>();
+
+  /**
+   * Get summary information for each workflow: workflowName -> (currentInFlight, maxInFlight)
+   */
+  public InFlightCountsByWorkflow getCountsByWorkflow() {
+
+    InFlightCountsByWorkflow counts = new InFlightCountsByWorkflow();
+    for (String name : workflows.keySet()) {
+      counts.add(
+		 name,
+		 workflows.get(name).running.size(),
+		 workflows.get(name).maximum
+		 );
+    }
+    return counts;
+  }
 
   @Override
   public Optional<Pair<String, BasicType>> inputFromUser() {
@@ -71,29 +91,8 @@ final class MaxInFlightByWorkflow implements ConsumableResource {
     }
   }
 
-  /**
-   * Get summary information for each workflow: workflowName -> (currentInFlight, maxInFlight)
-   */
-  public InFlightCountsByWorkflow getCountsByWorkflow() {
-
-    InFlightCountsByWorkflow counts = new InFlightCountsByWorkflow();
-    for (String name : workflows.keySet()) {
-      counts.add(
-		 name,
-		 workflows.get(name).running.size(),
-		 workflows.get(name).maximum
-		 );
-    }
-    return counts;
-  }
-
   public void set(String workflowName, int maxInFlight) {
     maxInFlightCount.labels(workflowName).set(maxInFlight);
     workflows.computeIfAbsent(workflowName, k -> new MaxState()).maximum = maxInFlight;
-  }
-
-  private static final class MaxState {
-    private final Set<String> running = ConcurrentHashMap.newKeySet();
-    private int maximum;
   }
 }

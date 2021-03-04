@@ -8,6 +8,7 @@ tracked without modifying existing workflows.
 - [Plugin Developer's Guide](plugin-guide.md)
 - [Understanding the Vidarr Type System](types.md)
 - [Vidarr Identifiers](identifiers.md)
+- [Vidarr Code Style](code-style.md)
 
 Current plugins:
 

@@ -7,6 +7,8 @@ Running a Vidarr instance involves a few separate roles:
 
 This guide is broken down by these roles, but they may overlap to some degree.
 
+See [Vidarr Code Style](code-style.md) for preferred code formatting.
+
 ## System Operations Guide
 Running a Vidarr instance requires:
 

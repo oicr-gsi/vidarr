@@ -30,6 +30,8 @@ expected to journal their current state to the database. The `WorkMonitor`
 provides methods to journal state to the database for crash recovery and to
 provide status information to users.
 
+See [Vidarr Code Style](code-style.md) for preferred code formatting.
+
 # Consumable Resource
 Consumable resources implement
 `ca.on.oicr.gsi.vidarr.ConsumableResourceProvider` and

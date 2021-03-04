@@ -11,6 +11,7 @@ import ca.on.oicr.gsi.vidarr.api.AddWorkflowVersionRequest;
 import ca.on.oicr.gsi.vidarr.api.AnalysisOutputType;
 import ca.on.oicr.gsi.vidarr.api.AnalysisProvenanceRequest;
 import ca.on.oicr.gsi.vidarr.api.ExternalKey;
+import ca.on.oicr.gsi.vidarr.api.InFlightCountsByWorkflow;
 import ca.on.oicr.gsi.vidarr.api.ProvenanceAnalysisRecord;
 import ca.on.oicr.gsi.vidarr.api.SubmitMode;
 import ca.on.oicr.gsi.vidarr.api.SubmitWorkflowRequest;
@@ -111,7 +112,6 @@ public final class Main implements ServerConfig {
 
     void handleRequest(HttpServerExchange exchange, T body);
   }
-
   static final HttpClient CLIENT =
       HttpClient.newBuilder()
           .version(HttpClient.Version.HTTP_1_1)
@@ -367,6 +367,7 @@ public final class Main implements ServerConfig {
                             .get("/api/targets", monitor(server::fetchTargets))
                             .get("/api/url/{hash}", monitor(server::fetchUrl))
                             .get("/api/workflows", monitor(server::fetchWorkflows))
+                            .get("/api/max-in-flight", monitor(new BlockingHandler(server::fetchMaxInFlight)))
                             .get("/metrics", monitor(new BlockingHandler(Main::metrics)))
                             .post(
                                 "/api/provenance",
@@ -435,7 +436,6 @@ public final class Main implements ServerConfig {
       }
     };
   }
-
   private final HikariDataSource dataSource;
   private long epoch = ManagementFactory.getRuntimeMXBean().getStartTime();
   private final ReentrantReadWriteLock epochLock = new ReentrantReadWriteLock();
@@ -555,6 +555,12 @@ public final class Main implements ServerConfig {
                     Map.Entry::getKey,
                     e ->
                         new Target() {
+                          private final List<ConsumableResource> consumables =
+                              Stream.concat(
+                                      e.getValue().getConsumableResources().stream()
+                                          .map(consumableResources::get),
+                                      Stream.of(maxInFlightPerWorkflow))
+                                  .collect(Collectors.toList());
                           private final WorkflowEngine engine =
                               workflowEngines.get(e.getValue().getWorkflowEngine());
                           private final Map<InputProvisionFormat, InputProvisioner>
@@ -588,12 +594,6 @@ public final class Main implements ServerConfig {
                           private final List<RuntimeProvisioner> runtimeProvisioners =
                               e.getValue().getRuntimeProvisioners().stream()
                                   .map(Main.this.runtimeProvisioners::get)
-                                  .collect(Collectors.toList());
-                          private final List<ConsumableResource> consumables =
-                              Stream.concat(
-                                      e.getValue().getConsumableResources().stream()
-                                          .map(consumableResources::get),
-                                      Stream.of(maxInFlightPerWorkflow))
                                   .collect(Collectors.toList());
 
                           @Override
@@ -1131,6 +1131,31 @@ public final class Main implements ServerConfig {
 
   private void fetchFile(HttpServerExchange exchange) {
     fetchAnalysis(exchange, "file");
+  }
+
+  private void fetchMaxInFlight(HttpServerExchange exchange) {
+    exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/json");
+    exchange.setStatusCode(StatusCodes.OK);
+    final var endTime = OffsetDateTime.now();
+    epochLock.readLock().lock();
+    try (final var output = MAPPER_FACTORY.createGenerator(exchange.getOutputStream())) {
+      InFlightCountsByWorkflow counts = maxInFlightPerWorkflow.getCountsByWorkflow();
+      output.writeStartObject();
+      output.writeNumberField("timestamp", endTime.toInstant().toEpochMilli());
+      output.writeObjectFieldStart("workflows");
+      for (String workflow: counts.getWorkflows()) {
+        output.writeObjectFieldStart(workflow);
+        output.writeNumberField("currentInFlight", counts.getCurrent(workflow));
+        output.writeNumberField("maxInFlight", counts.getMax(workflow));
+        output.writeEndObject();
+      }
+      output.writeEndObject();
+      output.writeEndObject();
+    } catch (Exception e) {
+      e.printStackTrace();
+      exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);
+      exchange.getResponseSender().send(e.getMessage());
+    }
   }
 
   private void fetchProvenance(HttpServerExchange exchange, AnalysisProvenanceRequest request) {

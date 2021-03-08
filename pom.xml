@@ -152,6 +152,7 @@
     <module>vidarr-server</module>
     <module>vidarr-core</module>
     <module>vidarr-cli</module>
+    <module>vidarr-niassa</module>
   </modules>
   <build>
     <plugins>

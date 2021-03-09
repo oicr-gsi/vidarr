@@ -1,10 +1,10 @@
 package ca.on.oicr.gsi.vidarr.server;
 
+import ca.on.oicr.gsi.vidarr.api.InFlightCountsByWorkflow;
 import ca.on.oicr.gsi.Pair;
 import ca.on.oicr.gsi.vidarr.BasicType;
 import ca.on.oicr.gsi.vidarr.ConsumableResource;
 import ca.on.oicr.gsi.vidarr.ConsumableResourceResponse;
-import ca.on.oicr.gsi.vidarr.api.InFlightCountsByWorkflow;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.prometheus.client.Gauge;
 import java.util.Map;
@@ -17,7 +17,6 @@ final class MaxInFlightByWorkflow implements ConsumableResource {
     private int maximum;
     private final Set<String> running = ConcurrentHashMap.newKeySet();
   }
-
   private static final Gauge currentInFlightCount =
       Gauge.build(
               "vidarr_in_flight_per_workflow_current",
@@ -32,12 +31,18 @@ final class MaxInFlightByWorkflow implements ConsumableResource {
           .register();
   private final Map<String, MaxState> workflows = new ConcurrentHashMap<>();
 
-  /** Get summary information for each workflow: workflowName -> (currentInFlight, maxInFlight) */
+  /**
+   * Get summary information for each workflow: workflowName -> (currentInFlight, maxInFlight)
+   */
   public InFlightCountsByWorkflow getCountsByWorkflow() {
 
     InFlightCountsByWorkflow counts = new InFlightCountsByWorkflow();
     for (String name : workflows.keySet()) {
-      counts.add(name, workflows.get(name).running.size(), workflows.get(name).maximum);
+      counts.add(
+		 name,
+		 workflows.get(name).running.size(),
+		 workflows.get(name).maximum
+		 );
     }
     return counts;
   }

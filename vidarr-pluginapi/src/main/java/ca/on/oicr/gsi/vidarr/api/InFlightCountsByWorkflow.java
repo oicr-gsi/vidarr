@@ -5,7 +5,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** Class to record current and maximum inflight counts by workflow */
+/**
+ * Class to record current and maximum inflight counts by workflow
+ */
 public class InFlightCountsByWorkflow {
 
   private Map<String, Pair<Integer, Integer>> counts = new ConcurrentHashMap<>();
@@ -26,4 +28,5 @@ public class InFlightCountsByWorkflow {
   public Set<String> getWorkflows() {
     return counts.keySet();
   }
+
 }

@@ -315,78 +315,83 @@ public class CromwellOutputProvisioner
   @Override
   protected void recover(ProvisionState state, WorkMonitor<Result, ProvisionState> monitor) {
     if (state.getCromwellId() == null) {
-      try {
-        monitor.log(
-            System.Logger.Level.INFO,
-            String.format(
-                "Launching provisioning out job on Cromwell %s for %s",
-                baseUrl, state.getFileName()));
-        final var body =
-            new MultiPartBodyPublisher()
-                .addPart(workflowTargetName, workflowTarget)
-                .addPart(
-                    "labels",
-                    MAPPER.writeValueAsString(
-                        Collections.singletonMap(
-                            "vidarr-id",
-                            state
-                                .getVidarrId()
-                                .substring(Math.max(0, state.getVidarrId().length() - 255)))))
-                .addPart(
-                    "workflowInputs",
-                    MAPPER.writeValueAsString(
-                        Map.of(
-                            fileField,
-                            state.getFileName(),
-                            outputDirectoryField,
-                            state.getOutputPrefix())))
-                .addPart("workflowOptions", MAPPER.writeValueAsString(workflowOptions))
-                .addPart("workflowType", "WDL")
-                .addPart("workflowTypeVersion", wdlVersion);
-        CROMWELL_REQUESTS.labels(baseUrl).inc();
-        CLIENT
-            .sendAsync(
-                HttpRequest.newBuilder()
-                    .uri(URI.create(String.format("%s/api/workflows/v1", baseUrl)))
-                    .timeout(Duration.ofMinutes(1))
-                    .header("Content-Type", body.getContentType())
-                    .POST(body.build())
-                    .build(),
-                new JsonBodyHandler<>(MAPPER, WorkflowStatusResponse.class))
-            .thenApply(HttpResponse::body)
-            .thenAccept(
-                s -> {
-                  final var result = s.get();
-                  if (result.getId() == null) {
-                    monitor.permanentFailure("Cromwell to launch workflow.");
-                    return;
-                  }
-                  state.setCromwellId(result.getId());
-                  monitor.storeRecoveryInformation(state);
-                  monitor.updateState(statusFromCromwell(result.getStatus()));
-                  monitor.scheduleTask(CHECK_DELAY, TimeUnit.MINUTES, () -> check(state, monitor));
-                  monitor.log(
-                      System.Logger.Level.INFO,
-                      String.format(
-                          "Provisioning for %s on Cromwell %s is %s",
-                          state.getFileName(), baseUrl, result.getId()));
-                })
-            .exceptionally(
-                t -> {
-                  monitor.log(
-                      System.Logger.Level.WARNING,
-                      String.format(
-                          "Failed to launch provisioning out job on Cromwell %s for %s",
-                          baseUrl, state.getFileName()));
-                  t.printStackTrace();
-                  CROMWELL_FAILURES.labels(baseUrl).inc();
-                  monitor.scheduleTask(CHECK_DELAY, TimeUnit.MINUTES, () -> check(state, monitor));
-                  return null;
-                });
-      } catch (Exception e) {
-        CROMWELL_FAILURES.labels(baseUrl).inc();
-        monitor.permanentFailure(e.toString());
-      }
+      monitor.scheduleTask(
+          () -> {
+            try {
+              monitor.log(
+                  System.Logger.Level.INFO,
+                  String.format(
+                      "Launching provisioning out job on Cromwell %s for %s",
+                      baseUrl, state.getFileName()));
+              final var body =
+                  new MultiPartBodyPublisher()
+                      .addPart(workflowTargetName, workflowTarget)
+                      .addPart(
+                          "labels",
+                          MAPPER.writeValueAsString(
+                              Collections.singletonMap(
+                                  "vidarr-id",
+                                  state
+                                      .getVidarrId()
+                                      .substring(Math.max(0, state.getVidarrId().length() - 255)))))
+                      .addPart(
+                          "workflowInputs",
+                          MAPPER.writeValueAsString(
+                              Map.of(
+                                  fileField,
+                                  state.getFileName(),
+                                  outputDirectoryField,
+                                  state.getOutputPrefix())))
+                      .addPart("workflowOptions", MAPPER.writeValueAsString(workflowOptions))
+                      .addPart("workflowType", "WDL")
+                      .addPart("workflowTypeVersion", wdlVersion);
+              CROMWELL_REQUESTS.labels(baseUrl).inc();
+              CLIENT
+                  .sendAsync(
+                      HttpRequest.newBuilder()
+                          .uri(URI.create(String.format("%s/api/workflows/v1", baseUrl)))
+                          .timeout(Duration.ofMinutes(1))
+                          .header("Content-Type", body.getContentType())
+                          .POST(body.build())
+                          .build(),
+                      new JsonBodyHandler<>(MAPPER, WorkflowStatusResponse.class))
+                  .thenApply(HttpResponse::body)
+                  .thenAccept(
+                      s -> {
+                        final var result = s.get();
+                        if (result.getId() == null) {
+                          monitor.permanentFailure("Cromwell to launch workflow.");
+                          return;
+                        }
+                        state.setCromwellId(result.getId());
+                        monitor.storeRecoveryInformation(state);
+                        monitor.updateState(statusFromCromwell(result.getStatus()));
+                        monitor.scheduleTask(
+                            CHECK_DELAY, TimeUnit.MINUTES, () -> check(state, monitor));
+                        monitor.log(
+                            System.Logger.Level.INFO,
+                            String.format(
+                                "Provisioning for %s on Cromwell %s is %s",
+                                state.getFileName(), baseUrl, result.getId()));
+                      })
+                  .exceptionally(
+                      t -> {
+                        monitor.log(
+                            System.Logger.Level.WARNING,
+                            String.format(
+                                "Failed to launch provisioning out job on Cromwell %s for %s",
+                                baseUrl, state.getFileName()));
+                        t.printStackTrace();
+                        CROMWELL_FAILURES.labels(baseUrl).inc();
+                        monitor.scheduleTask(
+                            CHECK_DELAY, TimeUnit.MINUTES, () -> check(state, monitor));
+                        return null;
+                      });
+            } catch (Exception e) {
+              CROMWELL_FAILURES.labels(baseUrl).inc();
+              monitor.permanentFailure(e.toString());
+            }
+          });
     } else {
       check(state, monitor);
     }

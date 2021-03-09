@@ -227,7 +227,7 @@ public final class CromwellWorkflowEngine
   @Override
   protected void recover(EngineState state, WorkMonitor<Result<String>, EngineState> monitor) {
     if (state.getCromwellId() == null) {
-      startTask(state, monitor);
+      monitor.scheduleTask(() -> startTask(state, monitor));
     } else {
       check(state, monitor);
     }

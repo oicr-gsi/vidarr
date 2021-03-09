@@ -688,16 +688,13 @@ public abstract class BaseProcessor<
 
   public static final Pattern ANALYSIS_RECORD_ID =
       Pattern.compile(
-          "vidarr:(?<instance>[a-z][a-z0-9_]*|_)/(?:workflow/(?<name>[a-z][a-zA-Z0-9_])/(?<version>[0-9]+(?:\\.[0-9]+)*(?:-[0-9]+)?)/(?<workflowhash>[0-9a-fA-F]+)/run/)?(?<type>file|url)/(?<hash>[0-9a-fA-F]+)");
-  public static final Pattern WORKFLOW_DEFINITION_ID =
-      Pattern.compile(
-          "vidarr:(?<instance>[a-z][a-z0-9_]*|_)/workflow/(?<hash>[0-9a-fA-F]+)\\.(?<lang>wdl|cwl|nf)");
+          "vidarr:(?<instance>[a-z][a-z0-9_]*|_)/(?:workflow/(?<name>[a-z][a-zA-Z0-9_]*)/(?<version>[0-9]+(?:\\.[0-9]+)*(?:-[0-9]+)?)/(?<workflowhash>[0-9a-fA-F]+)/run/)?(?<type>file|url)/(?<hash>[0-9a-fA-F]+)");
   public static final Pattern WORKFLOW_RECORD_ID =
       Pattern.compile(
-          "vidarr:(?<instance>[a-z][a-z0-9_]*|_)/workflow/(?<name>[a-z][a-zA-Z0-9_])?/(?<version>[0-9]+(?:\\.[0-9]+)*(?:-[0-9]+)?)");
+          "vidarr:(?<instance>[a-z][a-z0-9_]*|_)/workflow/(?<name>[a-z][a-zA-Z0-9_]*)?/(?<version>[0-9]+(?:\\.[0-9]+)*(?:-[0-9]+)?)");
   public static final Pattern WORKFLOW_RUN_ID =
       Pattern.compile(
-          "vidarr:(?<instance>[a-z][a-z0-9_]*|_)/(?:workflow/(?<name>[a-z][a-zA-Z0-9_])/(?<version>[0-9]+(?:\\.[0-9]+)*(?:-[0-9]+)?)/)?run/(?<hash>[0-9a-fA-F]+)");
+          "vidarr:(?<instance>[a-z][a-z0-9_]*|_)/(?:workflow/(?<name>[a-z][a-zA-Z0-9_]*)/(?<version>[0-9]+(?:\\.[0-9]+)*(?:-[0-9]+)?)/)?run/(?<hash>[0-9a-fA-F]+)");
 
   public static Stream<String> extractInputVidarrIds(
       ObjectMapper mapper, WorkflowDefinition definition, JsonNode arguments) {

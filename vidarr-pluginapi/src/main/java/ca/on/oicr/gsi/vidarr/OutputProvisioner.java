@@ -103,6 +103,10 @@ public interface OutputProvisioner {
   /**
    * Begin provisioning out a new output
    *
+   * <p>This method should not do any externally-visible work. Anything it needs should be done in a
+   * {@link WorkMonitor#scheduleTask(Runnable)} callback so that Vidarr can execute it once the
+   * database is in a healthy state.
+   *
    * @param workflowRunId the workflow run ID assigned by Vidarr
    * @param data the output coming from the workflow
    * @param metadata the information coming from the submitter to direct provisioning
@@ -114,6 +118,10 @@ public interface OutputProvisioner {
 
   /**
    * Restart a provisioning process from state saved in the database
+   *
+   * <p>This method should not do any externally-visible work. Anything it needs should be done in a
+   * {@link WorkMonitor#scheduleTask(Runnable)} callback so that Vidarr can execute it once the
+   * database is in a healthy state.
    *
    * @param state the frozen database state
    * @param monitor the monitor structure for writing the output of the provisioning process

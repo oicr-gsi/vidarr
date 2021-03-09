@@ -24,6 +24,10 @@ public interface InputProvisioner {
   /**
    * Begin provisioning out a new input that was registered in Vidarr
    *
+   * <p>This method should not do any externally-visible work. Anything it needs should be done in a
+   * {@link WorkMonitor#scheduleTask(Runnable)} callback so that Vidarr can execute it once the
+   * database is in a healthy state.
+   *
    * @param language the workflow language the output will be consumed by
    * @param id the Vidarr ID for the file
    * @param path the output path registered in Vidarr for the file
@@ -36,6 +40,10 @@ public interface InputProvisioner {
   /**
    * Begin provisioning out a new input that was not registered in Vidarr
    *
+   * <p>This method should not do any externally-visible work. Anything it needs should be done in a
+   * {@link WorkMonitor#scheduleTask(Runnable)} callback so that Vidarr can execute it once the
+   * database is in a healthy state.
+   *
    * @param language the workflow language the output will be consumed by
    * @param metadata the information coming from the submitter to direct provisioning
    * @param monitor the monitor structure for writing the output of the provisioning process
@@ -46,6 +54,10 @@ public interface InputProvisioner {
 
   /**
    * Restart a provisioning process from state saved in the database
+   *
+   * <p>This method should not do any externally-visible work. Anything it needs should be done in a
+   * {@link WorkMonitor#scheduleTask(Runnable)} callback so that Vidarr can execute it once the
+   * database is in a healthy state.
    *
    * @param state the frozen database state
    * @param monitor the monitor structure for writing the output of the provisioning process

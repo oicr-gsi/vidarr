@@ -54,6 +54,10 @@ public interface WorkflowEngine {
    * Clean up the output of a workflow (i.e., delete its on-disk output) after provisioning has been
    * completed.
    *
+   * <p>This method should not do any externally-visible work. Anything it needs should be done in a
+   * {@link WorkMonitor#scheduleTask(Runnable)} callback so that Vidarr can execute it once the
+   * database is in a healthy state.
+   *
    * @param cleanupState the clean up state provided with the workflow's output
    * @param monitor the monitor structure for clean up process; since no output is required, supply
    *     null as the output value
@@ -74,6 +78,10 @@ public interface WorkflowEngine {
   /**
    * Restart a running process from state saved in the database
    *
+   * <p>This method should not do any externally-visible work. Anything it needs should be done in a
+   * {@link WorkMonitor#scheduleTask(Runnable)} callback so that Vidarr can execute it once the
+   * database is in a healthy state.
+   *
    * @param state the frozen database state
    * @param monitor the monitor structure for writing the output of the workflow process
    */
@@ -82,6 +90,10 @@ public interface WorkflowEngine {
   /**
    * Restart a running clean up process from state saved in the database
    *
+   * <p>This method should not do any externally-visible work. Anything it needs should be done in a
+   * {@link WorkMonitor#scheduleTask(Runnable)} callback so that Vidarr can execute it once the
+   * database is in a healthy state.
+   *
    * @param state the frozen database state
    * @param monitor the monitor structure for writing the output of the cleanup process
    */
@@ -89,6 +101,10 @@ public interface WorkflowEngine {
 
   /**
    * Start a new workflow
+   *
+   * <p>This method should not do any externally-visible work. Anything it needs should be done in a
+   * {@link WorkMonitor#scheduleTask(Runnable)} callback so that Vidarr can execute it once the
+   * database is in a healthy state.
    *
    * @param workflowLanguage the language the workflow was written in
    * @param workflow the contents of the workflow

@@ -7,23 +7,20 @@ import ca.on.oicr.gsi.vidarr.OutputProvisionFormat;
 import ca.on.oicr.gsi.vidarr.OutputProvisioner;
 import ca.on.oicr.gsi.vidarr.WorkMonitor;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import javax.xml.stream.XMLStreamException;
-import java.nio.file.Path;
-import java.util.Map;
 
 public class NiassaOutputProvisioner implements OutputProvisioner {
+    private final int[] chunks;
+    private final String username, password, hostname;
+    static final ObjectMapper MAPPER = new ObjectMapper();
 
-    private final Map<String, String> labels;
-    private final String md5;
-    private final Path path;
-    private final long filesize;
-
-    public NiassaOutputProvisioner(Map<String, String> labels, String md5, Path path, long filesize) {
-        this.labels = labels;
-        this.md5 = md5;
-        this.path = path;
-        this.filesize = filesize;
+    public NiassaOutputProvisioner(int[] chunks, String username, String password, String hostname) {
+        this.chunks = chunks;
+        this.username = username;
+        this.password = password;
+        this.hostname = hostname;
     }
 
     @Override
@@ -33,17 +30,21 @@ public class NiassaOutputProvisioner implements OutputProvisioner {
 
     @Override
     public void configuration(SectionRenderer sectionRenderer) throws XMLStreamException {
-
+        //skip
     }
 
     @Override
     public JsonNode preflightCheck(JsonNode metadata, WorkMonitor<Boolean, JsonNode> monitor) {
+        // copy from cronwell
+        monitor.scheduleTask(() -> monitor.complete(true));
         return null;
     }
 
+
     @Override
     public void preflightRecover(JsonNode state, WorkMonitor<Boolean, JsonNode> monitor) {
-
+        // copy from Cromwelletcetc
+        monitor.scheduleTask(() -> monitor.complete(true));
     }
 
     @Override
@@ -53,7 +54,8 @@ public class NiassaOutputProvisioner implements OutputProvisioner {
 
     @Override
     public void recover(JsonNode state, WorkMonitor<Result, JsonNode> monitor) {
-
+        // Schedule a task that fails (permanentFailure)
+        monitor.scheduleTask(() -> monitor.permanentFailure("Dummy action."));
     }
 
     @Override

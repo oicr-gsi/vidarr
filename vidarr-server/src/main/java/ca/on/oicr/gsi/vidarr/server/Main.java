@@ -112,6 +112,7 @@ public final class Main implements ServerConfig {
 
     void handleRequest(HttpServerExchange exchange, T body);
   }
+
   static final HttpClient CLIENT =
       HttpClient.newBuilder()
           .version(HttpClient.Version.HTTP_1_1)
@@ -366,8 +367,11 @@ public final class Main implements ServerConfig {
                             .get("/api/status/{hash}", monitor(server::fetchStatus))
                             .get("/api/targets", monitor(server::fetchTargets))
                             .get("/api/url/{hash}", monitor(server::fetchUrl))
+                            .get("/api/waiting", monitor(server::fetchWaiting))
                             .get("/api/workflows", monitor(server::fetchWorkflows))
-                            .get("/api/max-in-flight", monitor(new BlockingHandler(server::fetchMaxInFlight)))
+                            .get(
+                                "/api/max-in-flight",
+                                monitor(new BlockingHandler(server::fetchMaxInFlight)))
                             .get("/metrics", monitor(new BlockingHandler(Main::metrics)))
                             .post(
                                 "/api/provenance",
@@ -436,6 +440,7 @@ public final class Main implements ServerConfig {
       }
     };
   }
+
   private final HikariDataSource dataSource;
   private long epoch = ManagementFactory.getRuntimeMXBean().getStartTime();
   private final ReentrantReadWriteLock epochLock = new ReentrantReadWriteLock();
@@ -1143,7 +1148,7 @@ public final class Main implements ServerConfig {
       output.writeStartObject();
       output.writeNumberField("timestamp", endTime.toInstant().toEpochMilli());
       output.writeObjectFieldStart("workflows");
-      for (String workflow: counts.getWorkflows()) {
+      for (String workflow : counts.getWorkflows()) {
         output.writeObjectFieldStart(workflow);
         output.writeNumberField("currentInFlight", counts.getCurrent(workflow));
         output.writeNumberField("maxInFlight", counts.getMax(workflow));
@@ -1312,6 +1317,53 @@ public final class Main implements ServerConfig {
     fetchAnalysis(exchange, "url");
   }
 
+  private void fetchWaiting(HttpServerExchange exchange) {
+    try (final var connection = dataSource.getConnection()) {
+      DSL.using(connection, SQLDialect.POSTGRES)
+          .select(
+              DSL.jsonArrayAgg(
+                  DSL.jsonObject(
+                      DSL.jsonEntry("workflow", WORKFLOW_VERSION.NAME),
+                      DSL.jsonEntry(
+                          "oldest",
+                          DSL.field(
+                              DSL.select(DSL.min(WORKFLOW_RUN.CREATED))
+                                  .from(WORKFLOW_RUN)
+                                  .where(
+                                      WORKFLOW_RUN.WORKFLOW_VERSION_ID.eq(WORKFLOW_VERSION.ID)))),
+                      DSL.jsonEntry(
+                          "workflowRuns",
+                          DSL.field(
+                              DSL.select(DSL.jsonArrayAgg(WORKFLOW_RUN.HASH_ID))
+                                  .from(WORKFLOW_RUN)
+                                  .where(
+                                      WORKFLOW_RUN.WORKFLOW_VERSION_ID.eq(WORKFLOW_VERSION.ID)))))))
+          .from(
+              WORKFLOW_RUN
+                  .join(WORKFLOW_VERSION)
+                  .on(WORKFLOW_RUN.WORKFLOW_VERSION_ID.eq(WORKFLOW_VERSION.ID))
+                  .join(ACTIVE_WORKFLOW_RUN)
+                  .on(WORKFLOW_RUN.ID.eq(ACTIVE_WORKFLOW_RUN.ID)))
+          .where(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE.eq(Phase.WAITING_FOR_RESOURCES))
+          .groupBy(WORKFLOW_VERSION.NAME)
+          .fetchOptional()
+          .ifPresentOrElse(
+              result -> {
+                exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/json");
+                exchange.setStatusCode(StatusCodes.OK);
+                exchange.getResponseSender().send(result.value1().data());
+              },
+              () -> {
+                exchange.setStatusCode(StatusCodes.NOT_FOUND);
+                exchange.getResponseSender().send("[]");
+              });
+    } catch (SQLException e) {
+      e.printStackTrace();
+      exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);
+      exchange.getResponseSender().send(e.getMessage());
+    }
+  }
+
   private void fetchWorkflows(HttpServerExchange exchange) {
     try (final var connection = dataSource.getConnection()) {
       final var workflowVersionAlias = WORKFLOW_VERSION.as("other_workflow_version");
@@ -1349,7 +1401,7 @@ public final class Main implements ServerConfig {
               .value1();
       exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/json");
       exchange.setStatusCode(StatusCodes.OK);
-      exchange.getResponseSender().send(response == null? "[]" : response.data());
+      exchange.getResponseSender().send(response == null ? "[]" : response.data());
     } catch (SQLException e) {
       e.printStackTrace();
       exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);

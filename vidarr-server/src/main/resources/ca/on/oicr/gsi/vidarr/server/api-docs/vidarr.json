@@ -1351,6 +1351,42 @@
         ]
       }
     },
+    "/api/waiting": {
+      "get": {
+        "description": "List how long workflows have been waiting for resources.",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "oldest": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "workflow": {
+                      "type": "string"
+                    },
+                    "workflowRuns": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The workflow, the waiting on resource time and the workflow runs that are available."
+          }
+        },
+        "summary": "List how long workflows have been waiting on resources",
+        "tags": [
+          "workflow"
+        ]
+      }
+    },
     "/api/workflows": {
       "get": {
         "description": "List workflows that are available to be run. The client must do additional work to determine which of these workflows can be run with which target and what information is requred to do that.",

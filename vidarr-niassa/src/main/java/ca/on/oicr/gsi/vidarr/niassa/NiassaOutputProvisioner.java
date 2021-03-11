@@ -8,19 +8,26 @@ import ca.on.oicr.gsi.vidarr.OutputProvisioner;
 import ca.on.oicr.gsi.vidarr.WorkMonitor;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import net.schmizz.sshj.SSHClient;
+import net.schmizz.sshj.sftp.SFTPClient;
 
 import javax.xml.stream.XMLStreamException;
+import java.io.IOException;
 
 public class NiassaOutputProvisioner implements OutputProvisioner {
     private final int[] chunks;
-    private final String username, password, hostname;
     static final ObjectMapper MAPPER = new ObjectMapper();
+    private final SSHClient client;
+    private final SFTPClient sftp;
 
-    public NiassaOutputProvisioner(int[] chunks, String username, String password, String hostname) {
+
+    public NiassaOutputProvisioner(int[] chunks, String username, String hostname, short port) throws IOException {
         this.chunks = chunks;
-        this.username = username;
-        this.password = password;
-        this.hostname = hostname;
+        client = new SSHClient();
+        client.loadKnownHosts();
+        client.connect(hostname, port);
+        client.authPublickey(username);
+        sftp = client.newSFTPClient();
     }
 
     @Override
@@ -35,7 +42,7 @@ public class NiassaOutputProvisioner implements OutputProvisioner {
 
     @Override
     public JsonNode preflightCheck(JsonNode metadata, WorkMonitor<Boolean, JsonNode> monitor) {
-        // copy from cronwell
+        // copy from CromwellOutputProvisioner
         monitor.scheduleTask(() -> monitor.complete(true));
         return null;
     }
@@ -43,7 +50,7 @@ public class NiassaOutputProvisioner implements OutputProvisioner {
 
     @Override
     public void preflightRecover(JsonNode state, WorkMonitor<Boolean, JsonNode> monitor) {
-        // copy from Cromwelletcetc
+        // copy from CromwellOutputProvisioner
         monitor.scheduleTask(() -> monitor.complete(true));
     }
 

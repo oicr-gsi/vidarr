@@ -114,6 +114,23 @@ public abstract class BasicType {
     public <R> R apply(Visitor<R> transformer) {
       return transformer.dictionary(key, value);
     }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) {
+        return true;
+      }
+      if (o == null || getClass() != o.getClass()) {
+        return false;
+      }
+      DictionaryBasicType that = (DictionaryBasicType) o;
+      return key.equals(that.key) && value.equals(that.value);
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(key, value);
+    }
   }
 
   public static final class JacksonDeserializer extends JsonDeserializer<BasicType> {
@@ -349,6 +366,23 @@ public abstract class BasicType {
     public <R> R apply(Visitor<R> transformer) {
       return transformer.list(inner);
     }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) {
+        return true;
+      }
+      if (o == null || getClass() != o.getClass()) {
+        return false;
+      }
+      ListBasicType that = (ListBasicType) o;
+      return inner.equals(that.inner);
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(inner);
+    }
   }
 
   private static final class ObjectBasicType extends BasicType {
@@ -374,6 +408,23 @@ public abstract class BasicType {
       return transformer.object(
           fields.entrySet().stream().map(e -> new Pair<>(e.getKey(), e.getValue().first())));
     }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) {
+        return true;
+      }
+      if (o == null || getClass() != o.getClass()) {
+        return false;
+      }
+      ObjectBasicType that = (ObjectBasicType) o;
+      return fields.equals(that.fields);
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(fields);
+    }
   }
 
   private static final class OptionalBasicType extends BasicType {
@@ -392,6 +443,23 @@ public abstract class BasicType {
     public BasicType asOptional() {
       return this;
     }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) {
+        return true;
+      }
+      if (o == null || getClass() != o.getClass()) {
+        return false;
+      }
+      OptionalBasicType that = (OptionalBasicType) o;
+      return inner.equals(that.inner);
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(inner);
+    }
   }
 
   private static final class PairBasicType extends BasicType {
@@ -407,6 +475,23 @@ public abstract class BasicType {
     public <R> R apply(Visitor<R> transformer) {
       return transformer.pair(left, right);
     }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) {
+        return true;
+      }
+      if (o == null || getClass() != o.getClass()) {
+        return false;
+      }
+      PairBasicType that = (PairBasicType) o;
+      return left.equals(that.left) && right.equals(that.right);
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(left, right);
+    }
   }
 
   private static final class TupleBasicType extends BasicType {
@@ -420,7 +505,90 @@ public abstract class BasicType {
     public <R> R apply(Visitor<R> transformer) {
       return transformer.tuple(Stream.of(types));
     }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) {
+        return true;
+      }
+      if (o == null || getClass() != o.getClass()) {
+        return false;
+      }
+      TupleBasicType that = (TupleBasicType) o;
+      return Arrays.equals(types, that.types);
+    }
+
+    @Override
+    public int hashCode() {
+      return Arrays.hashCode(types);
+    }
   }
+  /** The type of a Boolean value */
+  public static final BasicType BOOLEAN =
+      new BasicType() {
+
+        @Override
+        public <R> R apply(Visitor<R> transformer) {
+          return transformer.bool();
+        }
+      };
+  /**
+   * The type of a date
+   *
+   * <p>The expected encoding for a date is as an ISO-8601 timestamp in UTC
+   */
+  public static final BasicType DATE =
+      new BasicType() {
+
+        @Override
+        public <R> R apply(Visitor<R> transformer) {
+          return transformer.date();
+        }
+      };
+  /**
+   * The type of a floating-point number
+   *
+   * <p>Precision is not specified
+   */
+  public static final BasicType FLOAT =
+      new BasicType() {
+
+        @Override
+        public <R> R apply(Visitor<R> transformer) {
+          return transformer.floating();
+        }
+      };
+  /**
+   * The type of an integral number
+   *
+   * <p>Precision is not specified
+   */
+  public static final BasicType INTEGER =
+      new BasicType() {
+
+        @Override
+        public <R> R apply(Visitor<R> transformer) {
+          return transformer.integer();
+        }
+      };
+  /** The type of arbitrary JSON content */
+  public static final BasicType JSON =
+      new BasicType() {
+
+        @Override
+        public <R> R apply(Visitor<R> transformer) {
+          return transformer.json();
+        }
+      };
+  /** The type of a string */
+  public static final BasicType STRING =
+      new BasicType() {
+
+        @Override
+        public <R> R apply(Visitor<R> transformer) {
+          return transformer.string();
+        }
+      };
 
   /**
    * Create a dictionary type
@@ -529,72 +697,6 @@ public abstract class BasicType {
   public static BasicType tuple(BasicType... types) {
     return new TupleBasicType(types);
   }
-  /** The type of a Boolean value */
-  public static final BasicType BOOLEAN =
-      new BasicType() {
-
-        @Override
-        public <R> R apply(Visitor<R> transformer) {
-          return transformer.bool();
-        }
-      };
-  /**
-   * The type of a date
-   *
-   * <p>The expected encoding for a date is as an ISO-8601 timestamp in UTC
-   */
-  public static final BasicType DATE =
-      new BasicType() {
-
-        @Override
-        public <R> R apply(Visitor<R> transformer) {
-          return transformer.date();
-        }
-      };
-  /**
-   * The type of a floating-point number
-   *
-   * <p>Precision is not specified
-   */
-  public static final BasicType FLOAT =
-      new BasicType() {
-
-        @Override
-        public <R> R apply(Visitor<R> transformer) {
-          return transformer.floating();
-        }
-      };
-  /**
-   * The type of an integral number
-   *
-   * <p>Precision is not specified
-   */
-  public static final BasicType INTEGER =
-      new BasicType() {
-
-        @Override
-        public <R> R apply(Visitor<R> transformer) {
-          return transformer.integer();
-        }
-      };
-  /** The type of arbitrary JSON content */
-  public static final BasicType JSON =
-      new BasicType() {
-
-        @Override
-        public <R> R apply(Visitor<R> transformer) {
-          return transformer.json();
-        }
-      };
-  /** The type of a string */
-  public static final BasicType STRING =
-      new BasicType() {
-
-        @Override
-        public <R> R apply(Visitor<R> transformer) {
-          return transformer.string();
-        }
-      };
 
   private BasicType() {}
 

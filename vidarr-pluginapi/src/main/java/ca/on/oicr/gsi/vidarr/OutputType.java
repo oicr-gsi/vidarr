@@ -12,6 +12,7 @@ import com.fasterxml.jackson.databind.node.ValueNode;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Spliterators;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
@@ -252,29 +253,38 @@ public abstract class OutputType {
     }
   }
 
-  /**
-   * The output is a list of structures
-   *
-   * @param keys the entries in the structure that are used to uniquely identify each one (a
-   *     composite key)
-   * @param outputs the entries in the structure
-   */
-  public static OutputType list(Map<String, IdentifierKey> keys, Map<String, OutputType> outputs) {
-    if (keys.keySet().stream().anyMatch(outputs.keySet()::contains)) {
-      throw new IllegalArgumentException("Overlap between input and output entry sets");
+  private static final class ListOutputType extends OutputType {
+    final Map<String, IdentifierKey> inputKeys;
+    final Map<String, OutputType> outputValues;
+
+    private ListOutputType(
+        Map<String, IdentifierKey> keys, Map<String, ? extends OutputType> outputs) {
+      inputKeys = Collections.unmodifiableMap(new TreeMap<>(keys));
+      outputValues = Collections.unmodifiableMap(new TreeMap<>(outputs));
     }
-    return new OutputType() {
-      final Map<String, IdentifierKey> inputKeys = Collections.unmodifiableMap(new TreeMap<>(keys));
-      final Map<String, OutputType> outputValues =
-          Collections.unmodifiableMap(new TreeMap<>(outputs));
 
-      @Override
-      public <T> T apply(Visitor<T> visitor) {
-        return visitor.list(inputKeys, outputValues);
+    @Override
+    public <T> T apply(Visitor<T> visitor) {
+      return visitor.list(inputKeys, outputValues);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) {
+        return true;
       }
-    };
-  }
+      if (o == null || getClass() != o.getClass()) {
+        return false;
+      }
+      ListOutputType that = (ListOutputType) o;
+      return inputKeys.equals(that.inputKeys) && outputValues.equals(that.outputValues);
+    }
 
+    @Override
+    public int hashCode() {
+      return Objects.hash(inputKeys, outputValues);
+    }
+  }
   /** The output is a single file */
   public static final OutputType FILE =
       new OutputType() {
@@ -283,7 +293,6 @@ public abstract class OutputType {
           return visitor.file();
         }
       };
-
   /** The output is a collection files that should have identical metadata */
   public static final OutputType FILES =
       new OutputType() {
@@ -319,7 +328,6 @@ public abstract class OutputType {
           return visitor.logs();
         }
       };
-
   /** The output is quality control information */
   public static final OutputType QUALITY_CONTROL =
       new OutputType() {
@@ -344,6 +352,20 @@ public abstract class OutputType {
           return visitor.warehouseRecords();
         }
       };
+
+  /**
+   * The output is a list of structures
+   *
+   * @param keys the entries in the structure that are used to uniquely identify each one (a
+   *     composite key)
+   * @param outputs the entries in the structure
+   */
+  public static OutputType list(Map<String, IdentifierKey> keys, Map<String, OutputType> outputs) {
+    if (keys.keySet().stream().anyMatch(outputs.keySet()::contains)) {
+      throw new IllegalArgumentException("Overlap between input and output entry sets");
+    }
+    return new ListOutputType(keys, outputs);
+  }
 
   private OutputType() {}
 

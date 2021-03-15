@@ -32,16 +32,22 @@ public class NiassaWorkflowEngine implements WorkflowEngine {
 
     @Override
     public void recover(JsonNode state, WorkMonitor<Result<JsonNode>, JsonNode> monitor) {
-
+        monitor.scheduleTask(() -> monitor.permanentFailure(null));
     }
 
     @Override
     public void recoverCleanup(JsonNode state, WorkMonitor<Void, JsonNode> monitor) {
-
+        // TODO ???
     }
 
     @Override
-    public JsonNode run(WorkflowLanguage workflowLanguage, String workflow, Stream<Pair<String, String>> accessoryFiles, String vidarrId, ObjectNode workflowParameters, JsonNode engineParameters, WorkMonitor<Result<JsonNode>, JsonNode> monitor) {
+    public JsonNode run(WorkflowLanguage workflowLanguage,
+                        String workflow,
+                        Stream<Pair<String, String>> accessoryFiles,
+                        String vidarrId,
+                        ObjectNode workflowParameters,
+                        JsonNode engineParameters, 
+                        WorkMonitor<Result<JsonNode>, JsonNode> monitor) {
         return null;
     }
 

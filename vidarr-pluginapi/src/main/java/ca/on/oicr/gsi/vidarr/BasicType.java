@@ -106,6 +106,8 @@ public abstract class BasicType {
     private final BasicType value;
 
     DictionaryBasicType(BasicType key, BasicType value) {
+      Objects.requireNonNull(key, "key type");
+      Objects.requireNonNull(value, "value type");
       this.key = key;
       this.value = value;
     }
@@ -113,6 +115,23 @@ public abstract class BasicType {
     @Override
     public <R> R apply(Visitor<R> transformer) {
       return transformer.dictionary(key, value);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) {
+        return true;
+      }
+      if (o == null || getClass() != o.getClass()) {
+        return false;
+      }
+      DictionaryBasicType that = (DictionaryBasicType) o;
+      return key.equals(that.key) && value.equals(that.value);
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(key, value);
     }
   }
 
@@ -376,6 +395,23 @@ public abstract class BasicType {
     public <R> R apply(Visitor<R> transformer) {
       return transformer.list(inner);
     }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) {
+        return true;
+      }
+      if (o == null || getClass() != o.getClass()) {
+        return false;
+      }
+      ListBasicType that = (ListBasicType) o;
+      return inner.equals(that.inner);
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(inner);
+    }
   }
 
   private static final class ObjectBasicType extends BasicType {
@@ -391,6 +427,8 @@ public abstract class BasicType {
 
                 @Override
                 public void accept(Pair<String, BasicType> pair) {
+                  Objects.requireNonNull(pair.first(), "object field name");
+                  Objects.requireNonNull(pair.second(), "object field type");
                   ObjectBasicType.this.fields.put(pair.first(), new Pair<>(pair.second(), index++));
                 }
               });
@@ -400,6 +438,23 @@ public abstract class BasicType {
     public <R> R apply(Visitor<R> transformer) {
       return transformer.object(
           fields.entrySet().stream().map(e -> new Pair<>(e.getKey(), e.getValue().first())));
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) {
+        return true;
+      }
+      if (o == null || getClass() != o.getClass()) {
+        return false;
+      }
+      ObjectBasicType that = (ObjectBasicType) o;
+      return fields.equals(that.fields);
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(fields);
     }
   }
 
@@ -419,6 +474,23 @@ public abstract class BasicType {
     public BasicType asOptional() {
       return this;
     }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) {
+        return true;
+      }
+      if (o == null || getClass() != o.getClass()) {
+        return false;
+      }
+      OptionalBasicType that = (OptionalBasicType) o;
+      return inner.equals(that.inner);
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(inner);
+    }
   }
 
   private static final class PairBasicType extends BasicType {
@@ -426,6 +498,8 @@ public abstract class BasicType {
     private final BasicType right;
 
     PairBasicType(BasicType left, BasicType right) {
+      Objects.requireNonNull(left, "left type");
+      Objects.requireNonNull(right, "right type");
       this.left = left;
       this.right = right;
     }
@@ -434,12 +508,66 @@ public abstract class BasicType {
     public <R> R apply(Visitor<R> transformer) {
       return transformer.pair(left, right);
     }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) {
+        return true;
+      }
+      if (o == null || getClass() != o.getClass()) {
+        return false;
+      }
+      PairBasicType that = (PairBasicType) o;
+      return left.equals(that.left) && right.equals(that.right);
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(left, right);
+    }
+  }
+
+  private static final class TaggedUnionBasicType extends BasicType {
+    private final Map<String, BasicType> union;
+
+    private TaggedUnionBasicType(TreeMap<String, BasicType> union) {
+      // TreeMap can't have null keys, so we only need to check values
+      for (final var type : union.values()) {
+        Objects.requireNonNull(type, "union type contents");
+      }
+      this.union = Collections.unmodifiableMap(union);
+    }
+
+    @Override
+    public <R> R apply(Visitor<R> transformer) {
+      return transformer.taggedUnion(union.entrySet().stream());
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) {
+        return true;
+      }
+      if (o == null || getClass() != o.getClass()) {
+        return false;
+      }
+      TaggedUnionBasicType that = (TaggedUnionBasicType) o;
+      return union.equals(that.union);
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(union);
+    }
   }
 
   private static final class TupleBasicType extends BasicType {
     private final BasicType[] types;
 
     private TupleBasicType(BasicType[] types) {
+      for (final var type : types) {
+        Objects.requireNonNull(type, "tuple element type");
+      }
       this.types = types;
     }
 
@@ -447,114 +575,23 @@ public abstract class BasicType {
     public <R> R apply(Visitor<R> transformer) {
       return transformer.tuple(Stream.of(types));
     }
-  }
 
-  /**
-   * Create a dictionary type
-   *
-   * @param key the type of the keys
-   * @param value the type of the values
-   */
-  public static BasicType dictionary(BasicType key, BasicType value) {
-    return new DictionaryBasicType(key, value);
-  }
-
-  /**
-   * Create a new object type
-   *
-   * @param fields a collection of field names and the type for that field; duplicate field names
-   *     are not permitted and will result in an exception
-   */
-  public static BasicType object(Stream<Pair<String, BasicType>> fields) {
-    return new ObjectBasicType(fields);
-  }
-
-  /**
-   * Create a new object type
-   *
-   * @param fields a collection of field names and the type for that field; duplicate field names
-   *     are not permitted and will result in an exception
-   */
-  @SafeVarargs
-  public static BasicType object(Pair<String, BasicType>... fields) {
-    return object(Stream.of(fields));
-  }
-
-  /**
-   * Create a new pair type
-   *
-   * <p>This is functionally similar to a two-element tuple, but WDL has special encoding for pairs.
-   *
-   * @param left the type of the first/left element
-   * @param right the type of the second/right element
-   */
-  public static BasicType pair(BasicType left, BasicType right) {
-    return new PairBasicType(left, right);
-  }
-
-  /**
-   * The output is a choice between multiple tagged data structures
-   *
-   * @param elements the possible data structures; the string identifiers must be unique
-   */
-  public static BasicType taggedUnion(Stream<Map.Entry<String, BasicType>> elements) {
-    return new BasicType() {
-      private final Map<String, BasicType> union =
-          Collections.unmodifiableMap(
-              elements.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
-
-      @Override
-      public <R> R apply(Visitor<R> transformer) {
-        return transformer.taggedUnion(union.entrySet().stream());
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) {
+        return true;
       }
-    };
-  }
-
-  /**
-   * The output is a choice between multiple tagged data structures
-   *
-   * @param elements the possible data structures; the string identifiers must be unique
-   */
-  @SafeVarargs
-  public static BasicType taggedUnion(Map.Entry<String, BasicType>... elements) {
-    return taggedUnion(Stream.of(elements));
-  }
-
-  /**
-   * The output is a choice between multiple tagged data structures
-   *
-   * @param elements the possible data structures; the string identifiers must be unique
-   */
-  @SafeVarargs
-  public static BasicType taggedUnion(Pair<String, BasicType>... elements) {
-    return taggedUnionFromPairs(Stream.of(elements));
-  }
-
-  /**
-   * The output is a choice between multiple tagged data structures
-   *
-   * @param elements the possible data structures; the string identifiers must be unique
-   */
-  public static BasicType taggedUnionFromPairs(Stream<Pair<String, BasicType>> elements) {
-    return new BasicType() {
-      private final Map<String, BasicType> union =
-          Collections.unmodifiableMap(
-              elements.collect(Collectors.toMap(Pair::first, Pair::second)));
-
-      @Override
-      public <R> R apply(Visitor<R> transformer) {
-        return transformer.taggedUnion(union.entrySet().stream());
+      if (o == null || getClass() != o.getClass()) {
+        return false;
       }
-    };
-  }
+      TupleBasicType that = (TupleBasicType) o;
+      return Arrays.equals(types, that.types);
+    }
 
-  /**
-   * Create a tuple type from the types of its elements.
-   *
-   * @param types the element types, in order
-   */
-  public static BasicType tuple(BasicType... types) {
-    return new TupleBasicType(types);
+    @Override
+    public int hashCode() {
+      return Arrays.hashCode(types);
+    }
   }
   /** The type of a Boolean value */
   public static final BasicType BOOLEAN =
@@ -622,6 +659,112 @@ public abstract class BasicType {
           return transformer.string();
         }
       };
+
+  /**
+   * Create a dictionary type
+   *
+   * @param key the type of the keys
+   * @param value the type of the values
+   */
+  public static BasicType dictionary(BasicType key, BasicType value) {
+    return new DictionaryBasicType(key, value);
+  }
+
+  /**
+   * Create a new object type
+   *
+   * @param fields a collection of field names and the type for that field; duplicate field names
+   *     are not permitted and will result in an exception
+   */
+  public static BasicType object(Stream<Pair<String, BasicType>> fields) {
+    return new ObjectBasicType(fields);
+  }
+
+  /**
+   * Create a new object type
+   *
+   * @param fields a collection of field names and the type for that field; duplicate field names
+   *     are not permitted and will result in an exception
+   */
+  @SafeVarargs
+  public static BasicType object(Pair<String, BasicType>... fields) {
+    return object(Stream.of(fields));
+  }
+
+  /**
+   * Create a new pair type
+   *
+   * <p>This is functionally similar to a two-element tuple, but WDL has special encoding for pairs.
+   *
+   * @param left the type of the first/left element
+   * @param right the type of the second/right element
+   */
+  public static BasicType pair(BasicType left, BasicType right) {
+    return new PairBasicType(left, right);
+  }
+
+  /**
+   * The output is a choice between multiple tagged data structures
+   *
+   * @param elements the possible data structures; the string identifiers must be unique
+   */
+  public static BasicType taggedUnion(Stream<Map.Entry<String, BasicType>> elements) {
+    return new TaggedUnionBasicType(
+        elements.collect(
+            Collectors.toMap(
+                Map.Entry::getKey,
+                Map.Entry::getValue,
+                (a, b) -> {
+                  throw new IllegalArgumentException("Duplicate identifier in tagged union.");
+                },
+                TreeMap::new)));
+  }
+
+  /**
+   * The output is a choice between multiple tagged data structures
+   *
+   * @param elements the possible data structures; the string identifiers must be unique
+   */
+  @SafeVarargs
+  public static BasicType taggedUnion(Map.Entry<String, BasicType>... elements) {
+    return taggedUnion(Stream.of(elements));
+  }
+
+  /**
+   * The output is a choice between multiple tagged data structures
+   *
+   * @param elements the possible data structures; the string identifiers must be unique
+   */
+  @SafeVarargs
+  public static BasicType taggedUnion(Pair<String, BasicType>... elements) {
+    return taggedUnionFromPairs(Stream.of(elements));
+  }
+
+  /**
+   * The output is a choice between multiple tagged data structures
+   *
+   * @param elements the possible data structures; the string identifiers must be unique
+   */
+  public static BasicType taggedUnionFromPairs(Stream<Pair<String, BasicType>> elements) {
+    return new TaggedUnionBasicType(
+        elements.collect(
+            Collectors.toMap(
+                Pair::first,
+                Pair::second,
+                (a, b) -> {
+                  throw new IllegalArgumentException("Duplicate identifier in tagged union.");
+                },
+                TreeMap::new)));
+  }
+
+  /**
+   * Create a tuple type from the types of its elements.
+   *
+   * @param types the element types, in order
+   */
+  public static BasicType tuple(BasicType... types) {
+    return new TupleBasicType(types);
+  }
 
   private BasicType() {}
 

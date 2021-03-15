@@ -154,25 +154,52 @@ public abstract class InputType {
         if (obj.has("is") && obj.get("is").isTextual()) {
           switch (obj.get("is").asText()) {
             case "dictionary":
+              if (!obj.has("key")) {
+                throw new IllegalArgumentException("Missing 'key' in dictionary.");
+              }
+              if (!obj.has("value")) {
+                throw new IllegalArgumentException("Missing 'value' in dictionary.");
+              }
               return dictionary(deserialize(obj.get("key")), deserialize(obj.get("value")));
             case "list":
+              if (!obj.has("inner")) {
+                throw new IllegalArgumentException("Missing 'inner' in list.");
+              }
               return deserialize(obj.get("inner")).asList();
             case "object":
+              if (!obj.has("fields")) {
+                throw new IllegalArgumentException("Missing 'fields' in object.");
+              }
               return object(
                   StreamSupport.stream(
                           Spliterators.spliteratorUnknownSize(obj.get("fields").fields(), 0), false)
                       .map(e -> new Pair<>(e.getKey(), deserialize(e.getValue()))));
             case "optional":
+              if (!obj.has("inner")) {
+                throw new IllegalArgumentException("Missing 'inner' in optional.");
+              }
               return deserialize(obj.get("inner")).asOptional();
             case "pair":
+              if (!obj.has("left")) {
+                throw new IllegalArgumentException("Missing 'left' in pair.");
+              }
+              if (!obj.has("right")) {
+                throw new IllegalArgumentException("Missing 'right' in pair.");
+              }
               return pair(deserialize(obj.get("left")), deserialize(obj.get("right")));
             case "tagged-union":
+              if (!obj.has("options")) {
+                throw new IllegalArgumentException("Missing 'options' in tagged union.");
+              }
               return taggedUnionFromPairs(
                   StreamSupport.stream(
                           Spliterators.spliteratorUnknownSize(obj.get("options").fields(), 0),
                           false)
                       .map(e -> new Pair<>(e.getKey(), deserialize(e.getValue()))));
             case "tuple":
+              if (!obj.has("elements")) {
+                throw new IllegalArgumentException("Missing 'elements' in tuple.");
+              }
               return tuple(
                   StreamSupport.stream(obj.get("elements").spliterator(), false)
                       .map(this::deserialize)

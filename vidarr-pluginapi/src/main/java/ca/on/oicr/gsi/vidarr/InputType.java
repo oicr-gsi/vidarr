@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Spliterators;
 import java.util.TreeMap;
 import java.util.function.Consumer;
@@ -107,6 +108,8 @@ public abstract class InputType {
     private final InputType value;
 
     DictionaryInputType(InputType key, InputType value) {
+      Objects.requireNonNull(key, "key type");
+      Objects.requireNonNull(value, "value type");
       this.key = key;
       this.value = value;
     }
@@ -114,6 +117,23 @@ public abstract class InputType {
     @Override
     public <R> R apply(Visitor<R> transformer) {
       return transformer.dictionary(key, value);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) {
+        return true;
+      }
+      if (o == null || getClass() != o.getClass()) {
+        return false;
+      }
+      DictionaryInputType that = (DictionaryInputType) o;
+      return key.equals(that.key) && value.equals(that.value);
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(key, value);
     }
   }
 
@@ -391,6 +411,23 @@ public abstract class InputType {
     public <R> R apply(Visitor<R> transformer) {
       return transformer.list(inner);
     }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) {
+        return true;
+      }
+      if (o == null || getClass() != o.getClass()) {
+        return false;
+      }
+      ListInputType that = (ListInputType) o;
+      return inner.equals(that.inner);
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(inner);
+    }
   }
 
   private static final class ObjectInputType extends InputType {
@@ -406,6 +443,8 @@ public abstract class InputType {
 
                 @Override
                 public void accept(Pair<String, InputType> pair) {
+                  Objects.requireNonNull(pair.first(), "object field name");
+                  Objects.requireNonNull(pair.second(), "object field type");
                   ObjectInputType.this.fields.put(pair.first(), new Pair<>(pair.second(), index++));
                 }
               });
@@ -415,6 +454,23 @@ public abstract class InputType {
     public <R> R apply(Visitor<R> transformer) {
       return transformer.object(
           fields.entrySet().stream().map(e -> new Pair<>(e.getKey(), e.getValue().first())));
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) {
+        return true;
+      }
+      if (o == null || getClass() != o.getClass()) {
+        return false;
+      }
+      ObjectInputType that = (ObjectInputType) o;
+      return fields.equals(that.fields);
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(fields);
     }
   }
 
@@ -434,6 +490,23 @@ public abstract class InputType {
     public InputType asOptional() {
       return this;
     }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) {
+        return true;
+      }
+      if (o == null || getClass() != o.getClass()) {
+        return false;
+      }
+      OptionalInputType that = (OptionalInputType) o;
+      return inner.equals(that.inner);
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(inner);
+    }
   }
 
   private static final class PairInputType extends InputType {
@@ -441,6 +514,8 @@ public abstract class InputType {
     private final InputType right;
 
     PairInputType(InputType left, InputType right) {
+      Objects.requireNonNull(left, "pair left");
+      Objects.requireNonNull(right, "pair right");
       this.left = left;
       this.right = right;
     }
@@ -448,6 +523,57 @@ public abstract class InputType {
     @Override
     public <R> R apply(Visitor<R> transformer) {
       return transformer.pair(left, right);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) {
+        return true;
+      }
+      if (o == null || getClass() != o.getClass()) {
+        return false;
+      }
+      PairInputType that = (PairInputType) o;
+      return left.equals(that.left) && right.equals(that.right);
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(left, right);
+    }
+  }
+
+  private static final class TaggedUnionInputType extends InputType {
+    private final Map<String, InputType> union;
+
+    private TaggedUnionInputType(TreeMap<String, InputType> union) {
+      // TreeMap can't have null keys, so we only need to check values
+      for (final var type : union.values()) {
+        Objects.requireNonNull(type, "union type contents");
+      }
+      this.union = Collections.unmodifiableMap(union);
+    }
+
+    @Override
+    public <R> R apply(Visitor<R> transformer) {
+      return transformer.taggedUnion(union.entrySet().stream());
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) {
+        return true;
+      }
+      if (o == null || getClass() != o.getClass()) {
+        return false;
+      }
+      TaggedUnionInputType that = (TaggedUnionInputType) o;
+      return union.equals(that.union);
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(union);
     }
   }
 
@@ -463,110 +589,6 @@ public abstract class InputType {
       return transformer.tuple(Stream.of(types));
     }
   }
-
-  /**
-   * Create a new dictionary type
-   *
-   * @param key the type of the dictionary's keys
-   * @param value the type of the dictionary's values
-   */
-  public static InputType dictionary(InputType key, InputType value) {
-    return new DictionaryInputType(key, value);
-  }
-
-  /**
-   * Create a new object type
-   *
-   * @param fields the names and types of the fields; duplicate names are not permitted
-   */
-  public static InputType object(Stream<Pair<String, InputType>> fields) {
-    return new ObjectInputType(fields);
-  }
-  /**
-   * Create a new object type
-   *
-   * @param fields the names and types of the fields; duplicate names are not permitted
-   */
-  @SafeVarargs
-  public static InputType object(Pair<String, InputType>... fields) {
-    return object(Stream.of(fields));
-  }
-
-  /**
-   * A pair of values
-   *
-   * <p>This is not functionally different from a two-element tuple.
-   *
-   * @param left the type of the first/left value
-   * @param right the type of the second/right value
-   */
-  public static InputType pair(InputType left, InputType right) {
-    return new PairInputType(left, right);
-  }
-
-  /**
-   * The output is a choice between multiple tagged data structures
-   *
-   * @param elements the possible data structures; the string identifiers must be unique
-   */
-  public static InputType taggedUnion(Stream<Map.Entry<String, InputType>> elements) {
-    return new InputType() {
-      private final Map<String, InputType> union =
-          Collections.unmodifiableMap(
-              elements.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
-
-      @Override
-      public <R> R apply(Visitor<R> transformer) {
-        return transformer.taggedUnion(union.entrySet().stream());
-      }
-    };
-  }
-
-  /**
-   * The output is a choice between multiple tagged data structures
-   *
-   * @param elements the possible data structures; the string identifiers must be unique
-   */
-  @SafeVarargs
-  public static InputType taggedUnion(Map.Entry<String, InputType>... elements) {
-    return taggedUnion(Stream.of(elements));
-  }
-  /**
-   * The output is a choice between multiple tagged data structures
-   *
-   * @param elements the possible data structures; the string identifiers must be unique
-   */
-  @SafeVarargs
-  public static InputType taggedUnion(Pair<String, InputType>... elements) {
-    return taggedUnionFromPairs(Stream.of(elements));
-  }
-  /**
-   * The output is a choice between multiple tagged data structures
-   *
-   * @param elements the possible data structures; the string identifiers must be unique
-   */
-  public static InputType taggedUnionFromPairs(Stream<Pair<String, InputType>> elements) {
-    return new InputType() {
-      private final Map<String, InputType> union =
-          Collections.unmodifiableMap(
-              elements.collect(Collectors.toMap(Pair::first, Pair::second)));
-
-      @Override
-      public <R> R apply(Visitor<R> transformer) {
-        return transformer.taggedUnion(union.entrySet().stream());
-      }
-    };
-  }
-
-  /**
-   * Create a tuple type from the types of its elements.
-   *
-   * @param types the element types, in order
-   */
-  public static InputType tuple(InputType... types) {
-    return new TupleInputType(types);
-  }
-
   /** The type of a Boolean value */
   public static final InputType BOOLEAN =
       new InputType() {
@@ -647,6 +669,115 @@ public abstract class InputType {
           return transformer.string();
         }
       };
+
+  /**
+   * Create a new dictionary type
+   *
+   * @param key the type of the dictionary's keys
+   * @param value the type of the dictionary's values
+   */
+  public static InputType dictionary(InputType key, InputType value) {
+    return new DictionaryInputType(key, value);
+  }
+
+  /**
+   * Create a new object type
+   *
+   * @param fields the names and types of the fields; duplicate names are not permitted
+   */
+  public static InputType object(Stream<Pair<String, InputType>> fields) {
+    return new ObjectInputType(fields);
+  }
+
+  /**
+   * Create a new object type
+   *
+   * @param fields the names and types of the fields; duplicate names are not permitted
+   */
+  @SafeVarargs
+  public static InputType object(Pair<String, InputType>... fields) {
+    return object(Stream.of(fields));
+  }
+
+  /**
+   * A pair of values
+   *
+   * <p>This is not functionally different from a two-element tuple.
+   *
+   * @param left the type of the first/left value
+   * @param right the type of the second/right value
+   */
+  public static InputType pair(InputType left, InputType right) {
+    return new PairInputType(left, right);
+  }
+
+  /**
+   * The output is a choice between multiple tagged data structures
+   *
+   * @param elements the possible data structures; the string identifiers must be unique
+   */
+  public static InputType taggedUnion(Stream<Map.Entry<String, InputType>> elements) {
+    return new TaggedUnionInputType(
+        elements.collect(
+            Collectors.toMap(
+                Map.Entry::getKey,
+                Map.Entry::getValue,
+                (a, b) -> {
+                  throw new IllegalArgumentException("Duplicate identifier in tagged union.");
+                },
+                TreeMap::new)));
+  }
+
+  /**
+   * The output is a choice between multiple tagged data structures
+   *
+   * @param elements the possible data structures; the string identifiers must be unique
+   */
+  @SafeVarargs
+  public static InputType taggedUnion(Map.Entry<String, InputType>... elements) {
+    return taggedUnion(Stream.of(elements));
+  }
+
+  /**
+   * The output is a choice between multiple tagged data structures
+   *
+   * @param elements the possible data structures; the string identifiers must be unique
+   */
+  @SafeVarargs
+  public static InputType taggedUnion(Pair<String, InputType>... elements) {
+    return taggedUnionFromPairs(Stream.of(elements));
+  }
+
+  /**
+   * The output is a choice between multiple tagged data structures
+   *
+   * @param elements the possible data structures; the string identifiers must be unique
+   */
+  public static InputType taggedUnionFromPairs(Stream<Pair<String, InputType>> elements) {
+    return new InputType() {
+      private final Map<String, InputType> union =
+          Collections.unmodifiableMap(
+              elements.collect(Collectors.toMap(Pair::first, Pair::second)));
+
+      @Override
+      public <R> R apply(Visitor<R> transformer) {
+        return transformer.taggedUnion(union.entrySet().stream());
+      }
+    };
+  }
+
+  /**
+   * Create a tuple type from the types of its elements.
+   *
+   * @param types the element types, in order
+   */
+  public static InputType tuple(InputType... types) {
+    Objects.requireNonNull(types, "tuple types");
+    for (final var type : types) {
+      Objects.requireNonNull(type, "tuple types");
+    }
+    return new TupleInputType(types.clone());
+  }
 
   private InputType() {}
 

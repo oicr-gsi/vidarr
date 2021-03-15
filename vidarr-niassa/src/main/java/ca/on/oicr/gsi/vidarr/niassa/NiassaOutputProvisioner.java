@@ -56,6 +56,9 @@ public class NiassaOutputProvisioner implements OutputProvisioner {
 
     @Override
     public JsonNode provision(String workflowRunId, String data, JsonNode metadata, WorkMonitor<Result, JsonNode> monitor) {
+        monitor.scheduleTask(() -> {
+
+        });
         return null;
     }
 

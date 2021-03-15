@@ -146,6 +146,12 @@ public abstract class OutputType {
         if (obj.has("is") && obj.get("is").isTextual()) {
           switch (obj.get("is").asText()) {
             case "list":
+              if (!obj.has("keys")) {
+                throw new IllegalArgumentException("List is missing 'keys' property");
+              }
+              if (!obj.has("outputs")) {
+                throw new IllegalArgumentException("List is missing 'outputs' property");
+              }
               return list(
                   (StreamSupport.stream(
                           Spliterators.spliteratorUnknownSize(obj.get("keys").fields(), 0), false)

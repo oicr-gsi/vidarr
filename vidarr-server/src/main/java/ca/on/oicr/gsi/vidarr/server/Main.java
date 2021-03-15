@@ -756,6 +756,16 @@ public final class Main implements ServerConfig {
         exchange.getAttachment(PathTemplateMatch.ATTACHMENT_KEY).getParameters().get("name");
     final var version =
         exchange.getAttachment(PathTemplateMatch.ATTACHMENT_KEY).getParameters().get("version");
+    if (request.getParameters() == null || request.getParameters().isEmpty()) {
+      exchange.setStatusCode(StatusCodes.BAD_REQUEST);
+      exchange.getResponseSender().send("No parameter types found");
+      return;
+    }
+    if (request.getOutputs() == null || request.getOutputs().isEmpty()) {
+      exchange.setStatusCode(StatusCodes.BAD_REQUEST);
+      exchange.getResponseSender().send("No output types found");
+      return;
+    }
     try (final var connection = dataSource.getConnection()) {
       final var dsl = DSL.using(connection, SQLDialect.POSTGRES);
       final var definitionHash =

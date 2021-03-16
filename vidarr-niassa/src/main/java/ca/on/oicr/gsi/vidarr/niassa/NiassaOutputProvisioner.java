@@ -6,6 +6,7 @@ import ca.on.oicr.gsi.vidarr.BasicType;
 import ca.on.oicr.gsi.vidarr.OutputProvisionFormat;
 import ca.on.oicr.gsi.vidarr.OutputProvisioner;
 import ca.on.oicr.gsi.vidarr.WorkMonitor;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import net.schmizz.sshj.SSHClient;
@@ -14,13 +15,18 @@ import net.schmizz.sshj.sftp.SFTPClient;
 import javax.xml.stream.XMLStreamException;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Map;
 
 public class NiassaOutputProvisioner implements OutputProvisioner {
     // look at git dir to understand structure, steal code from cromwell
     private final int[] chunks;
-    static final ObjectMapper MAPPER = new ObjectMapper();
     private final SSHClient client;
     private final SFTPClient sftp;
+
+    private final Map<String,String> SUBSTITUTIONS = Map.of();
+
+    static final ObjectMapper MAPPER = new ObjectMapper();
+
 
 
     // all these are for the TARGET. Specifically 'chunks' is the target. SOURCE comes from workflow? I think?
@@ -63,19 +69,40 @@ public class NiassaOutputProvisioner implements OutputProvisioner {
                               JsonNode metadata, // jsonobject, contains root of TARGET. Append chunks to this. this is the 'outputDirectory' defined in typeFor and comes from shesmu
                               WorkMonitor<Result, JsonNode> monitor) {
         monitor.scheduleTask(() -> {
-            Path path = Path.of(metadata.get("outputDirectory").asText());
+            // Set up all the data in the formats we need
+            JsonNode dataAsJson;
+            try {
+                dataAsJson = MAPPER.readTree(data);
+            } catch (JsonProcessingException e) {
+                throw new RuntimeException(e);
+            }
+            Path sourcePath = Path.of(dataAsJson.get("path").asText());
+            Path targetPath = Path.of(metadata.get("outputDirectory").asText());
             int startIndex = 0;
             for (final int length: chunks){
                 if (length < 1) break;
                 final int endIndex = Math.min(workflowRunId.length(), startIndex + length);
                 if (endIndex == startIndex) break;
-                path = path.resolve(workflowRunId.substring(startIndex, endIndex));
+                targetPath = targetPath.resolve(workflowRunId.substring(startIndex, endIndex));
                 startIndex = endIndex;
             }
 
-            //recover: use the ssh connection to create symlink to the TARGET?
+            //use the ssh connection to create symlink to the TARGET
+            try {
+                sftp.symlink(sourcePath.toString(), targetPath.toString());
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
 
             //When done, monitor.complete with Result of type file describing symlinked file
+            // TODO: but what do we do with the labels?
+            Result result = Result.file(
+                    dataAsJson.get("path").asText(),
+                    dataAsJson.get("md5").asText(),
+                    dataAsJson.get("fileSize").asLong(),
+                    dataAsJson.get("metatype").asText() // This should use SUBSTITUTIONS somehow?
+            );
+            monitor.complete(result);
 
             //and return... nothing? unclear
 

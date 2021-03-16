@@ -13,14 +13,17 @@ import net.schmizz.sshj.sftp.SFTPClient;
 
 import javax.xml.stream.XMLStreamException;
 import java.io.IOException;
+import java.nio.file.Path;
 
 public class NiassaOutputProvisioner implements OutputProvisioner {
+    // look at git dir to understand structure, steal code from cromwell
     private final int[] chunks;
     static final ObjectMapper MAPPER = new ObjectMapper();
     private final SSHClient client;
     private final SFTPClient sftp;
 
 
+    // all these are for the TARGET. Specifically 'chunks' is the target. SOURCE comes from workflow? I think?
     public NiassaOutputProvisioner(int[] chunks, String username, String hostname, short port) throws IOException {
         this.chunks = chunks;
         client = new SSHClient();
@@ -55,11 +58,28 @@ public class NiassaOutputProvisioner implements OutputProvisioner {
     }
 
     @Override
-    public JsonNode provision(String workflowRunId, String data, JsonNode metadata, WorkMonitor<Result, JsonNode> monitor) {
+    public JsonNode provision(String workflowRunId,
+                              String data, // this is a json object inside a string, containing labels md5 &c. this comes from workflowengine
+                              JsonNode metadata, // jsonobject, contains root of TARGET. Append chunks to this. this is the 'outputDirectory' defined in typeFor and comes from shesmu
+                              WorkMonitor<Result, JsonNode> monitor) {
         monitor.scheduleTask(() -> {
+            Path path = Path.of(metadata.get("outputDirectory").asText());
+            int startIndex = 0;
+            for (final int length: chunks){
+                if (length < 1) break;
+                final int endIndex = Math.min(workflowRunId.length(), startIndex + length);
+                if (endIndex == startIndex) break;
+                path = path.resolve(workflowRunId.substring(startIndex, endIndex));
+                startIndex = endIndex;
+            }
+
+            //recover: use the ssh connection to create symlink to the TARGET?
+
+            //When done, monitor.complete with Result of type file describing symlinked file
+
+            //and return... nothing? unclear
 
         });
-        return null;
     }
 
     @Override

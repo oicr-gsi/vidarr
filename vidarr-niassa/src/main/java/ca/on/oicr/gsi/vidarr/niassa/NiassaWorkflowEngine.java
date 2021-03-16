@@ -46,7 +46,7 @@ public class NiassaWorkflowEngine implements WorkflowEngine {
                         Stream<Pair<String, String>> accessoryFiles,
                         String vidarrId,
                         ObjectNode workflowParameters,
-                        JsonNode engineParameters, 
+                        JsonNode engineParameters,
                         WorkMonitor<Result<JsonNode>, JsonNode> monitor) {
         return null;
     }

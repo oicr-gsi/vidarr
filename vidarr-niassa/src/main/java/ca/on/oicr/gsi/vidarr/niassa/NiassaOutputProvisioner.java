@@ -76,7 +76,7 @@ public class NiassaOutputProvisioner implements OutputProvisioner {
             } catch (JsonProcessingException e) {
                 throw new RuntimeException(e);
             }
-            Path sourcePath = Path.of(dataAsJson.get("path").asText());
+            String sourcePath = dataAsJson.get("path").asText();
             Path targetPath = Path.of(metadata.get("outputDirectory").asText());
             int startIndex = 0;
             for (final int length: chunks){
@@ -89,22 +89,21 @@ public class NiassaOutputProvisioner implements OutputProvisioner {
 
             //use the ssh connection to create symlink to the TARGET
             try {
-                sftp.symlink(sourcePath.toString(), targetPath.toString());
+                sftp.symlink(sourcePath, targetPath.toString());
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
 
             //When done, monitor.complete with Result of type file describing symlinked file
             // TODO: but what do we do with the labels?
-            Result result = Result.file(
+            monitor.complete(Result.file(
                     dataAsJson.get("path").asText(),
                     dataAsJson.get("md5").asText(),
                     dataAsJson.get("fileSize").asLong(),
-                    dataAsJson.get("metatype").asText() // This should use SUBSTITUTIONS somehow?
-            );
-            monitor.complete(result);
+                    dataAsJson.get("metatype").asText() // TODO: This should use SUBSTITUTIONS somehow?
+            ));
 
-            //and return... nothing? unclear
+            // TODO: and return... nothing? unclear
 
         });
     }

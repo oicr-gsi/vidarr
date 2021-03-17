@@ -14,6 +14,20 @@ import static ca.on.oicr.gsi.vidarr.niassa.NiassaOutputProvisioner.MAPPER;
  * Reads JSON configuration and creates a new NiassaOutputProvisioner with that config
  */
 public class NiassaOutputProvisionerProvider implements OutputProvisionerProvider {
+    /**
+     * Expects json data of form:
+     * {
+     *     "chunks":
+     *     "username":
+     *     "hostname":
+     *     "port"
+     * }
+     *
+     * Reads this from plugin configuration file.
+     *
+     * @param node the JSON data
+     * @return
+     */
     @Override
     public OutputProvisioner readConfiguration(ObjectNode node) {
         try {

@@ -17,6 +17,7 @@ public class ProvenanceAnalysisRecord<K extends ExternalId> {
   private String metatype;
   private ZonedDateTime modified;
   private String type;
+  private String url;
   private String workflowRun;
 
   public ZonedDateTime getCreated() {
@@ -57,6 +58,10 @@ public class ProvenanceAnalysisRecord<K extends ExternalId> {
 
   public String getType() {
     return type;
+  }
+
+  public String getUrl() {
+    return url;
   }
 
   public String getWorkflowRun() {
@@ -101,6 +106,10 @@ public class ProvenanceAnalysisRecord<K extends ExternalId> {
 
   public void setType(String type) {
     this.type = type;
+  }
+
+  public void setUrl(String url) {
+    this.url = url;
   }
 
   public void setWorkflowRun(String workflowRun) {

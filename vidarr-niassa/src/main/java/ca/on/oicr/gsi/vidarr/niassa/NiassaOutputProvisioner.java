@@ -18,18 +18,15 @@ import java.nio.file.Path;
 import java.util.Map;
 
 public class NiassaOutputProvisioner implements OutputProvisioner {
-    // look at git dir to understand structure, steal code from cromwell
+    private final static Map<String,String> SUBSTITUTIONS = Map.of();
+    static final ObjectMapper MAPPER = new ObjectMapper();
+
+    // look at .git dir to understand structure
     private final int[] chunks;
     private final SSHClient client;
     private final SFTPClient sftp;
 
-    private final Map<String,String> SUBSTITUTIONS = Map.of();
-
-    static final ObjectMapper MAPPER = new ObjectMapper();
-
-
-
-    // all these are for the TARGET. Specifically 'chunks' is the target. SOURCE comes from workflow? I think?
+    // all these are for the TARGET. Specifically 'chunks' is to be appended to the target. SOURCE comes from workflow.
     public NiassaOutputProvisioner(int[] chunks, String username, String hostname, short port) throws IOException {
         this.chunks = chunks;
         client = new SSHClient();
@@ -51,7 +48,6 @@ public class NiassaOutputProvisioner implements OutputProvisioner {
 
     @Override
     public JsonNode preflightCheck(JsonNode metadata, WorkMonitor<Boolean, JsonNode> monitor) {
-        // copy from CromwellOutputProvisioner
         monitor.scheduleTask(() -> monitor.complete(true));
         return null;
     }
@@ -59,7 +55,6 @@ public class NiassaOutputProvisioner implements OutputProvisioner {
 
     @Override
     public void preflightRecover(JsonNode state, WorkMonitor<Boolean, JsonNode> monitor) {
-        // copy from CromwellOutputProvisioner
         monitor.scheduleTask(() -> monitor.complete(true));
     }
 
@@ -103,10 +98,8 @@ public class NiassaOutputProvisioner implements OutputProvisioner {
                     dataAsJson.get("fileSize").asLong(),
                     dataAsJson.get("metatype").asText() // TODO: This should use SUBSTITUTIONS somehow?
             ));
-
-            // TODO: and return... nothing? unclear
-
         });
+        return MAPPER.nullNode();
     }
 
     @Override

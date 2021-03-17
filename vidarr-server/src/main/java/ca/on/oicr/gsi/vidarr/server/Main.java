@@ -684,7 +684,7 @@ public final class Main implements ServerConfig {
                 return Optional.of(
                     new FileMetadata() {
                       private final List<ExternalKey> keys = result.getExternalKeys();
-                      private final String path = result.getFilePath();
+                      private final String path = result.getPath();
 
                       @Override
                       public Stream<ExternalKey> externalKeys() {
@@ -894,6 +894,7 @@ public final class Main implements ServerConfig {
   private Field<JSON> createAnalysisJsonField(Field<JSON> externalKeys, JSONEntry<?>... extra) {
     final var analysisCommonFields = new ArrayList<>(List.of(extra));
     analysisCommonFields.add(DSL.jsonEntry("id", ANALYSIS.HASH_ID));
+    analysisCommonFields.add(DSL.jsonEntry("type", ANALYSIS.ANALYSIS_TYPE));
     analysisCommonFields.add(DSL.jsonEntry("created", ANALYSIS.CREATED));
     analysisCommonFields.add(DSL.jsonEntry("labels", ANALYSIS.LABELS));
     analysisCommonFields.add(DSL.jsonEntry("modified", ANALYSIS.MODIFIED));

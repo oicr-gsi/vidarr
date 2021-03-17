@@ -9,13 +9,13 @@ import java.util.Map;
 public class ProvenanceAnalysisRecord<K extends ExternalId> {
   private ZonedDateTime created;
   private List<K> externalKeys;
-  private String filePath;
-  private long fileSize;
   private String id;
   private Map<String, String> labels;
-  private String md5sum;
+  private String md5;
   private String metatype;
   private ZonedDateTime modified;
+  private String path;
+  private long size;
   private String type;
   private String url;
   private String workflowRun;
@@ -28,14 +28,6 @@ public class ProvenanceAnalysisRecord<K extends ExternalId> {
     return externalKeys;
   }
 
-  public String getFilePath() {
-    return filePath;
-  }
-
-  public long getFileSize() {
-    return fileSize;
-  }
-
   public String getId() {
     return id;
   }
@@ -44,8 +36,8 @@ public class ProvenanceAnalysisRecord<K extends ExternalId> {
     return labels;
   }
 
-  public String getMd5sum() {
-    return md5sum;
+  public String getMd5() {
+    return md5;
   }
 
   public String getMetatype() {
@@ -54,6 +46,14 @@ public class ProvenanceAnalysisRecord<K extends ExternalId> {
 
   public ZonedDateTime getModified() {
     return modified;
+  }
+
+  public String getPath() {
+    return path;
+  }
+
+  public long getSize() {
+    return size;
   }
 
   public String getType() {
@@ -76,14 +76,6 @@ public class ProvenanceAnalysisRecord<K extends ExternalId> {
     this.externalKeys = externalKeys;
   }
 
-  public void setFilePath(String filePath) {
-    this.filePath = filePath;
-  }
-
-  public void setFileSize(long fileSize) {
-    this.fileSize = fileSize;
-  }
-
   public void setId(String id) {
     this.id = id;
   }
@@ -92,8 +84,8 @@ public class ProvenanceAnalysisRecord<K extends ExternalId> {
     this.labels = labels;
   }
 
-  public void setMd5sum(String md5sum) {
-    this.md5sum = md5sum;
+  public void setMd5(String md5) {
+    this.md5 = md5;
   }
 
   public void setMetatype(String metatype) {
@@ -102,6 +94,14 @@ public class ProvenanceAnalysisRecord<K extends ExternalId> {
 
   public void setModified(ZonedDateTime modified) {
     this.modified = modified;
+  }
+
+  public void setPath(String path) {
+    this.path = path;
+  }
+
+  public void setSize(long size) {
+    this.size = size;
   }
 
   public void setType(String type) {

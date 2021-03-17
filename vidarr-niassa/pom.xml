@@ -11,7 +11,6 @@
         <dependency>
             <groupId>com.hierynomus</groupId>
             <artifactId>sshj</artifactId>
-            <version>0.31.0</version>
         </dependency>
     </dependencies>
 

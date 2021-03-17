@@ -414,7 +414,7 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
   public List<DatabaseOperation> phase(
       Phase phase, List<Pair<String, JsonNode>> operationInitialStates, DSLContext transaction) {
     if (liveness.get()) {
-      if (this.phase == Phase.INITIALIZING) {
+      if (this.phase == Phase.INITIALIZING || this.phase == Phase.WAITING_FOR_RESOURCES) {
         updateMainField(WORKFLOW_RUN.STARTED, OffsetDateTime.now(), transaction);
       }
       this.phase = phase;

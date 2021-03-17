@@ -38,7 +38,9 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import io.prometheus.client.CollectorRegistry;
@@ -138,6 +140,8 @@ public final class Main implements ServerConfig {
   private static final List<JSONEntry<?>> STATUS_FIELDS = new ArrayList<>();
 
   static {
+    MAPPER.registerModule(new JavaTimeModule());
+    MAPPER.configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true);
     STATUS_FIELDS.add(DSL.jsonEntry("completed", WORKFLOW_RUN.COMPLETED));
     STATUS_FIELDS.add(
         DSL.jsonEntry(

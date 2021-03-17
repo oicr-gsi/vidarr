@@ -9,6 +9,10 @@ import java.io.IOException;
 
 import static ca.on.oicr.gsi.vidarr.niassa.NiassaOutputProvisioner.MAPPER;
 
+/**
+ * Informs Vidarr that it is capable of using plugin type 'niassa'.
+ * Reads JSON configuration and creates a new NiassaOutputProvisioner with that config
+ */
 public class NiassaOutputProvisionerProvider implements OutputProvisionerProvider {
     @Override
     public OutputProvisioner readConfiguration(ObjectNode node) {

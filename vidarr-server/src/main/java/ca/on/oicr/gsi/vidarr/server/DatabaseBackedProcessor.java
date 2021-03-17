@@ -17,8 +17,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.zaxxer.hikari.HikariDataSource;
+import java.io.ByteArrayOutputStream;
+import java.io.IOError;
+import java.io.IOException;
 import java.lang.ref.SoftReference;
-import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -304,51 +306,58 @@ public abstract class DatabaseBackedProcessor
       WorkflowInformation workflow,
       TreeSet<String> inputIds,
       TreeSet<ExternalId> externalIds) {
-    // This is sorted so our output ID is first if we have
-    // to run
-    final var candidateDigesters =
-        transaction
-            .select()
-            .from(WORKFLOW_VERSION)
-            .where(WORKFLOW_VERSION.NAME.eq(name))
-            .orderBy(DSL.case_().when(WORKFLOW_VERSION.ID.eq(workflow.id()), 0).else_(1).asc())
-            .fetch(WORKFLOW_VERSION.HASH_ID)
-            .stream()
-            .map(
-                id -> {
-                  try {
-                    final var digest = MessageDigest.getInstance("SHA-256");
-                    digest.update(id.getBytes(StandardCharsets.UTF_8));
-                    return digest;
-                  } catch (NoSuchAlgorithmException e) {
-                    throw new RuntimeException(e);
-                  }
-                })
-            .collect(Collectors.toList());
-    for (final var id : inputIds) {
-      final var idBytes = hashFromAnalysisId(id).getBytes(StandardCharsets.UTF_8);
-      for (final var digest : candidateDigesters) {
-        digest.update(new byte[] {0});
-        digest.update(idBytes);
+    try {
+      // This is sorted so our output ID is first if we have
+      // to run
+      final var candidateDigesters =
+          transaction
+              .select()
+              .from(WORKFLOW_VERSION)
+              .where(WORKFLOW_VERSION.NAME.eq(name))
+              .orderBy(DSL.case_().when(WORKFLOW_VERSION.ID.eq(workflow.id()), 0).else_(1).asc())
+              .fetch(WORKFLOW_VERSION.HASH_ID)
+              .stream()
+              .map(
+                  id -> {
+                    try {
+                      final var digest = MessageDigest.getInstance("SHA-256");
+                      digest.update(id.getBytes(StandardCharsets.UTF_8));
+                      return digest;
+                    } catch (NoSuchAlgorithmException e) {
+                      throw new RuntimeException(e);
+                    }
+                  })
+              .collect(Collectors.toList());
+      for (final var id : inputIds) {
+        final var idBytes = hashFromAnalysisId(id).getBytes(StandardCharsets.UTF_8);
+        for (final var digest : candidateDigesters) {
+          digest.update(new byte[] {0});
+          digest.update(idBytes);
+        }
       }
-    }
-    for (final var id : externalIds) {
-      final var buffer = ByteBuffer.allocate(1024);
-      buffer.put((byte) 0);
-      buffer.put((byte) 0);
-      buffer.put(id.getProvider().getBytes(StandardCharsets.UTF_8));
-      buffer.put((byte) 0);
-      buffer.put(id.getId().getBytes(StandardCharsets.UTF_8));
-      buffer.put((byte) 0);
-      final var idBytes = buffer.array();
-      for (final var digest : candidateDigesters) {
-        digest.update(idBytes);
+      final var sortedExternalIds = new ArrayList<>(externalIds);
+      sortedExternalIds.sort(
+          Comparator.comparing(ExternalId::getProvider).thenComparing(ExternalId::getId));
+      for (final var id : sortedExternalIds) {
+        final var buffer = new ByteArrayOutputStream();
+        buffer.write(0);
+        buffer.write(0);
+        buffer.write(id.getProvider().getBytes(StandardCharsets.UTF_8));
+        buffer.write(0);
+        buffer.write(id.getId().getBytes(StandardCharsets.UTF_8));
+        buffer.write(0);
+        final var idBytes = buffer.toByteArray();
+        for (final var digest : candidateDigesters) {
+          digest.update(idBytes);
+        }
       }
+      workflow.digestLabels(candidateDigesters, labels);
+      return candidateDigesters.stream()
+          .map(digest -> hexDigits(digest.digest()))
+          .collect(Collectors.toList());
+    } catch (IOException e) {
+      throw new IOError(e);
     }
-    workflow.digestLabels(candidateDigesters, labels);
-    return candidateDigesters.stream()
-        .map(digest -> hexDigits(digest.digest()))
-        .collect(Collectors.toList());
   }
 
   protected final <T> T delete(String workflowRunId, DeleteResultHandler<T> handler) {

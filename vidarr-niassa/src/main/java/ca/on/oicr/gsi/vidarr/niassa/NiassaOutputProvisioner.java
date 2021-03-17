@@ -89,6 +89,7 @@ public class NiassaOutputProvisioner implements OutputProvisioner {
 
             //use the ssh connection to create symlink to the TARGET
             try {
+                sftp.mkdirs(targetPath.toString());
                 sftp.symlink(sourcePath, targetPath.toString());
             } catch (IOException e) {
                 throw new RuntimeException(e);

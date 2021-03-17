@@ -91,12 +91,12 @@ public class NiassaOutputProvisioner implements OutputProvisioner {
             }
 
             //When done, monitor.complete with Result of type file describing symlinked file
-            // TODO: but what do we do with the labels?
+            String metatype = dataAsJson.get("metatype").asText();
             monitor.complete(Result.file(
                     dataAsJson.get("path").asText(),
                     dataAsJson.get("md5").asText(),
                     dataAsJson.get("fileSize").asLong(),
-                    dataAsJson.get("metatype").asText() // TODO: This should use SUBSTITUTIONS somehow?
+                    SUBSTITUTIONS.getOrDefault(metatype, metatype)
             ));
         });
         return MAPPER.nullNode();

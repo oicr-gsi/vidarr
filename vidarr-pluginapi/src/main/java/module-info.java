@@ -8,9 +8,9 @@ module ca.on.oicr.gsi.vidarr.pluginapi {
   exports ca.on.oicr.gsi.vidarr;
   exports ca.on.oicr.gsi.vidarr.api;
 
+  requires transitive ca.on.oicr.gsi.serverutils;
   requires transitive com.fasterxml.jackson.core;
   requires transitive com.fasterxml.jackson.databind;
-  requires transitive server.utils;
   requires java.xml;
   requires java.net.http;
 }

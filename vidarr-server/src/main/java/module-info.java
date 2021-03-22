@@ -7,6 +7,7 @@ import ca.on.oicr.gsi.vidarr.WorkflowEngineProvider;
 module ca.on.oicr.gsi.vidarr.server {
   exports ca.on.oicr.gsi.vidarr.server;
 
+  requires ca.on.oicr.gsi.serverutils;
   requires ca.on.oicr.gsi.vidarr.core;
   requires ca.on.oicr.gsi.vidarr.pluginapi;
   requires com.fasterxml.jackson.core;
@@ -24,10 +25,9 @@ module ca.on.oicr.gsi.vidarr.server {
   requires org.jooq.meta;
   requires org.jooq;
   requires org.postgresql.jdbc;
-  requires server.utils;
   requires simpleclient.common;
-  requires simpleclient;
   requires simpleclient.hotspot;
+  requires simpleclient;
   requires undertow.core;
 
   opens ca.on.oicr.gsi.vidarr.server.dto to

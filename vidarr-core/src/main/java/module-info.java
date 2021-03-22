@@ -12,13 +12,13 @@ import ca.on.oicr.gsi.vidarr.core.RawInputProvisioner;
 module ca.on.oicr.gsi.vidarr.core {
   exports ca.on.oicr.gsi.vidarr.core;
 
+  requires ca.on.oicr.gsi.serverutils;
   requires ca.on.oicr.gsi.vidarr.pluginapi;
   requires com.fasterxml.jackson.core;
   requires com.fasterxml.jackson.databind;
   requires java.naming;
   requires java.sql;
   requires java.xml;
-  requires server.utils;
   requires simpleclient;
 
   uses InputProvisionerProvider;

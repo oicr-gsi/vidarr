@@ -24,10 +24,13 @@ import java.util.Map;
 public class NiassaOutputProvisioner implements OutputProvisioner {
     /**
      * For cases where we need to substitute one file type for another.
-     * TODO: why would we do this
-     * TODO: define these
+     * This is for consistency in formatting between types and to fix misspellings.
      */
-    private final static Map<String,String> SUBSTITUTIONS = Map.of();
+    private final static Map<String,String> SUBSTITUTIONS = Map.ofEntries(
+            Map.entry("application/txt-gz", "application/text-gz"),
+            Map.entry("application/vcf-4-gzip", "application/vcf-gz"),
+            Map.entry("txt/junction", "text/junction"),
+            Map.entry("txt/plain", "text/plain"));
 
     /**
      * Provides access to Jackson json interpretation methods.

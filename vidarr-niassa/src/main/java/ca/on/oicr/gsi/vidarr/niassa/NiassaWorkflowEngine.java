@@ -279,11 +279,15 @@ public class NiassaWorkflowEngine implements WorkflowEngine {
                     migrationArray.add(file);
                 }
                 migration.set("migration", migrationArray);
-                return migration; // ERR: Unexpected return value?
+
+                // rtmp://niassa.horse is not a real URL please do not attempt to connect
+                monitor.complete(new Result<>(migration, "rtmp://niassa.horse", Optional.empty()));
             } catch(SQLException sqle){
                 throw new RuntimeException(sqle);
             }
         });
+        
+        return null;
     }
 
     @Override

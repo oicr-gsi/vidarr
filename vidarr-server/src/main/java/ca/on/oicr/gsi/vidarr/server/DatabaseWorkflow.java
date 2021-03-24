@@ -206,7 +206,6 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
     dsl.update(WORKFLOW_RUN)
         .set(WORKFLOW_RUN.ARGUMENTS, arguments)
         .set(WORKFLOW_RUN.ENGINE_PARAMETERS, engineParameters)
-        .set(WORKFLOW_RUN.HASH_ID, vidarrId)
         .set(WORKFLOW_RUN.METADATA, metadata)
         .set(WORKFLOW_RUN.WORKFLOW_VERSION_ID, workflowVersionId)
         .where(WORKFLOW_RUN.ID.eq(dbId))

@@ -17,9 +17,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.zaxxer.hikari.HikariDataSource;
-import java.io.ByteArrayOutputStream;
 import java.io.IOError;
-import java.io.IOException;
 import java.lang.ref.SoftReference;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -86,7 +84,7 @@ public abstract class DatabaseBackedProcessor
     T unresolvedIds(TreeSet<String> inputId);
   }
 
-  protected static final class WorkflowInformation {
+  protected static final class WorkflowInformation implements Iterable<String> {
 
     private final WorkflowDefinition definition;
     private final int id;
@@ -103,28 +101,13 @@ public abstract class DatabaseBackedProcessor
       return definition;
     }
 
-    public void digestLabels(List<MessageDigest> digesters, ObjectNode providedLabels) {
-      try {
-        if (labels == null) {
-          return;
-        }
-        for (final var label : labels.keySet()) {
-          final var labelBytes = label.getBytes(StandardCharsets.UTF_8);
-          final var valueBytes = MAPPER.writeValueAsBytes(providedLabels.get(label));
-          for (final var digester : digesters) {
-            digester.update(new byte[] {0});
-            digester.update(labelBytes);
-            digester.update(new byte[] {0});
-            digester.update(valueBytes);
-          }
-        }
-      } catch (JsonProcessingException e) {
-        throw new RuntimeException(e);
-      }
-    }
-
     public int id() {
       return id;
+    }
+
+    @Override
+    public Iterator<String> iterator() {
+      return labels == null ? Collections.emptyIterator() : labels.keySet().iterator();
     }
 
     public Stream<String> validateLabels(ObjectNode providedLabels) {
@@ -193,6 +176,45 @@ public abstract class DatabaseBackedProcessor
     return consumableResources.containsKey(resource.first())
         ? resource.second().apply(new CheckEngineType(consumableResources.get(resource.first())))
         : Stream.of(String.format("Missing required consumable resource %s", resource.first()));
+  }
+
+  static String computeWorkflowRunHashId(
+      String name,
+      ObjectNode providedLabels,
+      Iterable<String> labels,
+      TreeSet<String> inputIds,
+      Collection<? extends ExternalId> externalIds) {
+    try {
+      final var digest = MessageDigest.getInstance("SHA-256");
+      digest.update(name.getBytes(StandardCharsets.UTF_8));
+      for (final var id : inputIds) {
+        final var idBytes = hashFromAnalysisId(id).getBytes(StandardCharsets.UTF_8);
+        digest.update(new byte[] {0});
+        digest.update(idBytes);
+      }
+      final var sortedExternalIds = new ArrayList<>(externalIds);
+      sortedExternalIds.sort(
+          Comparator.comparing(ExternalId::getProvider).thenComparing(ExternalId::getId));
+      for (final var id : sortedExternalIds) {
+        digest.update(new byte[] {0});
+        digest.update(new byte[] {0});
+        digest.update(id.getProvider().getBytes(StandardCharsets.UTF_8));
+        digest.update(new byte[] {0});
+        digest.update(id.getId().getBytes(StandardCharsets.UTF_8));
+        digest.update(new byte[] {0});
+      }
+
+      for (final var label : labels) {
+        digest.update(new byte[] {0});
+        digest.update(label.getBytes(StandardCharsets.UTF_8));
+        digest.update(new byte[] {0});
+        digest.update(MAPPER.writeValueAsBytes(providedLabels.get(label)));
+      }
+
+      return hexDigits(digest.digest());
+    } catch (NoSuchAlgorithmException | JsonProcessingException e) {
+      throw new IOError(e);
+    }
   }
 
   private static String hashFromAnalysisId(String id) {
@@ -297,67 +319,6 @@ public abstract class DatabaseBackedProcessor
       }
     }
     externalVersionInsert.execute();
-  }
-
-  private List<String> computeWorkflowRunHashIds(
-      String name,
-      ObjectNode labels,
-      DSLContext transaction,
-      WorkflowInformation workflow,
-      TreeSet<String> inputIds,
-      TreeSet<ExternalId> externalIds) {
-    try {
-      // This is sorted so our output ID is first if we have
-      // to run
-      final var candidateDigesters =
-          transaction
-              .select()
-              .from(WORKFLOW_VERSION)
-              .where(WORKFLOW_VERSION.NAME.eq(name))
-              .orderBy(DSL.case_().when(WORKFLOW_VERSION.ID.eq(workflow.id()), 0).else_(1).asc())
-              .fetch(WORKFLOW_VERSION.HASH_ID)
-              .stream()
-              .map(
-                  id -> {
-                    try {
-                      final var digest = MessageDigest.getInstance("SHA-256");
-                      digest.update(id.getBytes(StandardCharsets.UTF_8));
-                      return digest;
-                    } catch (NoSuchAlgorithmException e) {
-                      throw new RuntimeException(e);
-                    }
-                  })
-              .collect(Collectors.toList());
-      for (final var id : inputIds) {
-        final var idBytes = hashFromAnalysisId(id).getBytes(StandardCharsets.UTF_8);
-        for (final var digest : candidateDigesters) {
-          digest.update(new byte[] {0});
-          digest.update(idBytes);
-        }
-      }
-      final var sortedExternalIds = new ArrayList<>(externalIds);
-      sortedExternalIds.sort(
-          Comparator.comparing(ExternalId::getProvider).thenComparing(ExternalId::getId));
-      for (final var id : sortedExternalIds) {
-        final var buffer = new ByteArrayOutputStream();
-        buffer.write(0);
-        buffer.write(0);
-        buffer.write(id.getProvider().getBytes(StandardCharsets.UTF_8));
-        buffer.write(0);
-        buffer.write(id.getId().getBytes(StandardCharsets.UTF_8));
-        buffer.write(0);
-        final var idBytes = buffer.toByteArray();
-        for (final var digest : candidateDigesters) {
-          digest.update(idBytes);
-        }
-      }
-      workflow.digestLabels(candidateDigesters, labels);
-      return candidateDigesters.stream()
-          .map(digest -> hexDigits(digest.digest()))
-          .collect(Collectors.toList());
-    } catch (IOException e) {
-      throw new IOError(e);
-    }
   }
 
   protected final <T> T delete(String workflowRunId, DeleteResultHandler<T> handler) {
@@ -553,7 +514,7 @@ public abstract class DatabaseBackedProcessor
       WorkflowInformation workflow,
       TreeSet<String> inputIds,
       TreeSet<ExternalId> externalIds,
-      List<String> candidateIds)
+      String candidateId)
       throws SQLException {
     final var dbWorkflow =
         DatabaseWorkflow.create(
@@ -562,7 +523,7 @@ public abstract class DatabaseBackedProcessor
             workflow.id(),
             name,
             version,
-            candidateIds.get(0),
+            candidateId,
             labels,
             arguments,
             engineParameters,
@@ -598,7 +559,7 @@ public abstract class DatabaseBackedProcessor
     }
     externalVersionInsert.execute();
     return handler.launched(
-        candidateIds.get(0),
+        candidateId,
         new ConsumableResourceChecker(
             target,
             dataSource,
@@ -607,7 +568,7 @@ public abstract class DatabaseBackedProcessor
             liveness(dbWorkflow.dbId()),
             name,
             version,
-            candidateIds.get(0),
+            candidateId,
             consumableResources,
             new Runnable() {
               private boolean launched;
@@ -906,11 +867,10 @@ public abstract class DatabaseBackedProcessor
                                               return handler.externalIdMismatch();
                                             }
                                             try {
-                                              final List<String> candidateIds =
-                                                  computeWorkflowRunHashIds(
+                                              final var candidateId =
+                                                  computeWorkflowRunHashId(
                                                       name,
                                                       labels,
-                                                      transaction,
                                                       workflow,
                                                       inputIds,
                                                       externalIds);
@@ -918,7 +878,7 @@ public abstract class DatabaseBackedProcessor
                                                   transaction
                                                       .select(WORKFLOW_RUN.ID, WORKFLOW_RUN.HASH_ID)
                                                       .from(WORKFLOW_RUN)
-                                                      .where(WORKFLOW_RUN.HASH_ID.in(candidateIds))
+                                                      .where(WORKFLOW_RUN.HASH_ID.eq(candidateId))
                                                       .stream()
                                                       .map(
                                                           r ->
@@ -944,7 +904,7 @@ public abstract class DatabaseBackedProcessor
                                                       workflow,
                                                       inputIds,
                                                       externalIds,
-                                                      candidateIds);
+                                                      candidateId);
                                                 } else {
                                                   return handler.dryRunResult();
                                                 }
@@ -1002,9 +962,11 @@ public abstract class DatabaseBackedProcessor
                                                                         .ATTEMPT
                                                                         .eq(attempt - 1)
                                                                         .or(
-                                                                            WORKFLOW_RUN.HASH_ID.ne(
-                                                                                candidateIds.get(
-                                                                                    0)))))
+                                                                            WORKFLOW_RUN
+                                                                                .WORKFLOW_VERSION_ID
+                                                                                .ne(
+                                                                                    workflow
+                                                                                        .id()))))
                                                         .fetchOptional()
                                                         .map(Record1::value1)
                                                         .orElse(0)
@@ -1024,7 +986,7 @@ public abstract class DatabaseBackedProcessor
                                                           workflow.id(),
                                                           name,
                                                           version,
-                                                          candidateIds.get(0),
+                                                          candidateId,
                                                           arguments,
                                                           engineParameters,
                                                           metadata,
@@ -1034,7 +996,7 @@ public abstract class DatabaseBackedProcessor
                                                           consumableResources,
                                                           transaction);
                                                   return handler.reinitialise(
-                                                      candidateIds.get(0),
+                                                      candidateId,
                                                       new Runnable() {
                                                         private boolean launched;
 

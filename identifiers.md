@@ -19,7 +19,7 @@ two different workflow version hashes. It is computed as follows:
 - `NUL`
 - _version_
 - `NUL`
-- `HEX_DIGITS(SHA256(`_WDL file UTF-8 byte`s_`))`
+- `HEX_DIGITS(SHA256(` _WDL file UTF-8 bytes_ `))`
 - `JSON(`_output parameters_`)`
 - `JSON(`_input parameters_`)`
 - for _filename_, _contents_ in _accessory files_; sorted by _filename_:
@@ -33,7 +33,7 @@ Each workflow run has a hash consisting of data that is considered to uniquely
 identify it but this does *not* include all information in a workflow run. That
 is, there are *intentional* hash collisions for different workflow runs.
 
-- _workflow-version_
+- _workflow-name_
 - for _input_ in _input-ids_; sorted and unique
   - `NUL`
   - _hash_ from _input_ `=~ vidarr:`_server_`/`_hash_

@@ -118,7 +118,6 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
@@ -1892,48 +1891,24 @@ public final class Main implements ServerConfig {
             workflowRun.getExternalKeys().stream()
                 .map(e -> new Pair<>(e.getProvider(), e.getId()))
                 .collect(Collectors.toSet());
-        final var correctDigest = MessageDigest.getInstance("SHA-256");
-        correctDigest.update(versionInfo.first().getBytes(StandardCharsets.UTF_8));
-        final var inputIds =
-            versionInfo.second().getParameters().entrySet().stream()
-                .flatMap(
-                    param ->
-                        param
-                            .getValue()
-                            .apply(
-                                new ExtractInputVidarrIds(
-                                    MAPPER, workflowRun.getArguments().get(param.getKey()))))
-                .map(id -> BaseProcessor.ANALYSIS_RECORD_ID.matcher(id).group("hash"))
-                .collect(Collectors.toCollection(TreeSet::new));
-        for (final var id : inputIds) {
-          correctDigest.update(new byte[] {0});
-          correctDigest.update(id.getBytes(StandardCharsets.UTF_8));
-        }
-        workflowRun
-            .getExternalKeys()
-            .sort(
-                Comparator.comparing(ExternalMultiVersionKey::getProvider)
-                    .thenComparing(ExternalMultiVersionKey::getId));
-        for (final var id : workflowRun.getExternalKeys()) {
-          correctDigest.update((byte) 0);
-          correctDigest.update((byte) 0);
-          correctDigest.update(id.getProvider().getBytes(StandardCharsets.UTF_8));
-          correctDigest.update((byte) 0);
-          correctDigest.update(id.getId().getBytes(StandardCharsets.UTF_8));
-          correctDigest.update((byte) 0);
-        }
-
-        if (info.first().getLabels() != null) {
-          for (final var label : new TreeSet<>(info.first().getLabels().keySet())) {
-            correctDigest.update(new byte[] {0});
-            correctDigest.update(label.getBytes(StandardCharsets.UTF_8));
-            correctDigest.update(new byte[] {0});
-            correctDigest.update(MAPPER.writeValueAsBytes(workflowRun.getLabels().get(label)));
-          }
-        }
-
         // Compute the hash ID this workflow run should have
-        final var correctId = hexDigits(correctDigest.digest());
+        final var correctId =
+            DatabaseBackedProcessor.computeWorkflowRunHashId(
+                workflowRun.getWorkflowName(),
+                workflowRun.getLabels(),
+                info.first().getLabels() == null ? Set.of() : info.first().getLabels().keySet(),
+                versionInfo.second().getParameters().entrySet().stream()
+                    .flatMap(
+                        param ->
+                            param
+                                .getValue()
+                                .apply(
+                                    new ExtractInputVidarrIds(
+                                        MAPPER, workflowRun.getArguments().get(param.getKey()))))
+                    .map(id -> BaseProcessor.ANALYSIS_RECORD_ID.matcher(id).group("hash"))
+                    .collect(Collectors.toCollection(TreeSet::new)),
+                workflowRun.getExternalKeys());
+
         if (!correctId.equals(workflowRun.getId())) {
           exchange.setStatusCode(StatusCodes.BAD_REQUEST);
           exchange

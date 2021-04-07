@@ -15,6 +15,7 @@ Running a Vidarr instance requires:
 - Java 14 or later
 - PostgreSQL 12 or later
 - Maven (for building, not required on installation machine)
+- Docker (for building, not required on installation machine)
 
 ### Installing Vidarr on a Linux Instance
 Build your own copy of Vidarr using Maven:

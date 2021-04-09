@@ -5,7 +5,7 @@ The preferred coding style for Vidarr and Shesmu is in [vidarr-intellij-style.xm
 To import this style to the [IntelliJ IDE](https://www.jetbrains.com/help/idea/installation-guide.html):
 - Go to `File -> Settings`
 - Click the small gear icon next to the `Code Style` dropdown
-- Select `Import Scheme -> IntelliJ IDEA Code Style XML` and browse to the desired file
+- Select `Import Scheme -> IntelliJ IDEA Code Style XML` and browse to [vidarr-intellij-style.xml](vidarr-intellij-style.xml)
 - Click `OK` to import `Shesmu Style`
 - Click `OK` in the main `Settings` dialog
 

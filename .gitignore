@@ -4,3 +4,8 @@
 target
 vidarr-server/src/main/java/ca/on/oicr/gsi/vidarr/server/jooq/
 *~
+.project
+.classpath
+.settings/
+.DS_Store
+

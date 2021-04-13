@@ -220,6 +220,23 @@
           </execution>
         </executions>
       </plugin>
+      <plugin>
+        <groupId>com.cosium.code</groupId>
+        <artifactId>git-code-format-maven-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>format-jooq-code</id>
+            <goals>
+              <goal>format-code</goal>
+            </goals>
+            <phase>generate-sources</phase>
+            <configuration>
+              <!-- format the JOOQ code after it is generated, so it doesn't fail validation -->
+              <gcf.globPattern>src/main/java/ca/on/oicr/gsi/vidarr/server/jooq/**/*</gcf.globPattern>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
     </plugins>
   </build>
 </project>

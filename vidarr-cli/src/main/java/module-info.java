@@ -13,5 +13,8 @@ module ca.on.oicr.gsi.vidarr.cli {
   requires info.picocli;
 
   opens ca.on.oicr.gsi.vidarr.cli to
+      com.fasterxml.jackson.annotation,
+      com.fasterxml.jackson.core,
+      com.fasterxml.jackson.databind,
       info.picocli;
 }

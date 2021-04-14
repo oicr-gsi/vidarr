@@ -12,6 +12,11 @@ import ca.on.oicr.gsi.vidarr.core.RawInputProvisioner;
 module ca.on.oicr.gsi.vidarr.core {
   exports ca.on.oicr.gsi.vidarr.core;
 
+  opens ca.on.oicr.gsi.vidarr.core to
+      com.fasterxml.jackson.annotation,
+      com.fasterxml.jackson.core,
+      com.fasterxml.jackson.databind;
+
   requires ca.on.oicr.gsi.serverutils;
   requires ca.on.oicr.gsi.vidarr.pluginapi;
   requires com.fasterxml.jackson.core;

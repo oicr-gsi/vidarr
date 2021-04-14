@@ -12,6 +12,11 @@ module ca.on.oicr.gsi.vidarr.pluginapi {
   exports ca.on.oicr.gsi.vidarr;
   exports ca.on.oicr.gsi.vidarr.api;
 
+  opens ca.on.oicr.gsi.vidarr.api to
+      com.fasterxml.jackson.annotation,
+      com.fasterxml.jackson.core,
+      com.fasterxml.jackson.databind;
+
   requires transitive ca.on.oicr.gsi.serverutils;
   requires transitive com.fasterxml.jackson.core;
   requires transitive com.fasterxml.jackson.databind;

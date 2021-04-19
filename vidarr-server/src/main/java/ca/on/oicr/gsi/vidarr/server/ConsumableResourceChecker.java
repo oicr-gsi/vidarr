@@ -80,7 +80,7 @@ final class ConsumableResourceChecker implements Runnable {
                   workflow,
                   workflowVersion,
                   vidarrId,
-                  broker.inputFromUser().map(def -> consumableResources.get(def.first())))
+                  broker.inputFromSubmitter().map(def -> consumableResources.get(def.first())))
               .apply(
                   new Visitor<Optional<String>>() {
                     @Override

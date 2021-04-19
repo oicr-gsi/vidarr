@@ -553,8 +553,8 @@ public final class Main implements ServerConfig {
       engine.startup();
     }
     final var consumableResources = configuration.getConsumableResources();
-    for (final var resource : consumableResources.values()) {
-      resource.startup();
+    for (final var resource : consumableResources.entrySet()) {
+      resource.getValue().startup(resource.getKey());
     }
     targets =
         configuration.getTargets().entrySet().stream()
@@ -1426,7 +1426,7 @@ public final class Main implements ServerConfig {
       target
           .getValue()
           .consumableResources()
-          .flatMap(cr -> cr.second().inputFromUser().stream())
+          .flatMap(cr -> cr.second().inputFromSubmitter().stream())
           .forEach(cr -> consumableResources.putPOJO(cr.first(), cr.second()));
     }
     try {

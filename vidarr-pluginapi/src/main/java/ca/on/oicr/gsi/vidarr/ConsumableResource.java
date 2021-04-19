@@ -56,10 +56,10 @@ public interface ConsumableResource {
   /**
    * To operate, this resource requires the submission request to include a parameter.
    *
-   * @return the name of the parameter and the type required or an empty value if no input is
+   * @return the name of the parameter and the type required, or an empty value if no input is
    *     required.
    */
-  Optional<Pair<String, BasicType>> inputFromUser();
+  Optional<Pair<String, BasicType>> inputFromSubmitter();
 
   /**
    * Indicate that Vidarr has restarted and it is reasserting an old claim.
@@ -85,7 +85,7 @@ public interface ConsumableResource {
    * @param workflowName the name of the workflow
    * @param workflowVersion the version of the workflow
    * @param vidarrId the identifier of the workflow run
-   * @param input the input requested from the submitter, if applicable and provided
+   * @param input the input requested from the submitter, if applicable and provided.
    * @return whether this resource is available
    */
   ConsumableResourceResponse request(
@@ -95,6 +95,8 @@ public interface ConsumableResource {
    * Called to initialise this consumable resource.
    *
    * <p>If the configuration is invalid, this should throw a runtime exception.
+   *
+   * @param name
    */
-  void startup();
+  void startup(String name);
 }

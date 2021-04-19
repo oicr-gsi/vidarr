@@ -1109,7 +1109,7 @@ public abstract class DatabaseBackedProcessor
             workflow.validateLabels(labels),
             target
                 .consumableResources()
-                .flatMap(r -> r.second().inputFromUser().stream())
+                .flatMap(r -> r.second().inputFromSubmitter().stream())
                 .flatMap(cr -> checkConsumableResource(consumableResources, cr)))
         .flatMap(Function.identity())
         .collect(Collectors.toSet());

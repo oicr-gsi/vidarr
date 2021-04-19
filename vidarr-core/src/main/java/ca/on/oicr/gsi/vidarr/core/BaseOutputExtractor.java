@@ -65,13 +65,18 @@ abstract class BaseOutputExtractor<R, E> implements OutputType.Visitor<R> {
         && metadata.has("contents")) {
       final var contents = metadata.get("contents");
       if (!contents.isArray()) {
-        return invalid("Contents are not array.");
+        return invalid("'metadata' 'contents' are not array.");
       }
       switch (metadata.get("type").asText()) {
         case "REMAINING":
-          if (contents.size() != 1) {
+          var expectedSize = 1;
+          expectedSize = 1;
+          if (contents.size() != expectedSize) {
             return invalid(
-                String.format("Incorrect number of contents in REMAINING in %s.", format));
+                String.format(
+                    "Incorrect number of 'metadata' 'contents' of type REMAINING in %s. "
+                        + "Expected %d but got %d.",
+                    format, expectedSize, contents.size()));
           }
           return handle(
               format,
@@ -84,8 +89,13 @@ abstract class BaseOutputExtractor<R, E> implements OutputType.Visitor<R> {
                 }
               });
         case "ALL":
-          if (contents.size() != 1) {
-            return invalid(String.format("Incorrect number of contents in ALL in %s.", format));
+          expectedSize = 1;
+          if (contents.size() != expectedSize) {
+            return invalid(
+                String.format(
+                    "Incorrect number of 'metadata' 'contents' of 'type' ALL in "
+                        + "%s. Expected %d but got %d.",
+                    format, expectedSize, contents.size()));
           }
           return handle(
               format,
@@ -99,9 +109,13 @@ abstract class BaseOutputExtractor<R, E> implements OutputType.Visitor<R> {
               });
         case "MANUAL":
           try {
-            if (contents.size() != 2) {
+            expectedSize = 2;
+            if (contents.size() != expectedSize) {
               return invalid(
-                  String.format("Incorrect number of contents in MANUAL in %s.", format));
+                  String.format(
+                      "Incorrect number of 'metadata' 'contents' of 'type' MANUAL in %s. "
+                          + "Expected %d but got %d",
+                      format, expectedSize, contents.size()));
             }
             var externalIds = mapper().treeToValue(contents.get(1), ExternalId[].class);
             return handle(
@@ -121,10 +135,10 @@ abstract class BaseOutputExtractor<R, E> implements OutputType.Visitor<R> {
         default:
           return invalid(
               String.format(
-                  "Unknown metadata type %s in %s.", metadata.get("type").asText(), format));
+                  "Unknown 'metadata' 'type' %s in %s.", metadata.get("type").asText(), format));
       }
     } else {
-      return invalid(String.format("Metadata is not an object in %s.", format));
+      return invalid(String.format("'metadata' is not an object in %s.", format));
     }
   }
 
@@ -141,13 +155,14 @@ abstract class BaseOutputExtractor<R, E> implements OutputType.Visitor<R> {
       final var outputMappings = new HashMap<Map<String, Object>, Map<String, JsonNode>>();
       for (final var child : metadata) {
         if (!child.isObject()) {
-          return invalid("Entry in list is not an object");
+          return invalid("All entries in 'metadata' list are not objects");
         }
         final var key = new TreeMap<String, Object>();
         for (final var identifier : keys.entrySet()) {
           if (!child.has(identifier.getKey())) {
             return invalid(
-                String.format("Identifier key %s missing in collection.", identifier.getKey()));
+                String.format(
+                    "Identifier key '%s' missing in 'metadata' collection.", identifier.getKey()));
           }
           key.put(
               identifier.getKey(),
@@ -161,7 +176,7 @@ abstract class BaseOutputExtractor<R, E> implements OutputType.Visitor<R> {
           if (!child.has(output.getKey())) {
             return invalid(
                 String.format(
-                    "Output value %s missing in collection for entry identified by %s.",
+                    "Output value '%s' missing in collection for entry identified by '%s'.",
                     output.getKey(), key));
           }
           value.put(output.getKey(), child.get(output.getKey()));
@@ -186,11 +201,11 @@ abstract class BaseOutputExtractor<R, E> implements OutputType.Visitor<R> {
         final var outputValues = new ArrayList<E>();
         final var unusedKeys = new HashSet<>(outputMappings.keySet());
         if (output.isEmpty()) {
-          return invalid("No output values provided");
+          return invalid("No 'output' values provided");
         }
         for (final var child : output) {
           if (!child.isObject()) {
-            return invalid("Element of list is not object.");
+            return invalid("Element of 'output' list in is not object.");
           }
           final var key = new TreeMap<String, Object>();
           for (final var identifier : keys.entrySet()) {
@@ -211,7 +226,7 @@ abstract class BaseOutputExtractor<R, E> implements OutputType.Visitor<R> {
           unusedKeys.remove(key);
           for (final var output : outputs.entrySet()) {
             if (!child.has(output.getKey())) {
-              return invalid("Child is missing output key " + output.getKey());
+              return invalid("Child of 'output' is missing output key " + output.getKey());
             }
             outputValues.add(
                 processChild(
@@ -236,7 +251,7 @@ abstract class BaseOutputExtractor<R, E> implements OutputType.Visitor<R> {
         }
       }
     } else {
-      return invalid("List is not an array.");
+      return invalid("Both 'metadata' and 'output' must be arrays.");
     }
   }
 

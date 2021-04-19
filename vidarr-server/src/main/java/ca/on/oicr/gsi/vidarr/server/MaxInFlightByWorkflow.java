@@ -43,7 +43,7 @@ final class MaxInFlightByWorkflow implements ConsumableResource {
   }
 
   @Override
-  public Optional<Pair<String, BasicType>> inputFromUser() {
+  public Optional<Pair<String, BasicType>> inputFromSubmitter() {
     return Optional.empty();
   }
 
@@ -82,7 +82,7 @@ final class MaxInFlightByWorkflow implements ConsumableResource {
   }
 
   @Override
-  public void startup() {
+  public void startup(String name) {
     // Always ok.
   }
 

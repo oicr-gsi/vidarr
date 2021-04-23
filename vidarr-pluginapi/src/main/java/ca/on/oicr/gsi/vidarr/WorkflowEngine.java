@@ -2,14 +2,61 @@ package ca.on.oicr.gsi.vidarr;
 
 import ca.on.oicr.gsi.Pair;
 import ca.on.oicr.gsi.status.SectionRenderer;
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import com.fasterxml.jackson.annotation.JsonTypeInfo.As;
+import com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
+import com.fasterxml.jackson.databind.DatabindContext;
+import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.annotation.JsonTypeIdResolver;
+import com.fasterxml.jackson.databind.jsontype.impl.TypeIdResolverBase;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.io.IOException;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Optional;
+import java.util.ServiceLoader;
+import java.util.ServiceLoader.Provider;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.xml.stream.XMLStreamException;
 
 /** Defines an engine that knows how to execute workflows and track the results */
+@JsonTypeIdResolver(WorkflowEngine.WorkflowEngineIdResolver.class)
+@JsonTypeInfo(use = JsonTypeInfo.Id.CUSTOM, include = As.PROPERTY, property = "type")
 public interface WorkflowEngine {
+  final class WorkflowEngineIdResolver extends TypeIdResolverBase {
+    private final Map<String, Class<? extends WorkflowEngine>> knownIds =
+        ServiceLoader.load(WorkflowEngineProvider.class).stream()
+            .map(Provider::get)
+            .flatMap(WorkflowEngineProvider::types)
+            .collect(Collectors.toMap(Pair::first, Pair::second));
+
+    @Override
+    public Id getMechanism() {
+      return Id.CUSTOM;
+    }
+
+    @Override
+    public String idFromValue(Object o) {
+      return knownIds.entrySet().stream()
+          .filter(known -> known.getValue().isInstance(o))
+          .map(Entry::getKey)
+          .findFirst()
+          .orElseThrow();
+    }
+
+    @Override
+    public String idFromValueAndType(Object o, Class<?> aClass) {
+      return idFromValue(o);
+    }
+
+    @Override
+    public JavaType typeFromId(DatabindContext context, String id) throws IOException {
+      final var clazz = knownIds.get(id);
+      return clazz == null ? null : context.constructType(clazz);
+    }
+  }
 
   /** The output data from a workflow */
   class Result<C> {
@@ -123,6 +170,13 @@ public interface WorkflowEngine {
       ObjectNode workflowParameters,
       JsonNode engineParameters,
       WorkMonitor<Result<JsonNode>, JsonNode> monitor);
+
+  /**
+   * Called to initialise this workflow engine.
+   *
+   * <p>If the configuration is invalid, this should throw a runtime exception.
+   */
+  void startup();
 
   /**
    * Checks if this engine can support this language

@@ -16,18 +16,11 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonTypeInfo.As;
 import com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
 import com.fasterxml.jackson.databind.DatabindContext;
-import com.fasterxml.jackson.databind.DeserializationConfig;
 import com.fasterxml.jackson.databind.JavaType;
-import com.fasterxml.jackson.databind.SerializationConfig;
 import com.fasterxml.jackson.databind.annotation.JsonTypeIdResolver;
-import com.fasterxml.jackson.databind.jsontype.NamedType;
-import com.fasterxml.jackson.databind.jsontype.TypeDeserializer;
-import com.fasterxml.jackson.databind.jsontype.TypeSerializer;
-import com.fasterxml.jackson.databind.jsontype.impl.StdTypeResolverBuilder;
 import com.fasterxml.jackson.databind.jsontype.impl.TypeIdResolverBase;
 import java.io.IOException;
 import java.time.Instant;
-import java.util.Collection;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.ServiceLoader;
@@ -183,24 +176,6 @@ public interface UnloadFilter {
     public JavaType typeFromId(DatabindContext context, String id) throws IOException {
       final var clazz = knownIds.get(id);
       return clazz == null ? null : context.constructType(clazz);
-    }
-  }
-
-  final class UnloadFilterResolver extends StdTypeResolverBuilder {
-    @Override
-    public TypeDeserializer buildTypeDeserializer(
-        DeserializationConfig config, JavaType baseType, Collection<NamedType> subtypes) {
-      return useForType(baseType) ? super.buildTypeDeserializer(config, baseType, subtypes) : null;
-    }
-
-    @Override
-    public TypeSerializer buildTypeSerializer(
-        SerializationConfig config, JavaType baseType, Collection<NamedType> subtypes) {
-      return useForType(baseType) ? super.buildTypeSerializer(config, baseType, subtypes) : null;
-    }
-
-    public boolean useForType(JavaType t) {
-      return t.isJavaLangObject();
     }
   }
 

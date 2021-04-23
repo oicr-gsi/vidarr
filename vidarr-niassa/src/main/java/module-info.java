@@ -1,7 +1,7 @@
 import ca.on.oicr.gsi.vidarr.OutputProvisionerProvider;
 import ca.on.oicr.gsi.vidarr.WorkflowEngineProvider;
-import ca.on.oicr.gsi.vidarr.niassa.NiassaOutputProvisionerProvider;
-import ca.on.oicr.gsi.vidarr.niassa.NiassaWorkflowEngineProvider;
+import ca.on.oicr.gsi.vidarr.niassa.NiassaOutputProvisioner;
+import ca.on.oicr.gsi.vidarr.niassa.NiassaWorkflowEngine;
 
 module ca.on.oicr.gsi.vidarr.niassa {
   requires ca.on.oicr.gsi.vidarr.pluginapi;
@@ -11,8 +11,13 @@ module ca.on.oicr.gsi.vidarr.niassa {
   requires java.sql;
   requires HikariCP;
 
+  opens ca.on.oicr.gsi.vidarr.niassa to
+      com.fasterxml.jackson.annotation,
+      com.fasterxml.jackson.core,
+      com.fasterxml.jackson.databind;
+
   provides WorkflowEngineProvider with
-      NiassaWorkflowEngineProvider;
+      NiassaWorkflowEngine;
   provides OutputProvisionerProvider with
-      NiassaOutputProvisionerProvider;
+      NiassaOutputProvisioner;
 }

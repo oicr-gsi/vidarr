@@ -5,45 +5,30 @@ import ca.on.oicr.gsi.vidarr.BasicType;
 import ca.on.oicr.gsi.vidarr.ConsumableResource;
 import ca.on.oicr.gsi.vidarr.ConsumableResourceProvider;
 import ca.on.oicr.gsi.vidarr.ConsumableResourceResponse;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Stream;
 
 public final class MaxInFlightConsumableResource implements ConsumableResource {
   public static ConsumableResourceProvider provider() {
-    return new ConsumableResourceProvider() {
-      @Override
-      public ConsumableResource readConfiguration(String name, ObjectNode node) {
-        return new MaxInFlightConsumableResource(name, node.get("maximum").asInt(0));
-      }
-
-      @Override
-      public String type() {
-        return "max-in-flight";
-      }
-    };
+    return () -> Stream.of(new Pair<>("max-in-flight", MaxInFlightConsumableResource.class));
   }
 
-  private final String name;
-  private final int maximum;
-  private final Set<String> inFlight;
+  @JsonIgnore private Set<String> inFlight = ConcurrentHashMap.newKeySet();
+  private int maximum;
 
-  public MaxInFlightConsumableResource(String name, int maximum) {
-    this.name = name;
-    this.maximum = maximum;
-    inFlight = ConcurrentHashMap.newKeySet(maximum);
+  public MaxInFlightConsumableResource() {}
+
+  public int getMaximum() {
+    return maximum;
   }
 
   @Override
   public Optional<Pair<String, BasicType>> inputFromUser() {
     return Optional.empty();
-  }
-
-  @Override
-  public String name() {
-    return name;
   }
 
   @Override
@@ -64,5 +49,16 @@ public final class MaxInFlightConsumableResource implements ConsumableResource {
     } else {
       return ConsumableResourceResponse.UNAVAILABLE;
     }
+  }
+
+  @Override
+  public void startup() {
+    if (maximum < 0) {
+      throw new IllegalArgumentException("Maximum value is negative in max-in-flight resource.");
+    }
+  }
+
+  public void setMaximum(int maximum) {
+    this.maximum = maximum;
   }
 }

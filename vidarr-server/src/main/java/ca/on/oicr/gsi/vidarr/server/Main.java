@@ -23,21 +23,16 @@ import ca.on.oicr.gsi.status.ServerConfig;
 import ca.on.oicr.gsi.status.StatusPage;
 import ca.on.oicr.gsi.vidarr.BasicType;
 import ca.on.oicr.gsi.vidarr.ConsumableResource;
-import ca.on.oicr.gsi.vidarr.ConsumableResourceProvider;
 import ca.on.oicr.gsi.vidarr.InputProvisionFormat;
 import ca.on.oicr.gsi.vidarr.InputProvisioner;
-import ca.on.oicr.gsi.vidarr.InputProvisionerProvider;
 import ca.on.oicr.gsi.vidarr.InputType;
 import ca.on.oicr.gsi.vidarr.JsonBodyHandler;
 import ca.on.oicr.gsi.vidarr.OutputProvisionFormat;
 import ca.on.oicr.gsi.vidarr.OutputProvisioner;
-import ca.on.oicr.gsi.vidarr.OutputProvisionerProvider;
 import ca.on.oicr.gsi.vidarr.OutputType;
 import ca.on.oicr.gsi.vidarr.RuntimeProvisioner;
-import ca.on.oicr.gsi.vidarr.RuntimeProvisionerProvider;
 import ca.on.oicr.gsi.vidarr.UnloadFilter;
 import ca.on.oicr.gsi.vidarr.WorkflowEngine;
-import ca.on.oicr.gsi.vidarr.WorkflowEngineProvider;
 import ca.on.oicr.gsi.vidarr.WorkflowLanguage;
 import ca.on.oicr.gsi.vidarr.api.AddWorkflowRequest;
 import ca.on.oicr.gsi.vidarr.api.AddWorkflowVersionRequest;
@@ -69,10 +64,6 @@ import ca.on.oicr.gsi.vidarr.core.Phase;
 import ca.on.oicr.gsi.vidarr.core.Target;
 import ca.on.oicr.gsi.vidarr.server.DatabaseBackedProcessor.DeleteResultHandler;
 import ca.on.oicr.gsi.vidarr.server.dto.ServerConfiguration;
-import ca.on.oicr.gsi.vidarr.server.remote.RemoteInputProvisionerProvider;
-import ca.on.oicr.gsi.vidarr.server.remote.RemoteOutputProvisionerProvider;
-import ca.on.oicr.gsi.vidarr.server.remote.RemoteRuntimeProvisionerProvider;
-import ca.on.oicr.gsi.vidarr.server.remote.RemoteWorkflowEngineProvider;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -123,8 +114,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.ServiceLoader;
-import java.util.ServiceLoader.Provider;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
@@ -133,7 +122,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -355,63 +343,6 @@ public final class Main implements ServerConfig {
     exchange.getResponseSender().send(e.getMessage());
   }
 
-  @SafeVarargs
-  private static <P, T> Map<String, T> load(
-      String name,
-      Class<P> clazz,
-      Function<P, String> namer,
-      BiFunction<P, ObjectNode, T> reader,
-      Map<String, ObjectNode> configuration,
-      P... fixedProviders) {
-    final var providers =
-        Stream.concat(
-                ServiceLoader.load(clazz).stream().map(Provider::get), Stream.of(fixedProviders))
-            .collect(Collectors.toMap(namer, Function.identity()));
-    final var output = new TreeMap<String, T>();
-    for (final var entry : configuration.entrySet()) {
-      if (!entry.getValue().has("type")) {
-        throw new IllegalArgumentException(
-            String.format("%s record %s lacks type", name, entry.getKey()));
-      }
-      final var type = entry.getValue().get("type").asText();
-      final var provider = providers.get(type);
-      if (provider == null) {
-        throw new IllegalArgumentException(
-            String.format(
-                "%s record %s has type %s, but this is not registered. Maybe a missing module?",
-                name, entry.getKey(), type));
-      }
-      output.put(entry.getKey(), reader.apply(provider, entry.getValue()));
-    }
-    return output;
-  }
-
-  private static Map<String, ConsumableResource> loadConsumableResources(
-      Map<String, ObjectNode> configuration) {
-    final var providers =
-        ServiceLoader.load(ConsumableResourceProvider.class).stream()
-            .map(Provider::get)
-            .collect(Collectors.toMap(ConsumableResourceProvider::type, Function.identity()));
-    final var output = new TreeMap<String, ConsumableResource>();
-    for (final var entry : configuration.entrySet()) {
-      if (!entry.getValue().has("type")) {
-        throw new IllegalArgumentException(
-            String.format("Consumable resource record %s lacks type", entry.getKey()));
-      }
-      final var type = entry.getValue().get("type").asText();
-      final var provider = providers.get(type);
-      if (provider == null) {
-        throw new IllegalArgumentException(
-            String.format(
-                "Consumable resource record %s has type %s, but this is not registered. Maybe a"
-                    + " missing module?",
-                entry.getKey(), type));
-      }
-      output.put(entry.getKey(), provider.readConfiguration(entry.getKey(), entry.getValue()));
-    }
-    return output;
-  }
-
   public static void main(String[] args) throws IOException, SQLException {
     if (args.length != 1) {
       System.err.println(
@@ -604,39 +535,27 @@ public final class Main implements ServerConfig {
     selfName = configuration.getName();
     port = configuration.getPort();
     otherServers = configuration.getOtherServers();
-    workflowEngines =
-        load(
-            "Workflow engine",
-            WorkflowEngineProvider.class,
-            WorkflowEngineProvider::type,
-            WorkflowEngineProvider::readConfiguration,
-            configuration.getWorkflowEngines(),
-            new RemoteWorkflowEngineProvider());
-    inputProvisioners =
-        load(
-            "Input Provisioner",
-            InputProvisionerProvider.class,
-            InputProvisionerProvider::type,
-            InputProvisionerProvider::readConfiguration,
-            configuration.getInputProvisioners(),
-            new RemoteInputProvisionerProvider());
-    outputProvisioners =
-        load(
-            "Output Provisioner",
-            OutputProvisionerProvider.class,
-            OutputProvisionerProvider::type,
-            OutputProvisionerProvider::readConfiguration,
-            configuration.getOutputProvisioners(),
-            new RemoteOutputProvisionerProvider());
-    runtimeProvisioners =
-        load(
-            "Runtime Provisioner",
-            RuntimeProvisionerProvider.class,
-            RuntimeProvisionerProvider::name,
-            RuntimeProvisionerProvider::readConfiguration,
-            configuration.getRuntimeProvisioners(),
-            new RemoteRuntimeProvisionerProvider());
-    final var consumableResources = loadConsumableResources(configuration.getConsumableResources());
+    workflowEngines = configuration.getWorkflowEngines();
+    inputProvisioners = configuration.getInputProvisioners();
+    outputProvisioners = configuration.getOutputProvisioners();
+    runtimeProvisioners = configuration.getRuntimeProvisioners();
+
+    for (final var input : inputProvisioners.values()) {
+      input.startup();
+    }
+    for (final var output : outputProvisioners.values()) {
+      output.startup();
+    }
+    for (final var runtime : runtimeProvisioners.values()) {
+      runtime.startup();
+    }
+    for (final var engine : workflowEngines.values()) {
+      engine.startup();
+    }
+    final var consumableResources = configuration.getConsumableResources();
+    for (final var resource : consumableResources.values()) {
+      resource.startup();
+    }
     targets =
         configuration.getTargets().entrySet().stream()
             .collect(
@@ -644,11 +563,15 @@ public final class Main implements ServerConfig {
                     Map.Entry::getKey,
                     e ->
                         new Target() {
-                          private final List<ConsumableResource> consumables =
+                          private final List<Pair<String, ConsumableResource>> consumables =
                               Stream.concat(
                                       e.getValue().getConsumableResources().stream()
-                                          .map(consumableResources::get),
-                                      Stream.of(maxInFlightPerWorkflow))
+                                          .map(
+                                              name ->
+                                                  new Pair<>(name, consumableResources.get(name))),
+                                      Stream.of(
+                                          new Pair<String, ConsumableResource>(
+                                              "", maxInFlightPerWorkflow)))
                                   .collect(Collectors.toList());
                           private final WorkflowEngine engine =
                               workflowEngines.get(e.getValue().getWorkflowEngine());
@@ -686,7 +609,7 @@ public final class Main implements ServerConfig {
                                   .collect(Collectors.toList());
 
                           @Override
-                          public Stream<ConsumableResource> consumableResources() {
+                          public Stream<Pair<String, ConsumableResource>> consumableResources() {
                             return consumables.stream();
                           }
 
@@ -1503,7 +1426,7 @@ public final class Main implements ServerConfig {
       target
           .getValue()
           .consumableResources()
-          .flatMap(cr -> cr.inputFromUser().stream())
+          .flatMap(cr -> cr.second().inputFromUser().stream())
           .forEach(cr -> consumableResources.putPOJO(cr.first(), cr.second()));
     }
     try {

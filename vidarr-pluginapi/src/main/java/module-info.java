@@ -8,6 +8,11 @@ import ca.on.oicr.gsi.vidarr.UnloadFilterProvider;
  */
 module ca.on.oicr.gsi.vidarr.pluginapi {
   uses UnloadFilterProvider;
+  uses ca.on.oicr.gsi.vidarr.WorkflowEngineProvider;
+  uses ca.on.oicr.gsi.vidarr.ConsumableResourceProvider;
+  uses ca.on.oicr.gsi.vidarr.InputProvisionerProvider;
+  uses ca.on.oicr.gsi.vidarr.OutputProvisionerProvider;
+  uses ca.on.oicr.gsi.vidarr.RuntimeProvisionerProvider;
 
   exports ca.on.oicr.gsi.vidarr;
   exports ca.on.oicr.gsi.vidarr.api;

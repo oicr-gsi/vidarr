@@ -72,7 +72,8 @@ final class ConsumableResourceChecker implements Runnable {
     var i = 0;
     final var resourceBrokers = target.consumableResources().collect(Collectors.toList());
     for (i = 0; i < resourceBrokers.size(); i++) {
-      final var broker = resourceBrokers.get(i);
+      final var name = resourceBrokers.get(i).first();
+      final var broker = resourceBrokers.get(i).second();
       final var error =
           broker
               .request(
@@ -94,15 +95,14 @@ final class ConsumableResourceChecker implements Runnable {
 
                     @Override
                     public Optional<String> unavailable() {
-                      return Optional.of(
-                          String.format("Resource %s is not available", broker.name()));
+                      return Optional.of(String.format("Resource %s is not available", name));
                     }
                   });
       if (error.isPresent()) {
         updateBlockedResource(error.get());
         // Skip the last one, because it already failed, so we don't have to release any resources.
         while (--i >= 0) {
-          resourceBrokers.get(i).release(workflow, workflowVersion, vidarrId);
+          resourceBrokers.get(i).second().release(workflow, workflowVersion, vidarrId);
         }
         executor.schedule(this, 5, TimeUnit.MINUTES);
         return;

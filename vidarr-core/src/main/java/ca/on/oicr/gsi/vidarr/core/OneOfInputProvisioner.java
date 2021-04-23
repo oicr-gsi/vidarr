@@ -1,59 +1,27 @@
 package ca.on.oicr.gsi.vidarr.core;
 
+import ca.on.oicr.gsi.Pair;
 import ca.on.oicr.gsi.status.SectionRenderer;
-import ca.on.oicr.gsi.vidarr.*;
+import ca.on.oicr.gsi.vidarr.BasicType;
+import ca.on.oicr.gsi.vidarr.InputProvisionFormat;
+import ca.on.oicr.gsi.vidarr.InputProvisioner;
+import ca.on.oicr.gsi.vidarr.InputProvisionerProvider;
+import ca.on.oicr.gsi.vidarr.WorkMonitor;
+import ca.on.oicr.gsi.vidarr.WorkflowLanguage;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.util.Map;
-import java.util.ServiceLoader;
-import java.util.TreeMap;
+import java.util.stream.Stream;
 import javax.xml.stream.XMLStreamException;
 
 /** An input provisioner that selects between multiple input provisioners using a tagged union */
 public final class OneOfInputProvisioner implements InputProvisioner {
   public static InputProvisionerProvider provider() {
-    return new InputProvisionerProvider() {
-      @Override
-      public InputProvisioner readConfiguration(ObjectNode node) {
-        final var internal = node.get("internal").asText().toUpperCase();
-        final var iterator = node.get("provisioners").fields();
-        final var provisioners = new TreeMap<String, InputProvisioner>();
-        while (iterator.hasNext()) {
-          final var item = iterator.next();
-          final var type = item.getValue().get("type").asText();
-          provisioners.put(
-              item.getKey().toUpperCase(),
-              PROVIDERS.stream()
-                  .map(ServiceLoader.Provider::get)
-                  .filter(p -> p.type().equals(type))
-                  .findAny()
-                  .orElseThrow(
-                      () ->
-                          new IllegalArgumentException(
-                              String.format("Unknown input provider: %s", type)))
-                  .readConfiguration((ObjectNode) item.getValue()));
-        }
-        if (!provisioners.containsKey(internal)) {
-          throw new IllegalArgumentException(
-              String.format(
-                  "Internal provision format %s is not configured: %s",
-                  internal, String.join(", ", provisioners.keySet())));
-        }
-        return new OneOfInputProvisioner(provisioners, internal);
-      }
-
-      @Override
-      public String type() {
-        return "oneOf";
-      }
-    };
+    return () -> Stream.of(new Pair<>("oneOf", OneOfInputProvisioner.class));
   }
 
-  private static final ServiceLoader<InputProvisionerProvider> PROVIDERS =
-      ServiceLoader.load(InputProvisionerProvider.class);
-  private final String internal;
-  private final Map<String, InputProvisioner> provisioners;
+  private String internal;
+  private Map<String, InputProvisioner> provisioners;
 
   public OneOfInputProvisioner(Map<String, InputProvisioner> provisioners, String internal) {
     this.provisioners = provisioners;
@@ -78,6 +46,14 @@ public final class OneOfInputProvisioner implements InputProvisioner {
     return BasicType.taggedUnion(
         provisioners.entrySet().stream()
             .map(e -> Map.entry(e.getKey(), e.getValue().externalTypeFor(format))));
+  }
+
+  public String getInternal() {
+    return internal;
+  }
+
+  public Map<String, InputProvisioner> getProvisioners() {
+    return provisioners;
   }
 
   @Override
@@ -110,5 +86,20 @@ public final class OneOfInputProvisioner implements InputProvisioner {
   public void recover(JsonNode state, WorkMonitor<JsonNode, JsonNode> monitor) {
     final var type = state.get(0).asText();
     provisioners.get(type).recover(state.get(1), new MonitorWithType<>(monitor, type));
+  }
+
+  public void setInternal(String internal) {
+    this.internal = internal;
+  }
+
+  public void setProvisioners(Map<String, InputProvisioner> provisioners) {
+    this.provisioners = provisioners;
+  }
+
+  @Override
+  public void startup() {
+    if (!provisioners.containsKey(internal)) {
+      throw new RuntimeException("The internal provider name is not known.");
+    }
   }
 }

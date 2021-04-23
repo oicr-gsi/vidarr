@@ -5,7 +5,6 @@ import static ca.on.oicr.gsi.vidarr.cromwell.CromwellWorkflowEngine.*;
 import ca.on.oicr.gsi.Pair;
 import ca.on.oicr.gsi.status.SectionRenderer;
 import ca.on.oicr.gsi.vidarr.*;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.net.URI;
 import java.net.http.HttpRequest;
@@ -14,6 +13,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 
 /**
  * Provision out a file to a user-specified directory for permanent storage using a Cromwell
@@ -21,51 +21,6 @@ import java.util.concurrent.TimeUnit;
  */
 public class CromwellOutputProvisioner
     extends BaseJsonOutputProvisioner<OutputMetadata, ProvisionState, Void> {
-  public static OutputProvisionerProvider provider() {
-    return new OutputProvisionerProvider() {
-      @Override
-      public OutputProvisioner readConfiguration(ObjectNode node) {
-        if (node.has("workflowUrl") == node.has("workflowSource")) {
-          throw new IllegalArgumentException(
-              "One of workflowUrl or workflowSource must be supplied to Cromwell provision out"
-                  + " plugin.");
-        }
-        final String workflowTarget;
-        final String workflowTargetName;
-        if (node.has("workflowUrl")) {
-          workflowTarget = node.get("workflowUrl").asText();
-          workflowTargetName = "workflowUrl";
-        } else {
-          workflowTarget = node.get("workflowSource").asText();
-          workflowTargetName = "workflowSource";
-        }
-        try {
-          return new CromwellOutputProvisioner(
-              node.get("cromwellUrl").asText(),
-              node.has("chunks") ? MAPPER.treeToValue(node.get("chunks"), int[].class) : new int[0],
-              node.get("fileField").asText(),
-              node.get("fileSizeField").asText(),
-              node.get("md5Field").asText(),
-              node.get("outputPrefixField").asText(),
-              node.get("storagePathField").asText(),
-              node.get("wdlVersion").asText(),
-              node.has("workflowOptions")
-                  ? (ObjectNode) node.get("workflowOptions")
-                  : MAPPER.createObjectNode(),
-              workflowTargetName,
-              workflowTarget);
-        } catch (JsonProcessingException e) {
-          throw new RuntimeException(e);
-        }
-      }
-
-      @Override
-      public String type() {
-        return "cromwell";
-      }
-    };
-  }
-
   private static final int CHECK_DELAY = 1;
   private static final List<Pair<String, String>> EXTENSION_TO_META_TYPE =
       List.of(
@@ -98,42 +53,25 @@ public class CromwellOutputProvisioner
           new Pair<>(".Rdata", "application/rdata"),
           new Pair<>(".RData", "application/rdata"),
           new Pair<>("", "application/octet-stream"));
-  private final String baseUrl;
-  private final int[] chunks;
-  private final String fileField;
-  private final String fileSizeField;
-  private final String md5Field;
-  private final String outputDirectoryField;
-  private final String storagePathField;
-  private final String wdlVersion;
-  private final ObjectNode workflowOptions;
-  private final String workflowTargetName;
-  private final String workflowTarget;
 
-  public CromwellOutputProvisioner(
-      String baseUrl,
-      int[] chunks,
-      String fileField,
-      String fileSizeField,
-      String md5Field,
-      String outputDirectoryField,
-      String storagePathField,
-      String wdlVersion,
-      ObjectNode workflowOptions,
-      String workflowTargetName,
-      String workflowTarget) {
+  public static OutputProvisionerProvider provider() {
+    return () -> Stream.of(new Pair<>("cromwell", CromwellOutputProvisioner.class));
+  }
+
+  private int[] chunks;
+  private String cromwellUrl;
+  private String fileField;
+  private String fileSizeField;
+  private String md5Field;
+  private String outputPrefixField;
+  private String storagePathField;
+  private String wdlVersion;
+  private ObjectNode workflowOptions = MAPPER.createObjectNode();
+  private String workflowSource;
+  private String workflowUrl;
+
+  public CromwellOutputProvisioner() {
     super(MAPPER, ProvisionState.class, Void.class, OutputMetadata.class);
-    this.baseUrl = baseUrl;
-    this.chunks = chunks;
-    this.fileField = fileField;
-    this.fileSizeField = fileSizeField;
-    this.md5Field = md5Field;
-    this.outputDirectoryField = outputDirectoryField;
-    this.storagePathField = storagePathField;
-    this.wdlVersion = wdlVersion;
-    this.workflowOptions = workflowOptions;
-    this.workflowTargetName = workflowTargetName;
-    this.workflowTarget = workflowTarget;
   }
 
   @Override
@@ -146,15 +84,16 @@ public class CromwellOutputProvisioner
     try {
       monitor.log(
           System.Logger.Level.INFO,
-          String.format("Checking Cromwell job %s on %s", state.getCromwellId(), baseUrl));
-      CROMWELL_REQUESTS.labels(baseUrl).inc();
+          String.format("Checking Cromwell job %s on %s", state.getCromwellId(), cromwellUrl));
+      CROMWELL_REQUESTS.labels(cromwellUrl).inc();
       CLIENT
           .sendAsync(
               HttpRequest.newBuilder()
                   .uri(
                       URI.create(
                           String.format(
-                              "%s/api/workflows/v1/%s/metadata", baseUrl, state.getCromwellId())))
+                              "%s/api/workflows/v1/%s/metadata",
+                              cromwellUrl, state.getCromwellId())))
                   .timeout(Duration.ofMinutes(1))
                   .GET()
                   .build(),
@@ -167,7 +106,7 @@ public class CromwellOutputProvisioner
                     System.Logger.Level.INFO,
                     String.format(
                         "Cromwell job %s on %s is in state %s",
-                        state.getCromwellId(), baseUrl, result.getStatus()));
+                        state.getCromwellId(), cromwellUrl, result.getStatus()));
                 monitor.storeDebugInfo(result.debugInfo());
                 switch (result.getStatus()) {
                   case "Aborted":
@@ -189,8 +128,8 @@ public class CromwellOutputProvisioner
                 monitor.log(
                     System.Logger.Level.WARNING,
                     String.format(
-                        "Failed to get Cromwell job %s on %s", state.getCromwellId(), baseUrl));
-                CROMWELL_FAILURES.labels(baseUrl).inc();
+                        "Failed to get Cromwell job %s on %s", state.getCromwellId(), cromwellUrl));
+                CROMWELL_FAILURES.labels(cromwellUrl).inc();
                 monitor.scheduleTask(CHECK_DELAY, TimeUnit.MINUTES, () -> check(state, monitor));
                 return null;
               });
@@ -198,8 +137,8 @@ public class CromwellOutputProvisioner
       e.printStackTrace();
       monitor.log(
           System.Logger.Level.WARNING,
-          String.format("Failed to get Cromwell job %s on %s", state.getCromwellId(), baseUrl));
-      CROMWELL_FAILURES.labels(baseUrl).inc();
+          String.format("Failed to get Cromwell job %s on %s", state.getCromwellId(), cromwellUrl));
+      CROMWELL_FAILURES.labels(cromwellUrl).inc();
       monitor.scheduleTask(CHECK_DELAY, TimeUnit.MINUTES, () -> check(state, monitor));
     }
   }
@@ -211,11 +150,11 @@ public class CromwellOutputProvisioner
     sectionRenderer.line("Output Parameter for Final Storage Path", storagePathField);
     sectionRenderer.line("Output Parameter for MD5", md5Field);
     sectionRenderer.line("Provision Out WDL Workflow Version", wdlVersion);
-    sectionRenderer.link("Cromwell Instance", baseUrl, baseUrl);
-    if (workflowTargetName.equals("workflowUrl")) {
-      sectionRenderer.link("Provision Out Workflow", workflowTarget, workflowTarget);
+    sectionRenderer.link("Cromwell Instance", cromwellUrl, cromwellUrl);
+    if (workflowSource == null) {
+      sectionRenderer.link("Provision Out Workflow", workflowUrl, workflowUrl);
     } else {
-      sectionRenderer.line("Provision Out Workflow", workflowTarget);
+      sectionRenderer.line("Provision Out Workflow", workflowSource);
     }
   }
 
@@ -223,15 +162,16 @@ public class CromwellOutputProvisioner
       ProvisionState state, WorkMonitor<OutputProvisioner.Result, ProvisionState> monitor) {
     monitor.log(
         System.Logger.Level.INFO,
-        String.format("Reaping results of Cromwell job %s on %s", state.getCromwellId(), baseUrl));
-    CROMWELL_REQUESTS.labels(baseUrl).inc();
+        String.format(
+            "Reaping results of Cromwell job %s on %s", state.getCromwellId(), cromwellUrl));
+    CROMWELL_REQUESTS.labels(cromwellUrl).inc();
     CLIENT
         .sendAsync(
             HttpRequest.newBuilder()
                 .uri(
                     URI.create(
                         String.format(
-                            "%s/api/workflows/v1/%s/outputs", baseUrl, state.getCromwellId())))
+                            "%s/api/workflows/v1/%s/outputs", cromwellUrl, state.getCromwellId())))
                 .timeout(Duration.ofMinutes(1))
                 .GET()
                 .build(),
@@ -243,7 +183,7 @@ public class CromwellOutputProvisioner
               monitor.log(
                   System.Logger.Level.INFO,
                   String.format(
-                      "Got results of Cromwell job %s on %s", state.getCromwellId(), baseUrl));
+                      "Got results of Cromwell job %s on %s", state.getCromwellId(), cromwellUrl));
               monitor.complete(
                   Result.file(
                       result.getOutputs().get(storagePathField).asText(),
@@ -257,12 +197,56 @@ public class CromwellOutputProvisioner
                   System.Logger.Level.WARNING,
                   String.format(
                       "Failed to get results of Cromwell job %s on %s",
-                      state.getCromwellId(), baseUrl));
+                      state.getCromwellId(), cromwellUrl));
               t.printStackTrace();
-              CROMWELL_FAILURES.labels(baseUrl).inc();
+              CROMWELL_FAILURES.labels(cromwellUrl).inc();
               monitor.scheduleTask(CHECK_DELAY, TimeUnit.MINUTES, () -> check(state, monitor));
               return null;
             });
+  }
+
+  public int[] getChunks() {
+    return chunks;
+  }
+
+  public String getCromwellUrl() {
+    return cromwellUrl;
+  }
+
+  public String getFileField() {
+    return fileField;
+  }
+
+  public String getFileSizeField() {
+    return fileSizeField;
+  }
+
+  public String getMd5Field() {
+    return md5Field;
+  }
+
+  public String getOutputPrefixField() {
+    return outputPrefixField;
+  }
+
+  public String getStoragePathField() {
+    return storagePathField;
+  }
+
+  public String getWdlVersion() {
+    return wdlVersion;
+  }
+
+  public ObjectNode getWorkflowOptions() {
+    return workflowOptions;
+  }
+
+  public String getWorkflowSource() {
+    return workflowSource;
+  }
+
+  public String getWorkflowUrl() {
+    return workflowUrl;
   }
 
   @Override
@@ -322,10 +306,12 @@ public class CromwellOutputProvisioner
                   System.Logger.Level.INFO,
                   String.format(
                       "Launching provisioning out job on Cromwell %s for %s",
-                      baseUrl, state.getFileName()));
+                      cromwellUrl, state.getFileName()));
               final var body =
                   new MultiPartBodyPublisher()
-                      .addPart(workflowTargetName, workflowTarget)
+                      .addPart(
+                          workflowUrl == null ? "workflowSource" : "workflowUrl",
+                          workflowUrl == null ? workflowSource : workflowUrl)
                       .addPart(
                           "labels",
                           MAPPER.writeValueAsString(
@@ -340,16 +326,16 @@ public class CromwellOutputProvisioner
                               Map.of(
                                   fileField,
                                   state.getFileName(),
-                                  outputDirectoryField,
+                                  outputPrefixField,
                                   state.getOutputPrefix())))
                       .addPart("workflowOptions", MAPPER.writeValueAsString(workflowOptions))
                       .addPart("workflowType", "WDL")
                       .addPart("workflowTypeVersion", wdlVersion);
-              CROMWELL_REQUESTS.labels(baseUrl).inc();
+              CROMWELL_REQUESTS.labels(cromwellUrl).inc();
               CLIENT
                   .sendAsync(
                       HttpRequest.newBuilder()
-                          .uri(URI.create(String.format("%s/api/workflows/v1", baseUrl)))
+                          .uri(URI.create(String.format("%s/api/workflows/v1", cromwellUrl)))
                           .timeout(Duration.ofMinutes(1))
                           .header("Content-Type", body.getContentType())
                           .POST(body.build())
@@ -372,7 +358,7 @@ public class CromwellOutputProvisioner
                             System.Logger.Level.INFO,
                             String.format(
                                 "Provisioning for %s on Cromwell %s is %s",
-                                state.getFileName(), baseUrl, result.getId()));
+                                state.getFileName(), cromwellUrl, result.getId()));
                       })
                   .exceptionally(
                       t -> {
@@ -380,20 +366,73 @@ public class CromwellOutputProvisioner
                             System.Logger.Level.WARNING,
                             String.format(
                                 "Failed to launch provisioning out job on Cromwell %s for %s",
-                                baseUrl, state.getFileName()));
+                                cromwellUrl, state.getFileName()));
                         t.printStackTrace();
-                        CROMWELL_FAILURES.labels(baseUrl).inc();
+                        CROMWELL_FAILURES.labels(cromwellUrl).inc();
                         monitor.scheduleTask(
                             CHECK_DELAY, TimeUnit.MINUTES, () -> check(state, monitor));
                         return null;
                       });
             } catch (Exception e) {
-              CROMWELL_FAILURES.labels(baseUrl).inc();
+              CROMWELL_FAILURES.labels(cromwellUrl).inc();
               monitor.permanentFailure(e.toString());
             }
           });
     } else {
       check(state, monitor);
+    }
+  }
+
+  public void setChunks(int[] chunks) {
+    this.chunks = chunks;
+  }
+
+  public void setCromwellUrl(String cromwellUrl) {
+    this.cromwellUrl = cromwellUrl;
+  }
+
+  public void setFileField(String fileField) {
+    this.fileField = fileField;
+  }
+
+  public void setFileSizeField(String fileSizeField) {
+    this.fileSizeField = fileSizeField;
+  }
+
+  public void setMd5Field(String md5Field) {
+    this.md5Field = md5Field;
+  }
+
+  public void setOutputPrefixField(String outputPrefixField) {
+    this.outputPrefixField = outputPrefixField;
+  }
+
+  public void setStoragePathField(String storagePathField) {
+    this.storagePathField = storagePathField;
+  }
+
+  public void setWdlVersion(String wdlVersion) {
+    this.wdlVersion = wdlVersion;
+  }
+
+  public void setWorkflowOptions(ObjectNode workflowOptions) {
+    this.workflowOptions = workflowOptions;
+  }
+
+  public void setWorkflowSource(String workflowSource) {
+    this.workflowSource = workflowSource;
+  }
+
+  public void setWorkflowUrl(String workflowUrl) {
+    this.workflowUrl = workflowUrl;
+  }
+
+  @Override
+  public void startup() {
+    if ((workflowUrl == null) == (workflowSource == null)) {
+      throw new IllegalArgumentException(
+          "One of workflowUrl or workflowSource must be supplied to Cromwell provision out"
+              + " plugin.");
     }
   }
 

@@ -1,30 +1,34 @@
 package ca.on.oicr.gsi.vidarr.server.dto;
 
+import ca.on.oicr.gsi.vidarr.ConsumableResource;
+import ca.on.oicr.gsi.vidarr.InputProvisioner;
+import ca.on.oicr.gsi.vidarr.OutputProvisioner;
+import ca.on.oicr.gsi.vidarr.RuntimeProvisioner;
+import ca.on.oicr.gsi.vidarr.WorkflowEngine;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.util.Collections;
 import java.util.Map;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public final class ServerConfiguration {
-  private Map<String, ObjectNode> consumableResources = Collections.emptyMap();
+  private Map<String, ConsumableResource> consumableResources = Collections.emptyMap();
   private String dbHost;
   private String dbName;
   private String dbPass;
   private int dbPort;
   private String dbUser;
-  private Map<String, ObjectNode> inputProvisioners;
+  private Map<String, InputProvisioner> inputProvisioners;
   private String name;
   private Map<String, String> otherServers;
-  private Map<String, ObjectNode> outputProvisioners;
+  private Map<String, OutputProvisioner> outputProvisioners;
   private int port = 8080;
-  private Map<String, ObjectNode> runtimeProvisioners;
+  private Map<String, RuntimeProvisioner> runtimeProvisioners;
   private Map<String, TargetConfiguration> targets;
   private String unloadDirectory = ".";
   private String url;
-  private Map<String, ObjectNode> workflowEngines;
+  private Map<String, WorkflowEngine> workflowEngines;
 
-  public Map<String, ObjectNode> getConsumableResources() {
+  public Map<String, ConsumableResource> getConsumableResources() {
     return consumableResources;
   }
 
@@ -48,7 +52,7 @@ public final class ServerConfiguration {
     return dbUser;
   }
 
-  public Map<String, ObjectNode> getInputProvisioners() {
+  public Map<String, InputProvisioner> getInputProvisioners() {
     return inputProvisioners;
   }
 
@@ -60,7 +64,7 @@ public final class ServerConfiguration {
     return otherServers;
   }
 
-  public Map<String, ObjectNode> getOutputProvisioners() {
+  public Map<String, OutputProvisioner> getOutputProvisioners() {
     return outputProvisioners;
   }
 
@@ -68,7 +72,7 @@ public final class ServerConfiguration {
     return port;
   }
 
-  public Map<String, ObjectNode> getRuntimeProvisioners() {
+  public Map<String, RuntimeProvisioner> getRuntimeProvisioners() {
     return runtimeProvisioners;
   }
 
@@ -84,11 +88,11 @@ public final class ServerConfiguration {
     return url;
   }
 
-  public Map<String, ObjectNode> getWorkflowEngines() {
+  public Map<String, WorkflowEngine> getWorkflowEngines() {
     return workflowEngines;
   }
 
-  public void setConsumableResources(Map<String, ObjectNode> consumableResources) {
+  public void setConsumableResources(Map<String, ConsumableResource> consumableResources) {
     this.consumableResources = consumableResources;
   }
 
@@ -112,7 +116,7 @@ public final class ServerConfiguration {
     this.dbUser = dbUser;
   }
 
-  public void setInputProvisioners(Map<String, ObjectNode> inputProvisioners) {
+  public void setInputProvisioners(Map<String, InputProvisioner> inputProvisioners) {
     this.inputProvisioners = inputProvisioners;
   }
 
@@ -124,7 +128,7 @@ public final class ServerConfiguration {
     this.otherServers = otherServers;
   }
 
-  public void setOutputProvisioners(Map<String, ObjectNode> outputProvisioners) {
+  public void setOutputProvisioners(Map<String, OutputProvisioner> outputProvisioners) {
     this.outputProvisioners = outputProvisioners;
   }
 
@@ -132,7 +136,7 @@ public final class ServerConfiguration {
     this.port = port;
   }
 
-  public void setRuntimeProvisioners(Map<String, ObjectNode> runtimeProvisioners) {
+  public void setRuntimeProvisioners(Map<String, RuntimeProvisioner> runtimeProvisioners) {
     this.runtimeProvisioners = runtimeProvisioners;
   }
 
@@ -148,7 +152,7 @@ public final class ServerConfiguration {
     this.url = url;
   }
 
-  public void setWorkflowEngines(Map<String, ObjectNode> workflowEngines) {
+  public void setWorkflowEngines(Map<String, WorkflowEngine> workflowEngines) {
     this.workflowEngines = workflowEngines;
   }
 }

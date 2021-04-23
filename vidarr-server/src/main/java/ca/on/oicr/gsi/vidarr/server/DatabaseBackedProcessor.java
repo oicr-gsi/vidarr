@@ -696,10 +696,11 @@ public abstract class DatabaseBackedProcessor
                                             .consumableResources()
                                             .forEach(
                                                 cr ->
-                                                    cr.recover(
-                                                        record.get(WORKFLOW_VERSION.NAME),
-                                                        record.get(WORKFLOW_VERSION.VERSION),
-                                                        record.get(WORKFLOW_RUN.HASH_ID)));
+                                                    cr.second()
+                                                        .recover(
+                                                            record.get(WORKFLOW_VERSION.NAME),
+                                                            record.get(WORKFLOW_VERSION.VERSION),
+                                                            record.get(WORKFLOW_RUN.HASH_ID)));
                                         final var workflow =
                                             DatabaseWorkflow.recover(
                                                 target,
@@ -1101,7 +1102,7 @@ public abstract class DatabaseBackedProcessor
             workflow.validateLabels(labels),
             target
                 .consumableResources()
-                .flatMap(r -> r.inputFromUser().stream())
+                .flatMap(r -> r.second().inputFromUser().stream())
                 .flatMap(cr -> checkConsumableResource(consumableResources, cr)))
         .flatMap(Function.identity())
         .collect(Collectors.toSet());

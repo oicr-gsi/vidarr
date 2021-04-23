@@ -1,10 +1,5 @@
 /** Command line interface for Vidarr */
 module ca.on.oicr.gsi.vidarr.cli {
-  uses ca.on.oicr.gsi.vidarr.WorkflowEngineProvider;
-  uses ca.on.oicr.gsi.vidarr.OutputProvisionerProvider;
-  uses ca.on.oicr.gsi.vidarr.InputProvisionerProvider;
-  uses ca.on.oicr.gsi.vidarr.RuntimeProvisionerProvider;
-
   exports ca.on.oicr.gsi.vidarr.cli;
 
   requires ca.on.oicr.gsi.vidarr.core;

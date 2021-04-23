@@ -421,7 +421,7 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
       if (phase == Phase.FAILED) {
         target
             .consumableResources()
-            .forEach(cr -> cr.release(workflowName, workflowVersion, vidarrId));
+            .forEach(cr -> cr.second().release(workflowName, workflowVersion, vidarrId));
       }
       return operationInitialStates.stream()
           .map(
@@ -560,7 +560,9 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
         .where(ACTIVE_OPERATION.WORKFLOW_RUN_ID.eq(id))
         .execute();
     transaction.deleteFrom(ACTIVE_WORKFLOW_RUN).where(ACTIVE_WORKFLOW_RUN.ID.eq(id)).execute();
-    target.consumableResources().forEach(cr -> cr.release(workflowName, workflowVersion, vidarrId));
+    target
+        .consumableResources()
+        .forEach(cr -> cr.second().release(workflowName, workflowVersion, vidarrId));
   }
 
   private <T> void updateField(Field<T> field, T value, DSLContext dsl) {

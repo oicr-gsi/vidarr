@@ -1,46 +1,19 @@
 package ca.on.oicr.gsi.vidarr.core;
 
+import ca.on.oicr.gsi.Pair;
 import ca.on.oicr.gsi.status.SectionRenderer;
 import ca.on.oicr.gsi.vidarr.*;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.util.Map;
 import java.util.ServiceLoader;
-import java.util.TreeMap;
+import java.util.stream.Stream;
 import javax.xml.stream.XMLStreamException;
 
 /** An output provisioner that combines multiple other plugins using a tagged union */
 public final class OneOfOutputProvisioner implements OutputProvisioner {
 
   public static OutputProvisionerProvider provider() {
-    return new OutputProvisionerProvider() {
-      @Override
-      public OutputProvisioner readConfiguration(ObjectNode node) {
-        final var iterator = node.get("provisioners").fields();
-        final var provisioners = new TreeMap<String, OutputProvisioner>();
-        while (iterator.hasNext()) {
-          final var item = iterator.next();
-          final var type = item.getValue().get("type").asText();
-          provisioners.put(
-              item.getKey().toUpperCase(),
-              PROVIDERS.stream()
-                  .map(ServiceLoader.Provider::get)
-                  .filter(p -> p.type().equals(type))
-                  .findAny()
-                  .orElseThrow(
-                      () ->
-                          new IllegalArgumentException(
-                              String.format("Unknown output provider: %s", type)))
-                  .readConfiguration((ObjectNode) item.getValue()));
-        }
-        return new OneOfOutputProvisioner(provisioners);
-      }
-
-      @Override
-      public String type() {
-        return "oneOf";
-      }
-    };
+    return () -> Stream.of(new Pair<>("oneOf", OneOfOutputProvisioner.class));
   }
 
   private static final ServiceLoader<OutputProvisionerProvider> PROVIDERS =
@@ -92,6 +65,13 @@ public final class OneOfOutputProvisioner implements OutputProvisioner {
   public void recover(JsonNode state, WorkMonitor<Result, JsonNode> monitor) {
     final var type = state.get(0).asText();
     provisioners.get(type).recover(state.get(1), new MonitorWithType<>(monitor, type));
+  }
+
+  @Override
+  public void startup() {
+    for (final var provisioner : provisioners.values()) {
+      provisioner.startup();
+    }
   }
 
   @Override

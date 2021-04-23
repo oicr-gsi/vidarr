@@ -5,13 +5,17 @@ import ca.on.oicr.gsi.status.SectionRenderer;
 import ca.on.oicr.gsi.vidarr.BasicType;
 import ca.on.oicr.gsi.vidarr.OutputProvisionFormat;
 import ca.on.oicr.gsi.vidarr.OutputProvisioner;
+import ca.on.oicr.gsi.vidarr.OutputProvisionerProvider;
 import ca.on.oicr.gsi.vidarr.WorkMonitor;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.Map;
+import java.util.stream.Stream;
 import javax.xml.stream.XMLStreamException;
 import net.schmizz.sshj.SSHClient;
 import net.schmizz.sshj.sftp.SFTPClient;
@@ -23,6 +27,11 @@ import net.schmizz.sshj.transport.verification.PromiscuousVerifier;
  */
 public class NiassaOutputProvisioner implements OutputProvisioner {
   /**
+   * Provides access to Jackson json interpretation methods. Not private so
+   * NiassaOutputProvisionerProvider has access as well.
+   */
+  static final ObjectMapper MAPPER = new ObjectMapper();
+  /**
    * For cases where we need to substitute one file type for another. This is for consistency in
    * formatting between types and to fix misspellings.
    */
@@ -33,46 +42,32 @@ public class NiassaOutputProvisioner implements OutputProvisioner {
           Map.entry("txt/junction", "text/junction"),
           Map.entry("txt/plain", "text/plain"));
 
-  /**
-   * Provides access to Jackson json interpretation methods. Not private so
-   * NiassaOutputProvisionerProvider has access as well.
-   */
-  static final ObjectMapper MAPPER = new ObjectMapper();
-
+  public static OutputProvisionerProvider provider() {
+    return () -> Stream.of(new Pair<>("niassa", NiassaOutputProvisioner.class));
+  }
   /**
    * If we recreated the source directory structure, it'd be way too deep. Chunk the file path and
    * rebuild the path by appending this information to the target directory defined in the plugin
    * configuration. For an example of this structure, please look at the .git directory.
    */
-  private final int[] chunks;
-
+  private int[] chunks;
   /** Manages SSH connection information. */
-  private final SSHClient client;
+  @JsonIgnore private SSHClient client;
 
+  private String hostname;
+  private short port;
   /** Required specifically for its symlink() method. */
-  private final SFTPClient sftp;
+  @JsonIgnore private SFTPClient sftp;
 
+  private String username;
   /**
    * Set up the NiassaOutputProvisioner with a file path chunking and the SSH connection information
    * provided by the plugin configuration. This constructor should only be called by
    * NiassaOutputProvisionerProvider.readConfiguration().
    *
-   * @param chunks File path chunking to be appended to the target received from Shesmu
-   * @param username Username for SSH connection from plugin configuration
-   * @param hostname Hostname for SSH connection from plugin configuration
-   * @param port Port for SSH connection from plugin configuration
    * @throws IOException when SSH connection fails
    */
-  public NiassaOutputProvisioner(int[] chunks, String username, String hostname, short port)
-      throws IOException {
-    this.chunks = chunks;
-    client = new SSHClient();
-    client.loadKnownHosts();
-    client.addHostKeyVerifier(new PromiscuousVerifier());
-    client.connect(hostname, port);
-    client.authPublickey(username);
-    sftp = client.newSFTPClient();
-  }
+  public NiassaOutputProvisioner() throws IOException {}
 
   @Override
   public boolean canProvision(OutputProvisionFormat format) {
@@ -82,6 +77,22 @@ public class NiassaOutputProvisioner implements OutputProvisioner {
   @Override
   public void configuration(SectionRenderer sectionRenderer) throws XMLStreamException {
     // skip
+  }
+
+  public int[] getChunks() {
+    return chunks;
+  }
+
+  public String getHostname() {
+    return hostname;
+  }
+
+  public short getPort() {
+    return port;
+  }
+
+  public String getUsername() {
+    return username;
   }
 
   @Override
@@ -171,6 +182,40 @@ public class NiassaOutputProvisioner implements OutputProvisioner {
   @Override
   public void recover(JsonNode state, WorkMonitor<Result, JsonNode> monitor) {
     monitor.scheduleTask(() -> monitor.permanentFailure("Dummy action."));
+  }
+
+  /** File path chunking to be appended to the target received from Shesmu */
+  public void setChunks(int[] chunks) {
+    this.chunks = chunks;
+  }
+
+  /** Hostname for SSH connection from plugin configuration */
+  public void setHostname(String hostname) {
+    this.hostname = hostname;
+  }
+
+  /** Port for SSH connection from plugin configuration */
+  public void setPort(short port) {
+    this.port = port;
+  }
+
+  /** Username for SSH connection from plugin configuration */
+  public void setUsername(String username) {
+    this.username = username;
+  }
+
+  @Override
+  public void startup() {
+    try {
+      client = new SSHClient();
+      client.loadKnownHosts();
+      client.addHostKeyVerifier(new PromiscuousVerifier());
+      client.connect(hostname, port);
+      client.authPublickey(username);
+      sftp = client.newSFTPClient();
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
   }
 
   @Override

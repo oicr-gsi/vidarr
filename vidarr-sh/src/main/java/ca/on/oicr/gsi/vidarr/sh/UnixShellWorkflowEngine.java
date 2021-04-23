@@ -22,17 +22,7 @@ public final class UnixShellWorkflowEngine
   private static final ObjectMapper MAPPER = new ObjectMapper();
 
   public static WorkflowEngineProvider provider() {
-    return new WorkflowEngineProvider() {
-      @Override
-      public WorkflowEngine readConfiguration(ObjectNode node) {
-        return new UnixShellWorkflowEngine();
-      }
-
-      @Override
-      public String type() {
-        return "sh";
-      }
-    };
+    return () -> Stream.of(new Pair<>("sh", UnixShellWorkflowEngine.class));
   }
 
   public UnixShellWorkflowEngine() {
@@ -53,6 +43,11 @@ public final class UnixShellWorkflowEngine
   @Override
   public Optional<BasicType> engineParameters() {
     return Optional.empty();
+  }
+
+  @Override
+  public void startup() {
+    // Always ok.
   }
 
   @Override

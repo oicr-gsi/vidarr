@@ -1,41 +1,27 @@
 package ca.on.oicr.gsi.vidarr.core;
 
+import ca.on.oicr.gsi.Pair;
 import ca.on.oicr.gsi.status.SectionRenderer;
 import ca.on.oicr.gsi.vidarr.*;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import java.util.EnumSet;
 import java.util.Set;
+import java.util.stream.Stream;
 import javax.xml.stream.XMLStreamException;
 
 /** Provision input using the stored path as the input path with no alteration */
 public final class RawInputProvisioner extends BaseJsonInputProvisioner<String, String> {
-  public static InputProvisionerProvider provider() {
-    return new InputProvisionerProvider() {
-      @Override
-      public InputProvisioner readConfiguration(ObjectNode node) {
-        final var formats = EnumSet.noneOf(InputProvisionFormat.class);
-        for (final var element : node.get("formats")) {
-          formats.add(InputProvisionFormat.valueOf(element.asText()));
-        }
-        return new RawInputProvisioner(formats);
-      }
+  private static final ObjectMapper MAPPER = new ObjectMapper();
 
-      @Override
-      public String type() {
-        return "raw";
-      }
-    };
+  public static InputProvisionerProvider provider() {
+    return () -> Stream.of(new Pair<>("raw", RawInputProvisioner.class));
   }
 
-  private static final ObjectMapper MAPPER = new ObjectMapper();
-  private final Set<InputProvisionFormat> formats;
+  private Set<InputProvisionFormat> formats;
 
-  protected RawInputProvisioner(Set<InputProvisionFormat> formats) {
+  public RawInputProvisioner() {
     super(MAPPER, String.class, String.class);
-    this.formats = formats;
   }
 
   @Override
@@ -57,6 +43,15 @@ public final class RawInputProvisioner extends BaseJsonInputProvisioner<String, 
     }
   }
 
+  public Set<InputProvisionFormat> getFormats() {
+    return formats;
+  }
+
+  @Override
+  public void startup() {
+    // Always ok.
+  }
+
   @Override
   protected String provisionExternal(
       WorkflowLanguage language, String metadata, WorkMonitor<JsonNode, String> monitor) {
@@ -74,5 +69,9 @@ public final class RawInputProvisioner extends BaseJsonInputProvisioner<String, 
   @Override
   protected void recover(String state, WorkMonitor<JsonNode, String> monitor) {
     monitor.scheduleTask(() -> monitor.complete(JsonNodeFactory.instance.textNode(state)));
+  }
+
+  public void setFormats(Set<InputProvisionFormat> formats) {
+    this.formats = formats;
   }
 }

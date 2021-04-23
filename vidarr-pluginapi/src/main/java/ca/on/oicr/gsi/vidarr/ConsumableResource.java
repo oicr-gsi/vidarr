@@ -1,12 +1,58 @@
 package ca.on.oicr.gsi.vidarr;
 
 import ca.on.oicr.gsi.Pair;
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import com.fasterxml.jackson.annotation.JsonTypeInfo.As;
+import com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
+import com.fasterxml.jackson.databind.DatabindContext;
+import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.annotation.JsonTypeIdResolver;
+import com.fasterxml.jackson.databind.jsontype.impl.TypeIdResolverBase;
+import java.io.IOException;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Optional;
+import java.util.ServiceLoader;
+import java.util.ServiceLoader.Provider;
+import java.util.stream.Collectors;
 
 /** A broker that can block workflows from starting by managing their resource footprints */
+@JsonTypeIdResolver(ConsumableResource.ConsumableResourceIdResolver.class)
+@JsonTypeInfo(use = JsonTypeInfo.Id.CUSTOM, include = As.PROPERTY, property = "type")
 public interface ConsumableResource {
+  final class ConsumableResourceIdResolver extends TypeIdResolverBase {
+    private final Map<String, Class<? extends ConsumableResource>> knownIds =
+        ServiceLoader.load(ConsumableResourceProvider.class).stream()
+            .map(Provider::get)
+            .flatMap(ConsumableResourceProvider::types)
+            .collect(Collectors.toMap(Pair::first, Pair::second));
 
+    @Override
+    public Id getMechanism() {
+      return Id.CUSTOM;
+    }
+
+    @Override
+    public String idFromValue(Object o) {
+      return knownIds.entrySet().stream()
+          .filter(known -> known.getValue().isInstance(o))
+          .map(Entry::getKey)
+          .findFirst()
+          .orElseThrow();
+    }
+
+    @Override
+    public String idFromValueAndType(Object o, Class<?> aClass) {
+      return idFromValue(o);
+    }
+
+    @Override
+    public JavaType typeFromId(DatabindContext context, String id) throws IOException {
+      final var clazz = knownIds.get(id);
+      return clazz == null ? null : context.constructType(clazz);
+    }
+  }
   /**
    * To operate, this resource requires the submission request to include a parameter.
    *
@@ -15,8 +61,6 @@ public interface ConsumableResource {
    */
   Optional<Pair<String, BasicType>> inputFromUser();
 
-  /** The name provided during initialisation */
-  String name();
   /**
    * Indicate that Vidarr has restarted and it is reasserting an old claim.
    *
@@ -46,4 +90,11 @@ public interface ConsumableResource {
    */
   ConsumableResourceResponse request(
       String workflowName, String workflowVersion, String vidarrId, Optional<JsonNode> input);
+
+  /**
+   * Called to initialise this consumable resource.
+   *
+   * <p>If the configuration is invalid, this should throw a runtime exception.
+   */
+  void startup();
 }

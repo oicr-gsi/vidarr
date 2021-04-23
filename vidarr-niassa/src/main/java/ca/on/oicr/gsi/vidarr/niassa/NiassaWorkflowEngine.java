@@ -5,7 +5,9 @@ import ca.on.oicr.gsi.status.SectionRenderer;
 import ca.on.oicr.gsi.vidarr.BasicType;
 import ca.on.oicr.gsi.vidarr.WorkMonitor;
 import ca.on.oicr.gsi.vidarr.WorkflowEngine;
+import ca.on.oicr.gsi.vidarr.WorkflowEngineProvider;
 import ca.on.oicr.gsi.vidarr.WorkflowLanguage;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -23,10 +25,6 @@ import org.jooq.Record;
 import org.jooq.util.postgres.PostgresDSL;
 
 public class NiassaWorkflowEngine implements WorkflowEngine {
-  private final String dbUrl, dbName, dbUser, dbPass;
-  private final Set<String> annotationsToKeep;
-  private static HikariDataSource pgDataSource;
-
   private static final String AP_QUERY =
       " SELECT COALESCE(pius.lims_ids, wrius.lims_ids)                        AS \"iusLimsKeys\",\n"
           + "       COALESCE(pius.ius_attributes, wrius.ius_attributes)             AS \"iusAttributes\",\n"
@@ -171,18 +169,17 @@ public class NiassaWorkflowEngine implements WorkflowEngine {
           + "                  GROUP  BY workflow_id) w_attrs\n"
           + "              ON w.workflow_id = w_attrs.workflow_id\n"
           + " WHERE wr.sw_accession = %s AND pff.file_swid IS NOT NULL";
-
   static final ObjectMapper MAPPER = new ObjectMapper();
 
-  public NiassaWorkflowEngine(
-      String dbUrl, String dbName, String dbUser, String dbPass, Set<String> annotationsToKeep) {
-    this.dbUrl = dbUrl;
-    this.dbName = dbName;
-    this.dbUser = dbUser;
-    this.dbPass = dbPass;
-
-    this.annotationsToKeep = annotationsToKeep;
+  public static WorkflowEngineProvider provider() {
+    return () -> Stream.of(new Pair<>("niassa", NiassaWorkflowEngine.class));
   }
+
+  private Set<String> annotations;
+  private String dbUrl, dbName, dbUser, dbPass;
+  @JsonIgnore private HikariDataSource pgDataSource;
+
+  public NiassaWorkflowEngine() {}
 
   @Override
   public JsonNode cleanup(JsonNode cleanupState, WorkMonitor<Void, JsonNode> monitor) {
@@ -198,6 +195,26 @@ public class NiassaWorkflowEngine implements WorkflowEngine {
   @Override
   public Optional<BasicType> engineParameters() {
     return Optional.empty();
+  }
+
+  public Set<String> getAnnotations() {
+    return annotations;
+  }
+
+  public String getDbName() {
+    return dbName;
+  }
+
+  public String getDbPass() {
+    return dbPass;
+  }
+
+  public String getDbUrl() {
+    return dbUrl;
+  }
+
+  public String getDbUser() {
+    return dbUser;
   }
 
   @Override
@@ -243,16 +260,6 @@ public class NiassaWorkflowEngine implements WorkflowEngine {
           // Get workflow run SWID from workflowParameters
           final String workflowRunSWID = workflowParameters.get("workflowRunSWID").asText();
 
-          // Set up Postgres config if it has not been configured already
-          if (pgDataSource == null) {
-            HikariConfig config = new HikariConfig();
-            config.setJdbcUrl(dbUrl);
-            config.setDataSourceJNDI(dbName);
-            config.setUsername(dbUser);
-            config.setPassword(dbPass);
-            pgDataSource = new HikariDataSource(config);
-          }
-
           // Ask Niassa database for workflow run's analysis provenance
           try (final Connection connection = pgDataSource.getConnection()) {
             DSLContext context = PostgresDSL.using(connection, SQLDialect.POSTGRES);
@@ -276,7 +283,7 @@ public class NiassaWorkflowEngine implements WorkflowEngine {
                 String[] fileAttributes = fileAttributesObj.toString().split(";");
                 for (String fileAttribute : fileAttributes) {
                   String[] keyAndValue = fileAttribute.split("="); // 0 is key, 1 is value
-                  if (annotationsToKeep.contains(keyAndValue[0])) {
+                  if (annotations.contains(keyAndValue[0])) {
                     right.put(keyAndValue[0], keyAndValue[1]);
                   }
                 }
@@ -302,6 +309,37 @@ public class NiassaWorkflowEngine implements WorkflowEngine {
         });
 
     return null;
+  }
+
+  @Override
+  public void startup() {
+    // Set up Postgres config
+    HikariConfig config = new HikariConfig();
+    config.setJdbcUrl(dbUrl);
+    config.setDataSourceJNDI(dbName);
+    config.setUsername(dbUser);
+    config.setPassword(dbPass);
+    pgDataSource = new HikariDataSource(config);
+  }
+
+  public void setAnnotations(Set<String> annotations) {
+    this.annotations = annotations;
+  }
+
+  public void setDbName(String dbName) {
+    this.dbName = dbName;
+  }
+
+  public void setDbPass(String dbPass) {
+    this.dbPass = dbPass;
+  }
+
+  public void setDbUrl(String dbUrl) {
+    this.dbUrl = dbUrl;
+  }
+
+  public void setDbUser(String dbUser) {
+    this.dbUser = dbUser;
   }
 
   @Override

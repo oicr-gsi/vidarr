@@ -48,11 +48,6 @@ final class MaxInFlightByWorkflow implements ConsumableResource {
   }
 
   @Override
-  public String name() {
-    return null;
-  }
-
-  @Override
   public void recover(String workflowName, String workflowVersion, String vidarrId) {
     workflows.computeIfAbsent(workflowName, k -> new MaxState()).running.add(vidarrId);
   }
@@ -84,6 +79,11 @@ final class MaxInFlightByWorkflow implements ConsumableResource {
             String.format("The maximum number of %s workflows has been reached.", workflowName));
       }
     }
+  }
+
+  @Override
+  public void startup() {
+    // Always ok.
   }
 
   public void set(String workflowName, int maxInFlight) {

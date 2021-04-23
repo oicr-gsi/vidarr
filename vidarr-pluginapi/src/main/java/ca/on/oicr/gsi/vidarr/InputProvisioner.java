@@ -1,12 +1,59 @@
 package ca.on.oicr.gsi.vidarr;
 
+import ca.on.oicr.gsi.Pair;
 import ca.on.oicr.gsi.status.SectionRenderer;
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import com.fasterxml.jackson.annotation.JsonTypeInfo.As;
+import com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
+import com.fasterxml.jackson.databind.DatabindContext;
+import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.annotation.JsonTypeIdResolver;
+import com.fasterxml.jackson.databind.jsontype.impl.TypeIdResolverBase;
+import java.io.IOException;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.ServiceLoader;
+import java.util.ServiceLoader.Provider;
+import java.util.stream.Collectors;
 import javax.xml.stream.XMLStreamException;
 
 /** A mechanism to collect output data from a workflow and push it into an appropriate data store */
+@JsonTypeIdResolver(InputProvisioner.InputProvisionerIdResolver.class)
+@JsonTypeInfo(use = JsonTypeInfo.Id.CUSTOM, include = As.PROPERTY, property = "type")
 public interface InputProvisioner {
+  final class InputProvisionerIdResolver extends TypeIdResolverBase {
+    private final Map<String, Class<? extends InputProvisioner>> knownIds =
+        ServiceLoader.load(InputProvisionerProvider.class).stream()
+            .map(Provider::get)
+            .flatMap(InputProvisionerProvider::types)
+            .collect(Collectors.toMap(Pair::first, Pair::second));
 
+    @Override
+    public Id getMechanism() {
+      return Id.CUSTOM;
+    }
+
+    @Override
+    public String idFromValue(Object o) {
+      return knownIds.entrySet().stream()
+          .filter(known -> known.getValue().isInstance(o))
+          .map(Entry::getKey)
+          .findFirst()
+          .orElseThrow();
+    }
+
+    @Override
+    public String idFromValueAndType(Object o, Class<?> aClass) {
+      return idFromValue(o);
+    }
+
+    @Override
+    public JavaType typeFromId(DatabindContext context, String id) throws IOException {
+      final var clazz = knownIds.get(id);
+      return clazz == null ? null : context.constructType(clazz);
+    }
+  }
   /** Checks if the provisioner can handle this type of data */
   boolean canProvision(InputProvisionFormat format);
 
@@ -63,4 +110,10 @@ public interface InputProvisioner {
    * @param monitor the monitor structure for writing the output of the provisioning process
    */
   void recover(JsonNode state, WorkMonitor<JsonNode, JsonNode> monitor);
+  /**
+   * Called to initialise this input provisioner.
+   *
+   * <p>If the configuration is invalid, this should throw a runtime exception.
+   */
+  void startup();
 }

@@ -1,18 +1,10 @@
 package ca.on.oicr.gsi.vidarr;
 
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import ca.on.oicr.gsi.Pair;
+import java.util.stream.Stream;
 
 /** Reads JSON configuration and instantiates provisioners appropriately */
 public interface RuntimeProvisionerProvider {
-
-  /**
-   * Prepare a provisioner from a JSON configuration
-   *
-   * @param node the JSON data
-   * @return the workflow engine
-   */
-  RuntimeProvisioner readConfiguration(ObjectNode node);
-
-  /** The name of this plugin */
-  String name();
+  /** Provides the type names and classes this plugin provides */
+  Stream<Pair<String, Class<? extends RuntimeProvisioner>>> types();
 }

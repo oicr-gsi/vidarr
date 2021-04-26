@@ -7,6 +7,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import java.util.HashSet;
+import java.util.Set;
 
 import static ca.on.oicr.gsi.vidarr.niassa.NiassaWorkflowEngine.MAPPER;
 
@@ -18,8 +19,9 @@ public class NiassaWorkflowEngineProvider implements WorkflowEngineProvider {
                     node.get("dbUser").asText(),
                     node.get("dbPass").asText(),
                     // VERY unclear whether this will work
-                    node.has("annotations")? MAPPER.readValue(node.get("annotations").asText(),
-                            new TypeReference<>(){}): new HashSet<>());
+                    node.has("annotations")?
+                            MAPPER.readValue(node.get("annotations").asText(), new TypeReference<HashSet<String>>(){})
+                            : new HashSet<>());
         } catch (JsonProcessingException e) {
             throw new RuntimeException(e);
         }

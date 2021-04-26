@@ -2,13 +2,10 @@ package ca.on.oicr.gsi.vidarr.niassa;
 
 import ca.on.oicr.gsi.vidarr.WorkflowEngine;
 import ca.on.oicr.gsi.vidarr.WorkflowEngineProvider;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
-import java.lang.reflect.Type;
 import java.util.HashSet;
-import java.util.Set;
 
 import static ca.on.oicr.gsi.vidarr.niassa.NiassaWorkflowEngine.MAPPER;
 

@@ -11,6 +11,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import net.schmizz.sshj.SSHClient;
 import net.schmizz.sshj.sftp.SFTPClient;
+import net.schmizz.sshj.transport.verification.PromiscuousVerifier;
 
 import javax.xml.stream.XMLStreamException;
 import java.io.IOException;
@@ -71,6 +72,7 @@ public class NiassaOutputProvisioner implements OutputProvisioner {
         client.loadKnownHosts();
         client.connect(hostname, port);
         client.authPublickey(username);
+        client.addHostKeyVerifier(new PromiscuousVerifier());
         sftp = client.newSFTPClient();
     }
 

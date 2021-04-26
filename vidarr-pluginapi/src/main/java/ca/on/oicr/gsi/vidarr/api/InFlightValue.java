@@ -5,6 +5,11 @@ public final class InFlightValue {
   private int currentInFlight;
   private int maxInFlight;
 
+  public InFlightValue() {
+    this.currentInFlight = 0;
+    this.maxInFlight = 0;
+  }
+
   public InFlightValue(int currentInFlight, int maxInFlight) {
     this.currentInFlight = currentInFlight;
     this.maxInFlight = maxInFlight;

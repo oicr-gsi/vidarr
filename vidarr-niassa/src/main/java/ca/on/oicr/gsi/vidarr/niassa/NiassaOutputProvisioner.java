@@ -70,9 +70,9 @@ public class NiassaOutputProvisioner implements OutputProvisioner {
         this.chunks = chunks;
         client = new SSHClient();
         client.loadKnownHosts();
+        client.addHostKeyVerifier(new PromiscuousVerifier());
         client.connect(hostname, port);
         client.authPublickey(username);
-        client.addHostKeyVerifier(new PromiscuousVerifier());
         sftp = client.newSFTPClient();
     }
 

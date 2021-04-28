@@ -812,20 +812,23 @@ public final class Main implements ServerConfig {
         exchange.getAttachment(PathTemplateMatch.ATTACHMENT_KEY).getParameters().get("name");
 
     try (final var connection = dataSource.getConnection()) {
-      final var dsl = DSL.using(connection, SQLDialect.POSTGRES);
-      dsl.insertInto(WORKFLOW)
-          .columns(WORKFLOW.NAME, WORKFLOW.LABELS, WORKFLOW.IS_ACTIVE, WORKFLOW.MAX_IN_FLIGHT)
-          .values(
-              name,
-              JSONB.valueOf(MAPPER.writeValueAsString(request.getLabels())),
-              true,
-              request.getMaxInFlight())
-          .onConflict(WORKFLOW.NAME)
-          .doUpdate()
-          .set(WORKFLOW.IS_ACTIVE, true)
-          .set(WORKFLOW.MAX_IN_FLIGHT, request.getMaxInFlight())
-          .execute();
-      connection.commit();
+      final var labels = JSONB.valueOf(MAPPER.writeValueAsString(request.getLabels()));
+      DSL.using(connection, SQLDialect.POSTGRES)
+          .transaction(
+              context ->
+                  DSL.using(context)
+                      .insertInto(WORKFLOW)
+                      .columns(
+                          WORKFLOW.NAME,
+                          WORKFLOW.LABELS,
+                          WORKFLOW.IS_ACTIVE,
+                          WORKFLOW.MAX_IN_FLIGHT)
+                      .values(name, labels, true, request.getMaxInFlight())
+                      .onConflict(WORKFLOW.NAME)
+                      .doUpdate()
+                      .set(WORKFLOW.IS_ACTIVE, true)
+                      .set(WORKFLOW.MAX_IN_FLIGHT, request.getMaxInFlight())
+                      .execute());
       maxInFlightPerWorkflow.set(name, request.getMaxInFlight());
       exchange.setStatusCode(StatusCodes.OK);
       exchange.getResponseSender().send("");
@@ -1166,13 +1169,15 @@ public final class Main implements ServerConfig {
         exchange.getAttachment(PathTemplateMatch.ATTACHMENT_KEY).getParameters().get("name");
 
     try (final var connection = dataSource.getConnection()) {
-      final var dsl = DSL.using(connection, SQLDialect.POSTGRES);
       final var count =
-          dsl.update(WORKFLOW)
-              .set(WORKFLOW.IS_ACTIVE, false)
-              .where(WORKFLOW.NAME.eq(name))
-              .execute();
-      connection.commit();
+          DSL.using(connection, SQLDialect.POSTGRES)
+              .transactionResult(
+                  context ->
+                      DSL.using(context)
+                          .update(WORKFLOW)
+                          .set(WORKFLOW.IS_ACTIVE, false)
+                          .where(WORKFLOW.NAME.eq(name))
+                          .execute());
       exchange.setStatusCode(count == 0 ? StatusCodes.NOT_FOUND : StatusCodes.OK);
       exchange.getResponseSender().send("");
     } catch (SQLException e) {

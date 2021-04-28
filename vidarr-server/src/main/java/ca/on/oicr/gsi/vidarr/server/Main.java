@@ -855,77 +855,34 @@ public final class Main implements ServerConfig {
       return;
     }
     try (final var connection = dataSource.getConnection()) {
-      final var dsl = DSL.using(connection, SQLDialect.POSTGRES);
-      final var definitionHash =
-          hexDigits(
-              MessageDigest.getInstance("SHA-256")
-                  .digest(request.getWorkflow().getBytes(StandardCharsets.UTF_8)));
-      final var definitionId =
-          dsl.insertInto(WORKFLOW_DEFINITION)
-              .columns(
-                  WORKFLOW_DEFINITION.HASH_ID,
-                  WORKFLOW_DEFINITION.WORKFLOW_FILE,
-                  WORKFLOW_DEFINITION.WORKFLOW_LANGUAGE)
-              .values(definitionHash, request.getWorkflow(), request.getLanguage())
-              .onDuplicateKeyIgnore()
-              .returningResult(WORKFLOW_DEFINITION.ID)
-              .fetchOptional()
-              .orElseThrow()
-              .value1();
+      DSL.using(connection, SQLDialect.POSTGRES)
+          .transaction(
+              context -> {
+                final var dsl = DSL.using(context);
+                final String definitionHash =
+                    upsertWorkflowDefinition(dsl, request.getLanguage(), request.getWorkflow());
 
-      final var versionDigest = MessageDigest.getInstance("SHA-256");
-      versionDigest.update(name.getBytes(StandardCharsets.UTF_8));
-      versionDigest.update(new byte[] {0});
-      versionDigest.update(version.getBytes(StandardCharsets.UTF_8));
-      versionDigest.update(new byte[] {0});
-      versionDigest.update(definitionHash.getBytes(StandardCharsets.UTF_8));
-      versionDigest.update(MAPPER.writeValueAsBytes(request.getOutputs()));
-      versionDigest.update(MAPPER.writeValueAsBytes(request.getParameters()));
+                final var versionDigest = MessageDigest.getInstance("SHA-256");
+                versionDigest.update(name.getBytes(StandardCharsets.UTF_8));
+                versionDigest.update(new byte[] {0});
+                versionDigest.update(version.getBytes(StandardCharsets.UTF_8));
+                versionDigest.update(new byte[] {0});
+                versionDigest.update(definitionHash.getBytes(StandardCharsets.UTF_8));
+                versionDigest.update(MAPPER.writeValueAsBytes(request.getOutputs()));
+                versionDigest.update(MAPPER.writeValueAsBytes(request.getParameters()));
 
-      final var accessoryIds = new TreeMap<String, Integer>();
-      for (final var accessory : new TreeMap<>(request.getAccessoryFiles()).entrySet()) {
-        final var accessoryHash =
-            hexDigits(
-                MessageDigest.getInstance("SHA-256")
-                    .digest(accessory.getValue().getBytes(StandardCharsets.UTF_8)));
-        versionDigest.update(new byte[] {0});
-        versionDigest.update(accessory.getKey().getBytes(StandardCharsets.UTF_8));
-        versionDigest.update(new byte[] {0});
-        versionDigest.update(accessoryHash.getBytes(StandardCharsets.UTF_8));
-        accessoryIds.put(
-            accessory.getKey(),
-            dsl.insertInto(WORKFLOW_DEFINITION)
-                .columns(
-                    WORKFLOW_DEFINITION.HASH_ID,
-                    WORKFLOW_DEFINITION.WORKFLOW_FILE,
-                    WORKFLOW_DEFINITION.WORKFLOW_LANGUAGE)
-                .values(accessoryHash, accessory.getValue(), request.getLanguage())
-                .onDuplicateKeyIgnore()
-                .returningResult(WORKFLOW_DEFINITION.ID)
-                .fetchOptional()
-                .orElseThrow()
-                .value1());
-      }
-      final var versionHash = hexDigits(versionDigest.digest());
-      dsl.select(DSL.field(WORKFLOW_VERSION.HASH_ID.eq(versionHash)))
-          .from(WORKFLOW_VERSION)
-          .where(WORKFLOW_VERSION.NAME.eq(name).and(WORKFLOW_VERSION.VERSION.eq(version)))
-          .fetchOptional()
-          .ifPresentOrElse(
-              record -> {
-                if (record.value1()) {
-                  dsl.update(WORKFLOW)
-                      .set(WORKFLOW.IS_ACTIVE, true)
-                      .where(WORKFLOW.NAME.eq(name))
-                      .execute();
-                  exchange.setStatusCode(StatusCodes.OK);
-                } else {
-                  exchange.setStatusCode(StatusCodes.CONFLICT);
+                final var accessoryHashes = new TreeMap<String, String>();
+                for (final var accessory : new TreeMap<>(request.getAccessoryFiles()).entrySet()) {
+                  final var accessoryHash =
+                      upsertWorkflowDefinition(dsl, request.getLanguage(), accessory.getValue());
+                  versionDigest.update(new byte[] {0});
+                  versionDigest.update(accessory.getKey().getBytes(StandardCharsets.UTF_8));
+                  versionDigest.update(new byte[] {0});
+                  versionDigest.update(accessoryHash.getBytes(StandardCharsets.UTF_8));
+                  accessoryHashes.put(accessory.getKey(), accessoryHash);
                 }
-                exchange.getResponseSender().send("");
-              },
-              () -> {
-                final var id =
+                final var versionHash = hexDigits(versionDigest.digest());
+                final var result =
                     dsl.insertInto(
                             WORKFLOW_VERSION,
                             WORKFLOW_VERSION.HASH_ID,
@@ -935,40 +892,61 @@ public final class Main implements ServerConfig {
                             WORKFLOW_VERSION.WORKFLOW_DEFINITION,
                             WORKFLOW_VERSION.VERSION)
                         .values(
-                            versionHash,
-                            MAPPER.valueToTree(request.getOutputs()),
-                            name,
-                            MAPPER.valueToTree(request.getParameters()),
-                            definitionId,
-                            version)
-                        .returningResult(WORKFLOW_VERSION.ID)
-                        .fetchOne();
-                if (id == null) {
-                  exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);
-                  exchange.getResponseSender().send("Failed to insert");
-                } else {
-                  if (!accessoryIds.isEmpty()) {
+                            DSL.val(versionHash),
+                            DSL.val(
+                                MAPPER.valueToTree(request.getOutputs()),
+                                WORKFLOW_VERSION.METADATA.getDataType()),
+                            DSL.val(name),
+                            DSL.val(
+                                MAPPER.valueToTree(request.getParameters()),
+                                WORKFLOW_VERSION.PARAMETERS.getDataType()),
+                            DSL.field(
+                                DSL.select(WORKFLOW_DEFINITION.ID)
+                                    .from(WORKFLOW_DEFINITION)
+                                    .where(WORKFLOW_DEFINITION.HASH_ID.eq(definitionHash))),
+                            DSL.val(version))
+                        .onConflict(WORKFLOW_VERSION.NAME, WORKFLOW_VERSION.VERSION)
+                        .doNothing()
+                        .returningResult(DSL.field(WORKFLOW_VERSION.HASH_ID.eq(versionHash)))
+                        .fetchOptional();
+                if (result.map(r -> !r.value1()).orElse(false)) {
+                  exchange.setStatusCode(StatusCodes.CONFLICT);
+                  return;
+                }
+                dsl.update(WORKFLOW)
+                    .set(WORKFLOW.IS_ACTIVE, true)
+                    .where(WORKFLOW.NAME.eq(name))
+                    .execute();
+                if (!accessoryHashes.isEmpty()) {
 
-                    var accessoryQuery =
-                        dsl.insertInto(
-                            WORKFLOW_VERSION_ACCESSORY,
-                            WORKFLOW_VERSION_ACCESSORY.WORKFLOW_VERSION,
-                            WORKFLOW_VERSION_ACCESSORY.FILENAME,
-                            WORKFLOW_VERSION_ACCESSORY.WORKFLOW_DEFINITION);
+                  var accessoryQuery =
+                      dsl.insertInto(
+                          WORKFLOW_VERSION_ACCESSORY,
+                          WORKFLOW_VERSION_ACCESSORY.WORKFLOW_VERSION,
+                          WORKFLOW_VERSION_ACCESSORY.FILENAME,
+                          WORKFLOW_VERSION_ACCESSORY.WORKFLOW_DEFINITION);
 
-                    for (final var accessory : accessoryIds.entrySet()) {
-                      accessoryQuery =
-                          accessoryQuery.values(
-                              id.value1(), accessory.getKey(), accessory.getValue());
-                    }
-                    accessoryQuery.execute();
+                  for (final var accessory : accessoryHashes.entrySet()) {
+                    accessoryQuery =
+                        accessoryQuery.values(
+                            DSL.field(
+                                DSL.select(WORKFLOW_VERSION.ID)
+                                    .from(WORKFLOW_VERSION)
+                                    .where(
+                                        WORKFLOW_VERSION
+                                            .NAME
+                                            .eq(name)
+                                            .and(WORKFLOW_VERSION.VERSION.eq(version)))),
+                            DSL.val(accessory.getKey()),
+                            DSL.field(
+                                DSL.select(WORKFLOW_DEFINITION.ID)
+                                    .from(WORKFLOW_DEFINITION)
+                                    .where(WORKFLOW_DEFINITION.HASH_ID.eq(accessory.getValue()))));
                   }
-                  exchange.setStatusCode(StatusCodes.OK);
-                  exchange.getResponseSender().send("");
+                  accessoryQuery.execute();
                 }
               });
-      connection.commit();
-    } catch (SQLException | NoSuchAlgorithmException | JsonProcessingException e) {
+    } catch (SQLException e) {
       e.printStackTrace();
       exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);
       exchange.getResponseSender().send(e.getMessage());
@@ -2512,6 +2490,21 @@ public final class Main implements ServerConfig {
     } catch (Exception e) {
       e.printStackTrace();
     }
+  }
+
+  private String upsertWorkflowDefinition(
+      DSLContext dsl, WorkflowLanguage language, String workflow) throws NoSuchAlgorithmException {
+    final var definitionHash =
+        hexDigits(
+            MessageDigest.getInstance("SHA-256").digest(workflow.getBytes(StandardCharsets.UTF_8)));
+    dsl.insertInto(WORKFLOW_DEFINITION)
+        .columns(
+            WORKFLOW_DEFINITION.HASH_ID,
+            WORKFLOW_DEFINITION.WORKFLOW_FILE,
+            WORKFLOW_DEFINITION.WORKFLOW_LANGUAGE)
+        .values(definitionHash, workflow, language)
+        .onConflictDoNothing();
+    return definitionHash;
   }
 
   private Map<String, BasicType> upsertWorkflowReturningLabels(

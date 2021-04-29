@@ -145,6 +145,10 @@ abstract class BaseOutputExtractor<R, E> implements OutputType.Visitor<R> {
         }
         final var key = new TreeMap<String, Object>();
         for (final var identifier : keys.entrySet()) {
+          if (!child.has(identifier.getKey())) {
+            return invalid(
+                String.format("Identifier key %s missing in collection.", identifier.getKey()));
+          }
           key.put(
               identifier.getKey(),
               switch (identifier.getValue()) {
@@ -154,7 +158,13 @@ abstract class BaseOutputExtractor<R, E> implements OutputType.Visitor<R> {
         }
         final var value = new TreeMap<String, JsonNode>();
         for (final var output : outputs.entrySet()) {
-          value.put(output.getKey(), metadata.get(output.getKey()));
+          if (!child.has(output.getKey())) {
+            return invalid(
+                String.format(
+                    "Output value %s missing in collection for entry identified by %s.",
+                    output.getKey(), key));
+          }
+          value.put(output.getKey(), child.get(output.getKey()));
         }
         outputMappings.put(key, value);
       }

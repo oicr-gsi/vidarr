@@ -124,7 +124,7 @@ public class NiassaWorkflowEngine implements WorkflowEngine {
                       .set(
                           "right",
                           right); // They want you to use 'set' instead of 'put' when it's a
-                                  // JsonNode
+              // JsonNode
               output.put("left", left.toString());
               file.set("fileMetadata", output);
               migrationArray.add(file);

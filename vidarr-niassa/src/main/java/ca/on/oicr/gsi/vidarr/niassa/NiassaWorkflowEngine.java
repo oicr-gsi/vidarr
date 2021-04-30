@@ -72,12 +72,14 @@ public class NiassaWorkflowEngine implements WorkflowEngine {
      *   "migration": [
      *     {
      *        "fileSWID": ${fileSWID},
-     *        "output": {
-     *          "labels": { "niassa-file-accession": "${fileSWID}", ...file annotations},
-     *          "md5": "${MD5}",
-     *          "fileSize": ${fileSize},
-     *          "path": "${path}",
-     *          "metatype": ${metatype}
+     *        "fileMetadata": {
+     *          "right": { "niassa-file-accession": "${fileSWID}", ...file annotations},
+     *          //TODO: Rewrite
+     *          "left": "{
+     *              "md5": "${MD5}",
+     *              "fileSize": ${fileSize},
+     *              "path": "${path}",
+     *              "metatype": ${metatype} }"
      *        }
      *   ]
      * }
@@ -117,18 +119,19 @@ public class NiassaWorkflowEngine implements WorkflowEngine {
                     String fileSWID = result.get(PostgresDSL.field("fileId")).toString();
                     ObjectNode file = MAPPER.createObjectNode()
                             .put("fileSWID", fileSWID);
-                    ObjectNode output = MAPPER.createObjectNode()
+                    ObjectNode left = MAPPER.createObjectNode()
                             .put("md5", result.get(PostgresDSL.field("fileMd5sum")).toString())
                             .put("fileSize", result.get(PostgresDSL.field("fileSize")).toString())
                             .put("path", result.get(PostgresDSL.field("filePath")).toString())
                             .put("metatype", result.get(PostgresDSL.field("fileMetaType")).toString());
-                    ObjectNode labels = MAPPER.createObjectNode()
+                    ObjectNode right = MAPPER.createObjectNode()
                             .put("niassa-file-accession", fileSWID);
                     for(String annotation: annotationsToKeep){
-                        labels.put(annotation, result.get(PostgresDSL.field(annotation)).toString());
+                        right.put(annotation, result.get(PostgresDSL.field(annotation)).toString());
                     }
-                    output.set("labels", labels); // They want you to use 'set' instead of 'put' when it's a JsonNode
-                    file.set("output", output);
+                    ObjectNode output = MAPPER.createObjectNode().set("right", right); // They want you to use 'set' instead of 'put' when it's a JsonNode
+                    output.put("left", left.toString());
+                    file.set("fileMetadata", output);
                     migrationArray.add(file);
                 }
                 migration.set("migration", migrationArray);

@@ -67,6 +67,7 @@ public final class RawInputProvisioner extends BaseJsonInputProvisioner<String, 
   @Override
   public String provisionRegistered(
       WorkflowLanguage language, String id, String path, WorkMonitor<JsonNode, String> monitor) {
+    monitor.scheduleTask(() -> monitor.complete(JsonNodeFactory.instance.textNode(path)));
     return path;
   }
 

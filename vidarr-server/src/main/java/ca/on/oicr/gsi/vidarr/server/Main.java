@@ -1874,6 +1874,15 @@ public final class Main implements ServerConfig {
             workflowRun.getExternalKeys().stream()
                 .map(e -> new Pair<>(e.getProvider(), e.getId()))
                 .collect(Collectors.toSet());
+        if (knowExternalIds.size() != workflowRun.getExternalKeys().size()) {
+          exchange.setStatusCode(StatusCodes.BAD_REQUEST);
+          exchange
+              .getResponseSender()
+              .send(
+                  String.format(
+                      "Workflow run %s has duplicate external keys", workflowRun.getId()));
+          return;
+        }
         // Compute the hash ID this workflow run should have
         final var correctId =
             DatabaseBackedProcessor.computeWorkflowRunHashId(

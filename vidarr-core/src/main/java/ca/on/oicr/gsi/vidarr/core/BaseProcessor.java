@@ -281,6 +281,7 @@ public abstract class BaseProcessor<
                 final var discoveredInputIds =
                     discoveredInputFiles.stream()
                         .flatMap(i -> BaseProcessor.this.pathForId(i).orElseThrow().externalKeys())
+                        .map(i -> new ExternalId(i.getProvider(), i.getId()))
                         .collect(Collectors.toSet());
                 if (activeWorkflow.extraInputIdsHandled()
                     ? discoveredInputIds.containsAll(outputRequestedInputIds)

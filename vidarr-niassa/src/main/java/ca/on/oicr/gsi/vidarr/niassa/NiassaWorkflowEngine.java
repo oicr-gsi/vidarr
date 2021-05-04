@@ -23,15 +23,168 @@ import org.jooq.Record;
 import org.jooq.util.postgres.PostgresDSL;
 
 public class NiassaWorkflowEngine implements WorkflowEngine {
-  private final String dbUrl, dbUser, dbPass;
+  private final String dbUrl, dbName, dbUser, dbPass;
   private final Set<String> annotationsToKeep;
   private static HikariDataSource pgDataSource;
+
+  private static final String AP_QUERY =
+      " SELECT COALESCE(pius.lims_ids, wrius.lims_ids)                        AS \"iusLimsKeys\",\n"
+          + "       COALESCE(pius.ius_attributes, wrius.ius_attributes)             AS \"iusAttributes\",\n"
+          + "       --       greatest(wr.update_tstmp, pff.update_tstmp, w.update_tstmp) AS \"lastModified\",\n"
+          + "       COALESCE(pff.update_tstmp, wr.update_tstmp, wrius.update_tstmp) AS \"lastModified\",-- rename to createdTstmp\n"
+          + "       w.NAME                                                          AS \"workflowName\",\n"
+          + "       w.version                                                       AS \"workflowVersion\",\n"
+          + "       w.sw_accession                                                  AS \"workflowId\",\n"
+          + "       w_attrs.attrs                                                   AS \"workflowAttributes\",\n"
+          + "       wr.NAME                                                         AS \"workflowRunName\",\n"
+          + "       wr.status                                                       AS \"workflowRunStatus\",\n"
+          + "       wr.sw_accession                                                 AS \"workflowRunId\",\n"
+          + "       wr_attrs.attrs                                                  AS \"workflowRunAttributes\",\n"
+          + "       wrifs.swids                                                     AS \"workflowRunInputFileIds\",\n"
+          + "       pff.processing_algorithm                                        AS \"processingAlgorithm\",\n"
+          + "       pff.processing_swid                                             AS \"processingId\",\n"
+          + "       pff.processing_status                                           AS \"processingStatus\",\n"
+          + "       pff.processing_attrs                                            AS \"processingAttributes\",\n"
+          + "       pff.file_meta_type                                              AS \"fileMetaType\",\n"
+          + "       pff.file_swid                                                   AS \"fileId\",\n"
+          + "       pff.file_path                                                   AS \"filePath\",\n"
+          + "       pff.file_md5sum                                                 AS \"fileMd5sum\",\n"
+          + "       pff.file_size                                                   AS \"fileSize\",\n"
+          + "       pff.file_description                                            AS \"fileDescription\",\n"
+          + "       pff.file_attrs                                                  AS \"fileAttributes\",\n"
+          + "       COALESCE(pius.skip, wrius.skip)                                 AS \"skip\"\n"
+          + "FROM   (SELECT CASE\n"
+          + "                 WHEN ARRAY_AGG(i.sw_accession) = '{NULL}' THEN NULL\n"
+          + "                 ELSE ARRAY_TO_STRING(ARRAY_AGG(i.sw_accession\n"
+          + "                                                || ','\n"
+          + "                                                || lk.provider\n"
+          + "                                                || ','\n"
+          + "                                                || lk.id\n"
+          + "                                                || ','\n"
+          + "                                                || lk.version\n"
+          + "                                                || ','\n"
+          + "                                                || lk.last_modified), ';')\n"
+          + "               END                                          AS lims_ids,\n"
+          + "               ARRAY_TO_STRING(ARRAY_AGG(ia.tag\n"
+          + "                                         || '='\n"
+          + "                                         || ia.value), ';') AS ius_attributes,\n"
+          + "               iwr.workflow_run_id                          AS workflow_run_id,\n"
+          + "               Max(i.update_tstmp)                          AS update_tstmp,\n"
+          + "               BOOL_OR(i.skip)                              AS skip\n"
+          + "        FROM   ius i\n"
+          + "               RIGHT OUTER JOIN lims_key lk\n"
+          + "                             ON i.lims_key_id = lk.lims_key_id\n"
+          + "               LEFT JOIN ius_attribute ia\n"
+          + "                      ON i.ius_id = ia.ius_id\n"
+          + "               LEFT JOIN ius_workflow_runs iwr\n"
+          + "                      ON i.ius_id = iwr.ius_id\n"
+          + "        GROUP  BY iwr.workflow_run_id,\n"
+          + "                  CASE\n"
+          + "                    WHEN iwr.workflow_run_id IS NULL THEN i.ius_id\n"
+          + "                    ELSE 0\n"
+          + "                  END) AS wrius\n"
+          + "       LEFT JOIN workflow_run wr\n"
+          + "              ON wr.workflow_run_id = wrius.workflow_run_id\n"
+          + "       LEFT JOIN workflow w\n"
+          + "              ON wr.workflow_id = w.workflow_id\n"
+          + "       LEFT JOIN (SELECT wr.workflow_run_id        workflow_run_id,\n"
+          + "                         w.workflow_id             workflow_id,\n"
+          + "                         p.update_tstmp,\n"
+          + "                         p.algorithm               processing_algorithm,\n"
+          + "                         p.sw_accession            processing_swid,\n"
+          + "                         p.processing_id           processing_id,\n"
+          + "                         p.status                  processing_status,\n"
+          + "                         (SELECT ARRAY_TO_STRING(ARRAY_AGG(tag\n"
+          + "                                                           || '='\n"
+          + "                                                           || value), ';')\n"
+          + "                          FROM   processing_attribute\n"
+          + "                          WHERE  p.processing_id = processing_id\n"
+          + "                          GROUP  BY processing_id) AS processing_attrs,\n"
+          + "                         f.meta_type               file_meta_type,\n"
+          + "                         f.sw_accession            file_swid,\n"
+          + "                         f.file_path               file_path,\n"
+          + "                         f.md5sum                  file_md5sum,\n"
+          + "                         f.size                    file_size,\n"
+          + "                         f.description             file_description,\n"
+          + "                         (SELECT ARRAY_TO_STRING(ARRAY_AGG(tag\n"
+          + "                                                           || '='\n"
+          + "                                                           || value), ';')\n"
+          + "                          FROM   file_attribute\n"
+          + "                          WHERE  f.file_id = file_id\n"
+          + "                          GROUP  BY file_id)       file_attrs\n"
+          + "                  FROM   processing p\n"
+          + "                         RIGHT OUTER JOIN processing_files pf\n"
+          + "                                       ON ( p.processing_id = pf.processing_id )\n"
+          + "                         RIGHT OUTER JOIN FILE f\n"
+          + "                                       ON ( pf.file_id = f.file_id )\n"
+          + "                         LEFT JOIN workflow_run wr\n"
+          + "                                ON ( p.workflow_run_id = wr.workflow_run_id\n"
+          + "                                      OR p.ancestor_workflow_run_id = wr.workflow_run_id )\n"
+          + "                         LEFT JOIN workflow w\n"
+          + "                                ON ( wr.workflow_id = w.workflow_id )) AS pff\n"
+          + "              ON pff.workflow_run_id = wr.workflow_run_id\n"
+          + "       LEFT JOIN (SELECT pi.processing_id,\n"
+          + "                         CASE\n"
+          + "                           WHEN ARRAY_AGG(i.sw_accession) = '{NULL}' THEN NULL\n"
+          + "                           ELSE ARRAY_TO_STRING(ARRAY_AGG(i.sw_accession\n"
+          + "                                                          || ','\n"
+          + "                                                          || lk.provider\n"
+          + "                                                          || ','\n"
+          + "                                                          || lk.id\n"
+          + "                                                          || ','\n"
+          + "                                                          || lk.version\n"
+          + "                                                          || ','\n"
+          + "                                                          || lk.last_modified), ';')\n"
+          + "                         END                                          lims_ids,\n"
+          + "                         ARRAY_TO_STRING(ARRAY_AGG(ia.tag\n"
+          + "                                                   || '='\n"
+          + "                                                   || ia.value), ';') ius_attributes,\n"
+          + "                         BOOL_OR(i.skip)                              AS skip\n"
+          + "                  FROM   processing_ius pi\n"
+          + "                         LEFT JOIN ius i\n"
+          + "                                ON pi.ius_id = i.ius_id\n"
+          + "                         LEFT JOIN lims_key lk\n"
+          + "                                ON i.lims_key_id = lk.lims_key_id\n"
+          + "                         LEFT JOIN ius_attribute ia\n"
+          + "                                ON i.ius_id = ia.ius_id\n"
+          + "                  GROUP  BY pi.processing_id) AS pius\n"
+          + "              ON pff.processing_id = pius.processing_id\n"
+          + "       LEFT JOIN (SELECT wrif.workflow_run_id,\n"
+          + "                         ARRAY_TO_STRING(ARRAY_AGG(f.sw_accession), ',') swids\n"
+          + "                  FROM   workflow_run_input_files wrif\n"
+          + "                         LEFT JOIN FILE f\n"
+          + "                                ON wrif.file_id = f.file_id\n"
+          + "                  GROUP  BY wrif.workflow_run_id) AS wrifs\n"
+          + "              ON wr.workflow_run_id = wrifs.workflow_run_id\n"
+          + "       LEFT JOIN (SELECT workflow_run_id,\n"
+          + "                         ARRAY_TO_STRING(ARRAY_AGG(tag\n"
+          + "                                                   || '='\n"
+          + "                                                   || value), ';') attrs\n"
+          + "                  FROM   workflow_run_attribute\n"
+          + "                  GROUP  BY workflow_run_id) wr_attrs\n"
+          + "              ON wrius.workflow_run_id = wr_attrs.workflow_run_id\n"
+          + "       LEFT JOIN (SELECT workflow_id,\n"
+          + "                         ARRAY_TO_STRING(ARRAY_AGG(tag\n"
+          + "                                                   || '='\n"
+          + "                                                   || value), ';') attrs\n"
+          + "                  FROM   workflow_attribute\n"
+          + "                  GROUP  BY workflow_id) w_attrs\n"
+          + "              ON w.workflow_id = w_attrs.workflow_id\n"
+          + " WHERE wr.sw_accession = %s AND pff.file_swid IS NOT NULL";
+
+  // .where(
+  //            PostgresDSL.field("wr.sw_accession")
+  //                .isNotNull()
+  //                .and(PostgresDSL.field("pff.file_swid").isNotNull())
+  //                .and(PostgresDSL.field("w.NAME").eq(workflowRunSWID)));
+  //  }
 
   static final ObjectMapper MAPPER = new ObjectMapper();
 
   public NiassaWorkflowEngine(
-      String dbUrl, String dbUser, String dbPass, Set<String> annotationsToKeep) {
+      String dbUrl, String dbName, String dbUser, String dbPass, Set<String> annotationsToKeep) {
     this.dbUrl = dbUrl;
+    this.dbName = dbName;
     this.dbUser = dbUser;
     this.dbPass = dbPass;
 
@@ -89,19 +242,20 @@ public class NiassaWorkflowEngine implements WorkflowEngine {
 
           // Set up Postgres config if it has not been configured already
           if (pgDataSource == null) {
-            HikariDataSource pgDataSource = new HikariDataSource();
-            HikariConfig config =
-                new HikariConfig(); // this doesn't get used but I am scared to delete it
-            pgDataSource.setJdbcUrl(dbUrl);
-            pgDataSource.setUsername(dbUser);
-            pgDataSource.setPassword(dbPass);
-            this.pgDataSource = pgDataSource;
+            HikariConfig config = new HikariConfig();
+            config.setJdbcUrl(dbUrl);
+            config.setDataSourceJNDI(dbName);
+            config.setUsername(dbUser);
+            config.setPassword(dbPass);
+            pgDataSource = new HikariDataSource(config);
           }
 
           // Ask Niassa database for workflow run's analysis provenance
           try (final Connection connection = pgDataSource.getConnection()) {
             DSLContext context = PostgresDSL.using(connection, SQLDialect.POSTGRES);
-            org.jooq.Result<Record> results = context.fetch(apQuery(workflowRunSWID));
+            org.jooq.Result<Record> results =
+                context.fetch(String.format(AP_QUERY, workflowRunSWID));
+            // org.jooq.Result<Record> results = context.fetch(apQuery(workflowRunSWID));
 
             // Get elements from each result and put into JSON
             for (Record result : results) {
@@ -115,6 +269,8 @@ public class NiassaWorkflowEngine implements WorkflowEngine {
                       .put("path", result.get(PostgresDSL.field("filePath")).toString())
                       .put("metatype", result.get(PostgresDSL.field("fileMetaType")).toString());
               ObjectNode right = MAPPER.createObjectNode().put("niassa-file-accession", fileSWID);
+              // TODO: these are all concatenated into one 'fileAttributes' column, and they might
+              // not exist.
               for (String annotation : annotationsToKeep) {
                 right.put(annotation, result.get(PostgresDSL.field(annotation)).toString());
               }
@@ -146,9 +302,6 @@ public class NiassaWorkflowEngine implements WorkflowEngine {
     return language == WorkflowLanguage.NIASSA;
   }
 
-  /*
-  I have no idea if I'm doing these arrayToString(arrayAgg()) bits properly!
-   */
   private ResultQuery apQuery(String workflowRunSWID) {
     return PostgresDSL.select(
             PostgresDSL.coalesce(
@@ -195,18 +348,16 @@ public class NiassaWorkflowEngine implements WorkflowEngine {
                             PostgresDSL.arrayToString(
                                 PostgresDSL.arrayAgg(
                                     PostgresDSL.field(
-                                        "i.sq_accession,lk.provider,lk.id,lk.version,lk.modified")),
-                                ";") // TODO: ??????
-                            )
+                                        "i.sw_accession || ',' || lk.provider || ',' || lk.id || ',' || lk.version || ',' || lk.last_modified")),
+                                ";"))
                         .as("lims_ids"),
                     PostgresDSL.arrayToString(
-                            PostgresDSL.arrayAgg(PostgresDSL.field("ia.tag=ia.value")), ";")
-                        .as("ius_attributes"), // TODO: Also ????
+                            PostgresDSL.arrayAgg(PostgresDSL.field("ia.tag || '=' || ia.value")),
+                            ";")
+                        .as("ius_attributes"),
                     PostgresDSL.field("iwr.workflow_run_id").as("workflow_run_id"),
                     PostgresDSL.max(PostgresDSL.field("i.update_tstmp")).as("update_tstmp"),
-                    PostgresDSL.boolOr((Condition) PostgresDSL.field("i.skip"))
-                        .as("skip") // TODO: unsure if this is right
-                    )
+                    PostgresDSL.boolOr(PostgresDSL.field("i.skip").eq(true)).as("skip"))
                 .from(PostgresDSL.table("ius").as("i"))
                 .rightOuterJoin(PostgresDSL.table("lims_key").as("lk"))
                 .on(PostgresDSL.field("i.lims_key_id").eq(PostgresDSL.field("lk.lims_key_id")))
@@ -236,7 +387,8 @@ public class NiassaWorkflowEngine implements WorkflowEngine {
                     PostgresDSL.field("p.status").as("processing_status"),
                     PostgresDSL.select(
                             PostgresDSL.arrayToString(
-                                PostgresDSL.arrayAgg(PostgresDSL.field("tag=value")), ";"))
+                                PostgresDSL.arrayAgg(PostgresDSL.field("tag || '=' || value")),
+                                ";"))
                         .from(PostgresDSL.table("processing_attribute"))
                         .where(
                             PostgresDSL.field("p.processing_id")
@@ -251,7 +403,8 @@ public class NiassaWorkflowEngine implements WorkflowEngine {
                     PostgresDSL.field("f.description").as("file_description"),
                     PostgresDSL.select(
                             PostgresDSL.arrayToString(
-                                PostgresDSL.arrayAgg(PostgresDSL.field("tag=value")), ";"))
+                                PostgresDSL.arrayAgg(PostgresDSL.field("tag || '=' || value")),
+                                ";"))
                         .from(PostgresDSL.table("file_attribute"))
                         .where(PostgresDSL.field("f.file_id").eq(PostgresDSL.field("file_id")))
                         .groupBy(PostgresDSL.field("file_id"))
@@ -259,7 +412,7 @@ public class NiassaWorkflowEngine implements WorkflowEngine {
                 .from(PostgresDSL.table("processing").as("p"))
                 .rightOuterJoin(PostgresDSL.table("processing_files").as("pf"))
                 .on(PostgresDSL.field("p.processing_id").eq(PostgresDSL.field("pf.processing_id")))
-                .rightOuterJoin(PostgresDSL.table("FILE").as("f"))
+                .rightOuterJoin(PostgresDSL.table("file").as("f"))
                 .on(PostgresDSL.field("pf.file_id").eq(PostgresDSL.field("f.file_id")))
                 .leftJoin(PostgresDSL.table("workflow_run").as("wr"))
                 .on(
@@ -280,12 +433,16 @@ public class NiassaWorkflowEngine implements WorkflowEngine {
                             PostgresDSL.field("NULL"))
                         .otherwise(
                             PostgresDSL.arrayToString(
-                                    PostgresDSL.arrayAgg(
-                                        PostgresDSL.field(
-                                            "i.sw_accession,lk.provider,lk.id,lk.version,lk.last_modified")),
-                                    ";")
-                                .as("ius_attributes")),
-                    PostgresDSL.boolOr((Condition) PostgresDSL.field("i.skip")).as("skip"))
+                                PostgresDSL.arrayAgg(
+                                    PostgresDSL.field(
+                                        "i.sw_accession || ',' || lk.provider || ',' || lk.id || ',' || lk.version || ',' || lk.last_modified")),
+                                ";"))
+                        .as("lims_ids"),
+                    PostgresDSL.arrayToString(
+                            PostgresDSL.arrayAgg(PostgresDSL.field("ia.tag || '=' || ia.value")),
+                            ";")
+                        .as("ius_attributes"),
+                    PostgresDSL.boolOr(PostgresDSL.field("i.skip").eq(true)).as("skip"))
                 .from(PostgresDSL.table("processing_ius").as("pi"))
                 .leftJoin(PostgresDSL.table("ius").as("i"))
                 .on(PostgresDSL.field("pi.ius_id").eq(PostgresDSL.field("i.ius_id")))
@@ -302,7 +459,7 @@ public class NiassaWorkflowEngine implements WorkflowEngine {
                             PostgresDSL.arrayAgg(PostgresDSL.field("f.sw_accession")), ",")
                         .as("swids"))
                 .from(PostgresDSL.table("workflow_run_input_files").as("wrif"))
-                .leftJoin(PostgresDSL.table("FILE").as("f"))
+                .leftJoin(PostgresDSL.table("file").as("f"))
                 .on(PostgresDSL.field("wrif.file_id").eq(PostgresDSL.field("f.file_id")))
                 .groupBy(PostgresDSL.field("wrif.workflow_run_id"))
                 .asTable("wrifs"))
@@ -311,7 +468,7 @@ public class NiassaWorkflowEngine implements WorkflowEngine {
             PostgresDSL.select(
                     PostgresDSL.field("workflow_run_id"),
                     PostgresDSL.arrayToString(
-                            PostgresDSL.arrayAgg(PostgresDSL.field("tag=value")), ";")
+                            PostgresDSL.arrayAgg(PostgresDSL.field("tag || '=' || value")), ";")
                         .as("attrs"))
                 .from(PostgresDSL.table("workflow_run_attribute"))
                 .groupBy(PostgresDSL.field("workflow_run_id"))
@@ -323,7 +480,7 @@ public class NiassaWorkflowEngine implements WorkflowEngine {
             PostgresDSL.select(
                     PostgresDSL.field("workflow_id"),
                     PostgresDSL.arrayToString(
-                            PostgresDSL.arrayAgg(PostgresDSL.field("tag=value")), ";")
+                            PostgresDSL.arrayAgg(PostgresDSL.field("tag || '=' || value")), ";")
                         .as("attrs"))
                 .from(PostgresDSL.table("workflow_attribute"))
                 .groupBy(PostgresDSL.field("workflow_id"))

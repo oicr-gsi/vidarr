@@ -13,6 +13,7 @@ public class NiassaWorkflowEngineProvider implements WorkflowEngineProvider {
   public WorkflowEngine readConfiguration(ObjectNode node) {
     return new NiassaWorkflowEngine(
         node.get("dbUrl").asText(),
+        node.get("dbName").asText(),
         node.get("dbUser").asText(),
         node.get("dbPass").asText(),
         // VERY unclear whether this will work

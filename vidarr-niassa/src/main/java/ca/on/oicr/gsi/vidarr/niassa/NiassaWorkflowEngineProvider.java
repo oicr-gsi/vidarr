@@ -16,7 +16,6 @@ public class NiassaWorkflowEngineProvider implements WorkflowEngineProvider {
         node.get("dbName").asText(),
         node.get("dbUser").asText(),
         node.get("dbPass").asText(),
-        // VERY unclear whether this will work
         node.has("annotations")
             ? MAPPER.convertValue(node.get("annotations"), new TypeReference<>() {})
             : new HashSet<>());

@@ -172,13 +172,6 @@ public class NiassaWorkflowEngine implements WorkflowEngine {
           + "              ON w.workflow_id = w_attrs.workflow_id\n"
           + " WHERE wr.sw_accession = %s AND pff.file_swid IS NOT NULL";
 
-  // .where(
-  //            PostgresDSL.field("wr.sw_accession")
-  //                .isNotNull()
-  //                .and(PostgresDSL.field("pff.file_swid").isNotNull())
-  //                .and(PostgresDSL.field("w.NAME").eq(workflowRunSWID)));
-  //  }
-
   static final ObjectMapper MAPPER = new ObjectMapper();
 
   public NiassaWorkflowEngine(
@@ -188,7 +181,6 @@ public class NiassaWorkflowEngine implements WorkflowEngine {
     this.dbUser = dbUser;
     this.dbPass = dbPass;
 
-    // TODO: Ensure all the annotations to keep are valid annotations. Maybe in the Provider?
     this.annotationsToKeep = annotationsToKeep;
   }
 
@@ -266,7 +258,6 @@ public class NiassaWorkflowEngine implements WorkflowEngine {
             DSLContext context = PostgresDSL.using(connection, SQLDialect.POSTGRES);
             org.jooq.Result<Record> results =
                 context.fetch(String.format(AP_QUERY, workflowRunSWID));
-            // org.jooq.Result<Record> results = context.fetch(apQuery(workflowRunSWID));
 
             // Get elements from each result and put into JSON
             for (Record result : results) {
@@ -280,8 +271,6 @@ public class NiassaWorkflowEngine implements WorkflowEngine {
                       .put("path", result.get(PostgresDSL.field("filePath")).toString())
                       .put("metatype", result.get(PostgresDSL.field("fileMetaType")).toString());
               ObjectNode right = MAPPER.createObjectNode().put("niassa-file-accession", fileSWID);
-              // TODO: these are all concatenated into one 'fileAttributes' column, and they might
-              // not exist.
               Object fileAttributesObj = result.get(PostgresDSL.field("fileAttributes"));
               if (null != fileAttributesObj) {
                 String[] fileAttributes = fileAttributesObj.toString().split(";");
@@ -318,196 +307,5 @@ public class NiassaWorkflowEngine implements WorkflowEngine {
   @Override
   public boolean supports(WorkflowLanguage language) {
     return language == WorkflowLanguage.NIASSA;
-  }
-
-  private ResultQuery apQuery(String workflowRunSWID) {
-    return PostgresDSL.select(
-            PostgresDSL.coalesce(
-                    PostgresDSL.field("pius.lims_ids"), PostgresDSL.field("wrius.lims_ids"))
-                .as("iusLimsKeys"),
-            PostgresDSL.coalesce(
-                    PostgresDSL.field("pius.ius_attributes"),
-                    PostgresDSL.field("wrius.ius_attributes"))
-                .as("iusAttributes"),
-            PostgresDSL.coalesce(
-                    PostgresDSL.field("pff.update_tstmp"),
-                    PostgresDSL.field("wr.update_tstmp"),
-                    PostgresDSL.field("wrius.update_tstmp"))
-                .as("lastModified"),
-            PostgresDSL.field("w.NAME").as("workflowName"),
-            PostgresDSL.field("w.version").as("workflowVersion"),
-            PostgresDSL.field("w.sw_accession").as("workflowId"),
-            PostgresDSL.field("w_attrs.attrs").as("workflowAttributes"),
-            PostgresDSL.field("wr.NAME").as("workflowRunName"),
-            PostgresDSL.field("wr.status").as("workflowRunStatus"),
-            PostgresDSL.field("wr.sw_accession").as("workflowRunId"),
-            PostgresDSL.field("wr_attrs.attrs").as("workflowRunAttributes"),
-            PostgresDSL.field("wrifs.swids").as("workflowRunInputFileIds"),
-            PostgresDSL.field("pff.processing_algorithm").as("processingAlgorithm"),
-            PostgresDSL.field("pff.processing_swid").as("processingId"),
-            PostgresDSL.field("pff.processing_status").as("processingStatus"),
-            PostgresDSL.field("pff.processing_attrs").as("processingAttributes"),
-            PostgresDSL.field("pff.file_meta_type").as("fileMetaType"),
-            PostgresDSL.field("pff.file_swid").as("fileId"),
-            PostgresDSL.field("pff.file_path").as("filePath"),
-            PostgresDSL.field("pff.file_md5sum").as("fileMd5sum"),
-            PostgresDSL.field("pff.file_size").as("fileSize"),
-            PostgresDSL.field("pff.file_description").as("fileDescription"),
-            PostgresDSL.field("pff.file_attrs").as("fileAttributes"),
-            PostgresDSL.coalesce(PostgresDSL.field("pius.skip"), PostgresDSL.field("wrius.skip"))
-                .as("skip"))
-        .from(
-            PostgresDSL.select(
-                    PostgresDSL.when(
-                            PostgresDSL.arrayAgg(PostgresDSL.field("i.sw_accession")).isNull(),
-                            PostgresDSL.field(
-                                "NULL")) // TODO: should that {NULL} be some kind of jooq thing?
-                        .otherwise(
-                            PostgresDSL.arrayToString(
-                                PostgresDSL.arrayAgg(
-                                    PostgresDSL.field(
-                                        "i.sw_accession || ',' || lk.provider || ',' || lk.id || ',' || lk.version || ',' || lk.last_modified")),
-                                ";"))
-                        .as("lims_ids"),
-                    PostgresDSL.arrayToString(
-                            PostgresDSL.arrayAgg(PostgresDSL.field("ia.tag || '=' || ia.value")),
-                            ";")
-                        .as("ius_attributes"),
-                    PostgresDSL.field("iwr.workflow_run_id").as("workflow_run_id"),
-                    PostgresDSL.max(PostgresDSL.field("i.update_tstmp")).as("update_tstmp"),
-                    PostgresDSL.boolOr(PostgresDSL.field("i.skip").eq(true)).as("skip"))
-                .from(PostgresDSL.table("ius").as("i"))
-                .rightOuterJoin(PostgresDSL.table("lims_key").as("lk"))
-                .on(PostgresDSL.field("i.lims_key_id").eq(PostgresDSL.field("lk.lims_key_id")))
-                .leftJoin(PostgresDSL.table("ius_attribute").as("ia"))
-                .on(PostgresDSL.field("i.ius_id").eq(PostgresDSL.field("ia.ius_id")))
-                .leftJoin(PostgresDSL.table("ius_workflow_runs").as("iwr"))
-                .on(PostgresDSL.field("i.ius_id").eq(PostgresDSL.field("iwr.ius_id")))
-                .groupBy(
-                    PostgresDSL.field("iwr.workflow_run_id"),
-                    PostgresDSL.when(
-                            PostgresDSL.field("iwr.workflow_run_id").isNull(),
-                            PostgresDSL.field("i.ius_id"))
-                        .otherwise(0))
-                .asTable("wrius"))
-        .leftJoin(PostgresDSL.table("workflow_run").as("wr"))
-        .on(PostgresDSL.field("wr.workflow_run_id").eq(PostgresDSL.field("wrius.workflow_run_id")))
-        .leftJoin(PostgresDSL.table("workflow").as("w"))
-        .on(PostgresDSL.field("wr.workflow_run_id").eq(PostgresDSL.field("w.workflow_id")))
-        .leftJoin(
-            PostgresDSL.select(
-                    PostgresDSL.field("wr.workflow_run_id").as("workflow_run_id"),
-                    PostgresDSL.field("w.workflow_id").as("workflow_id"),
-                    PostgresDSL.field("p.update_tstmp"),
-                    PostgresDSL.field("p.algorithm").as("processing_algorithm"),
-                    PostgresDSL.field("p.sw_accession").as("processing_swid"),
-                    PostgresDSL.field("p.processing_id").as("processing_id"),
-                    PostgresDSL.field("p.status").as("processing_status"),
-                    PostgresDSL.select(
-                            PostgresDSL.arrayToString(
-                                PostgresDSL.arrayAgg(PostgresDSL.field("tag || '=' || value")),
-                                ";"))
-                        .from(PostgresDSL.table("processing_attribute"))
-                        .where(
-                            PostgresDSL.field("p.processing_id")
-                                .eq(PostgresDSL.field("processing_id")))
-                        .groupBy(PostgresDSL.field("processing_id"))
-                        .asField("processing_attrs"),
-                    PostgresDSL.field("f.meta_type").as("file_meta_type"),
-                    PostgresDSL.field("f.sw_accession").as("file_swid"),
-                    PostgresDSL.field("f.file_path").as("file_path"),
-                    PostgresDSL.field("f.md5sum").as("file_md5sum"),
-                    PostgresDSL.field("f.size").as("file_size"),
-                    PostgresDSL.field("f.description").as("file_description"),
-                    PostgresDSL.select(
-                            PostgresDSL.arrayToString(
-                                PostgresDSL.arrayAgg(PostgresDSL.field("tag || '=' || value")),
-                                ";"))
-                        .from(PostgresDSL.table("file_attribute"))
-                        .where(PostgresDSL.field("f.file_id").eq(PostgresDSL.field("file_id")))
-                        .groupBy(PostgresDSL.field("file_id"))
-                        .asField("file_attrs"))
-                .from(PostgresDSL.table("processing").as("p"))
-                .rightOuterJoin(PostgresDSL.table("processing_files").as("pf"))
-                .on(PostgresDSL.field("p.processing_id").eq(PostgresDSL.field("pf.processing_id")))
-                .rightOuterJoin(PostgresDSL.table("file").as("f"))
-                .on(PostgresDSL.field("pf.file_id").eq(PostgresDSL.field("f.file_id")))
-                .leftJoin(PostgresDSL.table("workflow_run").as("wr"))
-                .on(
-                    PostgresDSL.field("p.workflow_run_id")
-                        .eq(PostgresDSL.field("wr.workflow_run_id"))
-                        .or(
-                            PostgresDSL.field("p.ancestor_workflow_run_id")
-                                .eq(PostgresDSL.field("wr.workflow_run_id"))))
-                .leftJoin(PostgresDSL.table("workflow").as("w"))
-                .on(PostgresDSL.field("wr.workflow_id").eq(PostgresDSL.field("w.workflow_id")))
-                .asTable("pff"))
-        .on(PostgresDSL.field("pff.workflow_run_id").eq(PostgresDSL.field("wr.workflow_run_id")))
-        .leftJoin(
-            PostgresDSL.select(
-                    PostgresDSL.field("pi.processing_id"),
-                    PostgresDSL.when(
-                            PostgresDSL.arrayAgg(PostgresDSL.field("i.sw_accession")).isNull(),
-                            PostgresDSL.field("NULL"))
-                        .otherwise(
-                            PostgresDSL.arrayToString(
-                                PostgresDSL.arrayAgg(
-                                    PostgresDSL.field(
-                                        "i.sw_accession || ',' || lk.provider || ',' || lk.id || ',' || lk.version || ',' || lk.last_modified")),
-                                ";"))
-                        .as("lims_ids"),
-                    PostgresDSL.arrayToString(
-                            PostgresDSL.arrayAgg(PostgresDSL.field("ia.tag || '=' || ia.value")),
-                            ";")
-                        .as("ius_attributes"),
-                    PostgresDSL.boolOr(PostgresDSL.field("i.skip").eq(true)).as("skip"))
-                .from(PostgresDSL.table("processing_ius").as("pi"))
-                .leftJoin(PostgresDSL.table("ius").as("i"))
-                .on(PostgresDSL.field("pi.ius_id").eq(PostgresDSL.field("i.ius_id")))
-                .leftJoin(PostgresDSL.table("lims_key").as("lk"))
-                .on(PostgresDSL.field("i.lims_key_id").eq(PostgresDSL.field("lk.lims_key_id")))
-                .leftJoin(PostgresDSL.table("ius_attribute").as("ia"))
-                .on(PostgresDSL.field("i.ius_id").eq(PostgresDSL.field("ia.ius_id")))
-                .groupBy(PostgresDSL.field("pi.processing_id"))
-                .asTable("pius"))
-        .on(PostgresDSL.field("pff.processing_id").eq(PostgresDSL.field("pius.processing_id")))
-        .leftJoin(
-            PostgresDSL.select(
-                    PostgresDSL.arrayToString(
-                            PostgresDSL.arrayAgg(PostgresDSL.field("f.sw_accession")), ",")
-                        .as("swids"))
-                .from(PostgresDSL.table("workflow_run_input_files").as("wrif"))
-                .leftJoin(PostgresDSL.table("file").as("f"))
-                .on(PostgresDSL.field("wrif.file_id").eq(PostgresDSL.field("f.file_id")))
-                .groupBy(PostgresDSL.field("wrif.workflow_run_id"))
-                .asTable("wrifs"))
-        .on(PostgresDSL.field("wr.workflow_run_id").eq(PostgresDSL.field("wrifs.workflow_run_id")))
-        .leftJoin(
-            PostgresDSL.select(
-                    PostgresDSL.field("workflow_run_id"),
-                    PostgresDSL.arrayToString(
-                            PostgresDSL.arrayAgg(PostgresDSL.field("tag || '=' || value")), ";")
-                        .as("attrs"))
-                .from(PostgresDSL.table("workflow_run_attribute"))
-                .groupBy(PostgresDSL.field("workflow_run_id"))
-                .asTable("wr_attrs"))
-        .on(
-            PostgresDSL.field("wrius.workflow_run_id")
-                .eq(PostgresDSL.field("wr_attrs.workflow_run_id")))
-        .leftJoin(
-            PostgresDSL.select(
-                    PostgresDSL.field("workflow_id"),
-                    PostgresDSL.arrayToString(
-                            PostgresDSL.arrayAgg(PostgresDSL.field("tag || '=' || value")), ";")
-                        .as("attrs"))
-                .from(PostgresDSL.table("workflow_attribute"))
-                .groupBy(PostgresDSL.field("workflow_id"))
-                .asTable("w_attrs"))
-        .on(PostgresDSL.field("w.workflow_id").eq(PostgresDSL.field("w_attrs.workflow_id")))
-        .where(
-            PostgresDSL.field("wr.sw_accession")
-                .isNotNull()
-                .and(PostgresDSL.field("pff.file_swid").isNotNull())
-                .and(PostgresDSL.field("w.NAME").eq(workflowRunSWID)));
   }
 }

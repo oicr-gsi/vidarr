@@ -13,6 +13,25 @@ import java.util.HashSet;
  * creates a new NiassaWorkflowEngine with that config
  */
 public class NiassaWorkflowEngineProvider implements WorkflowEngineProvider {
+  /**
+   *
+   *
+   * <pre>
+   * Expects json data of form:
+   * {
+   *   "dbUrl": str
+   *   "dbName": str
+   *   "dbUser": str
+   *   "dbPass": str
+   *   "annotations": str[]
+   * }
+   * </pre>
+   *
+   * <p>Reads this from plugin configuration file.
+   *
+   * @param node the JSON data
+   * @return
+   */
   @Override
   public WorkflowEngine readConfiguration(ObjectNode node) {
     return new NiassaWorkflowEngine(

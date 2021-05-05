@@ -219,9 +219,20 @@ public class NiassaWorkflowEngine implements WorkflowEngine {
   }
 
   /**
-   * format: { "migration": [ { "fileSWID": ${fileSWID}, "fileMetadata": { "right": {
-   * "niassa-file-accession": "${fileSWID}", ...file annotations}, "left": "{ "md5": "${MD5}",
-   * "fileSize": ${fileSize}, "path": "${path}", "metatype": ${metatype} }" } ] }
+   *
+   *
+   * <pre>
+   * format:
+   *   { migration": [
+   *     { "fileSWID": ${fileSWID},
+   *     "fileMetadata":
+   *       { "right":
+   *         { "niassa-file-accession": "${fileSWID}",
+   *         ...file annotations},
+   *       "left": "{ "md5": "${MD5}", "fileSize": ${fileSize}, "path": "${path}", "metatype": ${metatype} }" }
+   *     ]
+   *   }
+   *   </pre>
    */
   @Override
   public JsonNode run(
@@ -271,8 +282,15 @@ public class NiassaWorkflowEngine implements WorkflowEngine {
               ObjectNode right = MAPPER.createObjectNode().put("niassa-file-accession", fileSWID);
               // TODO: these are all concatenated into one 'fileAttributes' column, and they might
               // not exist.
-              for (String annotation : annotationsToKeep) {
-                right.put(annotation, result.get(PostgresDSL.field(annotation)).toString());
+              Object fileAttributesObj = result.get(PostgresDSL.field("fileAttributes"));
+              if (null != fileAttributesObj) {
+                String[] fileAttributes = fileAttributesObj.toString().split(";");
+                for (String fileAttribute : fileAttributes) {
+                  String[] keyAndValue = fileAttribute.split("="); // 0 is key, 1 is value
+                  if (annotationsToKeep.contains(keyAndValue[0])) {
+                    right.put(keyAndValue[0], keyAndValue[1]);
+                  }
+                }
               }
               ObjectNode output =
                   MAPPER

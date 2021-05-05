@@ -14,7 +14,17 @@ import java.io.IOException;
  */
 public class NiassaOutputProvisionerProvider implements OutputProvisionerProvider {
   /**
-   * Expects json data of form: { "chunks": "username": "hostname": "port" }
+   *
+   *
+   * <pre>
+   * Expects json data of form:
+   * {
+   *   "chunks": int[]
+   *   "username": str
+   *   "hostname": str
+   *   "port": int
+   * }
+   * </pre>
    *
    * <p>Reads this from plugin configuration file.
    *

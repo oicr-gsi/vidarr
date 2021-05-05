@@ -8,6 +8,10 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.util.HashSet;
 
+/**
+ * Informs Vidarr that it is capable of using plugin type 'niassa'. Reads JSON configuration and
+ * creates a new NiassaWorkflowEngine with that config
+ */
 public class NiassaWorkflowEngineProvider implements WorkflowEngineProvider {
   @Override
   public WorkflowEngine readConfiguration(ObjectNode node) {

@@ -137,6 +137,11 @@ public class NiassaOutputProvisioner implements OutputProvisioner {
           // Use the sftp client to create symlink to the TARGET
           try {
             sftp.mkdirs(targetPath.toString());
+
+            // Be explicit about the target filename - sftp just says "failure" otherwise
+            String[] sourcePathSplit = sourcePath.split("/");
+            targetPath = targetPath.resolve(sourcePathSplit[sourcePathSplit.length - 1]);
+
             sftp.symlink(sourcePath, targetPath.toString());
           } catch (IOException e) {
             throw new RuntimeException(e);

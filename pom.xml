@@ -131,6 +131,11 @@
         <artifactId>HikariCP</artifactId>
         <version>2.4.7</version>
       </dependency>
+      <dependency>
+        <groupId>com.hierynomus</groupId>
+        <artifactId>sshj</artifactId>
+        <version>0.31.0</version>
+      </dependency>
     </dependencies>
   </dependencyManagement>
   <distributionManagement>
@@ -152,6 +157,7 @@
     <module>vidarr-server</module>
     <module>vidarr-core</module>
     <module>vidarr-cli</module>
+    <module>vidarr-niassa</module>
   </modules>
   <build>
     <plugins>

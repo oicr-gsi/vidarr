@@ -83,7 +83,7 @@ final class PreparePreflightChecks extends BaseOutputExtractor<Boolean, Boolean>
 
   @Override
   protected Boolean processChild(
-      Map<String, Object> key, OutputType type, JsonNode metadata, JsonNode output) {
+      Map<String, Object> key, String name, OutputType type, JsonNode metadata, JsonNode output) {
     return type.apply(
         new PreparePreflightChecks(
             mapper, target, metadata, extraInputIdsHandled, requestedExternalId, preflightTask));

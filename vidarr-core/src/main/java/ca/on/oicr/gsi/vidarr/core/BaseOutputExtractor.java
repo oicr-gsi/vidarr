@@ -174,7 +174,11 @@ abstract class BaseOutputExtractor<R, E> implements OutputType.Visitor<R> {
           for (final var output : mapping.getValue().entrySet()) {
             outputValues.add(
                 processChild(
-                    mapping.getKey(), outputs.get(output.getKey()), output.getValue(), null));
+                    mapping.getKey(),
+                    output.getKey(),
+                    outputs.get(output.getKey()),
+                    output.getValue(),
+                    null));
           }
         }
         return mergeChildren(outputValues.stream());
@@ -212,6 +216,7 @@ abstract class BaseOutputExtractor<R, E> implements OutputType.Visitor<R> {
             outputValues.add(
                 processChild(
                     key,
+                    output.getKey(),
                     output.getValue(),
                     mapping.get(output.getKey()),
                     child.get(output.getKey())));
@@ -245,7 +250,7 @@ abstract class BaseOutputExtractor<R, E> implements OutputType.Visitor<R> {
   protected abstract R mergeChildren(Stream<E> stream);
 
   protected abstract E processChild(
-      Map<String, Object> key, OutputType type, JsonNode metadata, JsonNode output);
+      Map<String, Object> key, String name, OutputType type, JsonNode metadata, JsonNode output);
 
   @Override
   public final R qualityControl() {

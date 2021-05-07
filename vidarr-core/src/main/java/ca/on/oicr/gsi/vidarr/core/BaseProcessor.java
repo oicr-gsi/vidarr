@@ -732,7 +732,11 @@ public abstract class BaseProcessor<
                             metadata.has(o.name())
                                 ? o.type()
                                     .apply(
-                                        new CheckOutputType(mapper, target, metadata.get(o.name())))
+                                        new CheckOutputType(
+                                            mapper,
+                                            target,
+                                            "\"" + o.name() + "\"",
+                                            metadata.get(o.name())))
                                 : Stream.of("Missing metadata attribute " + o.name())),
                 workflow
                     .parameters()
@@ -740,7 +744,12 @@ public abstract class BaseProcessor<
                         p -> {
                           if (arguments.has(p.name())) {
                             return p.type()
-                                .apply(new CheckInputType(mapper, target, arguments.get(p.name())));
+                                .apply(
+                                    new CheckInputType(
+                                        mapper,
+                                        target,
+                                        "\"" + p.name() + "\"",
+                                        arguments.get(p.name())));
                           } else {
                             return Stream.of("Argument missing: " + p.name());
                           }
@@ -748,7 +757,9 @@ public abstract class BaseProcessor<
                 target
                     .engine()
                     .engineParameters()
-                    .map(p -> p.apply(new CheckEngineType(engineParameters)))
+                    .map(
+                        p ->
+                            p.apply(new CheckSimpleType("\"engine parameters\"", engineParameters)))
                     .orElseGet(
                         () ->
                             engineParameters == null

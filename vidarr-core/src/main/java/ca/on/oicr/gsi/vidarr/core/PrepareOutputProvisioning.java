@@ -132,7 +132,7 @@ final class PrepareOutputProvisioning
 
   @Override
   protected Stream<TaskStarter<Pair<ProvisionData, Result>>> processChild(
-      Map<String, Object> key, OutputType type, JsonNode metadata, JsonNode output) {
+      Map<String, Object> key, String name, OutputType type, JsonNode metadata, JsonNode output) {
     return type.apply(
         new PrepareOutputProvisioning(
             mapper, target, output, metadata, allInputIds, remainingInputIds));

@@ -174,7 +174,12 @@ public abstract class DatabaseBackedProcessor
   private static Stream<String> checkConsumableResource(
       Map<String, JsonNode> consumableResources, Pair<String, BasicType> resource) {
     return consumableResources.containsKey(resource.first())
-        ? resource.second().apply(new CheckEngineType(consumableResources.get(resource.first())))
+        ? resource
+            .second()
+            .apply(
+                new CheckSimpleType(
+                    "Consumable resource: " + resource.first(),
+                    consumableResources.get(resource.first())))
         : Stream.of(String.format("Missing required consumable resource %s", resource.first()));
   }
 
@@ -238,7 +243,9 @@ public abstract class DatabaseBackedProcessor
               if (providedLabels.has(entry.getKey())) {
                 return entry
                     .getValue()
-                    .apply(new CheckEngineType(providedLabels.get(entry.getKey())))
+                    .apply(
+                        new CheckSimpleType(
+                            "Label: " + entry.getKey(), providedLabels.get(entry.getKey())))
                     .map(String.format("Label %s: ", entry.getKey())::concat);
               } else {
                 return Stream.of(String.format("Label %s is not provided.", entry.getKey()));

@@ -15,16 +15,18 @@ import java.util.stream.Stream;
 public final class CheckOutputType extends BaseOutputExtractor<Stream<String>, Stream<String>> {
   private final ObjectMapper mapper;
   private final Target target;
+  private final String context;
 
-  public CheckOutputType(ObjectMapper mapper, Target target, JsonNode metadata) {
+  public CheckOutputType(ObjectMapper mapper, Target target, String context, JsonNode metadata) {
     super(null, metadata);
     this.mapper = mapper;
     this.target = target;
+    this.context = context;
   }
 
   @Override
   protected Stream<String> invalid(String error) {
-    return Stream.of(error);
+    return Stream.of(context + ": " + error);
   }
 
   @Override
@@ -32,9 +34,13 @@ public final class CheckOutputType extends BaseOutputExtractor<Stream<String>, S
       WorkflowOutputDataType format, JsonNode metadata, JsonNode output, OutputData outputData) {
     final var provision = target.provisionerFor(format.format());
     if (provision == null) {
-      return Stream.of("Cannot provision output format " + format + " in this configuration.");
+      return Stream.of(
+          String.format(
+              "%s: Cannot provision output format %s in this configuration.", context, format));
     } else {
-      return provision.typeFor(format.format()).apply(new CheckEngineType(metadata));
+      return provision
+          .typeFor(format.format())
+          .apply(new CheckSimpleType(context + "|" + format.name(), metadata));
     }
   }
 
@@ -50,8 +56,8 @@ public final class CheckOutputType extends BaseOutputExtractor<Stream<String>, S
 
   @Override
   protected Stream<String> processChild(
-      Map<String, Object> key, OutputType type, JsonNode metadata, JsonNode output) {
-    return type.apply(new CheckOutputType(mapper, target, metadata));
+      Map<String, Object> key, String name, OutputType type, JsonNode metadata, JsonNode output) {
+    return type.apply(new CheckOutputType(mapper, target, context + key + "." + name, metadata));
   }
 
   @Override

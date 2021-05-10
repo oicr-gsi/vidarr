@@ -51,3 +51,5 @@ mvn versions:set -DnextSnapshot=true -DgenerateBackupPoms=false
 git commit -a -m "prepared for next development iteration"
 git push origin master
 git push origin v${RELEASE_VERSION}
+
+echo VIDARR_VERSION=${RELEASE_VERSION}

@@ -37,7 +37,7 @@ public class PrometheusAlertManagerConsumableResource implements ConsumableResou
   }
 
   private Set<String> fixedVidarrNames;
-  private String alertmanagerUrl;
+  private String alertManagerUrl;
   private String environment;
   private Set<String> labels;
   @JsonIgnore private AlertCache cache;
@@ -48,8 +48,8 @@ public class PrometheusAlertManagerConsumableResource implements ConsumableResou
     return fixedVidarrNames;
   }
 
-  public String getAlertmanagerUrl() {
-    return alertmanagerUrl;
+  public String getAlertManagerUrl() {
+    return alertManagerUrl;
   }
 
   public String getEnvironment() {
@@ -66,7 +66,7 @@ public class PrometheusAlertManagerConsumableResource implements ConsumableResou
       throw new IllegalArgumentException(
           "Fixed Vidarr names is empty in Prometheus Alertmanager resource config.");
     }
-    if (alertmanagerUrl == null || "".equals(alertmanagerUrl)) {
+    if (alertManagerUrl == null || "".equals(alertManagerUrl)) {
       throw new IllegalArgumentException(
           "Alertmanager URL is missing in Prometheus Alertmanager resource config.");
     }
@@ -148,12 +148,12 @@ public class PrometheusAlertManagerConsumableResource implements ConsumableResou
     }
 
     protected Stream<AlertDto> fetch(Instant lastUpdated) throws Exception {
-      if (alertmanagerUrl == null) {
+      if (alertManagerUrl == null) {
         return Stream.empty();
       }
       var response =
           HTTP_CLIENT.send(
-              HttpRequest.newBuilder(URI.create(String.format("%s/api/v1/alerts", alertmanagerUrl)))
+              HttpRequest.newBuilder(URI.create(String.format("%s/api/v1/alerts", alertManagerUrl)))
                   .GET()
                   .build(),
               new JsonBodyHandler<>(MAPPER, AlertResultDto.class));

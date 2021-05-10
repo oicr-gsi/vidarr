@@ -22,6 +22,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -126,10 +127,11 @@ public class PrometheusAlertManagerConsumableResource implements ConsumableResou
                 alert ->
                     alert.matches(
                         environment,
-                        Stream.concat(
-                            Stream.concat(
-                                inputRequiredServices.stream(), fixedVidarrNames.stream()),
-                            Stream.of(workflowName)),
+                        Stream.of(
+                                inputRequiredServices.stream(),
+                                fixedVidarrNames.stream(),
+                                Stream.of(workflowName))
+                            .flatMap(Function.identity()),
                         labels))
             .collect(Collectors.toSet());
     if (isInhibited.isEmpty()) {

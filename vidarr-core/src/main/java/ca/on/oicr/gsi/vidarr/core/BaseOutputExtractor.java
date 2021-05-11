@@ -38,26 +38,26 @@ abstract class BaseOutputExtractor<R, E> implements OutputType.Visitor<R> {
   }
 
   @Override
-  public final R file() {
-    return handle(WorkflowOutputDataType.FILE);
+  public final R file(boolean optional) {
+    return handle(WorkflowOutputDataType.FILE, optional);
   }
 
   @Override
-  public final R fileWithLabels() {
-    return handle(WorkflowOutputDataType.FILE_WITH_LABELS);
+  public final R fileWithLabels(boolean optional) {
+    return handle(WorkflowOutputDataType.FILE_WITH_LABELS, optional);
   }
 
   @Override
-  public final R files() {
-    return handle(WorkflowOutputDataType.FILES);
+  public final R files(boolean optional) {
+    return handle(WorkflowOutputDataType.FILES, optional);
   }
 
   @Override
-  public final R filesWithLabels() {
-    return handle(WorkflowOutputDataType.FILES_WITH_LABELS);
+  public final R filesWithLabels(boolean optional) {
+    return handle(WorkflowOutputDataType.FILES_WITH_LABELS, optional);
   }
 
-  private R handle(WorkflowOutputDataType format) {
+  private R handle(WorkflowOutputDataType format, boolean optional) {
 
     if (metadata.isObject()
         && metadata.has("type")
@@ -79,6 +79,7 @@ abstract class BaseOutputExtractor<R, E> implements OutputType.Visitor<R> {
           }
           return handle(
               format,
+              optional,
               contents.get(0),
               output,
               new OutputData() {
@@ -98,6 +99,7 @@ abstract class BaseOutputExtractor<R, E> implements OutputType.Visitor<R> {
           }
           return handle(
               format,
+              optional,
               contents.get(0),
               output,
               new OutputData() {
@@ -119,6 +121,7 @@ abstract class BaseOutputExtractor<R, E> implements OutputType.Visitor<R> {
             var externalIds = mapper().treeToValue(contents.get(1), ExternalId[].class);
             return handle(
                 format,
+                optional,
                 contents.get(0),
                 output,
                 new OutputData() {
@@ -142,7 +145,11 @@ abstract class BaseOutputExtractor<R, E> implements OutputType.Visitor<R> {
   }
 
   protected abstract R handle(
-      WorkflowOutputDataType format, JsonNode metadata, JsonNode output, OutputData outputData);
+      WorkflowOutputDataType format,
+      boolean optional,
+      JsonNode metadata,
+      JsonNode output,
+      OutputData outputData);
 
   protected R invalid(String error) {
     throw new IllegalArgumentException(error);
@@ -255,8 +262,8 @@ abstract class BaseOutputExtractor<R, E> implements OutputType.Visitor<R> {
   }
 
   @Override
-  public final R logs() {
-    return handle(WorkflowOutputDataType.LOGS);
+  public final R logs(boolean optional) {
+    return handle(WorkflowOutputDataType.LOGS, optional);
   }
 
   protected abstract ObjectMapper mapper();
@@ -267,12 +274,12 @@ abstract class BaseOutputExtractor<R, E> implements OutputType.Visitor<R> {
       Map<String, Object> key, String name, OutputType type, JsonNode metadata, JsonNode output);
 
   @Override
-  public final R qualityControl() {
-    return handle(WorkflowOutputDataType.QUALITY_CONTROL);
+  public final R qualityControl(boolean optional) {
+    return handle(WorkflowOutputDataType.QUALITY_CONTROL, optional);
   }
 
   @Override
-  public final R warehouseRecords() {
-    return handle(WorkflowOutputDataType.DATAWAREHOUSE_RECORDS);
+  public final R warehouseRecords(boolean optional) {
+    return handle(WorkflowOutputDataType.DATAWAREHOUSE_RECORDS, optional);
   }
 }

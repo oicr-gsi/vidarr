@@ -845,6 +845,31 @@ public abstract class DatabaseBackedProcessor
                                               return handler.invalidWorkflow(errors);
                                             }
 
+                                            if (workflow
+                                                .definition()
+                                                .outputs()
+                                                .map(
+                                                    output ->
+                                                        output
+                                                            .type()
+                                                            .apply(
+                                                                new CheckOutputCompatibility(
+                                                                    MAPPER,
+                                                                    metadata.get(output.name()))))
+                                                .reduce(OutputCompatibility::worst)
+                                                .map(OutputCompatibility.BROKEN::equals)
+                                                .orElse(false)) {
+                                              return handler.invalidWorkflow(
+                                                  Set.of(
+                                                      "The metadata for the workflow has external"
+                                                          + " keys that are manually assigned to"
+                                                          + " optional output and there is"
+                                                          + " mandatory output using remaining"
+                                                          + " (non-manually assigned) external"
+                                                          + " keys. This is forbidden as it could"
+                                                          + " potentially lose keys."));
+                                            }
+
                                             final var inputIds =
                                                 extractWorkflowInputIds(arguments, workflow);
 
@@ -860,18 +885,57 @@ public abstract class DatabaseBackedProcessor
                                                 .anyMatch(k -> k.getVersions().isEmpty())) {
                                               return handler.missingExternalIdVersion();
                                             }
-                                            if (externalIds.size() != externalKeys.size()
-                                                || !externalKeys.stream()
+
+                                            final var externalKeyIds =
+                                                externalKeys.stream()
                                                     .map(
                                                         k -> new Pair<>(k.getProvider(), k.getId()))
-                                                    .collect(Collectors.toSet())
-                                                    .equals(
-                                                        externalIds.stream()
-                                                            .map(
-                                                                k ->
-                                                                    new Pair<>(
-                                                                        k.getProvider(), k.getId()))
-                                                            .collect(Collectors.toSet()))) {
+                                                    .collect(Collectors.toSet());
+
+                                            final var requiredOutputKeys =
+                                                workflow
+                                                    .definition()
+                                                    .outputs()
+                                                    .flatMap(
+                                                        output ->
+                                                            output
+                                                                .type()
+                                                                .apply(
+                                                                    new ExtractOutputKeys(
+                                                                        MAPPER,
+                                                                        externalKeyIds,
+                                                                        false,
+                                                                        metadata.get(
+                                                                            output.name()))))
+                                                    .collect(Collectors.toSet());
+                                            final var optionalOutputKeys =
+                                                workflow
+                                                    .definition()
+                                                    .outputs()
+                                                    .flatMap(
+                                                        output ->
+                                                            output
+                                                                .type()
+                                                                .apply(
+                                                                    new ExtractOutputKeys(
+                                                                        MAPPER,
+                                                                        externalKeyIds,
+                                                                        true,
+                                                                        metadata.get(
+                                                                            output.name()))))
+                                                    .collect(Collectors.toSet());
+
+                                            if (externalIds.size() != externalKeys.size()
+                                                || requiredOutputKeys.size() != externalKeys.size()
+                                                || !requiredOutputKeys.equals(externalKeyIds)
+                                                || !externalKeyIds.containsAll(optionalOutputKeys)
+                                                || !externalKeyIds.equals(
+                                                    externalIds.stream()
+                                                        .map(
+                                                            k ->
+                                                                new Pair<>(
+                                                                    k.getProvider(), k.getId()))
+                                                        .collect(Collectors.toSet()))) {
                                               return handler.externalIdMismatch();
                                             }
                                             try {

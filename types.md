@@ -110,15 +110,22 @@ _externals_, which is a list of `{"id": "`_identifier_`", "provider":
 In each case, the type of _configuration_ depends on the output type and the
 target used. The workflow's output is described in the table.
 
-| Output Type           |  Workflow Output                                                    |
-|-----------------------|---------------------------------------------------------------------|
-| `"file"`              | A single file                                                       |
-| `"files"`             | A list of files                                                     |
-| `"file-with-labels"`  | A pair of a file and a dictionary of strings                        |
-| `"files-with-labels"` | A pair of a list of files and a dictionary of strings               |
-| `"logs"`              | A single file containing text logs                                  |
-| `"quality-control"`   | A Boolean value which indicates pass/fail                           |
-| `"warehouse-records"` | A single file containing structured data to be stored in a database |
+| Output Type                    | WDL Type                                   |  Workflow Output                                                              |
+|--------------------------------|--------------------------------------------|-------------------------------------------------------------------------------|
+| `"file"`                       | `File`                                     | A single file                                                                 |
+| `"optional-file"`              | `File?`                                    | An optional single file                                                       |
+| `"files"`                      | `Array[File]+`                             | A list of files                                                               |
+| `"optional-files"`             | `Array[File]?`                             | An optional list of files                                                     |
+| `"file-with-labels"`           | `Pair[File, Map[String, String]]`          | A pair of a file and a dictionary of strings                                  |
+| `"optional-file-with-labels"`  | `Pair[File, Map[String, String]]?`         | An optional pair of a file and a dictionary of strings                        |
+| `"files-with-labels"`          | `Pair[Array[File]+, Map[String, String]]`  | A pair of a list of files and a dictionary of strings                         |
+| `"optional-files-with-labels"` | `Pair[Array[File]+, Map[String, String]]?` | An optional pair of a list of files and a dictionary of strings               |
+| `"logs"`                       | N/A                                        | A single file containing text logs                                            |
+| `"optional-logs"`              | N/A                                        | An optional single file containing text logs                                  |
+| `"quality-control"`            | `Boolean`                                  | A Boolean value which indicates pass/fail                                     |
+| `"optional-quality-control"`   | `Boolean?`                                 | An optional Boolean value which indicates pass/fail                           |
+| `"warehouse-records"`          | N/A                                        | A single file containing structured data to be stored in a database           |
+| `"optional-warehouse-records"` | N/A                                        | An optional single file containing structured data to be stored in a database |
 
 For the data warehouse, the plugin and workflow must be mutually aware of the
 data format.
@@ -129,6 +136,16 @@ about the contents of a file that can be used by downstream processing. For
 instance, workflow producing a FASTQ or BAM file could include a sequence
 count, so a Shesmu olive consuming this file could pick an appropriate shard
 count for a subsequent workflow.
+
+Each output type has an optional variant. If used, the workflow can decline to
+provide the output and it will not be provisioned. However, all external keys
+must be assigned somewhere, so _every_ external key _must_ be assigned to at
+least one non-optional output. This means there must be at least one
+non-optional output for a workflow. Also, using `REMAINING` on mandatory values
+has ambiguous meaning when `MANUAL` is used on optional outputs. If the
+optional was or was not present, then the external keys included in `REMAINING`
+would change dynamically. This is not permitted, so mixing these two is not
+possible.
 
 In some workflows that expand or multiplex content (_e.g_, co-cleaning,
 BCL2FASTQ), the output metadata needs to be dynamically assigned to the output

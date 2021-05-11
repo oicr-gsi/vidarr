@@ -57,22 +57,22 @@ public abstract class OutputType {
   public interface Visitor<T> {
 
     /** The output is a single files */
-    default T file() {
+    default T file(boolean optional) {
       return unknown();
     }
 
     /** The output is a pair of a single files and a dictionary of labels */
-    default T fileWithLabels() {
+    default T fileWithLabels(boolean optional) {
       return unknown();
     }
 
     /** The output is a list of files */
-    default T files() {
+    default T files(boolean optional) {
       return unknown();
     }
 
     /** The output is a pair of a list of files and a dictionary of labels */
-    default T filesWithLabels() {
+    default T filesWithLabels(boolean optional) {
       return unknown();
     }
 
@@ -87,12 +87,12 @@ public abstract class OutputType {
     }
 
     /** The output is logs */
-    default T logs() {
+    default T logs(boolean optional) {
       return unknown();
     }
 
     /** The output is quality control information */
-    default T qualityControl() {
+    default T qualityControl(boolean optional) {
       return unknown();
     }
 
@@ -105,7 +105,7 @@ public abstract class OutputType {
     T unknown();
 
     /** The output is data warehouse records */
-    default T warehouseRecords() {
+    default T warehouseRecords(boolean optional) {
       return unknown();
     }
   }
@@ -139,6 +139,20 @@ public abstract class OutputType {
             return OutputType.UNKNOWN;
           case "warehouse-records":
             return OutputType.WAREHOUSE_RECORDS;
+          case "optional-file":
+            return OutputType.FILE_OPTIONAL;
+          case "optional-files":
+            return OutputType.FILES_OPTIONAL;
+          case "optional-file-with-labels":
+            return OutputType.FILE_WITH_LABELS_OPTIONAL;
+          case "optional-files-with-labels":
+            return OutputType.FILES_WITH_LABELS_OPTIONAL;
+          case "optional-logs":
+            return OutputType.LOGS_OPTIONAL;
+          case "optional-quality-control":
+            return OutputType.QUALITY_CONTROL_OPTIONAL;
+          case "optional-warehouse-records":
+            return OutputType.WAREHOUSE_RECORDS_OPTIONAL;
           default:
             throw new IllegalArgumentException("Unknown output type: " + str);
         }
@@ -191,23 +205,25 @@ public abstract class OutputType {
           .apply(
               new Visitor<Printer>() {
                 @Override
-                public Printer file() {
-                  return g -> g.writeString("file");
+                public Printer file(boolean optional) {
+                  return g -> g.writeString(optional ? "optional-file" : "file");
                 }
 
                 @Override
-                public Printer fileWithLabels() {
-                  return g -> g.writeString("file-with-labels");
+                public Printer fileWithLabels(boolean optional) {
+                  return g ->
+                      g.writeString(optional ? "optional-file-with-labels" : "file-with-labels");
                 }
 
                 @Override
-                public Printer files() {
-                  return g -> g.writeString("files");
+                public Printer files(boolean optional) {
+                  return g -> g.writeString(optional ? "optional-files" : "files");
                 }
 
                 @Override
-                public Printer filesWithLabels() {
-                  return g -> g.writeString("files-with-labels");
+                public Printer filesWithLabels(boolean optional) {
+                  return g ->
+                      g.writeString(optional ? "optional-files-with-labels" : "files-with-labels");
                 }
 
                 @Override
@@ -236,13 +252,14 @@ public abstract class OutputType {
                 }
 
                 @Override
-                public Printer logs() {
-                  return g -> g.writeString("logs");
+                public Printer logs(boolean optional) {
+                  return g -> g.writeString(optional ? "optional-logs" : "logs");
                 }
 
                 @Override
-                public Printer qualityControl() {
-                  return g -> g.writeString("quality-control");
+                public Printer qualityControl(boolean optional) {
+                  return g ->
+                      g.writeString(optional ? "optioal-quality-control" : "quality-control");
                 }
 
                 @Override
@@ -251,8 +268,9 @@ public abstract class OutputType {
                 }
 
                 @Override
-                public Printer warehouseRecords() {
-                  return g -> g.writeString("warehouse-records");
+                public Printer warehouseRecords(boolean optional) {
+                  return g ->
+                      g.writeString(optional ? "optional-warehouse-records" : "warehouse-records");
                 }
               })
           .print(jsonGenerator);
@@ -303,7 +321,15 @@ public abstract class OutputType {
       new OutputType() {
         @Override
         public <T> T apply(Visitor<T> visitor) {
-          return visitor.file();
+          return visitor.file(false);
+        }
+      };
+  /** The output is an optional single file */
+  public static final OutputType FILE_OPTIONAL =
+      new OutputType() {
+        @Override
+        public <T> T apply(Visitor<T> visitor) {
+          return visitor.file(true);
         }
       };
   /** The output is a collection files that should have identical metadata */
@@ -311,7 +337,15 @@ public abstract class OutputType {
       new OutputType() {
         @Override
         public <T> T apply(Visitor<T> visitor) {
-          return visitor.files();
+          return visitor.files(false);
+        }
+      };
+  /** The output is an optional collection files that should have identical metadata */
+  public static final OutputType FILES_OPTIONAL =
+      new OutputType() {
+        @Override
+        public <T> T apply(Visitor<T> visitor) {
+          return visitor.files(true);
         }
       };
   /**
@@ -322,7 +356,18 @@ public abstract class OutputType {
       new OutputType() {
         @Override
         public <T> T apply(Visitor<T> visitor) {
-          return visitor.filesWithLabels();
+          return visitor.filesWithLabels(false);
+        }
+      };
+  /**
+   * The output is an optional collection files with workflow-derived labels that should have
+   * identical metadata
+   */
+  public static final OutputType FILES_WITH_LABELS_OPTIONAL =
+      new OutputType() {
+        @Override
+        public <T> T apply(Visitor<T> visitor) {
+          return visitor.filesWithLabels(true);
         }
       };
   /** The output is a single files with workflow-derived labels */
@@ -330,7 +375,15 @@ public abstract class OutputType {
       new OutputType() {
         @Override
         public <T> T apply(Visitor<T> visitor) {
-          return visitor.fileWithLabels();
+          return visitor.fileWithLabels(false);
+        }
+      };
+  /** The output is an optional single files with workflow-derived labels */
+  public static final OutputType FILE_WITH_LABELS_OPTIONAL =
+      new OutputType() {
+        @Override
+        public <T> T apply(Visitor<T> visitor) {
+          return visitor.fileWithLabels(true);
         }
       };
   /** The output is logs */
@@ -338,7 +391,15 @@ public abstract class OutputType {
       new OutputType() {
         @Override
         public <T> T apply(Visitor<T> visitor) {
-          return visitor.logs();
+          return visitor.logs(false);
+        }
+      };
+  /** The output is optional logs */
+  public static final OutputType LOGS_OPTIONAL =
+      new OutputType() {
+        @Override
+        public <T> T apply(Visitor<T> visitor) {
+          return visitor.logs(true);
         }
       };
   /** The output is quality control information */
@@ -346,7 +407,15 @@ public abstract class OutputType {
       new OutputType() {
         @Override
         public <T> T apply(Visitor<T> visitor) {
-          return visitor.qualityControl();
+          return visitor.qualityControl(false);
+        }
+      };
+  /** The output is optional quality control information */
+  public static final OutputType QUALITY_CONTROL_OPTIONAL =
+      new OutputType() {
+        @Override
+        public <T> T apply(Visitor<T> visitor) {
+          return visitor.qualityControl(true);
         }
       };
   /** The output is unknown or an error */
@@ -362,7 +431,15 @@ public abstract class OutputType {
       new OutputType() {
         @Override
         public <T> T apply(Visitor<T> visitor) {
-          return visitor.warehouseRecords();
+          return visitor.warehouseRecords(false);
+        }
+      };
+  /** The output is optional data warehouse records */
+  public static final OutputType WAREHOUSE_RECORDS_OPTIONAL =
+      new OutputType() {
+        @Override
+        public <T> T apply(Visitor<T> visitor) {
+          return visitor.warehouseRecords(true);
         }
       };
 

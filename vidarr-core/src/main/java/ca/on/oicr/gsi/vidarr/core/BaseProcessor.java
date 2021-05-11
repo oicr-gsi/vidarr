@@ -466,6 +466,7 @@ public abstract class BaseProcessor<
                     .outputs()
                     .allMatch(
                         output -> {
+                          final var isOk = new AtomicBoolean(true);
                           if (result.output().has(output.name())) {
                             output
                                 .type()
@@ -476,9 +477,10 @@ public abstract class BaseProcessor<
                                         result.output().get(output.name()),
                                         activeWorkflow.metadata().get(output.name()),
                                         allIds,
-                                        remainingIds))
+                                        remainingIds,
+                                        () -> isOk.set(false)))
                                 .forEach(tasks::add);
-                            return true;
+                            return isOk.get();
                           } else {
                             return false;
                           }

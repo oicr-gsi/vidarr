@@ -69,14 +69,13 @@ abstract class BaseOutputExtractor<R, E> implements OutputType.Visitor<R> {
       }
       switch (metadata.get("type").asText()) {
         case "REMAINING":
-          var expectedSize = 1;
-          expectedSize = 1;
-          if (contents.size() != expectedSize) {
+          var remainingExpectedSize = 1;
+          if (contents.size() != remainingExpectedSize) {
             return invalid(
                 String.format(
                     "Incorrect number of 'metadata' 'contents' of type REMAINING in %s. "
                         + "Expected %d but got %d.",
-                    format, expectedSize, contents.size()));
+                    format, remainingExpectedSize, contents.size()));
           }
           return handle(
               format,
@@ -89,13 +88,13 @@ abstract class BaseOutputExtractor<R, E> implements OutputType.Visitor<R> {
                 }
               });
         case "ALL":
-          expectedSize = 1;
-          if (contents.size() != expectedSize) {
+          var allExpectedSize = 1;
+          if (contents.size() != allExpectedSize) {
             return invalid(
                 String.format(
                     "Incorrect number of 'metadata' 'contents' of 'type' ALL in "
                         + "%s. Expected %d but got %d.",
-                    format, expectedSize, contents.size()));
+                    format, allExpectedSize, contents.size()));
           }
           return handle(
               format,
@@ -109,13 +108,13 @@ abstract class BaseOutputExtractor<R, E> implements OutputType.Visitor<R> {
               });
         case "MANUAL":
           try {
-            expectedSize = 2;
-            if (contents.size() != expectedSize) {
+            var manualExpectedSize = 2;
+            if (contents.size() != manualExpectedSize) {
               return invalid(
                   String.format(
                       "Incorrect number of 'metadata' 'contents' of 'type' MANUAL in %s. "
                           + "Expected %d but got %d",
-                      format, expectedSize, contents.size()));
+                      format, manualExpectedSize, contents.size()));
             }
             var externalIds = mapper().treeToValue(contents.get(1), ExternalId[].class);
             return handle(

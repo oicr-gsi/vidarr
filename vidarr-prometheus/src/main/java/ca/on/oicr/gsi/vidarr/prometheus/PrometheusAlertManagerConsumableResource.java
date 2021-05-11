@@ -63,10 +63,6 @@ public class PrometheusAlertManagerConsumableResource implements ConsumableResou
 
   @Override
   public void startup(String name) {
-    if (fixedVidarrNames.isEmpty()) {
-      throw new IllegalArgumentException(
-          "Fixed Vidarr names is empty in Prometheus Alertmanager resource config.");
-    }
     if (alertManagerUrl == null || "".equals(alertManagerUrl)) {
       throw new IllegalArgumentException(
           "Alertmanager URL is missing in Prometheus Alertmanager resource config.");

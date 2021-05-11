@@ -51,6 +51,7 @@ final class PrepareOutputProvisioning
   private final Set<? extends ExternalId> allInputIds;
   private final ObjectMapper mapper;
   private final Set<? extends ExternalId> remainingInputIds;
+  private final Runnable outputIsBad;
   private final Target target;
 
   public PrepareOutputProvisioning(
@@ -59,23 +60,32 @@ final class PrepareOutputProvisioning
       JsonNode output,
       JsonNode metadata,
       Set<? extends ExternalId> allInputIds,
-      Set<? extends ExternalId> remainingInputIds) {
+      Set<? extends ExternalId> remainingInputIds,
+      Runnable outputIsBad) {
     super(output, metadata);
     this.mapper = mapper;
     this.target = target;
     this.allInputIds = allInputIds;
     this.remainingInputIds = remainingInputIds;
+    this.outputIsBad = outputIsBad;
   }
 
   @Override
   protected Stream<TaskStarter<Pair<ProvisionData, Result>>> handle(
-      WorkflowOutputDataType format, JsonNode metadata, JsonNode outputs, OutputData outputData) {
+      WorkflowOutputDataType format,
+      boolean optional,
+      JsonNode metadata,
+      JsonNode outputs,
+      OutputData outputData) {
     final var handler = Objects.requireNonNull(target.provisionerFor(format.format()));
+    if (optional && output.isNull()) {
+      return Stream.empty();
+    }
 
     return (switch (format) {
           case DATAWAREHOUSE_RECORDS, LOGS, FILE, QUALITY_CONTROL -> Stream.of(
               new Pair<>(output.asText(), Map.<String, String>of()));
-          case FILES -> stream(output)
+          case FILES -> stream(output, optional)
               .map(file -> new Pair<>(file.asText(), Map.<String, String>of()));
 
           case FILE_WITH_LABELS -> {
@@ -84,7 +94,8 @@ final class PrepareOutputProvisioning
           }
           case FILES_WITH_LABELS -> {
             final var labels = extractLabels(output.get("right"));
-            yield stream(output.get("left")).map(file -> new Pair<>(file.asText(), labels));
+            yield stream(output.get("left"), optional)
+                .map(file -> new Pair<>(file.asText(), labels));
           }
         })
         .map(
@@ -135,10 +146,13 @@ final class PrepareOutputProvisioning
       Map<String, Object> key, String name, OutputType type, JsonNode metadata, JsonNode output) {
     return type.apply(
         new PrepareOutputProvisioning(
-            mapper, target, output, metadata, allInputIds, remainingInputIds));
+            mapper, target, output, metadata, allInputIds, remainingInputIds, outputIsBad));
   }
 
-  private Stream<JsonNode> stream(JsonNode node) {
+  private Stream<JsonNode> stream(JsonNode node, boolean optional) {
+    if (!optional && node.isEmpty()) {
+      outputIsBad.run();
+    }
     return StreamSupport.stream(Spliterators.spliterator(node.iterator(), node.size(), 0), false);
   }
 

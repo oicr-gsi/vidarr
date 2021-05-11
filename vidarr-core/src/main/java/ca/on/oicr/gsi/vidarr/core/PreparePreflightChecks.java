@@ -35,7 +35,11 @@ final class PreparePreflightChecks extends BaseOutputExtractor<Boolean, Boolean>
 
   @Override
   protected Boolean handle(
-      WorkflowOutputDataType format, JsonNode metadata, JsonNode output, OutputData outputData) {
+      WorkflowOutputDataType format,
+      boolean optional,
+      JsonNode metadata,
+      JsonNode output,
+      OutputData outputData) {
     final var handler = target.provisionerFor(format.format());
     if (handler == null) {
       return false;

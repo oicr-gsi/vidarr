@@ -1,4 +1,9 @@
+import ca.on.oicr.gsi.vidarr.ConsumableResourceProvider;
+import ca.on.oicr.gsi.vidarr.InputProvisionerProvider;
+import ca.on.oicr.gsi.vidarr.OutputProvisionerProvider;
+import ca.on.oicr.gsi.vidarr.RuntimeProvisionerProvider;
 import ca.on.oicr.gsi.vidarr.UnloadFilterProvider;
+import ca.on.oicr.gsi.vidarr.WorkflowEngineProvider;
 
 /**
  * The API plugins are expected to implement
@@ -8,11 +13,11 @@ import ca.on.oicr.gsi.vidarr.UnloadFilterProvider;
  */
 module ca.on.oicr.gsi.vidarr.pluginapi {
   uses UnloadFilterProvider;
-  uses ca.on.oicr.gsi.vidarr.WorkflowEngineProvider;
-  uses ca.on.oicr.gsi.vidarr.ConsumableResourceProvider;
-  uses ca.on.oicr.gsi.vidarr.InputProvisionerProvider;
-  uses ca.on.oicr.gsi.vidarr.OutputProvisionerProvider;
-  uses ca.on.oicr.gsi.vidarr.RuntimeProvisionerProvider;
+  uses WorkflowEngineProvider;
+  uses ConsumableResourceProvider;
+  uses InputProvisionerProvider;
+  uses OutputProvisionerProvider;
+  uses RuntimeProvisionerProvider;
 
   exports ca.on.oicr.gsi.vidarr;
   exports ca.on.oicr.gsi.vidarr.api;

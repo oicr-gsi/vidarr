@@ -17,7 +17,7 @@ public final class MaxInFlightConsumableResource implements ConsumableResource {
     return () -> Stream.of(new Pair<>("max-in-flight", MaxInFlightConsumableResource.class));
   }
 
-  @JsonIgnore private Set<String> inFlight = ConcurrentHashMap.newKeySet();
+  @JsonIgnore private final Set<String> inFlight = ConcurrentHashMap.newKeySet();
   private int maximum;
 
   public MaxInFlightConsumableResource() {}
@@ -27,7 +27,7 @@ public final class MaxInFlightConsumableResource implements ConsumableResource {
   }
 
   @Override
-  public Optional<Pair<String, BasicType>> inputFromUser() {
+  public Optional<Pair<String, BasicType>> inputFromSubmitter() {
     return Optional.empty();
   }
 
@@ -52,7 +52,7 @@ public final class MaxInFlightConsumableResource implements ConsumableResource {
   }
 
   @Override
-  public void startup() {
+  public void startup(String name) {
     if (maximum < 0) {
       throw new IllegalArgumentException("Maximum value is negative in max-in-flight resource.");
     }

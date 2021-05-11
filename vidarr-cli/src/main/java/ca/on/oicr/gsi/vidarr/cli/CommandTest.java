@@ -125,7 +125,7 @@ public class CommandTest implements Callable<Integer> {
                           v -> {
                             if (v) {
                               System.err.printf(
-                                  "%s: [%s] Workflow for completed. Starting validation...%n",
+                                  "%s: [%s] Workflow completed. Starting validation...%n",
                                   c.getId(), Instant.now());
                               if (validator.validate(c.getId())) {
                                 System.err.printf(
@@ -140,7 +140,7 @@ public class CommandTest implements Callable<Integer> {
                               }
                             } else {
                               System.err.printf(
-                                  "%s: [%s] Workflow for failed.%n", c.getId(), Instant.now());
+                                  "%s: [%s] Workflow failed.%n", c.getId(), Instant.now());
                               return false;
                             }
                           });

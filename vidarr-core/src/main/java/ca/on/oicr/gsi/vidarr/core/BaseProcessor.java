@@ -751,7 +751,10 @@ public abstract class BaseProcessor<
                                         "\"" + p.name() + "\"",
                                         arguments.get(p.name())));
                           } else {
-                            return Stream.of("Argument missing: " + p.name());
+                            return Stream.of(
+                                String.format(
+                                    "Argument missing: %s. Only found " + "arguments %s",
+                                    p.name(), arguments.toString()));
                           }
                         }),
                 target

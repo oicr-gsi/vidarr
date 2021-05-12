@@ -712,7 +712,14 @@
   "paths": {
     "/api/file/{hash}": {
       "get": {
-        "description": "Get information a provisioned-out file from a completed workflow by the file's unique identifier.",
+        "description": "Get information for a provisioned-out file from a completed workflow by the file's unique identifier.",
+        "parameters": [{
+          "name": "hash",
+          "in": "path",
+          "description": "Unique identifier for file",
+          "required": true,
+          "type": "string"
+        }],
         "operationId": "getFileInfo",
         "responses": {
           "200": {
@@ -738,7 +745,7 @@
             "description": "File was found."
           },
           "404": {
-            "description": "The ID was unknown to this server."
+            "description": "The file identifier was unknown to this server."
           }
         },
         "summary": "Get provisioned file data",
@@ -838,7 +845,14 @@
     },
     "/api/run/{hash}": {
       "get": {
-        "description": "Get information a a completed workflow by the workflows's unique identifier.",
+        "description": "Get information about a completed workflow run by the workflow run's unique identifier.",
+        "parameters": [{
+          "name": "hash",
+          "in": "path",
+          "description": "Unique workflow run identifier",
+          "required": true,
+          "type": "string"
+        }],
         "operationId": "getWorkflowRunInfo",
         "responses": {
           "200": {
@@ -852,7 +866,7 @@
             "description": "Workflow run was found."
           },
           "404": {
-            "description": "The ID was unknown to this server."
+            "description": "The workflow run identifier was unknown to this server."
           }
         },
         "summary": "Get finished workflow run data",
@@ -863,7 +877,14 @@
     },
     "/api/status/{hash}": {
       "get": {
-        "description": "Get the information about a workflow that is not yet completed",
+        "description": "Get the information about a workflow run that is not yet completed",
+        "parameters": [{
+          "name": "hash",
+          "in": "path",
+          "description": "Unique workflow run identifier",
+          "required": true,
+          "type": "string"
+        }],
         "operationId": "getWorkflowRunStatus",
         "responses": {
           "200": {
@@ -947,10 +968,10 @@
                 }
               }
             },
-            "description": "The status of the workflow is available."
+            "description": "The status of the workflow run is available."
           },
           "404": {
-            "description": "The workflow run hash is unknown to this server."
+            "description": "The workflow run identifier is unknown to this server."
           }
         },
         "summary": "Get status of a workflow run",
@@ -961,7 +982,7 @@
     },
     "/api/submit": {
       "post": {
-        "description": "Submits a workflow. If the workflow has not been previously started, this will start the worflow. If previously started, this will provide the ID of the workflow.",
+        "description": "Submits a workflow run. If the workflow run has not been previously started, this will start the worflow run. If previously started, this will provide the ID of the workflow run.",
         "requestBody": {
           "content": {
             "application/json": {
@@ -1044,7 +1065,7 @@
                 }
               }
             },
-            "description": "The workflow request does not match the workflow definition."
+            "description": "The workflow run request was successfully submitted."
           },
           "400": {
             "content": {
@@ -1068,7 +1089,7 @@
                 }
               }
             },
-            "description": "The workflow request does not match the workflow definition."
+            "description": "The workflow run request does not match the workflow definition."
           },
           "409": {
             "content": {
@@ -1078,7 +1099,7 @@
                 }
               }
             },
-            "description": "The workflow request is in conflict with an existing workflow on the server."
+            "description": "The workflow run request is in conflict with an existing workflow run on the server."
           }
         },
         "summary": "Submit a workflow run",
@@ -1137,7 +1158,14 @@
     },
     "/api/url/{hash}": {
       "get": {
-        "description": "Get information a provisioned-out file from a completed workflow by the URL's unique identifier.",
+        "description": "Get information about a provisioned-out file from a completed workflow run by the workflow run URL's unique identifier.",
+        "parameters": [{
+          "name": "hash",
+          "in": "path",
+          "description": "Unique workflow run URL identifier",
+          "required": true,
+          "type": "string"
+        }],
         "operationId": "getUrlInfo",
         "responses": {
           "200": {
@@ -1241,6 +1269,13 @@
     "/api/workflow/{name}": {
       "delete": {
         "description": "Deactivate a workflow. This does not stop inflight actions from using this workflow. It merely stops it from being available in the workflow catalogue.",
+        "parameters": [{
+          "name": "name",
+          "in": "path",
+          "description": "Name of workflow to deactivate",
+          "required": true,
+          "type": "string"
+        }],
         "responses": {
           "200": {
             "description": "The workflow was successfully disabled. It can be reactivated using the POST method."
@@ -1256,18 +1291,18 @@
       },
       "post": {
         "description": "Create or configure a workflow. If a workflow was previously deactivated, this reactivates that workflow.",
+        "parameters": [{
+          "name": "name",
+          "in": "path",
+          "description": "Name of workflow to add",
+          "required": true,
+          "type": "string"
+        }],
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
                 "properties": {
-                  "consumableResources": {
-                    "additionalProperties": {
-                      "type": "integer"
-                    },
-                    "description": "Resource reservations required to launch one instance of this workflow.",
-                    "type": "object"
-                  },
                   "labels": {
                     "additionalProperties": {
                       "$ref": "#/components/schemas/SimpleType"
@@ -1300,18 +1335,24 @@
     "/api/workflow/{name}/{version}": {
       "post": {
         "description": "Create a workflow version. The workflow must previously have been created.",
+        "parameters": [{
+          "name": "name",
+          "in": "path",
+          "description": "Name of workflow",
+          "required": true,
+          "type": "string"
+        }, {
+          "name": "version",
+          "in": "path",
+          "description":  "Version of workflow to create",
+          "required": true,
+          "type": "string"
+        }],
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
                 "properties": {
-                  "consumableResources": {
-                    "additionalProperties": {
-                      "type": "integer"
-                    },
-                    "description": "Resource reservations required to launch one instance of this workflow.",
-                    "type": "object"
-                  },
                   "language": {
                     "$ref": "#/components/schemas/WorkflowLanguage"
                   },
@@ -1329,8 +1370,15 @@
                     "description": "The user-defined labels that must be supplied with this job. This cannot be modified after the initial creation of the workflow.",
                     "type": "object"
                   },
+                  "accessoryFiles": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "description": "Any supplemental files required by the workflow (e.g. other workflows that are imported or included by the main workflow",
+                    "type": "object"
+                  },
                   "workflow": {
-                    "description": "The contents on the workflow.",
+                    "description": "The text of what gets run in this workflow version. Can be a WDL script or similar.",
                     "type": "string"
                   }
                 },
@@ -1428,7 +1476,7 @@
                 }
               }
             },
-            "description": "The list workflows is available"
+            "description": "The list of workflows that is available"
           }
         },
         "summary": "List available workflows",

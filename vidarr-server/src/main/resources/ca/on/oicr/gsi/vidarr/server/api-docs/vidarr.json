@@ -1370,6 +1370,13 @@
                     "description": "The user-defined labels that must be supplied with this job. This cannot be modified after the initial creation of the workflow.",
                     "type": "object"
                   },
+                  "accessoryFiles": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "description": "Any supplemental files required by the workflow (e.g. other workflows that are imported or included by the main workflow",
+                    "type": "object"
+                  },
                   "workflow": {
                     "description": "The text of what gets run in this workflow version. Can be a WDL script or similar.",
                     "type": "string"

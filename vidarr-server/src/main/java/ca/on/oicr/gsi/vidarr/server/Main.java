@@ -2435,7 +2435,9 @@ public final class Main implements ServerConfig {
             WORKFLOW_DEFINITION.WORKFLOW_FILE,
             WORKFLOW_DEFINITION.WORKFLOW_LANGUAGE)
         .values(definitionHash, workflow, language)
-        .onConflictDoNothing();
+        .onConflict(WORKFLOW_DEFINITION.HASH_ID)
+        .doNothing()
+        .execute();
     return definitionHash;
   }
 

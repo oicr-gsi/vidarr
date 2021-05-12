@@ -1436,6 +1436,9 @@
         "responses": {
           "200": {
             "description": "The workflow version has been created."
+          },
+          "404": {
+            "description": "No workflow with the given name was found."
           }
         },
         "summary": "Add workflow version",

@@ -812,9 +812,20 @@ public final class Main implements ServerConfig {
           .transaction(
               context -> {
                 final var dsl = DSL.using(context);
+                var matchingWorkflow =
+                    dsl.select(WORKFLOW.ID)
+                        .from(WORKFLOW)
+                        .where(WORKFLOW.NAME.eq(name))
+                        .fetchOptional(Record1::value1);
+                if (matchingWorkflow.isEmpty()) {
+                  exchange.setStatusCode(StatusCodes.NOT_FOUND);
+                  exchange
+                      .getResponseSender()
+                      .send(String.format("No workflow with name %s found", name));
+                  return;
+                }
                 final String definitionHash =
                     upsertWorkflowDefinition(dsl, request.getLanguage(), request.getWorkflow());
-
                 final var versionDigest = MessageDigest.getInstance("SHA-256");
                 versionDigest.update(name.getBytes(StandardCharsets.UTF_8));
                 versionDigest.update(new byte[] {0});

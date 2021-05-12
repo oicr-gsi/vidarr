@@ -1,0 +1,1 @@
+ALTER TABLE workflow_version ADD CONSTRAINT workflow_version_name_fkey FOREIGN KEY (name) REFERENCES workflow (name);

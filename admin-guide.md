@@ -1,29 +1,29 @@
-# Vidarr Administrator's Guide
-Running a Vidarr instance involves a few separate roles:
+# Víðarr Administrator's Guide
+Running a Víðarr instance involves a few separate roles:
 
-- care and feeding of the Vidarr server (system operations)
+- care and feeding of the Víðarr server (system operations)
 - care and feeding of the workflow runs (workflow operations)
 - creation and redesign of workflows (workflow development)
 
 This guide is broken down by these roles, but they may overlap to some degree.
 
-See [Vidarr Code Style](code-style.md) for preferred code formatting.
+See [Víðarr Code Style](code-style.md) for preferred code formatting.
 
 ## System Operations Guide
-Running a Vidarr instance requires:
+Running a Víðarr instance requires:
 
 - Java 14 or later
 - PostgreSQL 12 or later
 - Maven (for building, not required on installation machine)
 - Docker (for building, not required on installation machine)
 
-### Installing Vidarr on a Linux Instance
-Build your own copy of Vidarr using Maven:
+### Installing Víðarr on a Linux Instance
+Build your own copy of Víðarr using Maven:
 
     mvn install
     mvn dependency:copy-dependencies
 
-Pull all the JARs required for Vidarr and its plugins into a directory, say `/srv/vidarr/jars`:
+Pull all the JARs required for Víðarr and its plugins into a directory, say `/srv/vidarr/jars`:
 
     mkdir -p /srv/vidarr/jars
     cp vidarr-server/target/{,dependency}/*.jar /srv/vidarr/jars
@@ -33,15 +33,15 @@ Pull all the JARs required for Vidarr and its plugins into a directory, say `/sr
     cp vidarr-cromwell/target/{,dependency}/*.jar /srv/vidarr/jars
     cp vidarr-sh/target/{,dependency}/*.jar /srv/vidarr/jars
 
-It can be easiest to launch Vidarr with a shellscript as follows stored in `/srv/vidarr/run`:
+It can be easiest to launch Víðarr with a shellscript as follows stored in `/srv/vidarr/run`:
 
     #!/bin/sh
     exec /usr/lib/jvm/java-14-openjdk-amd64/bin/java -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:7000 --module-path $(ls /srv/vidarr/jars/*.jar|tr '\n' :) -m ca.on.oicr.gsi.vidarr.server/ca.on.oicr.gsi.vidarr.server.Main "$@"
 
-To start Vidarr using systemd, create a `vidarr.service` as follows:
+To start Víðarr using systemd, create a `vidarr.service` as follows:
 
     [Unit]
-    Description=Vidarr workflow provenance server
+    Description=Víðarr workflow provenance server
     
     [Service]
     User=debian
@@ -53,7 +53,7 @@ To start Vidarr using systemd, create a `vidarr.service` as follows:
     [Install]
     WantedBy=multi-user.target
 
-Create a new PostgreSQL database and role for Vidarr.
+Create a new PostgreSQL database and role for Víðarr.
 
     CREATE ROLE vidarr LOGIN PASSWORD 'mash keyboard here';
     CREATE DATABASE vidarr OWNER vidarr;
@@ -78,10 +78,10 @@ Now prepare the JSON configuration file `/srv/vidarr/config` as follows:
     }
 
 Replace all the `pg_db_` values with the appropriate values to connect to the
-database. `"port"` determines the port on which the Vidarr HTTP server will
+database. `"port"` determines the port on which the Víðarr HTTP server will
 run. Choose something appropriate, especially if a reverse proxy. `"url"`
-should be set to the URL this Vidarr server is accessible on, after reverse
-proxying; Vidarr will use this to generate any self-referential URLs. Vidarr
+should be set to the URL this Víðarr server is accessible on, after reverse
+proxying; Víðarr will use this to generate any self-referential URLs. Víðarr
 also operates in a federated fashion so `"name"` should be set to a unique
 identifier for this server independent of its URL. `"otherServers"` can be set
 up to connect these identifiers to the URLs for other servers.
@@ -140,7 +140,7 @@ names will be visible to clients.
         }
       },
  
-Once configured, Vidarr should be able to start. On an empty database, it will
+Once configured, Víðarr should be able to start. On an empty database, it will
 automatically install its schema.
 
 When new versions are released, simply replace the JARs and restart the
@@ -152,7 +152,7 @@ For workflow developers, it is also useful to install a `/srv/vidarr/cli` script
     #!/bin/sh
     exec /usr/lib/jvm/java-14-openjdk-amd64/bin/java -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:7071 --module-path $(ls /srv/vidarr/jars/*.jar|tr '\n' :) -m ca.on.oicr.gsi.vidarr.cli/ca.on.oicr.gsi.vidarr.cli.Main "$@"
 
-This file does _not_ have to be on the Vidarr server and a copy of JARs and this script can be placed on another server. They will also need a configuration file to be able to run workflows in testing. It is a reduced from of the main configuration file:
+This file does _not_ have to be on the Víðarr server and a copy of JARs and this script can be placed on another server. They will also need a configuration file to be able to run workflows in testing. It is a reduced form of the main configuration file:
 
     {
       "engine": {
@@ -196,7 +196,7 @@ configuration are exactly as they would be for a normal server.
 TODO -- there is nothing useful at this point for workflow operations
 
 # Workflow development
-Workflow developers need to test workflows, install those workflows in Vidarr,
+Workflow developers need to test workflows, install those workflows in Víðarr,
 and make use of them via Shesmu.
 
 ## Building Workflows
@@ -242,7 +242,7 @@ definition file. Many tests can be defined in one file.
     ]
 
 `"arguments"`, `"engineArguments"`, and `"metadata"` should be configured for
-each test to be run. Since each test is run individually, internal Vidarr IDs
+each test to be run. Since each test is run individually, internal Víðarr IDs
 cannot be used for inputs as there will be no inputs. `"id"` is a unique
 identifier for the test and will be provided to plugins for generating
 provision out directories. `"description"` is a human-friendly name for the

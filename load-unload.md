@@ -1,16 +1,16 @@
 # Loading and Unloading Data
 It can be desirable to remove successfully completed workflow runs from the
-Vidarr database. Some reasons include:
+Víðarr database. Some reasons include:
 
 - the workflow run was processed incorrectly and needs to be reprocessed
 - the workflow run is no longer useful
 - the workflow run needs to be run with a newer version of the workflow
 
-Vidarr has a way to _unload_ workflow runs from the database. These extracts
-can be used as archives or _loaded_ into a Vidarr instance (either the same one
-or another at a later date). This can be used to split up a Vidarr instance,
+Víðarr has a way to _unload_ workflow runs from the database. These extracts
+can be used as archives or _loaded_ into a Víðarr instance (either the same one
+or another at a later date). This can be used to split up a Víðarr instance,
 move or copy workflow runs between environments, create backups, or migrate
-workflow runs from another system into Vidarr.
+workflow runs from another system into Víðarr.
 
 Workflow runs are selected using a _filter_ and then one of three operations
 happens:
@@ -63,7 +63,7 @@ and all the properties used when adding a new workflow version using the
 
 All of the workflow runs in the request must be present in the workflow and
 workflow version definitions provided. Extra definitions may be provided. If a
-workflow is new to Vidarr, it will be created with max-in-flight at 0.
+workflow is new to Víðarr, it will be created with max-in-flight at 0.
 
 Unloaded data can then be inserted by pushing this object to `/api/load`. The
 workflows will be validated and installed if necessary. If there are any
@@ -71,5 +71,5 @@ errors, the entire load will be abandoned.
 
 During the load procedure, all the identifiers are verified. If the contents of
 the file have been manipulated, then the identifiers must also be updated. For
-information on how identifiers are calculated, see [Vidarr
+information on how identifiers are calculated, see [Víðarr
 identifiers](identifiers.md).

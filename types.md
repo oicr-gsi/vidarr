@@ -1,5 +1,5 @@
-# Understanding the Vidarr Type System
-Vidarr has three separate type systems:
+# Understanding the Víðarr Type System
+Víðarr has three separate type systems:
 
 - basic types
 - input types
@@ -67,7 +67,7 @@ particular value based on the options available. These are encoded as `{"type":
 option and _value_ is a value of the matching type.
 
 For details, see Shesmu's algebraic data types. Shesmu has the restriction that
-the types must be tuples or objects, but Vidarr does not enforce this
+the types must be tuples or objects, but Víðarr does not enforce this
 restriction.
 
 - `{"is": "tuple", "elements": [` _type1_`,` _type2_`,` ... `] }`
@@ -81,10 +81,10 @@ All of the conventions for basic types applies to input types. Additionally,
 In both cases, the exact type will depend on the plugins on the server. The
 submitter can provide either:
 
-- a file known to Vidarr by its ID: `{"type": "INTERNAL", "contents": ["`_id_`"]}`
+- a file known to Víðarr by its ID: `{"type": "INTERNAL", "contents": ["`_id_`"]}`
 - an external file and the external identifiers for this file: `{"type": "EXTERNAL", "contents": {"externalIds": `_externals_`, "configuration": `_config_`} }`
 
-_id_ is a single Vidarr ID in the form `vidarr:`_instance_`/`_hash_.
+_id_ is a single Víðarr ID in the form `vidarr:`_instance_`/`_hash_.
 _externals_ is a list of external IDs, encoded as an array of `{"id":
 "`_identifier_`", "provider": "`_provider_`"}` objects, where _identifier_ and
 _provider_ are arbitrary strings that match up to an external data source, such
@@ -94,7 +94,7 @@ not know the correct type for _configuration_; the target has this information.
 ## Output Types
 The output types are very different from the input and basic types. There are
 a few base output types, in the table below. These base types affect what the
-workflow outputs to Vidarr, but the submitter always provides metadata in this
+workflow outputs to Víðarr, but the submitter always provides metadata in this
 form:
 
 - `{"type": "ALL", "contents": [`_configuration_`]}`
@@ -154,7 +154,7 @@ files. In that case, the list type is available:
 - `{"is": "list", "keys": {`_key-name1_`:` _key-type1_`,` ... `}, "outputs": {` _output-name1_`:` _output-type1_`, ` ... `}}`
 
 The allows the submitter to supply a list of structures with metadata and the
-workflow to supply a list of structures with output and Vidarr will marry them
+workflow to supply a list of structures with output and Víðarr will marry them
 based on the keys.
 
 The _key-typeN_ must be either `"INTEGER"` or `"STRING"` and the _output-typeN_

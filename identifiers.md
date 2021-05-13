@@ -1,5 +1,5 @@
-# Vidarr Identifiers
-Rather than using incrementing identifiers, Vidarr identifies workflow
+# Víðarr Identifiers
+Rather than using incrementing identifiers, Víðarr identifies workflow
 versions, workflow runs, and output files using SHA-256 hashes of key metadata.
 The assumption is that if two objects have the same hash, they must be
 equivalent. All workflow run matching is done by hash matching.

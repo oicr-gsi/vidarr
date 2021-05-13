@@ -1,6 +1,6 @@
-# Vidarr code style
+# Víðarr code style
 
-The preferred coding style for Vidarr and Shesmu is in [vidarr-intellij-style.xml](vidarr-intellij-style.xml).
+The preferred coding style for Víðarr and Shesmu is in [vidarr-intellij-style.xml](vidarr-intellij-style.xml).
 
 To import this style to the [IntelliJ IDE](https://www.jetbrains.com/help/idea/installation-guide.html):
 - Go to `File -> Settings`

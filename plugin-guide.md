@@ -1,11 +1,11 @@
-# Vidarr Plugin Developer's Guide
-Vidarr uses plugins to allow interaction with a diverse set of systems. Plugins
+# Víðarr Plugin Developer's Guide
+Víðarr uses plugins to allow interaction with a diverse set of systems. Plugins
 are loaded by the Java
 [`ServiceLoader`](https://docs.oracle.com/javase/9/docs/api/java/util/ServiceLoader.html)
 and exported by the [Java module
 system](https://www.oracle.com/corporate/features/understanding-java-9-modules.html)
 using the `provides` keyword. All plugins need to depend only on the
-`ca.on.oicr.gsi.vidarr.pluginapi` module to hook into the Vidarr
+`ca.on.oicr.gsi.vidarr.pluginapi` module to hook into the Víðarr
 infrastructure.
 
 There are several services that a plugin can provide and a plugin is free to
@@ -24,13 +24,13 @@ expect. A description of the types is provided in
 compatible with Shemu's.
 
 Plugins are meant to run asynchronously. Most plugins are given a `WorkMonitor`
-instance which allows a plugin to communicate back to Vidarr and schedule
+instance which allows a plugin to communicate back to Víðarr and schedule
 future asynchronous tasks. Plugins must implement recovery from crash, so are
 expected to journal their current state to the database. The `WorkMonitor`
 provides methods to journal state to the database for crash recovery and to
 provide status information to users.
 
-See [Vidarr Code Style](code-style.md) for preferred code formatting.
+See [Víðarr Code Style](code-style.md) for preferred code formatting.
 
 # Consumable Resource
 Consumable resources implement
@@ -107,11 +107,11 @@ classes implementing `UnloadFilter` will be deserialized by Jackson. The
 `UnloadFilterProvider` associates the strings used in `"type"` to the objects.
 One provider can provide multiple filter types. The types used should be
 _plugin_`-`_filter_; names without dashes and names starting with `vidarr-` are
-reserved by Vidarr. The _filter_ can have dashes in it if desired. If two
-plugins provide duplicate type names, Vidarr will fail to load.
+reserved by Víðarr. The _filter_ can have dashes in it if desired. If two
+plugins provide duplicate type names, Víðarr will fail to load.
 
 Once a filter is deserialised, it needs to convert the request into a query
-Vidarr can apply to its database. That is, it needs to be converted to a query
+Víðarr can apply to its database. That is, it needs to be converted to a query
 made of only workflow, workflow run, and external key matches. The server will
 call `convert` with an `UnloadFilter.Visitor` so that the filter can determine
 whatever information it needs and generate an output query.

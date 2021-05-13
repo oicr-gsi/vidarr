@@ -1,5 +1,5 @@
 # Built-In Features
-These "plugins" come standard with every Vidarr instance and are mostly useful
+These "plugins" come standard with every Víðarr instance and are mostly useful
 for manipulating the behaviour of other plugins
 
 ## "One of" Input Provisioner
@@ -15,7 +15,7 @@ once if the user can select which one to use on workflow submission.
     "type": "oneOf"
 
 This will allow the user to select which provision to use by an algebraic data
-type. Any files referenced by a Vidarr ID will use the provisioner specified by
+type. Any files referenced by a Víðarr ID will use the provisioner specified by
 `"internal"`.
 
 This provision will only handle an input format if all the provisioners can

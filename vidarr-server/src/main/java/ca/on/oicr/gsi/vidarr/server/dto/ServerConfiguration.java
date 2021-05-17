@@ -11,6 +11,7 @@ import java.util.Map;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public final class ServerConfiguration {
+
   private Map<String, ConsumableResource> consumableResources = Collections.emptyMap();
   private String dbHost;
   private String dbName;

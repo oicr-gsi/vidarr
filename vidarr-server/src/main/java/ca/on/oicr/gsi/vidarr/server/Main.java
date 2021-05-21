@@ -120,6 +120,7 @@ import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
@@ -461,6 +462,7 @@ public final class Main implements ServerConfig {
   private final ScheduledExecutorService executor =
       Executors.newScheduledThreadPool(Runtime.getRuntime().availableProcessors());
   private final Map<String, InputProvisioner> inputProvisioners;
+  private final Semaphore loadCounter = new Semaphore(3);
   private final MaxInFlightByWorkflow maxInFlightPerWorkflow = new MaxInFlightByWorkflow();
   private final Map<String, Optional<FileMetadata>> metadataCache = new ConcurrentHashMap<>();
   private final Map<String, String> otherServers;
@@ -1929,7 +1931,17 @@ public final class Main implements ServerConfig {
       // Okay, if we made it this far, the file is theoretically loadable. There needs to be
       // additional validation against the database, but we will do that in a transaction with the
       // expensive lock.
+      if (!loadCounter.tryAcquire()) {
+        exchange.setStatusCode(StatusCodes.INSUFFICIENT_STORAGE);
+        exchange
+            .getResponseSender()
+            .send(
+                "There are too many load/unload requests queued right now. Please try again"
+                    + " later.");
+        return;
+      }
       epochLock.writeLock().lock();
+      loadCounter.release();
       try (final var connection = dataSource.getConnection()) {
         DSL.using(connection, SQLDialect.POSTGRES)
             .transaction(
@@ -2200,7 +2212,16 @@ public final class Main implements ServerConfig {
   }
 
   private void unload(HttpServerExchange exchange, UnloadRequest request) {
+    if (!loadCounter.tryAcquire()) {
+      exchange.setStatusCode(StatusCodes.INSUFFICIENT_STORAGE);
+      exchange
+          .getResponseSender()
+          .send(
+              "There are too many load/unload requests queued right now. Please try again later.");
+      return;
+    }
     epochLock.writeLock().lock();
+    loadCounter.release();
     try {
       // Non-recursive unload is not allowed.
       request.setRecursive(true);

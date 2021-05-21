@@ -1289,6 +1289,51 @@
           "workflow"
         ]
       },
+      "get": {
+        "description": "Get the configuration for a workflow.",
+        "parameters": [
+          {
+            "description": "Name of workflow",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "isActive": {
+                      "description": "Whether the workflow can be used for executing new jobs.",
+                      "type": "boolean"
+                    },
+                    "labels": {
+                      "additionalProperties": {
+                        "$ref": "#/components/schemas/SimpleType"
+                      },
+                      "description": "The user-defined labels that must be supplied with this job.",
+                      "type": "object"
+                    },
+                    "maxInFlight": {
+                      "description": "The maximum number of instances of this job that may be running at any given time.",
+                      "type": "integer"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The workflow is known."
+          }
+        },
+        "summary": "Add workflow",
+        "tags": [
+          "workflow"
+        ]
+      },
       "post": {
         "description": "Create or configure a workflow. If a workflow was previously deactivated, this reactivates that workflow.",
         "parameters": [{

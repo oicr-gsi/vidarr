@@ -402,6 +402,9 @@ public final class Main implements ServerConfig {
                                 "/api/submit",
                                 monitor(
                                     JsonPost.parse(SubmitWorkflowRequest.class, server::submit)))
+                            .get(
+                                "/api/workflow/{name}",
+                                monitor(new BlockingHandler(server::getWorkflow)))
                             .post(
                                 "/api/workflow/{name}",
                                 monitor(
@@ -433,6 +436,31 @@ public final class Main implements ServerConfig {
             .build();
     undertow.start();
     server.recover();
+  }
+
+  private void getWorkflow(HttpServerExchange exchange) {
+    final var name =
+        exchange.getAttachment(PathTemplateMatch.ATTACHMENT_KEY).getParameters().get("name");
+
+    try (final var connection = dataSource.getConnection()) {
+      final var result =
+          DSL.using(connection, SQLDialect.POSTGRES)
+              .select(
+                  DSL.jsonObject(
+                      DSL.jsonEntry("labels", WORKFLOW.LABELS),
+                      DSL.jsonEntry("isActive", WORKFLOW.IS_ACTIVE),
+                      DSL.jsonEntry("MaxInFlight", WORKFLOW.MAX_IN_FLIGHT)))
+              .from(WORKFLOW)
+              .where(WORKFLOW.NAME.eq(name))
+              .fetchOptional()
+              .map(r -> r.value1().data());
+      exchange.setStatusCode(result.isPresent() ? StatusCodes.OK : StatusCodes.NOT_FOUND);
+      exchange.getResponseSender().send(result.orElse("null"));
+    } catch (SQLException e) {
+      e.printStackTrace();
+      exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);
+      exchange.getResponseSender().send(e.getMessage());
+    }
   }
 
   private static void metrics(HttpServerExchange exchange) {

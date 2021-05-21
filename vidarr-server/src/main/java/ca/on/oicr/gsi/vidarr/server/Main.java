@@ -1265,7 +1265,6 @@ public final class Main implements ServerConfig {
     exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/json");
     exchange.setStatusCode(StatusCodes.OK);
     final var endTime = OffsetDateTime.now();
-    epochLock.readLock().lock();
     try (final var output = MAPPER_FACTORY.createGenerator(exchange.getOutputStream())) {
       InFlightCountsByWorkflow counts = maxInFlightPerWorkflow.getCountsByWorkflow();
       output.writeStartObject();

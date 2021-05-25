@@ -3,6 +3,7 @@ package ca.on.oicr.gsi.vidarr.cromwell;
 import ca.on.oicr.gsi.Pair;
 import ca.on.oicr.gsi.status.SectionRenderer;
 import ca.on.oicr.gsi.vidarr.*;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -13,6 +14,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.net.http.HttpResponse.BodyHandlers;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Collections;
@@ -307,28 +309,34 @@ public final class CromwellWorkflowEngine
                   .header("Content-Type", body.getContentType())
                   .POST(body.build())
                   .build(),
-              new JsonBodyHandler<>(MAPPER, WorkflowStatusResponse.class))
+              BodyHandlers.ofString(StandardCharsets.UTF_8))
           .thenAccept(
               r -> {
                 if (r.statusCode() / 100 != 2) {
                   monitor.permanentFailure(
                       String.format(
-                          "Cromwell returned HTTP status %d on submission.", r.statusCode()));
+                          "Cromwell returned HTTP status %d on submission: %s",
+                          r.statusCode(), r.body()));
                   return;
                 }
-                final var result = r.body().get();
-                if (result.getId() == null) {
-                  monitor.permanentFailure("Cromwell failed to launch workflow.");
-                  return;
+                try {
+                  final var result = MAPPER.readValue(r.body(), WorkflowStatusResponse.class);
+                  if (result.getId() == null) {
+                    monitor.permanentFailure("Cromwell failed to launch workflow.");
+                    return;
+                  }
+                  state.setCromwellId(result.getId());
+                  monitor.storeRecoveryInformation(state);
+                  monitor.updateState(statusFromCromwell(result.getStatus()));
+                  monitor.scheduleTask(CHECK_DELAY, TimeUnit.MINUTES, () -> check(state, monitor));
+                  monitor.log(
+                      System.Logger.Level.INFO,
+                      String.format(
+                          "Started Cromwell workflow %s on %s", state.getCromwellId(), url));
+                } catch (JsonProcessingException e) {
+                  e.printStackTrace();
+                  monitor.permanentFailure(e.getMessage());
                 }
-                state.setCromwellId(result.getId());
-                monitor.storeRecoveryInformation(state);
-                monitor.updateState(statusFromCromwell(result.getStatus()));
-                monitor.scheduleTask(CHECK_DELAY, TimeUnit.MINUTES, () -> check(state, monitor));
-                monitor.log(
-                    System.Logger.Level.INFO,
-                    String.format(
-                        "Started Cromwell workflow %s on %s", state.getCromwellId(), url));
               })
           .exceptionally(
               t -> {

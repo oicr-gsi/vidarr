@@ -11,12 +11,7 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.ValueNode;
 import java.io.IOException;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Spliterators;
-import java.util.TreeMap;
+import java.util.*;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -684,15 +679,25 @@ public abstract class InputType {
    * Create a new object type
    *
    * @param fields the names and types of the fields; duplicate names are not permitted
+   * @throws IllegalArgumentException if given a Stream with 0 elements, or a field key is empty
+   *     string
    */
   public static InputType object(Stream<Pair<String, InputType>> fields) {
-    return new ObjectInputType(fields);
+    List fieldsList = fields.collect(Collectors.toList());
+    if (fieldsList.size() == 0)
+      throw new IllegalArgumentException("Object InputType needs at least 1 field, got 0.");
+    if (fieldsList.stream().anyMatch((p) -> ((Pair<String, InputType>) p).first().equals("")))
+      throw new IllegalArgumentException(
+          "Found illegal field key \"\" while creating Object InputType.");
+
+    return new ObjectInputType(fieldsList.stream());
   }
 
   /**
    * Create a new object type
    *
    * @param fields the names and types of the fields; duplicate names are not permitted
+   * @throws IllegalArgumentException if given a Stream with 0 elements
    */
   @SafeVarargs
   public static InputType object(Pair<String, InputType>... fields) {

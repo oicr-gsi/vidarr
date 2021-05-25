@@ -308,10 +308,15 @@ public final class CromwellWorkflowEngine
                   .POST(body.build())
                   .build(),
               new JsonBodyHandler<>(MAPPER, WorkflowStatusResponse.class))
-          .thenApply(HttpResponse::body)
           .thenAccept(
-              s -> {
-                final var result = s.get();
+              r -> {
+                if (r.statusCode() / 100 != 2) {
+                  monitor.permanentFailure(
+                      String.format(
+                          "Cromwell returned HTTP status %d on submission.", r.statusCode()));
+                  return;
+                }
+                final var result = r.body().get();
                 if (result.getId() == null) {
                   monitor.permanentFailure("Cromwell failed to launch workflow.");
                   return;

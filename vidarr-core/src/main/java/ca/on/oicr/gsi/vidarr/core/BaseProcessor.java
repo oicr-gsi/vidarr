@@ -84,6 +84,7 @@ public abstract class BaseProcessor<
           transaction -> {
             operation.status(OperationStatus.FAILED, transaction);
             operation.recoveryState(JsonNodeFactory.instance.textNode(reason), transaction);
+            operation.log(Level.ERROR, reason);
           });
       failed();
     }

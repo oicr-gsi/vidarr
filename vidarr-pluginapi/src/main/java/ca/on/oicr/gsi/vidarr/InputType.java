@@ -683,12 +683,31 @@ public abstract class InputType {
    *     string
    */
   public static InputType object(Stream<Pair<String, InputType>> fields) {
+    // Sanity checking
     List fieldsList = fields.collect(Collectors.toList());
     if (fieldsList.size() == 0)
       throw new IllegalArgumentException("Object InputType needs at least 1 field, got 0.");
-    if (fieldsList.stream().anyMatch((p) -> ((Pair<String, InputType>) p).first().equals("")))
+
+    List keys =
+        ((List)
+            fieldsList.stream()
+                .map((p) -> ((Pair<String, InputType>) p).first())
+                .collect(Collectors.toList()));
+    if (keys.contains(""))
       throw new IllegalArgumentException(
           "Found illegal field key \"\" while creating Object InputType.");
+
+    Set dupes =
+        (Set)
+            keys.stream()
+                .filter((s) -> Collections.frequency(keys, s) > 1)
+                .collect(Collectors.toSet());
+    if (dupes.size() > 0) {
+      throw new IllegalArgumentException(
+          "Found illegal duplicate key(s) "
+              + dupes.toString()
+              + " while creating Object InputType.");
+    }
 
     return new ObjectInputType(fieldsList.stream());
   }

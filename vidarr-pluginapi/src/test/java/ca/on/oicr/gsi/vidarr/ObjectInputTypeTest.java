@@ -9,45 +9,41 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.function.ThrowingRunnable;
 
-/*
-TODO: test repeat fields
- */
-
 public class ObjectInputTypeTest extends InputTypeTest {
 
-  String FIELD_1 = "field1",
-      objectOneFieldStringFormat = "{\"is\":\"object\",\"fields\":{\"%s\":\"%s\"}}";
+  String objectOneFieldStringFormat = "{\"is\":\"object\",\"fields\":{\"%s\":\"%s\"}}";
 
   @Override
   public void testSerialize() {
     for (Map.Entry<InputType, String> type : primitiveTypes.entrySet()) {
       serializeTester(
-          String.format(objectOneFieldStringFormat, FIELD_1, type.getValue()),
-          InputType.object(new Pair<>(FIELD_1, type.getKey())));
+          String.format(objectOneFieldStringFormat, "field", type.getValue()),
+          InputType.object(new Pair<>("field", type.getKey())));
     }
   }
 
   // this breaks because Jackson sorts numbers "alphabetically". Our MAPPER is set to do the same
   // but it doesn't want to work
   //    @Test
-  public void testSerializeLarge() {
+  public void testSerializeMany() {
     List<Pair<String, InputType>> varargs = new LinkedList<>();
     ObjectNode root = MAPPER.createObjectNode(), fields = MAPPER.createObjectNode();
     root.set("is", MAPPER.convertValue("object", JsonNode.class));
     String json = "";
 
-    for (int i = 0; i < 64000; i++) {
+    for (int i = 0; i < 64; i++) {
       varargs.add(new Pair<>("field" + i, InputType.BOOLEAN));
       fields.set("field" + i, MAPPER.convertValue("boolean", JsonNode.class));
       root.set("fields", fields);
       try {
         json = MAPPER.writeValueAsString(root);
       } catch (JsonProcessingException e) {
-        Assert.fail("JsonProcessingException writing the giant json. I don't blame it honestly.");
+        Assert.fail("JsonProcessingException writing long json.");
       }
       serializeTester(json, InputType.object(varargs.stream()));
     }
@@ -93,9 +89,9 @@ public class ObjectInputTypeTest extends InputTypeTest {
 
   @Test
   public void testSerializeInterpolation() {
-    String jsonWithInterpolableKey = "{\"is\":\"object\",\"fields\":{\"$HOME\":\"boolean\"}}";
+    String jsonWithInterpolatableKey = "{\"is\":\"object\",\"fields\":{\"$HOME\":\"boolean\"}}";
     serializeTester(
-        jsonWithInterpolableKey, InputType.object(new Pair<>("$HOME", InputType.BOOLEAN)));
+        jsonWithInterpolatableKey, InputType.object(new Pair<>("$HOME", InputType.BOOLEAN)));
   }
 
   @Test
@@ -103,12 +99,32 @@ public class ObjectInputTypeTest extends InputTypeTest {
     serializeTester(veryLongAsJsonKey, InputType.object(new Pair<>(VERY_LONG, InputType.BOOLEAN)));
   }
 
+  // Field comes before field because ASCII
+  @Test
+  public void testSerializeCaseSensitive() {
+    String caseSensitiveJson =
+        "{\"is\":\"object\",\"fields\":{\"Field\":\"boolean\",\"field\":\"boolean\"}}";
+    InputType test =
+        InputType.object(
+            new Pair<>("field", InputType.BOOLEAN), new Pair<>("Field", InputType.BOOLEAN));
+    serializeTester(caseSensitiveJson, test);
+  }
+
+  @Test
+  public void testRepeatFieldsThrows() {
+    ThrowingRunnable throwingRunnable =
+        () ->
+            InputType.object(
+                new Pair<>("field", InputType.BOOLEAN), new Pair<>("field", InputType.BOOLEAN));
+    Assert.assertThrows(IllegalArgumentException.class, throwingRunnable);
+  }
+
   @Override
   public void testDeserialize() {
     for (Map.Entry<InputType, String> type : primitiveTypes.entrySet()) {
       deserializeTester(
-          InputType.object(new Pair<>(FIELD_1, type.getKey())),
-          String.format(objectOneFieldStringFormat, FIELD_1, type.getValue()));
+          InputType.object(new Pair<>("field", type.getKey())),
+          String.format(objectOneFieldStringFormat, "field", type.getValue()));
     }
   }
 
@@ -143,9 +159,35 @@ public class ObjectInputTypeTest extends InputTypeTest {
         InputType.object(new Pair<>("$HOME", InputType.BOOLEAN)), jsonWithInterpolableKey);
   }
 
+  // Field comes before field because ASCII
+  @Test
+  public void testDeserializeCaseSensitive() {
+    String caseSensitiveJson =
+        "{\"is\":\"object\",\"fields\":{\"Field\":\"boolean\",\"field\":\"boolean\"}}";
+    InputType test =
+        InputType.object(
+            new Pair<>("field", InputType.BOOLEAN), new Pair<>("Field", InputType.BOOLEAN));
+    deserializeTester(test, caseSensitiveJson);
+  }
+
   @Override
   public void testEquals() {
-    Assert.fail("Not yet implemented.");
+    InputType obj1 = InputType.object(new Pair<>("field", InputType.INTEGER)),
+        obj2 = InputType.object(new Pair<>("field", InputType.INTEGER)),
+        obj3 = InputType.object(Stream.of(new Pair<>("field", InputType.INTEGER))),
+        objSameKey = InputType.object(new Pair<>("field", InputType.BOOLEAN)),
+        objSameValue = InputType.object(new Pair<>("notField", InputType.INTEGER)),
+        objDifferent = InputType.object(new Pair<>("notField", InputType.BOOLEAN)),
+        integer = InputType.INTEGER;
+
+    Assert.assertEquals(obj1, obj1);
+    Assert.assertEquals(obj2, obj1);
+    Assert.assertEquals(obj3, obj1);
+    Assert.assertNotEquals(integer, obj1);
+    Assert.assertNotEquals(null, obj1);
+    Assert.assertNotEquals(objSameKey, obj1);
+    Assert.assertNotEquals(objSameValue, obj1);
+    Assert.assertNotEquals(objDifferent, obj1);
   }
 
   String veryLongAsJsonKey =

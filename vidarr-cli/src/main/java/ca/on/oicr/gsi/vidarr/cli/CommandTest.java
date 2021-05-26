@@ -134,7 +134,7 @@ public class CommandTest implements Callable<Integer> {
                                 return true;
                               } else {
                                 System.err.printf(
-                                    "%s: [%s] Test completed and failed validated%n",
+                                    "%s: [%s] Test completed and failed validation%n",
                                     c.getId(), Instant.now());
                                 return false;
                               }

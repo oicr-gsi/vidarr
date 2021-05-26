@@ -82,6 +82,7 @@ public final class TestValidatorScript extends TestValidator {
                 id, Instant.now(), outputMetrics, output);
             final var compareProcess =
                 new ProcessBuilder()
+                    .inheritIO()
                     .directory(tempDir.toFile())
                     .command(metricsCompare, outputMetrics, output.toString())
                     .start();

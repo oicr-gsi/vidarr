@@ -96,6 +96,17 @@
           }
         ]
       },
+      "InFlightData": {
+        "properties": {
+          "currentInFlight": {
+            "type": "integer"
+          },
+          "maxInFlight": {
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "InputDictionary": {
         "properties": {
           "is": {
@@ -710,6 +721,34 @@
   },
   "openapi": "3.0.2",
   "paths": {
+    "/api/max-in-flight": {
+      "get": {
+        "description": "Fetch current in-flight and max in-flight data for all workflows",
+        "operationId": "getMaxInFlight",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "timestamp": {
+                      "type": "integer"
+                    },
+                    "workflows": {
+                      "additionalProperties": {
+                        "$ref": "#/components/schemas/InFlightData"
+                      },
+                      "type": "object"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/file/{hash}": {
       "get": {
         "description": "Get information for a provisioned-out file from a completed workflow by the file's unique identifier.",
@@ -1329,7 +1368,7 @@
             "description": "The workflow is known."
           }
         },
-        "summary": "Add workflow",
+        "summary": "Get workflow",
         "tags": [
           "workflow"
         ]

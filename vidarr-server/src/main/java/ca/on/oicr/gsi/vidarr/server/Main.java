@@ -328,7 +328,11 @@ public final class Main implements ServerConfig {
 
   private static void handleException(HttpServerExchange exchange) {
     final var e = (Exception) exchange.getAttachment(ExceptionHandler.THROWABLE);
-    exchange.setStatusCode(500);
+    if (e instanceof ValidationException) {
+      exchange.setStatusCode(StatusCodes.BAD_REQUEST);
+    } else {
+      exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);
+    }
     e.printStackTrace();
     exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
     exchange.getResponseSender().send(e.getMessage());
@@ -403,7 +407,7 @@ public final class Main implements ServerConfig {
                                     JsonPost.parse(SubmitWorkflowRequest.class, server::submit)))
                             .get(
                                 "/api/workflow/{name}",
-                                monitor(new BlockingHandler(server::getWorkflow)))
+                                monitor(new BlockingHandler(server::fetchWorkflow)))
                             .post(
                                 "/api/workflow/{name}",
                                 monitor(
@@ -772,32 +776,42 @@ public final class Main implements ServerConfig {
                       .set(WORKFLOW.MAX_IN_FLIGHT, request.getMaxInFlight())
                       .execute());
       maxInFlightPerWorkflow.set(name, request.getMaxInFlight());
-      exchange.setStatusCode(StatusCodes.OK);
-      exchange.getResponseHeaders().add(Headers.CONTENT_LENGTH, 0);
+      exchange.setStatusCode(StatusCodes.CREATED);
+      exchange.getResponseHeaders().put(Headers.CONTENT_LENGTH, 0);
       exchange.getResponseSender().send("");
     } catch (SQLException | JsonProcessingException e) {
       e.printStackTrace();
       exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);
-      exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
+      exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
       exchange.getResponseSender().send(e.getMessage());
     }
   }
 
-  private void addWorkflowVersion(HttpServerExchange exchange, AddWorkflowVersionRequest request) {
+  private void addWorkflowVersion(HttpServerExchange exchange, AddWorkflowVersionRequest request)
+      throws ValidationException {
     final var name =
         exchange.getAttachment(PathTemplateMatch.ATTACHMENT_KEY).getParameters().get("name");
     final var version =
         exchange.getAttachment(PathTemplateMatch.ATTACHMENT_KEY).getParameters().get("version");
+    List<ValidationError> validationErrors = new ArrayList<>();
     if (request.getParameters() == null || request.getParameters().isEmpty()) {
-      exchange.setStatusCode(StatusCodes.BAD_REQUEST);
-      exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
-      exchange.getResponseSender().send("No parameter types found");
-      return;
+      validationErrors.add(new ValidationError("parameters", "No parameter types found"));
     }
     if (request.getOutputs() == null || request.getOutputs().isEmpty()) {
+      validationErrors.add(new ValidationError("outputs", "No output types found"));
+    }
+    if (request.getWorkflow() == null
+        || "".equals(request.getWorkflow())
+        || "string".equals(request.getWorkflow())) {
+      validationErrors.add(ValidationError.forRequired("workflow"));
+    }
+    if (request.getLanguage() == null) {
+      validationErrors.add(ValidationError.forRequired("language"));
+    }
+    if (!validationErrors.isEmpty()) {
       exchange.setStatusCode(StatusCodes.BAD_REQUEST);
-      exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
-      exchange.getResponseSender().send("No output types found");
+      exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
+      exchange.getResponseSender().send(validationErrors.toString());
       return;
     }
     try (final var connection = dataSource.getConnection()) {
@@ -904,10 +918,13 @@ public final class Main implements ServerConfig {
                   accessoryQuery.execute();
                 }
               });
+      exchange.setStatusCode(StatusCodes.CREATED);
+      exchange.getResponseHeaders().put(Headers.CONTENT_LENGTH, 0);
+      exchange.getResponseSender().send("");
     } catch (SQLException e) {
       e.printStackTrace();
       exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);
-      exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
+      exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
       exchange.getResponseSender().send(e.getMessage());
     }
   }
@@ -932,7 +949,7 @@ public final class Main implements ServerConfig {
           request,
           (tx, ids) -> {
             exchange.setStatusCode(StatusCodes.OK);
-            exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, CONTENT_TYPE_JSON);
+            exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_JSON);
             try (final var output = MAPPER_FACTORY.createGenerator(exchange.getOutputStream())) {
               dumpUnloadDataToJson(tx, ids, output);
             }
@@ -941,7 +958,7 @@ public final class Main implements ServerConfig {
     } catch (Exception e) {
       e.printStackTrace();
       exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);
-      exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
+      exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
       exchange.getResponseSender().send(e.getMessage());
     }
   }
@@ -1102,7 +1119,7 @@ public final class Main implements ServerConfig {
                 return StatusCodes.CONFLICT;
               }
             }));
-    exchange.getResponseHeaders().add(Headers.CONTENT_LENGTH, 0);
+    exchange.getResponseHeaders().put(Headers.CONTENT_LENGTH, 0);
     exchange.getResponseSender().send("");
   }
 
@@ -1121,12 +1138,12 @@ public final class Main implements ServerConfig {
                           .where(WORKFLOW.NAME.eq(name))
                           .execute());
       exchange.setStatusCode(count == 0 ? StatusCodes.NOT_FOUND : StatusCodes.OK);
-      exchange.getResponseHeaders().add(Headers.CONTENT_LENGTH, 0);
+      exchange.getResponseHeaders().put(Headers.CONTENT_LENGTH, 0);
       exchange.getResponseSender().send("");
     } catch (SQLException e) {
       e.printStackTrace();
       exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);
-      exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
+      exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
       exchange.getResponseSender().send(e.getMessage());
     }
   }
@@ -1231,7 +1248,7 @@ public final class Main implements ServerConfig {
         final var output = MAPPER_FACTORY.createGenerator(exchange.getOutputStream())) {
       exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_JSON);
       exchange.setStatusCode(StatusCodes.OK);
-      exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, CONTENT_TYPE_JSON);
+      exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_JSON);
       output.writeStartArray();
       DSL.using(connection, SQLDialect.POSTGRES)
           .select(DSL.jsonObject(STATUS_FIELDS))
@@ -1252,7 +1269,7 @@ public final class Main implements ServerConfig {
     } catch (SQLException | IOException e) {
       e.printStackTrace();
       exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);
-      exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
+      exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
       exchange.getResponseSender().send(e.getMessage());
     }
   }
@@ -1298,13 +1315,13 @@ public final class Main implements ServerConfig {
               },
               () -> {
                 exchange.setStatusCode(StatusCodes.NOT_FOUND);
-                exchange.getResponseHeaders().add(Headers.CONTENT_LENGTH, 0);
+                exchange.getResponseHeaders().put(Headers.CONTENT_LENGTH, 0);
                 exchange.getResponseSender().send("");
               });
     } catch (SQLException e) {
       e.printStackTrace();
       exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);
-      exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
+      exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
       exchange.getResponseSender().send(e.getMessage());
     }
   }
@@ -1333,7 +1350,7 @@ public final class Main implements ServerConfig {
     } catch (Exception e) {
       e.printStackTrace();
       exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);
-      exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
+      exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
       exchange.getResponseSender().send(e.getMessage());
     }
   }
@@ -1370,7 +1387,7 @@ public final class Main implements ServerConfig {
     } catch (IOException | SQLException e) {
       e.printStackTrace();
       exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);
-      exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
+      exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
       exchange.getResponseSender().send(e.getMessage());
     } finally {
       epochLock.readLock().unlock();
@@ -1393,7 +1410,7 @@ public final class Main implements ServerConfig {
           .ifPresentOrElse(
               complete -> {
                 exchange.setStatusCode(complete ? StatusCodes.OK : StatusCodes.PARTIAL_CONTENT);
-                exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, CONTENT_TYPE_JSON);
+                exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_JSON);
                 try (final var output =
                     MAPPER_FACTORY.createGenerator(exchange.getOutputStream())) {
                   createAnalysisRecords(
@@ -1410,13 +1427,13 @@ public final class Main implements ServerConfig {
               },
               () -> {
                 exchange.setStatusCode(StatusCodes.NOT_FOUND);
-                exchange.getResponseHeaders().add(Headers.CONTENT_LENGTH, 0);
+                exchange.getResponseHeaders().put(Headers.CONTENT_LENGTH, 0);
                 exchange.getResponseSender().send("");
               });
     } catch (SQLException e) {
       e.printStackTrace();
       exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);
-      exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
+      exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
       exchange.getResponseSender().send(e.getMessage());
     }
   }
@@ -1441,13 +1458,13 @@ public final class Main implements ServerConfig {
               },
               () -> {
                 exchange.setStatusCode(StatusCodes.NOT_FOUND);
-                exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, CONTENT_TYPE_JSON);
+                exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_JSON);
                 exchange.getResponseSender().send("");
               });
     } catch (SQLException e) {
       e.printStackTrace();
       exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);
-      exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
+      exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
       exchange.getResponseSender().send(e.getMessage());
     }
   }
@@ -1500,49 +1517,44 @@ public final class Main implements ServerConfig {
 
   private void fetchWaiting(HttpServerExchange exchange) {
     try (final var connection = dataSource.getConnection()) {
-      DSL.using(connection, SQLDialect.POSTGRES)
-          .select(
-              DSL.jsonArrayAgg(
-                  DSL.jsonObject(
-                      literalJsonEntry("workflow", WORKFLOW_VERSION.NAME),
-                      literalJsonEntry(
-                          "oldest",
-                          DSL.field(
-                              DSL.select(DSL.min(WORKFLOW_RUN.CREATED))
-                                  .from(WORKFLOW_RUN)
-                                  .where(
-                                      WORKFLOW_RUN.WORKFLOW_VERSION_ID.eq(WORKFLOW_VERSION.ID)))),
-                      literalJsonEntry(
-                          "workflowRuns",
-                          DSL.field(
-                              DSL.select(DSL.jsonArrayAgg(WORKFLOW_RUN.HASH_ID))
-                                  .from(WORKFLOW_RUN)
-                                  .where(
-                                      WORKFLOW_RUN.WORKFLOW_VERSION_ID.eq(WORKFLOW_VERSION.ID)))))))
-          .from(
-              WORKFLOW_RUN
-                  .join(WORKFLOW_VERSION)
-                  .on(WORKFLOW_RUN.WORKFLOW_VERSION_ID.eq(WORKFLOW_VERSION.ID))
-                  .join(ACTIVE_WORKFLOW_RUN)
-                  .on(WORKFLOW_RUN.ID.eq(ACTIVE_WORKFLOW_RUN.ID)))
-          .where(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE.eq(Phase.WAITING_FOR_RESOURCES))
-          .groupBy(WORKFLOW_VERSION.NAME)
-          .fetchOptional()
-          .ifPresentOrElse(
-              result -> {
-                exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, CONTENT_TYPE_JSON);
-                exchange.setStatusCode(StatusCodes.OK);
-                exchange.getResponseSender().send(result.value1().data());
-              },
-              () -> {
-                exchange.setStatusCode(StatusCodes.NOT_FOUND);
-                exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, CONTENT_TYPE_JSON);
-                exchange.getResponseSender().send("[]");
-              });
+      var result =
+          DSL.using(connection, SQLDialect.POSTGRES)
+              .select(
+                  DSL.jsonArrayAgg(
+                      DSL.jsonObject(
+                          literalJsonEntry("workflow", WORKFLOW_VERSION.NAME),
+                          literalJsonEntry(
+                              "oldest",
+                              DSL.field(
+                                  DSL.select(DSL.min(WORKFLOW_RUN.CREATED))
+                                      .from(WORKFLOW_RUN)
+                                      .where(
+                                          WORKFLOW_RUN.WORKFLOW_VERSION_ID.eq(
+                                              WORKFLOW_VERSION.ID)))),
+                          literalJsonEntry(
+                              "workflowRuns",
+                              DSL.field(
+                                  DSL.select(DSL.jsonArrayAgg(WORKFLOW_RUN.HASH_ID))
+                                      .from(WORKFLOW_RUN)
+                                      .where(
+                                          WORKFLOW_RUN.WORKFLOW_VERSION_ID.eq(
+                                              WORKFLOW_VERSION.ID)))))))
+              .from(
+                  WORKFLOW_RUN
+                      .join(WORKFLOW_VERSION)
+                      .on(WORKFLOW_RUN.WORKFLOW_VERSION_ID.eq(WORKFLOW_VERSION.ID))
+                      .join(ACTIVE_WORKFLOW_RUN)
+                      .on(WORKFLOW_RUN.ID.eq(ACTIVE_WORKFLOW_RUN.ID)))
+              .where(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE.eq(Phase.WAITING_FOR_RESOURCES))
+              .groupBy(WORKFLOW_VERSION.NAME)
+              .fetchOptional(Record1::value1);
+      exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, CONTENT_TYPE_JSON);
+      exchange.setStatusCode(StatusCodes.OK);
+      exchange.getResponseSender().send(result.isPresent() ? result.get().data() : "[]");
     } catch (SQLException e) {
       e.printStackTrace();
       exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);
-      exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
+      exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
       exchange.getResponseSender().send(e.getMessage());
     }
   }
@@ -1576,18 +1588,18 @@ public final class Main implements ServerConfig {
               .fetchOptional()
               .orElseThrow()
               .value1();
-      exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_JSON);
       exchange.setStatusCode(StatusCodes.OK);
+      exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_JSON);
       exchange.getResponseSender().send(response == null ? "[]" : response.data());
     } catch (SQLException e) {
       e.printStackTrace();
       exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);
-      exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
+      exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
       exchange.getResponseSender().send(e.getMessage());
     }
   }
 
-  private void getWorkflow(HttpServerExchange exchange) {
+  private void fetchWorkflow(HttpServerExchange exchange) {
     final var name =
         exchange.getAttachment(PathTemplateMatch.ATTACHMENT_KEY).getParameters().get("name");
 
@@ -1768,7 +1780,7 @@ public final class Main implements ServerConfig {
       for (final var workflow : unloadedData.getWorkflows()) {
         if (workflowInfo.containsKey(workflow.getName())) {
           exchange.setStatusCode(StatusCodes.BAD_REQUEST);
-          exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
+          exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
           exchange
               .getResponseSender()
               .send(String.format("Duplicate workflow %s in load request.", workflow.getName()));
@@ -1780,7 +1792,7 @@ public final class Main implements ServerConfig {
         final var info = workflowInfo.get(workflowVersion.getName());
         if (info == null) {
           exchange.setStatusCode(StatusCodes.BAD_REQUEST);
-          exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
+          exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
           exchange
               .getResponseSender()
               .send(
@@ -1791,7 +1803,7 @@ public final class Main implements ServerConfig {
         }
         if (info.second().containsKey(workflowVersion.getVersion())) {
           exchange.setStatusCode(StatusCodes.BAD_REQUEST);
-          exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
+          exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
           exchange
               .getResponseSender()
               .send(
@@ -1840,7 +1852,7 @@ public final class Main implements ServerConfig {
         final var info = workflowInfo.get(workflowRun.getWorkflowName());
         if (info == null) {
           exchange.setStatusCode(StatusCodes.BAD_REQUEST);
-          exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
+          exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
           exchange
               .getResponseSender()
               .send(
@@ -1852,7 +1864,7 @@ public final class Main implements ServerConfig {
         final var versionInfo = info.second().get(workflowRun.getWorkflowVersion());
         if (versionInfo == null) {
           exchange.setStatusCode(StatusCodes.BAD_REQUEST);
-          exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
+          exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
           exchange
               .getResponseSender()
               .send(
@@ -1870,7 +1882,7 @@ public final class Main implements ServerConfig {
                 .collect(Collectors.toList());
         if (!labelErrors.isEmpty()) {
           exchange.setStatusCode(StatusCodes.BAD_REQUEST);
-          exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
+          exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
           exchange
               .getResponseSender()
               .send(
@@ -1885,7 +1897,7 @@ public final class Main implements ServerConfig {
                 .collect(Collectors.toSet());
         if (knowExternalIds.size() != workflowRun.getExternalKeys().size()) {
           exchange.setStatusCode(StatusCodes.BAD_REQUEST);
-          exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
+          exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
           exchange
               .getResponseSender()
               .send(
@@ -1913,7 +1925,7 @@ public final class Main implements ServerConfig {
 
         if (!correctId.equals(workflowRun.getId())) {
           exchange.setStatusCode(StatusCodes.BAD_REQUEST);
-          exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
+          exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
           exchange
               .getResponseSender()
               .send(
@@ -1924,7 +1936,7 @@ public final class Main implements ServerConfig {
         }
         if (!seenWorkflowRunIds.add(correctId)) {
           exchange.setStatusCode(StatusCodes.BAD_REQUEST);
-          exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
+          exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
           exchange
               .getResponseSender()
               .send(
@@ -1936,7 +1948,7 @@ public final class Main implements ServerConfig {
         // Validate output analyses for external IDs and hashes
         if (workflowRun.getAnalysis() == null || workflowRun.getAnalysis().isEmpty()) {
           exchange.setStatusCode(StatusCodes.BAD_REQUEST);
-          exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
+          exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
           exchange
               .getResponseSender()
               .send(String.format("Workflow run %s has no analysis.", workflowRun.getId()));
@@ -1946,7 +1958,7 @@ public final class Main implements ServerConfig {
         for (final var output : workflowRun.getAnalysis()) {
           if (output.getExternalKeys().isEmpty()) {
             exchange.setStatusCode(StatusCodes.BAD_REQUEST);
-            exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
+            exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
             exchange
                 .getResponseSender()
                 .send(
@@ -1960,7 +1972,7 @@ public final class Main implements ServerConfig {
             if (!knowExternalIds.contains(
                 new Pair<>(externalId.getProvider(), externalId.getId()))) {
               exchange.setStatusCode(StatusCodes.BAD_REQUEST);
-              exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
+              exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
               exchange
                   .getResponseSender()
                   .send(
@@ -1976,7 +1988,7 @@ public final class Main implements ServerConfig {
           }
           if (!output.getType().equals("file") && output.getType().equals("url")) {
             exchange.setStatusCode(StatusCodes.BAD_REQUEST);
-            exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
+            exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
             exchange
                 .getResponseSender()
                 .send(
@@ -1991,7 +2003,7 @@ public final class Main implements ServerConfig {
                   || output.getMd5() == null
                   || output.getMd5().isBlank())) {
             exchange.setStatusCode(StatusCodes.BAD_REQUEST);
-            exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
+            exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
             exchange
                 .getResponseSender()
                 .send(
@@ -2010,7 +2022,7 @@ public final class Main implements ServerConfig {
           final var correctOutputId = hexDigits(fileDigest.digest());
           if (!output.getId().equals(correctOutputId)) {
             exchange.setStatusCode(StatusCodes.BAD_REQUEST);
-            exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
+            exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
             exchange
                 .getResponseSender()
                 .send(
@@ -2041,16 +2053,16 @@ public final class Main implements ServerConfig {
             .transaction(
                 configuration -> loadDataIntoDatabase(unloadedData, workflowInfo, configuration));
         exchange.setStatusCode(StatusCodes.OK);
-        exchange.getResponseHeaders().add(Headers.CONTENT_LENGTH, 0);
+        exchange.getResponseHeaders().put(Headers.CONTENT_LENGTH, 0);
         exchange.getResponseSender().send("");
       } catch (IllegalArgumentException e) {
         exchange.setStatusCode(StatusCodes.BAD_REQUEST);
-        exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
+        exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
         exchange.getResponseSender().send(e.getMessage());
       } catch (Exception e) {
         e.printStackTrace();
         exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);
-        exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
+        exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
         exchange.getResponseSender().send(e.getMessage());
       } finally {
         epochLock.writeLock().unlock();
@@ -2058,7 +2070,7 @@ public final class Main implements ServerConfig {
     } catch (JsonProcessingException | NoSuchAlgorithmException e) {
       e.printStackTrace();
       exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);
-      exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
+      exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
       exchange.getResponseSender().send(e.getMessage());
     }
   }
@@ -2304,7 +2316,7 @@ public final class Main implements ServerConfig {
       exchange.getResponseSender().send(MAPPER.writeValueAsString(response.second()));
     } catch (JsonProcessingException e) {
       exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);
-      exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
+      exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
       exchange.getResponseSender().send(e.getMessage());
       e.printStackTrace();
     }
@@ -2364,11 +2376,11 @@ public final class Main implements ServerConfig {
                 return filename;
               });
       exchange.setStatusCode(StatusCodes.OK);
-      exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, CONTENT_TYPE_JSON);
+      exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_JSON);
       exchange.getResponseSender().send(MAPPER.writeValueAsString(id));
     } catch (Exception e) {
       exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);
-      exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
+      exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
       exchange.getResponseSender().send(e.getMessage());
       e.printStackTrace();
     } finally {

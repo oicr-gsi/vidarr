@@ -238,3 +238,72 @@ use all of the associations provided (_i.e._, if the submitter provided
 this is an error).
 
 If multiple keys are used, they are treated like a composite key.
+
+## Empty Tuples and Objects
+Tuples are designed in a way to mirror Shesmu. Shesmu has tuples (heterogenous
+ordered collections of types) and object/named tuples (heterogenous named
+collections of types). Tuples get written to JSON as array and named tuples get
+written to JSON as objects. Objects in Shesmu don't support any kind of
+inheritance. So, if you have a function that takes `{ foo = integer, bar =
+string}`, you can't supply `{foo = 3, bar = "hi", quux = 7.5}`; that's a type
+error.
+
+
+Single-element tuples and single-field named tuples are...sort of pointless,
+but not wrong. Empty tuples and empty named tuples aren't allowed. Trying to
+write `{}` is a syntax error in Shesmu (and even if it was allowed, it would be
+ambiguously an empty tuple or an empty named tuple). Single-element tuples
+aren't entirely pointless because `+` can concatenate tuples, so `{3, "hi"} +
+{7.5}` is legal and equivalent to `{3, "hi", 7.5}`. At this point, you
+might think that we should say that empty tuples are illegal, but there's a
+special case.
+
+Shesmu also got algebraic types. An algebraic type allows a choice of different
+options, like an `enum` in Java,  but those options may carry data. Inside
+Shesmu, there are 3 kinds:
+
+- the "empty" algebraic value (`FOO`), which works like a Java `enum`; there's no data attached
+- the "tuple" algebraic value (`BAR { "hi" }`) where the data that's attached that looks like a tuple
+- the "object" algebraic value (`QUUX { value = "hi" }`) where the data that's attached looks like an object
+
+In the JSON representation, they look like `{"type": "QUUX", "contents":
+{"value": "hi"}}` and `{"type":"BAR", "contents":["hi"]}` for the object and
+tuple forms, respectively.
+
+For the empty ones, Shesmu is not picky. You can represent an empty tuple as
+`{"type":"FOO", "contents": []}`, `{"type":"FOO", "contents": {}}`, or
+`{"type":"FOO", "contents": null}`. As long as the contents are "empty", it's
+not picky what kind of empty you want to represent.
+
+Now, let's get into the representation details...
+
+Shesmu has a descriptor that represents all possible types. For `BAR { string }
+| QUUX { value = string }`, it would represent that as
+`u2BAR$t1sQUUX$o1value$s`, which reads as `u2` this in algebraic (union) type
+that has two values in it. One allowed label is `BAR` which has the arguments
+`t1s`, a tuple t of 1 element that is a `s`tring. The second allowed label is
+`QUUX`, which has an `o`bject type with 1 field named value which has the type
+`s`tring.
+
+How should FOO get represented? The easiest was `FOO$t0`? Shesmu basically
+treats every "empty" algebraic value as one with an empty tuple. The underlying
+Java implementation is exactly that since an algebraic value is represented as
+a label and `Object[]` of its contents. A lot of Shesmu code is simplified
+because of this. It becomes a special case to handle in the parser and then
+everything else is just a lot of `i < length` that just works.
+
+On to Vidarr: This quaint setup Shesmu has is complicated and Vidarr doesn't
+really care. Vidarr sees an algebraic type as a label + a type. If you want
+Shesmu to handle that, that other type better be a tuple or an object, but once
+again, Vidarr doesn't really care. Similarly, putting an empty tuple anywhere
+is going to make Shesmu unhappy, but Vidarr doesn't care. In an effort to keep
+Vidarr simple, allowing types that are extremely weird or pointless or
+unShesmotic are not a problem.
+
+This caring also extends to the other side. WDL doesn't let you create an empty
+object. WDL doesn't have tuple types. WDL doesn't have algebraic types. So,
+as along as `wdl2vidarr` produces types that make Shesmu happy, Vidarr is happy
+to launder them and it really doesn't care if you can also express types that
+Shesmu and WDL can't type. If you make types in your workflow that aren't
+useful, Vidarr shouldn't care. As long as they have a valid JSON
+representation, Vidarr is happy.

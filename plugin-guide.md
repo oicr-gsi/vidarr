@@ -9,10 +9,33 @@ using the `provides` keyword. All plugins need to depend only on the
 infrastructure.
 
 There are several services that a plugin can provide and a plugin is free to
-provide multiple. Each has two classes: a small "loader" class responsible for
-loading this plugin's configuration from JSON files and a "real" interface that
-does most of the work. For loading, each plugin must provide a unique name that
-will be used in the `"type"` property of JSON configuration files.
+provide multiple. Plugins are loaded from JSON data in the Vidarr configuration
+file or, in the case of an unload filter, user requests, using Jackson. Each
+plugin can load whatever Jackson-compatible data from JSON it requires. Each
+plugin has a small "provider" class which provides type information for
+Jackson. In the JSON file, the `"type"` attribute will be used to create the
+appropriate class instance. The provider class lists what values for `"type"`
+correspond to what Java objects that Jackson should load. Since objects are
+instantiated by Jackson, most have a `startup` method that is called after
+loading is complete where the plugin can do any initialisation required. If it
+throws exceptions, the Vidarr server will fail to start, which is probably the
+correct behaviour for a badly misconfigured plugin.
+
+As an example of a configuration file:
+
+```
+"consumableResources": {
+  "total": {
+    "maximum": 500,
+    "type": "max-in-flight"
+  }
+}
+```
+The `"type": "max-in-flight"` property is used to connect this configuration to
+`ca.on.oicr.gsi.vidarr.core.MaxInFlightConsumableResource`. The `"maximum"`
+property is populated by Jackson into an instance of that class. Here `"total"`
+is an arbitrary name set by the server administrator they will use in the
+`"targets"` section of the main configuration file.
 
 These are high-level overviews of the purpose and general constraints for each
 service. The JavaDoc for each interface provides the details for how the
@@ -21,7 +44,7 @@ interfaces should behave.
 Additionally, plugins communicate with the outside world through the types they
 expect. A description of the types is provided in
 `ca.on.oicr.gsi.vidarr.SimpleType` and the format for the values is meant to be
-compatible with Shemu's.
+compatible with Shemsu's.
 
 Plugins are meant to run asynchronously. Most plugins are given a `WorkMonitor`
 instance which allows a plugin to communicate back to Víðarr and schedule
@@ -29,6 +52,11 @@ future asynchronous tasks. Plugins must implement recovery from crash, so are
 expected to journal their current state to the database. The `WorkMonitor`
 provides methods to journal state to the database for crash recovery and to
 provide status information to users.
+
+Most plugins have a `recover` method. If Vidarr is restarted, the plugin will
+be asked to recover its state from the last state information in journaled to
+the database using the `WorkMonitor`. Plugins are expected to be able to pick
+up where they left off based only on this information.
 
 See [Víðarr Code Style](code-style.md) for preferred code formatting.
 
@@ -40,19 +68,50 @@ delaying workflow run execution until resources are available.
 
 The plugins can be associated with targets in the server configuration.
 Consumable resources _may_ request that submitters provide information or
-operate on the existence of a workflow run.
+operate on the existence of a workflow run. Consumable resources is a broad
+term for anything that can be used to delay a workflow run from launching. Some
+of them are "quota"-type resources (such as RAM, disk, max-in-flight) where the
+resources must be available at the start of its run and it holds the resource
+until the workflow completes (successfully or not), at which point the resource
+may be reused by another workflow run. Within quota-type, some require
+information (_e.g._, the amount of RAM), while others are based purely on the
+existence of the workflow run (_e.g._, max-in-flight). Other resource are more
+"throttling"-type. These include maintenance schedules and Prometheus alerts
+which block workflow runs from starting but don't track anything once the
+workflow run is underway.
+
+Consumable resources are long-running. Whenever Vidarr attempts to run a
+workflow, it will consult the consumable resources to see if there is capacity
+to run the workflow (the `request` method). At that point the consumable
+resource must make a decision as to whether the workflow can proceed. Once the
+workflow has finished running (successfully or not), Vidarr will `release` the
+resource so that it can be used again. When Vidarr restarts, any running
+workflows will be called with `recover` to indicate that the resource is being
+used and the resource cannot stop the workflow even if the resource is
+over-capacity.
+
+Consumable resources can request data from the user, if desired. The
+`inputFromSubmitter` can return an empty optional to indicate that no
+information is required or can indicate the name and type of information that
+is required. The `request` method will contain a copy of this information,
+encoded as JSON, if the submitter provided it. The JSON data has been
+type-checked by Vidarr, so it should be safe to convert to the expected type
+using Jackson.
 
 # Input Provisioners
 Input provisioners implement `ca.on.oicr.gsi.vidarr.InputProvisionerProvider`
 and `ca.on.oicr.gsi.vidarr.InputProvisioner`. These plugins are responsible for
 taking files from existing workflows or provided by the user and generating a
-file path that a workflow can use.
+file path that a workflow can use. Input provisioners can choose to handle only
+some kinds of input data (files vs directories) and the system administrator
+can choose multiple provisoners to handle both.
 
 This plugin and the workflow plugins must have a mutual understanding of what a
 file path means. That is somewhat the responsibility of the system
 administrator. For instance, if in an HPC environment with shared disk, the
-system administrator must direct the provision in plugin to write to a shared
-directory instead of, say, `/tmp` and ensure the right permissions are set up.
+system administrator must direct the input provisioner plugin to write to a
+shared directory instead of, say, `/tmp` and ensure the right permissions are
+set up.
 These are not the responsibility of the plugin author.
 
 The class `BaseJsonInputProvisioner` is a partial implementation that can store
@@ -64,10 +123,20 @@ Output provisioners implement `ca.on.oicr.gsi.vidarr.OutputProvisionerProvider`
 and `ca.on.oicr.gsi.vidarr.OutputProvisioner`. These plugins are responsible
 for taking data (files or JSON values) from completed workflows, moving the
 data into permanent storage and writing back a file path or URL that will be
-associated with the correct external identifiers.
+associated with the correct external identifiers. Output provisioners can
+choose to handle only some kinds of output data (files, logs, data-warehouse
+entries, or QC judgements) and the system administrator can choose multiple
+provisioners to handle all the input types they require.
+
+Output provisioners are run twice for each workflow: a preflight and a
+provision out. The preflight is run before the workflow has started and allows
+the plugin to validate any configuration metadata provided by the submitter
+(_i.e._, Shesmu) to check it for validity. Once the workflow is completed, the
+provision out step will be run with the metadata provided by the submitter and
+the output provided by the workflow.
 
 The class `BaseJsonOutputProvisioner` is a partial implementation that can
-store crash recovery information in a JSON object of the implementor's
+store crash recovery information in a JSON object of the implementer's
 choosing, making recovery easier.
 
 # Runtime Provisioners
@@ -83,17 +152,30 @@ workflow engine's identifier means. That is somewhat the responsibility of the
 system administrator.
 
 The class `BaseJsonRuntimeProvisioner` is a partial implementation that can
-store crash recovery information in a JSON object of the implementor's
-choosing,
-making recovery easier.
+store crash recovery information in a JSON object of the implementer's
+choosing, making recovery easier.
 
 # Workflow Engine
 Workflow engines implement `ca.on.oicr.gsi.vidarr.WorkflowEngineProvider`
 and `ca.on.oicr.gsi.vidarr.WorkflowEngine`. These plugins are responsible for
-running workflows and collecting the output from the workflow.
+running workflows and collecting the output from the workflow. A workflow
+engine can support multiple languages (see
+`ca.on.oicr.gsi.vidarr.WorkflowLanguage` for a complete list) and indicates
+which ones are allowed via the `supports` method.
+
+The workflow engine will be given the complete input to the workflow (with real
+paths provided by the input provisioners) and the workflow itself. Once the
+workflow has completed, it must provide a JSON structure that references the
+output of the workflow. Vidarr will identified the output files generated by
+the workflow engine and they will be passed to the output provisioners.
+
+After the output provisioners have completed, the workflow engine will be
+called again to cleanup any output, if this is appropriate. If the workflow
+engine does not support cleanup, it should gracefully succeed during the
+clean-up (and clean-up recovery) methods.
 
 The class `BaseJsonWorkflowEngine` is a partial implementation that can store
-crash recovery information in a JSON object of the implementor's choosing,
+crash recovery information in a JSON object of the implementer's choosing,
 making recovery easier.
 
 # Unload Filters

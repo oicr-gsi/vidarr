@@ -580,6 +580,23 @@ public abstract class InputType {
     }
 
     @Override
+    public boolean equals(Object o) {
+      if (this == o) {
+        return true;
+      }
+      if (o == null || getClass() != o.getClass()) {
+        return false;
+      }
+      TupleInputType that = (TupleInputType) o;
+      return Arrays.equals(this.types, that.types);
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(types);
+    }
+
+    @Override
     public <R> R apply(Visitor<R> transformer) {
       return transformer.tuple(Stream.of(types));
     }

@@ -795,16 +795,15 @@ public abstract class InputType {
    * @param elements the possible data structures; the string identifiers must be unique
    */
   public static InputType taggedUnionFromPairs(Stream<Pair<String, InputType>> elements) {
-    return new InputType() {
-      private final Map<String, InputType> union =
-          Collections.unmodifiableMap(
-              elements.collect(Collectors.toMap(Pair::first, Pair::second)));
-
-      @Override
-      public <R> R apply(Visitor<R> transformer) {
-        return transformer.taggedUnion(union.entrySet().stream());
-      }
-    };
+    return new TaggedUnionInputType(
+        elements.collect(
+            Collectors.toMap(
+                (e) -> ((String) ((Pair) e).first()),
+                (e) -> ((InputType) ((Pair) e).second()),
+                (a, b) -> {
+                  throw new IllegalArgumentException("Duplicate identifier in tagged union.");
+                },
+                TreeMap::new)));
   }
 
   /**

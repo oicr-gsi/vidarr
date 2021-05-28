@@ -37,6 +37,7 @@ public class PairInputTypeTest extends InputTypeTest {
         pairSameValue = InputType.pair(InputType.DATE, InputType.INTEGER),
         pairSameKey = InputType.pair(InputType.STRING, InputType.DATE),
         pairDifferent = InputType.pair(InputType.DATE, InputType.FILE),
+        pairFlipped = InputType.pair(InputType.INTEGER, InputType.STRING),
         integer = InputType.INTEGER;
 
     Assert.assertEquals(pair1, pair1);
@@ -46,5 +47,6 @@ public class PairInputTypeTest extends InputTypeTest {
     Assert.assertNotEquals(pairSameKey, pair1);
     Assert.assertNotEquals(pairSameValue, pair1);
     Assert.assertNotEquals(pairDifferent, pair1);
+    Assert.assertNotEquals(pairFlipped, pair1);
   }
 }

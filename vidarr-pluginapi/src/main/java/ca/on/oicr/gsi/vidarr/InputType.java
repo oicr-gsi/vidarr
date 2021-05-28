@@ -546,6 +546,14 @@ public abstract class InputType {
       for (final var type : union.values()) {
         Objects.requireNonNull(type, "union type contents");
       }
+
+      if (union.size() == 0)
+        throw new IllegalArgumentException("TaggedUnion InputType needs at least 1 field, got 0.");
+
+      if (union.containsKey(""))
+        throw new IllegalArgumentException(
+            "Found illegal field key \"\" while creating TaggedUnion InputType.");
+
       this.union = Collections.unmodifiableMap(union);
     }
 

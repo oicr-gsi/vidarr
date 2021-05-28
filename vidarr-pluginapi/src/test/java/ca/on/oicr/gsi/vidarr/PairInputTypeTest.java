@@ -3,7 +3,6 @@ package ca.on.oicr.gsi.vidarr;
 import java.util.Map;
 import org.junit.Assert;
 
-// TODO: this is c&p'd from Dictionary&c. Reduce repetition.
 public class PairInputTypeTest extends InputTypeTest {
   String pairAsStringFormat = "{\"is\":\"pair\",\"left\":\"%s\",\"right\":\"%s\"}";
 

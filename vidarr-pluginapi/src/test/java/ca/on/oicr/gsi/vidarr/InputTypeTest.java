@@ -10,11 +10,6 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-/*
-I wanted to make the children of this class inner classes.
-But JUnit really hated that.
-  TODO I don't know how to test unhappy path for serialisation and deserialisation!
- */
 public abstract class InputTypeTest {
   static Map<InputType, String> primitiveTypes =
       new HashMap<>() {

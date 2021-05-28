@@ -77,19 +77,19 @@ public class TupleInputTypeTest extends InputTypeTest {
   }
 
   @Test
-  public void createNullThrows() {
+  public void testCreateNullThrows() {
     ThrowingRunnable throwingRunnable = () -> InputType.tuple(null);
     Assert.assertThrows(NullPointerException.class, throwingRunnable);
   }
 
   @Test
-  public void createTwoNullsThrows() {
+  public void testCreateTwoNullsThrows() {
     ThrowingRunnable throwingRunnable = () -> InputType.tuple(null, null);
     Assert.assertThrows(NullPointerException.class, throwingRunnable);
   }
 
   @Test
-  public void createNullTypeThrows() {
+  public void testCreateNullTypeThrows() {
     ThrowingRunnable throwingRunnable = () -> InputType.tuple(InputType.DATE, null, InputType.FILE);
     Assert.assertThrows(NullPointerException.class, throwingRunnable);
   }

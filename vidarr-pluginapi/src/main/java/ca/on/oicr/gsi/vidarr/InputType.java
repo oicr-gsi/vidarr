@@ -801,8 +801,8 @@ public abstract class InputType {
     return new TaggedUnionInputType(
         elements.collect(
             Collectors.toMap(
-                (e) -> ((String) ((Pair) e).first()),
-                (e) -> ((InputType) ((Pair) e).second()),
+                Pair::first,
+                Pair::second,
                 (a, b) -> {
                   throw new IllegalArgumentException("Duplicate identifier in tagged union.");
                 },

@@ -709,29 +709,24 @@ public abstract class InputType {
    */
   public static InputType object(Stream<Pair<String, InputType>> fields) {
     // Sanity checking
-    List fieldsList = fields.collect(Collectors.toList());
+    final List<Pair<String, InputType>> fieldsList = fields.collect(Collectors.toList());
     if (fieldsList.size() == 0)
       throw new IllegalArgumentException("Object InputType needs at least 1 field, got 0.");
 
-    List keys =
-        ((List)
-            fieldsList.stream()
-                .map((p) -> ((Pair<String, InputType>) p).first())
-                .collect(Collectors.toList()));
-    if (keys.contains(""))
-      throw new IllegalArgumentException(
-          "Found illegal field key \"\" while creating Object InputType.");
-
-    Set dupes =
-        (Set)
-            keys.stream()
-                .filter((s) -> Collections.frequency(keys, s) > 1)
-                .collect(Collectors.toSet());
-    if (dupes.size() > 0) {
-      throw new IllegalArgumentException(
-          "Found illegal duplicate key(s) "
-              + dupes.toString()
-              + " while creating Object InputType.");
+    for (final Map.Entry<String, Long> entry :
+        fieldsList.stream()
+            .collect(Collectors.groupingBy(Pair::first, Collectors.counting()))
+            .entrySet()) {
+      if (entry.getKey().equals("")) {
+        throw new IllegalArgumentException(
+            "Found illegal field key \"\" while creating Object InputType.");
+      }
+      if (entry.getValue() > 1) {
+        throw new IllegalArgumentException(
+            "Found illegal duplicate key(s) "
+                + entry.getValue()
+                + " while creating Object InputType.");
+      }
     }
 
     return new ObjectInputType(fieldsList.stream());

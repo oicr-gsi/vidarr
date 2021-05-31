@@ -4,7 +4,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import java.util.HashMap;
 import java.util.Map;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -12,18 +11,15 @@ import org.junit.Test;
 
 public abstract class InputTypeTest {
   static Map<InputType, String> primitiveTypes =
-      new HashMap<>() {
-        {
-          put(InputType.BOOLEAN, "boolean");
-          put(InputType.DATE, "date");
-          put(InputType.DIRECTORY, "directory");
-          put(InputType.FILE, "file");
-          put(InputType.FLOAT, "floating");
-          put(InputType.INTEGER, "integer");
-          put(InputType.JSON, "json");
-          put(InputType.STRING, "string");
-        }
-      };
+      Map.of(
+          InputType.BOOLEAN, "boolean",
+          InputType.DATE, "date",
+          InputType.DIRECTORY, "directory",
+          InputType.FILE, "file",
+          InputType.FLOAT, "floating",
+          InputType.INTEGER, "integer",
+          InputType.JSON, "json",
+          InputType.STRING, "string");
   static ObjectMapper MAPPER = new ObjectMapper();
 
   @BeforeClass

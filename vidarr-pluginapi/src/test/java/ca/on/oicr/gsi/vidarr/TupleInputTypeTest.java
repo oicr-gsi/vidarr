@@ -30,7 +30,7 @@ public class TupleInputTypeTest extends InputTypeTest {
     List<InputType> varargs = new LinkedList<>();
     ObjectNode root = MAPPER.createObjectNode();
     ArrayNode types = MAPPER.createArrayNode();
-    root.set("is", MAPPER.convertValue("tuple", JsonNode.class));
+    root.put("is", "tuple");
     String json = "";
 
     for (int i = 0; i < 100; i++) {
@@ -60,7 +60,7 @@ public class TupleInputTypeTest extends InputTypeTest {
     List<InputType> varargs = new LinkedList<>();
     ObjectNode root = MAPPER.createObjectNode();
     ArrayNode types = MAPPER.createArrayNode();
-    root.set("is", MAPPER.convertValue("tuple", JsonNode.class));
+    root.put("is", "tuple");
     String json = "";
 
     for (int i = 0; i < 100; i++) {

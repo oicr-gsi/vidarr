@@ -4,7 +4,6 @@ import static ca.on.oicr.gsi.vidarr.VeryLongString.VERY_LONG;
 
 import ca.on.oicr.gsi.Pair;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.util.LinkedList;
 import java.util.List;
@@ -30,14 +29,14 @@ public class TaggedUnionInputTypeTest extends InputTypeTest {
   public void testSerializeMany() {
     List<Pair<String, InputType>> varargs = new LinkedList<>();
     ObjectNode root = MAPPER.createObjectNode(), options = MAPPER.createObjectNode();
-    root.set("is", MAPPER.convertValue("tagged-union", JsonNode.class));
+    root.put("is", "tagged-union");
     String json = "";
 
     // FIXME the limit is set to 'b' here because at 'c' it stops serializing in alphabetical order.
     // This isn't actually something that should break the test
     for (char c = 'a'; c <= 'b'; c++) {
       varargs.add(new Pair<>("field" + c, InputType.BOOLEAN));
-      options.set("field" + c, MAPPER.convertValue("boolean", JsonNode.class));
+      options.put("field" + c, "boolean");
       root.set("options", options);
       try {
         json = MAPPER.writeValueAsString(root);

@@ -4,7 +4,6 @@ import static ca.on.oicr.gsi.vidarr.VeryLongString.VERY_LONG;
 
 import ca.on.oicr.gsi.Pair;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.util.LinkedList;
 import java.util.List;
@@ -31,12 +30,12 @@ public class ObjectInputTypeTest extends InputTypeTest {
   public void testSerializeMany() {
     List<Pair<String, InputType>> varargs = new LinkedList<>();
     ObjectNode root = MAPPER.createObjectNode(), fields = MAPPER.createObjectNode();
-    root.set("is", MAPPER.convertValue("object", JsonNode.class));
+    root.put("is", "object");
     String json = "";
 
     for (char c = 'a'; c <= 'z'; c++) {
       varargs.add(new Pair<>("field" + c, InputType.BOOLEAN));
-      fields.set("field" + c, MAPPER.convertValue("boolean", JsonNode.class));
+      fields.put("field" + c, "boolean");
       root.set("fields", fields);
       try {
         json = MAPPER.writeValueAsString(root);

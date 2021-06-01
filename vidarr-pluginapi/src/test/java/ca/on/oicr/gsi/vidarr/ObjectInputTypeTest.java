@@ -185,7 +185,6 @@ public class ObjectInputTypeTest extends InputTypeTest {
     deserializeTester(test, caseSensitiveJson);
   }
 
-  // TODO: how many constructors do we have?
   @Override
   public void testEquals() {
     InputType obj1 = InputType.object(new Pair<>("field", InputType.INTEGER)),

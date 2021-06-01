@@ -66,6 +66,7 @@ public final class TestValidatorScript extends TestValidator {
             System.err.printf("%s: [%s] Calculating output to %s...%n", id, Instant.now(), output);
             final var calculateProcess =
                 new ProcessBuilder()
+                    .inheritIO()
                     .directory(calculateDir.toFile())
                     .command(calculateScript.toAbsolutePath().toString(), calculateDir.toString())
                     .redirectOutput(output)

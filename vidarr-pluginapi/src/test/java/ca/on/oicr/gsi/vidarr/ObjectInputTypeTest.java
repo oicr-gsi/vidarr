@@ -14,9 +14,6 @@ import org.junit.Assert;
 import org.junit.Test;
 import org.junit.function.ThrowingRunnable;
 
-/**
- * TODO There's probably varargs quirks that need testing, too. ie 2 nulls isn't the same as 1 null
- */
 public class ObjectInputTypeTest extends InputTypeTest {
 
   String objectOneFieldStringFormat = "{\"is\":\"object\",\"fields\":{\"%s\":\"%s\"}}";
@@ -55,6 +52,24 @@ public class ObjectInputTypeTest extends InputTypeTest {
     List<Pair<String, InputType>> varargs = new LinkedList<>();
     ThrowingRunnable throwingRunnable = () -> InputType.object(varargs.stream());
     Assert.assertThrows(IllegalArgumentException.class, throwingRunnable);
+  }
+
+  @Test
+  public void testCreateNullThrows() {
+    ThrowingRunnable throwingRunnable = () -> InputType.object(Stream.of(null));
+    Assert.assertThrows(NullPointerException.class, throwingRunnable);
+  }
+
+  @Test
+  public void testCreateTwoNullsThrows() {
+    ThrowingRunnable throwingRunnable = () -> InputType.object(null, null);
+    Assert.assertThrows(NullPointerException.class, throwingRunnable);
+  }
+
+  @Test
+  public void testCreateNullStreamThrows() {
+    ThrowingRunnable throwingRunnable = () -> InputType.object(Stream.of(null, null));
+    Assert.assertThrows(NullPointerException.class, throwingRunnable);
   }
 
   @Test

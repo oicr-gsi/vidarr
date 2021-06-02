@@ -243,6 +243,14 @@
           </execution>
         </executions>
       </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>2.12.4</version>
+        <configuration>
+          <argLine>-Duser.timezone=GMT-4</argLine> <!-- Match the test data timezone -->
+        </configuration>
+      </plugin>
     </plugins>
   </build>
 </project>

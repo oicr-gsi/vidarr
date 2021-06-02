@@ -1,3 +1,5 @@
+SET TIMEZONE='America/Toronto';
+
 -- Disable all triggers
 BEGIN;
 ALTER TABLE active_workflow_run DISABLE TRIGGER active_workflow_run_update;

@@ -75,6 +75,7 @@ public class MainIntegrationTest {
 
   @BeforeClass
   public static void setup() throws SQLException {
+    TimeZone.setDefault(TimeZone.getTimeZone("America/Toronto"));
     config = getTestServerConfig(pg);
     main = new Main(config, "TEST");
     main.startServer(main);

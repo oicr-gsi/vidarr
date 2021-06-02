@@ -3,7 +3,7 @@
   <parent>
     <artifactId>vidarr</artifactId>
     <groupId>ca.on.oicr.gsi.vidarr</groupId>
-    <version>0.4.3</version>
+    <version>0.4.4-SNAPSHOT</version>
   </parent>
   <name>Vidarr command line interface</name>
   <modelVersion>4.0.0</modelVersion>

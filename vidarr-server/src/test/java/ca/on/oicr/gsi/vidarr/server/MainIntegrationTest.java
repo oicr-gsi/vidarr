@@ -5,6 +5,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.assertEquals;
 
+import ca.on.oicr.gsi.vidarr.core.Phase;
 import ca.on.oicr.gsi.vidarr.core.RawInputProvisioner;
 import ca.on.oicr.gsi.vidarr.server.dto.ServerConfiguration;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -20,11 +21,14 @@ import io.restassured.parsing.Parser;
 import java.net.http.HttpClient;
 import java.net.http.HttpClient.Redirect;
 import java.sql.SQLException;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TimeZone;
 import java.util.stream.Collectors;
 import org.flywaydb.core.Flyway;
 import org.junit.Before;
@@ -256,7 +260,7 @@ public class MainIntegrationTest {
             .assertThat()
             .statusCode(200)
             .and()
-            .body("size()", is(15), "name", hasItems("import_fastq", "bcl2fastq"))
+            .body("name", hasItems("import_fastq", "bcl2fastq"), "size()", is(3))
             .and()
             .extract()
             .body()
@@ -572,7 +576,7 @@ public class MainIntegrationTest {
     given()
         .when()
         .contentType(ContentType.JSON)
-        .get("/api/file/{hash}", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+        .get("/api/file/{hash}", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
         .then()
         .assertThat()
         .statusCode(404);
@@ -602,24 +606,165 @@ public class MainIntegrationTest {
             .assertThat()
             .statusCode(200)
             .and()
-            .assertThat()
-            .body("results.flatten()", hasSize(8));
+            .extract()
+            .jsonPath()
+            .getList("results");
+    assertThat(results, hasSize(10));
   }
 
-  //  @Test
-  //  public void whenGetWorkflowRun_thenReturnWorkflowRun() {
-  //    given()
-  //        .when()
-  //        .get("/api/run/{hash}",
-  // "2f52b25df0a20cf41b0476b9114ad40a7d8d2edbddf0bed7d2d1b01d3f2d2b56")
-  //        .then()
-  //        .assertThat()
-  //        .statusCode(200)
-  //        .and()
-  //        .body()
-  //  }
+  @Test
+  public void whenGetProvenanceAfterGivenTimestamp_thenRecordsAfterGivenTimestampAreReturned()
+      throws ParseException {
+    var endTime = 1577836860000L;
+    var requestBody = MAPPER.createObjectNode();
+    var analysisTypes = MAPPER.createArrayNode();
+    analysisTypes.add("FILE");
+    requestBody.set("analysisTypes", analysisTypes);
+    requestBody.put("epoch", 0);
+    requestBody.put("includeParameters", true);
+    requestBody.put("timestamp", endTime); // 2020-01-01 00:01:00
+    requestBody.put("versionPolicy", "NONE");
+    var versionTypes = MAPPER.createArrayNode();
+    versionTypes.add("string");
+    requestBody.set("versionTypes", versionTypes);
 
-  //  TODO: DELETE
+    // First request gets us the epoch, which we'll need to get the server to pay attention our
+    // timestamp field in the second request
+    long epoch =
+        given()
+            .contentType(ContentType.JSON)
+            .body(requestBody)
+            .when()
+            .post("/api/provenance")
+            .then()
+            .assertThat()
+            .statusCode(200)
+            .and()
+            .extract()
+            .jsonPath()
+            .getLong("epoch");
+    requestBody.put("epoch", epoch);
+
+    List<Map<String, Object>> results =
+        given()
+            .contentType(ContentType.JSON)
+            .body(requestBody)
+            .when()
+            .post("/api/provenance")
+            .then()
+            .assertThat()
+            .statusCode(200)
+            .and()
+            .extract()
+            .jsonPath()
+            .getList("results");
+    assertThat(results, hasSize(6));
+
+    for (Map<String, Object> r : results) {
+      long modTime = dateFromTime((String) r.get("modified"));
+      assertThat(modTime, greaterThan(endTime));
+    }
+  }
+
+  @Test
+  public void whenGetWorkflowRun_thenReturnWorkflowRun() {
+    given()
+        .when()
+        .get("/api/run/{hash}", "df7df7df7df7df7df7df7df7df7df70df7df7df7df7df7df7df7df7df7df7df7")
+        .then()
+        .assertThat()
+        .statusCode(200)
+        .and()
+        .body(
+            "workflowName", equalTo("bcl2fastq"), "arguments.workflowRunSWID", equalTo("4444444"));
+  }
+
+  @Test
+  public void whenGetUnknownWorkflowRun_thenNoWorkflowRunIsFound() {
+    given()
+        .when()
+        .get("/api/run/{hash}", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+        .then()
+        .assertThat()
+        .statusCode(404);
+  }
+
+  @Test
+  public void whenGetWorkflowRunUrl_thenWorkflowRunIsReturned() {
+    given()
+        .when()
+        .get("/api/url/{hash}", "dbaac5f6b09b46f68d575bc36d024d4198883dbff8377be3a6c9fd62c3605a54")
+        .then()
+        .assertThat()
+        .statusCode(200)
+        .and()
+        .body("workflowName", equalTo("bcl2fastq"));
+  }
+
+  @Test
+  public void whenGetWorkflowStatus_thenWorkflowStatusIsReturned() {
+    given()
+        .when()
+        .get(
+            "/api/status/{hash}",
+            "df7df7df7df7df7df7df7df7df7df70df7df7df7df7df7df7df7df7df7df7df7")
+        .then()
+        .assertThat()
+        .statusCode(200)
+        .and()
+        .body(
+            "completed",
+            nullValue(),
+            "operationStatus",
+            equalTo("N/A"),
+            "waiting_resource",
+            equalTo("prometheus-alert-manager"),
+            "enginePhase",
+            equalTo(Phase.WAITING_FOR_RESOURCES.toString()));
+  }
+
+  @Test
+  public void whenGetUnknownWorkflowStatus_thenNoWorkflowStatusIsReturned() {
+    given()
+        .when()
+        .get("/api/status/{hash}", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+        .then()
+        .assertThat()
+        .statusCode(404);
+  }
+
+  @Test
+  public void whenGetCompletedWorkflowStatus_thenWorkflowStatusIsReturned() {
+    given()
+        .when()
+        .get(
+            "/api/status/{hash}",
+            "2f52b25df0a20cf41b0476b9114ad40a7d8d2edbddf0bed7d2d1b01d3f2d2b56")
+        .then()
+        .assertThat()
+        .statusCode(200)
+        .and()
+        .body(
+            "completed",
+            not(nullValue()),
+            "operationStatus",
+            equalTo("N/A"),
+            "waiting_resource",
+            nullValue(),
+            "enginePhase",
+            nullValue());
+  }
+
+  @Test
+  public void whenGetWorkflowRunUrlForFileType_thenNoWorkflowRunIsReturned() {
+    given()
+        .when()
+        .get("/api/url/{hash}", "916df707b105ddd88d8979e41208f2507a6d0c8d3ef57677750efa7857c4f6b2")
+        .then()
+        .assertThat()
+        .statusCode(404);
+  }
+
   private ObjectNode getAnalysisFile() {
     ObjectNode on = MAPPER.createObjectNode();
     on.put("run", "2f52b25df0a20cf41b0476b9114ad40a7d8d2edbddf0bed7d2d1b01d3f2d2b56");
@@ -653,5 +798,11 @@ public class MainIntegrationTest {
     on.put("metatype", "chemical/seq-na-fastq-gzip");
     on.put("size", 7135629);
     return on;
+  }
+
+  private long dateFromTime(String timeString) throws ParseException {
+    SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX");
+    df.setTimeZone(TimeZone.getTimeZone("EST"));
+    return df.parse(timeString).getTime();
   }
 }

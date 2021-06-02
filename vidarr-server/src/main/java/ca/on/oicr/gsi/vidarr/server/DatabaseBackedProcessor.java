@@ -498,7 +498,9 @@ public abstract class DatabaseBackedProcessor
                 return new WorkflowInformation(
                     record.get(WORKFLOW_VERSION.ID),
                     buildDefinitionFromRecord(transaction, record),
-                    MAPPER.readValue(record.get(WORKFLOW.LABELS).data(), LABELS_JSON_TYPE));
+                    (record.get(WORKFLOW.LABELS) == null
+                        ? new TreeMap<>()
+                        : MAPPER.readValue(record.get(WORKFLOW.LABELS).data(), LABELS_JSON_TYPE)));
               } catch (JsonProcessingException e) {
                 throw new RuntimeException(e);
               }

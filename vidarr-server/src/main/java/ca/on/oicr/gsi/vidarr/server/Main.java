@@ -147,7 +147,7 @@ public final class Main implements ServerConfig {
   public enum Env {
     PRODUCTION,
     TEST,
-    CLI;
+    CLI
   }
 
   private interface JsonPost<T> {
@@ -548,7 +548,7 @@ public final class Main implements ServerConfig {
     inputProvisioners = configuration.getInputProvisioners();
     outputProvisioners = configuration.getOutputProvisioners();
     runtimeProvisioners = configuration.getRuntimeProvisioners();
-    if (environment != null && "TEST".equals(environment.toUpperCase())) {
+    if ("TEST".equalsIgnoreCase(environment)) {
       this.environment = Env.TEST;
     }
 
@@ -1409,7 +1409,7 @@ public final class Main implements ServerConfig {
           .fetchOptional(Record1::value1)
           .ifPresentOrElse(
               complete -> {
-                exchange.setStatusCode(complete ? StatusCodes.OK : StatusCodes.PARTIAL_CONTENT);
+                exchange.setStatusCode(StatusCodes.OK);
                 exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_JSON);
                 try (final var output =
                     MAPPER_FACTORY.createGenerator(exchange.getOutputStream())) {

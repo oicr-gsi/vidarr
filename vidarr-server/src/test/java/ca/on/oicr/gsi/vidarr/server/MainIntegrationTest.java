@@ -77,7 +77,7 @@ public class MainIntegrationTest {
   public static void setup() throws SQLException {
     TimeZone.setDefault(TimeZone.getTimeZone("America/Toronto"));
     config = getTestServerConfig(pg);
-    main = new Main(config, "TEST");
+    main = new Main(config);
     main.startServer(main);
     RestAssured.baseURI = config.getUrl();
     RestAssured.port = config.getPort();
@@ -96,10 +96,14 @@ public class MainIntegrationTest {
     simpleConnection.setPassword(config.getDbPass());
     var fw = Flyway.configure().dataSource(simpleConnection);
     fw.load().clean();
-    //    fw.locations("classpath:db/migration").load().migrate();
-    //    var flywayTestLocations = "filesystem:src/test/resources/db/migration/";
-    //    fw.locations(flywayTestLocations).ignoreMissingMigrations(true).load().migrate();
-    fw.load().migrate();
+    fw.locations("classpath:db/migration").load().migrate();
+    // we do this because Flyway on its own isn't finding the test data, and it dies when you
+    // try to give it classpath + filesystem locations in one string. We ignore the "missing"
+    // migrations (run in the migrate() call above).
+    fw.locations("filesystem:src/test/resources/db/migration/")
+        .ignoreMissingMigrations(true)
+        .load()
+        .migrate();
   }
 
   @Test

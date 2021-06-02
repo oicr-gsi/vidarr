@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-public class ValidationException extends RuntimeException {
+class ValidationException extends RuntimeException {
 
   private final List<ValidationError> errors;
 

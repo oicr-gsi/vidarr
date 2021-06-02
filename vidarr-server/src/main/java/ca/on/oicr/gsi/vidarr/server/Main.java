@@ -144,12 +144,6 @@ import org.postgresql.ds.PGSimpleDataSource;
 
 public final class Main implements ServerConfig {
 
-  public enum Env {
-    PRODUCTION,
-    TEST,
-    CLI
-  }
-
   private interface JsonPost<T> {
     static <T> HttpHandler parse(Class<T> clazz, JsonPost<T> handler) {
       return exchange ->
@@ -349,8 +343,7 @@ public final class Main implements ServerConfig {
               + " configuration.json");
     }
     DefaultExports.initialize();
-    final var main =
-        new Main(MAPPER.readValue(new File(args[0]), ServerConfiguration.class), "CLI");
+    final var main = new Main(MAPPER.readValue(new File(args[0]), ServerConfiguration.class));
     startServer(main);
   }
 
@@ -462,7 +455,6 @@ public final class Main implements ServerConfig {
     };
   }
 
-  private Env environment = Env.PRODUCTION;
   private final HikariDataSource dataSource;
   private long epoch = ManagementFactory.getRuntimeMXBean().getStartTime();
   private final ReentrantReadWriteLock epochLock = new ReentrantReadWriteLock();
@@ -539,7 +531,7 @@ public final class Main implements ServerConfig {
         }
       };
 
-  Main(ServerConfiguration configuration, String environment) throws SQLException {
+  Main(ServerConfiguration configuration) throws SQLException {
     selfUrl = configuration.getUrl();
     selfName = configuration.getName();
     port = configuration.getPort();
@@ -548,9 +540,6 @@ public final class Main implements ServerConfig {
     inputProvisioners = configuration.getInputProvisioners();
     outputProvisioners = configuration.getOutputProvisioners();
     runtimeProvisioners = configuration.getRuntimeProvisioners();
-    if ("TEST".equalsIgnoreCase(environment)) {
-      this.environment = Env.TEST;
-    }
 
     for (final var input : inputProvisioners.values()) {
       input.startup();
@@ -653,17 +642,7 @@ public final class Main implements ServerConfig {
     simpleConnection.setUser(configuration.getDbUser());
     simpleConnection.setPassword(configuration.getDbPass());
     var fw = Flyway.configure().dataSource(simpleConnection);
-    if (Env.TEST.equals(this.environment)) {
-      fw.load().clean();
-    }
     fw.locations("classpath:db/migration").load().migrate();
-    if (Env.TEST.equals(this.environment)) {
-      // we do this because Flyway on its own isn't finding the test data, and it dies when you
-      // try to give it classpath + filesystem locations in one string. We ignore the "missing"
-      // migrations (run in the migrate() call above).
-      var flywayTestLocations = "filesystem:src/test/resources/db/migration/";
-      fw.locations(flywayTestLocations).ignoreMissingMigrations(true).load().migrate();
-    }
 
     final var config = new HikariConfig();
     config.setJdbcUrl(

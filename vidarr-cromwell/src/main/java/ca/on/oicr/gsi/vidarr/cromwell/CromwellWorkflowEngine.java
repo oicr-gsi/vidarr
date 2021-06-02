@@ -16,8 +16,11 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandlers;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
@@ -50,6 +53,14 @@ public final class CromwellWorkflowEngine
           .labelNames("target")
           .register();
   static final ObjectMapper MAPPER = new ObjectMapper();
+
+  private static Stream<Path> findAllParents(String file) {
+    final var parents = new ArrayList<Path>();
+    for (var path = Path.of(file).getParent(); path != null; path = path.getParent()) {
+      parents.add(path);
+    }
+    return parents.stream();
+  }
 
   public static WorkflowEngineProvider provider() {
     return () -> Stream.of(new Pair<>("cromwell", CromwellWorkflowEngine.class));
@@ -289,6 +300,21 @@ public final class CromwellWorkflowEngine
         // matter if we make the effort to ensure these ZIP files are byte-for-byte identical.
         final var zipOutput = new ByteArrayOutputStream();
         try (final var zipFile = new ZipOutputStream(zipOutput)) {
+
+          // We have to create all the parent directories or the better-files compressor that
+          // Cromwell uses will fail to decompress. A directory entry is one that ends with a / and
+          // has no data.
+          final var parentDirectories =
+              state.getWorkflowInputFiles().keySet().stream()
+                  .flatMap(CromwellWorkflowEngine::findAllParents)
+                  .distinct()
+                  .sorted(Comparator.comparing(Path::getNameCount))
+                  .collect(Collectors.toList());
+          for (final var parentDirectory : parentDirectories) {
+            zipFile.putNextEntry(new ZipEntry(parentDirectory.toString() + "/"));
+            zipFile.closeEntry();
+          }
+
           for (final var accessory : state.getWorkflowInputFiles().entrySet()) {
             zipFile.putNextEntry(new ZipEntry(accessory.getKey()));
             zipFile.write(accessory.getValue().getBytes(StandardCharsets.UTF_8));

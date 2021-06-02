@@ -691,18 +691,6 @@ public class MainIntegrationTest {
   }
 
   @Test
-  public void whenGetWorkflowRunUrl_thenWorkflowRunIsReturned() {
-    given()
-        .when()
-        .get("/api/url/{hash}", "dbaac5f6b09b46f68d575bc36d024d4198883dbff8377be3a6c9fd62c3605a54")
-        .then()
-        .assertThat()
-        .statusCode(200)
-        .and()
-        .body("workflowName", equalTo("bcl2fastq"));
-  }
-
-  @Test
   public void whenGetWorkflowStatus_thenWorkflowStatusIsReturned() {
     given()
         .when()

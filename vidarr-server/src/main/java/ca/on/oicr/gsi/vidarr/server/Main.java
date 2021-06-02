@@ -164,8 +164,7 @@ public final class Main implements ServerConfig {
   }
 
   private interface UnloadProcessor<T> {
-    T process(Configuration configuration, Set<Integer> workflowRuns)
-        throws IOException, SQLException;
+    T process(Configuration configuration, Integer[] workflowRuns) throws IOException, SQLException;
   }
 
   static final HttpClient CLIENT =
@@ -1129,7 +1128,7 @@ public final class Main implements ServerConfig {
     }
   }
 
-  private void dumpUnloadDataToJson(Configuration tx, Set<Integer> ids, JsonGenerator output)
+  private void dumpUnloadDataToJson(Configuration tx, Integer[] ids, JsonGenerator output)
       throws IOException, SQLException {
     output.writeStartObject();
     output.writeArrayFieldStart("workflows");
@@ -1145,7 +1144,11 @@ public final class Main implements ServerConfig {
                         WORKFLOW_RUN
                             .join(WORKFLOW_VERSION)
                             .on(WORKFLOW_RUN.WORKFLOW_VERSION_ID.eq(WORKFLOW_VERSION.ID)))
-                    .where(WORKFLOW_RUN.ID.in(ids).and(WORKFLOW_VERSION.NAME.eq(WORKFLOW.NAME)))))
+                    .where(
+                        WORKFLOW_RUN
+                            .ID
+                            .eq(DSL.any(ids))
+                            .and(WORKFLOW_VERSION.NAME.eq(WORKFLOW.NAME)))))
         .forEach(
             result -> {
               try {
@@ -2281,19 +2284,25 @@ public final class Main implements ServerConfig {
                         ANALYSIS_EXTERNAL_ID.ANALYSIS_ID.in(
                             DSL.select(ANALYSIS.ID)
                                 .from(ANALYSIS)
-                                .where(ANALYSIS.WORKFLOW_RUN_ID.in(ids))))
+                                .where(ANALYSIS.WORKFLOW_RUN_ID.eq(DSL.any(ids)))))
                     .execute();
-                tx.dsl().delete(ANALYSIS).where(ANALYSIS.WORKFLOW_RUN_ID.in(ids)).execute();
+                tx.dsl()
+                    .delete(ANALYSIS)
+                    .where(ANALYSIS.WORKFLOW_RUN_ID.eq(DSL.any(ids)))
+                    .execute();
                 tx.dsl()
                     .delete(EXTERNAL_ID_VERSION)
                     .where(
                         EXTERNAL_ID_VERSION.EXTERNAL_ID_ID.in(
                             DSL.select(EXTERNAL_ID.ID)
                                 .from(EXTERNAL_ID)
-                                .where(EXTERNAL_ID.WORKFLOW_RUN_ID.in(ids))))
+                                .where(EXTERNAL_ID.WORKFLOW_RUN_ID.eq(DSL.any(ids)))))
                     .execute();
-                tx.dsl().delete(EXTERNAL_ID).where(EXTERNAL_ID.WORKFLOW_RUN_ID.in(ids)).execute();
-                tx.dsl().delete(WORKFLOW_RUN).where(WORKFLOW_RUN.ID.in(ids)).execute();
+                tx.dsl()
+                    .delete(EXTERNAL_ID)
+                    .where(EXTERNAL_ID.WORKFLOW_RUN_ID.eq(DSL.any(ids)))
+                    .execute();
+                tx.dsl().delete(WORKFLOW_RUN).where(WORKFLOW_RUN.ID.eq(DSL.any(ids))).execute();
                 epoch = time.toEpochMilli();
                 return filename;
               });
@@ -2412,7 +2421,8 @@ public final class Main implements ServerConfig {
                                                       case 1:
                                                         return field.eq(items.iterator().next());
                                                       default:
-                                                        return field.in(items);
+                                                        return field.eq(
+                                                            DSL.any(items.toArray(String[]::new)));
                                                     }
                                                   }
 
@@ -2467,7 +2477,8 @@ public final class Main implements ServerConfig {
                     workflowRuns.addAll(latestIds);
                   } while (!latestIds.isEmpty());
                 }
-                return handleWorkflowRuns.process(configuration, workflowRuns);
+                return handleWorkflowRuns.process(
+                    configuration, workflowRuns.toArray(Integer[]::new));
               });
     }
   }
@@ -2530,7 +2541,7 @@ public final class Main implements ServerConfig {
             .where(
                 ANALYSIS
                     .WORKFLOW_RUN_ID
-                    .in(workflowIds)
+                    .eq(DSL.any(workflowIds.toArray(Integer[]::new)))
                     .and(ANALYSIS.HASH_ID.eq(DSL.any(WORKFLOW_RUN.INPUT_FILE_IDS)))));
   }
 }

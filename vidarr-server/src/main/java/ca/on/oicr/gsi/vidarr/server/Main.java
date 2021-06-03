@@ -194,9 +194,9 @@ public final class Main implements ServerConfig {
   static {
     MAPPER.registerModule(new JavaTimeModule());
     MAPPER.configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true);
-    STATUS_FIELDS.add(DSL.jsonEntry("completed", WORKFLOW_RUN.COMPLETED));
+    STATUS_FIELDS.add(literalJsonEntry("completed", WORKFLOW_RUN.COMPLETED));
     STATUS_FIELDS.add(
-        DSL.jsonEntry(
+        literalJsonEntry(
             "operationStatus",
             DSL.case_(
                     DSL.nvl(
@@ -220,41 +220,41 @@ public final class Main implements ServerConfig {
                 .when(2, "FAILED")
                 .when(-1, "N/A")
                 .otherwise("WAITING")));
-    STATUS_FIELDS.add(DSL.jsonEntry("created", WORKFLOW_RUN.CREATED));
-    STATUS_FIELDS.add(DSL.jsonEntry("id", WORKFLOW_RUN.HASH_ID));
-    STATUS_FIELDS.add(DSL.jsonEntry("inputFiles", WORKFLOW_RUN.INPUT_FILE_IDS));
-    STATUS_FIELDS.add(DSL.jsonEntry("labels", WORKFLOW_RUN.LABELS));
-    STATUS_FIELDS.add(DSL.jsonEntry("modified", WORKFLOW_RUN.MODIFIED));
-    STATUS_FIELDS.add(DSL.jsonEntry("started", WORKFLOW_RUN.STARTED));
-    STATUS_FIELDS.add(DSL.jsonEntry("arguments", WORKFLOW_RUN.ARGUMENTS));
-    STATUS_FIELDS.add(DSL.jsonEntry("engineParameters", WORKFLOW_RUN.ENGINE_PARAMETERS));
-    STATUS_FIELDS.add(DSL.jsonEntry("metadata", WORKFLOW_RUN.METADATA));
-    STATUS_FIELDS.add(DSL.jsonEntry("waiting_resource", ACTIVE_WORKFLOW_RUN.WAITING_RESOURCE));
+    STATUS_FIELDS.add(literalJsonEntry("created", WORKFLOW_RUN.CREATED));
+    STATUS_FIELDS.add(literalJsonEntry("id", WORKFLOW_RUN.HASH_ID));
+    STATUS_FIELDS.add(literalJsonEntry("inputFiles", WORKFLOW_RUN.INPUT_FILE_IDS));
+    STATUS_FIELDS.add(literalJsonEntry("labels", WORKFLOW_RUN.LABELS));
+    STATUS_FIELDS.add(literalJsonEntry("modified", WORKFLOW_RUN.MODIFIED));
+    STATUS_FIELDS.add(literalJsonEntry("started", WORKFLOW_RUN.STARTED));
+    STATUS_FIELDS.add(literalJsonEntry("arguments", WORKFLOW_RUN.ARGUMENTS));
+    STATUS_FIELDS.add(literalJsonEntry("engineParameters", WORKFLOW_RUN.ENGINE_PARAMETERS));
+    STATUS_FIELDS.add(literalJsonEntry("metadata", WORKFLOW_RUN.METADATA));
+    STATUS_FIELDS.add(literalJsonEntry("waiting_resource", ACTIVE_WORKFLOW_RUN.WAITING_RESOURCE));
     STATUS_FIELDS.add(
-        DSL.jsonEntry(
+        literalJsonEntry(
             "running",
             DSL.nvl(DSL.field(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE.ne(Phase.FAILED)), false)));
-    STATUS_FIELDS.add(DSL.jsonEntry("attempt", ACTIVE_WORKFLOW_RUN.ATTEMPT));
+    STATUS_FIELDS.add(literalJsonEntry("attempt", ACTIVE_WORKFLOW_RUN.ATTEMPT));
     STATUS_FIELDS.add(
-        DSL.jsonEntry(
+        literalJsonEntry(
             "enginePhase",
             DSL.case_(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE)
                 .mapValues(
                     Stream.of(Phase.values())
                         .collect(Collectors.toMap(Function.identity(), Phase::name)))));
 
-    STATUS_FIELDS.add(DSL.jsonEntry("preflightOk", ACTIVE_WORKFLOW_RUN.PREFLIGHT_OKAY));
-    STATUS_FIELDS.add(DSL.jsonEntry("target", ACTIVE_WORKFLOW_RUN.TARGET));
-    STATUS_FIELDS.add(DSL.jsonEntry("workflowRunUrl", ACTIVE_WORKFLOW_RUN.WORKFLOW_RUN_URL));
+    STATUS_FIELDS.add(literalJsonEntry("preflightOk", ACTIVE_WORKFLOW_RUN.PREFLIGHT_OKAY));
+    STATUS_FIELDS.add(literalJsonEntry("target", ACTIVE_WORKFLOW_RUN.TARGET));
+    STATUS_FIELDS.add(literalJsonEntry("workflowRunUrl", ACTIVE_WORKFLOW_RUN.WORKFLOW_RUN_URL));
     STATUS_FIELDS.add(
-        DSL.jsonEntry(
+        literalJsonEntry(
             "operations",
             DSL.field(
                 DSL.select(
                         DSL.jsonArrayAgg(
                             DSL.jsonObject(
-                                DSL.jsonEntry("attempt", ACTIVE_OPERATION.ATTEMPT),
-                                DSL.jsonEntry(
+                                literalJsonEntry("attempt", ACTIVE_OPERATION.ATTEMPT),
+                                literalJsonEntry(
                                     "enginePhase",
                                     DSL.case_(ACTIVE_OPERATION.ENGINE_PHASE)
                                         .mapValues(
@@ -262,10 +262,10 @@ public final class Main implements ServerConfig {
                                                 .collect(
                                                     Collectors.toMap(
                                                         Function.identity(), Phase::name)))),
-                                DSL.jsonEntry("recoveryState", ACTIVE_OPERATION.RECOVERY_STATE),
-                                DSL.jsonEntry("debugInformation", ACTIVE_OPERATION.DEBUG_INFO),
-                                DSL.jsonEntry("status", ACTIVE_OPERATION.STATUS),
-                                DSL.jsonEntry("type", ACTIVE_OPERATION.TYPE))))
+                                literalJsonEntry("recoveryState", ACTIVE_OPERATION.RECOVERY_STATE),
+                                literalJsonEntry("debugInformation", ACTIVE_OPERATION.DEBUG_INFO),
+                                literalJsonEntry("status", ACTIVE_OPERATION.STATUS),
+                                literalJsonEntry("type", ACTIVE_OPERATION.TYPE))))
                     .from(ACTIVE_OPERATION)
                     .where(ACTIVE_OPERATION.WORKFLOW_RUN_ID.eq(WORKFLOW_RUN.ID)))));
   }
@@ -341,6 +341,10 @@ public final class Main implements ServerConfig {
     exchange.setStatusCode(500);
     e.printStackTrace();
     exchange.getResponseSender().send(e.getMessage());
+  }
+
+  private static <T> JSONEntry<T> literalJsonEntry(String key, Field<T> value) {
+    return DSL.jsonEntry(DSL.inline(key), value);
   }
 
   public static void main(String[] args) throws IOException, SQLException {
@@ -435,31 +439,6 @@ public final class Main implements ServerConfig {
             .build();
     undertow.start();
     server.recover();
-  }
-
-  private void getWorkflow(HttpServerExchange exchange) {
-    final var name =
-        exchange.getAttachment(PathTemplateMatch.ATTACHMENT_KEY).getParameters().get("name");
-
-    try (final var connection = dataSource.getConnection()) {
-      final var result =
-          DSL.using(connection, SQLDialect.POSTGRES)
-              .select(
-                  DSL.jsonObject(
-                      DSL.jsonEntry("labels", WORKFLOW.LABELS),
-                      DSL.jsonEntry("isActive", WORKFLOW.IS_ACTIVE),
-                      DSL.jsonEntry("MaxInFlight", WORKFLOW.MAX_IN_FLIGHT)))
-              .from(WORKFLOW)
-              .where(WORKFLOW.NAME.eq(name))
-              .fetchOptional()
-              .map(r -> r.value1().data());
-      exchange.setStatusCode(result.isPresent() ? StatusCodes.OK : StatusCodes.NOT_FOUND);
-      exchange.getResponseSender().send(result.orElse("null"));
-    } catch (SQLException e) {
-      e.printStackTrace();
-      exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);
-      exchange.getResponseSender().send(e.getMessage());
-    }
   }
 
   private static void metrics(HttpServerExchange exchange) {
@@ -950,21 +929,21 @@ public final class Main implements ServerConfig {
 
   private Field<JSON> createAnalysisJsonField(Field<JSON> externalKeys, JSONEntry<?>... extra) {
     final var analysisCommonFields = new ArrayList<>(List.of(extra));
-    analysisCommonFields.add(DSL.jsonEntry("id", ANALYSIS.HASH_ID));
-    analysisCommonFields.add(DSL.jsonEntry("type", ANALYSIS.ANALYSIS_TYPE));
-    analysisCommonFields.add(DSL.jsonEntry("created", ANALYSIS.CREATED));
-    analysisCommonFields.add(DSL.jsonEntry("labels", ANALYSIS.LABELS));
-    analysisCommonFields.add(DSL.jsonEntry("modified", ANALYSIS.MODIFIED));
-    analysisCommonFields.add(DSL.jsonEntry("externalKeys", externalKeys));
+    analysisCommonFields.add(literalJsonEntry("id", ANALYSIS.HASH_ID));
+    analysisCommonFields.add(literalJsonEntry("type", ANALYSIS.ANALYSIS_TYPE));
+    analysisCommonFields.add(literalJsonEntry("created", ANALYSIS.CREATED));
+    analysisCommonFields.add(literalJsonEntry("labels", ANALYSIS.LABELS));
+    analysisCommonFields.add(literalJsonEntry("modified", ANALYSIS.MODIFIED));
+    analysisCommonFields.add(literalJsonEntry("externalKeys", externalKeys));
 
     final var analysisFileFields = new ArrayList<>(analysisCommonFields);
-    analysisFileFields.add(DSL.jsonEntry("path", ANALYSIS.FILE_PATH));
-    analysisFileFields.add(DSL.jsonEntry("md5", ANALYSIS.FILE_MD5SUM));
-    analysisFileFields.add(DSL.jsonEntry("metatype", ANALYSIS.FILE_METATYPE));
-    analysisFileFields.add(DSL.jsonEntry("size", ANALYSIS.FILE_SIZE));
+    analysisFileFields.add(literalJsonEntry("path", ANALYSIS.FILE_PATH));
+    analysisFileFields.add(literalJsonEntry("md5", ANALYSIS.FILE_MD5SUM));
+    analysisFileFields.add(literalJsonEntry("metatype", ANALYSIS.FILE_METATYPE));
+    analysisFileFields.add(literalJsonEntry("size", ANALYSIS.FILE_SIZE));
 
     final var analysisUrlFields = new ArrayList<>(analysisCommonFields);
-    analysisUrlFields.add(DSL.jsonEntry("url", ANALYSIS.FILE_PATH));
+    analysisUrlFields.add(literalJsonEntry("url", ANALYSIS.FILE_PATH));
 
     return DSL.case_(ANALYSIS.ANALYSIS_TYPE)
         .when("file", DSL.jsonObject(analysisFileFields))
@@ -982,28 +961,28 @@ public final class Main implements ServerConfig {
       throws SQLException {
     final var fields = new ArrayList<JSONEntry<?>>();
 
-    fields.add(DSL.jsonEntry("completed", WORKFLOW_RUN.COMPLETED));
-    fields.add(DSL.jsonEntry("created", WORKFLOW_RUN.CREATED));
-    fields.add(DSL.jsonEntry("id", WORKFLOW_RUN.HASH_ID));
-    fields.add(DSL.jsonEntry("inputFiles", WORKFLOW_RUN.INPUT_FILE_IDS));
-    fields.add(DSL.jsonEntry("labels", WORKFLOW_RUN.LABELS));
-    fields.add(DSL.jsonEntry("modified", WORKFLOW_RUN.MODIFIED));
-    fields.add(DSL.jsonEntry("started", WORKFLOW_RUN.STARTED));
+    fields.add(literalJsonEntry("completed", WORKFLOW_RUN.COMPLETED));
+    fields.add(literalJsonEntry("created", WORKFLOW_RUN.CREATED));
+    fields.add(literalJsonEntry("id", WORKFLOW_RUN.HASH_ID));
+    fields.add(literalJsonEntry("inputFiles", WORKFLOW_RUN.INPUT_FILE_IDS));
+    fields.add(literalJsonEntry("labels", WORKFLOW_RUN.LABELS));
+    fields.add(literalJsonEntry("modified", WORKFLOW_RUN.MODIFIED));
+    fields.add(literalJsonEntry("started", WORKFLOW_RUN.STARTED));
 
     if (includeParameters) {
-      fields.add(DSL.jsonEntry("arguments", WORKFLOW_RUN.ARGUMENTS));
-      fields.add(DSL.jsonEntry("engineParameters", WORKFLOW_RUN.ENGINE_PARAMETERS));
-      fields.add(DSL.jsonEntry("metadata", WORKFLOW_RUN.METADATA));
+      fields.add(literalJsonEntry("arguments", WORKFLOW_RUN.ARGUMENTS));
+      fields.add(literalJsonEntry("engineParameters", WORKFLOW_RUN.ENGINE_PARAMETERS));
+      fields.add(literalJsonEntry("metadata", WORKFLOW_RUN.METADATA));
     }
     fields.add(
-        DSL.jsonEntry(
+        literalJsonEntry(
             "workflowName",
             DSL.field(
                 DSL.select(WORKFLOW_VERSION.NAME)
                     .from(WORKFLOW_VERSION)
                     .where(WORKFLOW_RUN.WORKFLOW_VERSION_ID.eq(WORKFLOW_VERSION.ID)))));
     fields.add(
-        DSL.jsonEntry(
+        literalJsonEntry(
             "workflowVersion",
             DSL.field(
                 DSL.select(WORKFLOW_VERSION.VERSION)
@@ -1011,23 +990,23 @@ public final class Main implements ServerConfig {
                     .where(WORKFLOW_RUN.WORKFLOW_VERSION_ID.eq(WORKFLOW_VERSION.ID)))));
 
     fields.add(
-        DSL.jsonEntry(
+        literalJsonEntry(
             "externalKeys",
             DSL.field(
                 DSL.select(
                         DSL.jsonArrayAgg(
                             DSL.jsonObject(
-                                DSL.jsonEntry("id", EXTERNAL_ID.EXTERNAL_ID_),
-                                DSL.jsonEntry("provider", EXTERNAL_ID.PROVIDER),
-                                DSL.jsonEntry("created", EXTERNAL_ID.CREATED),
-                                DSL.jsonEntry("modified", EXTERNAL_ID.MODIFIED),
-                                DSL.jsonEntry("requested", EXTERNAL_ID.REQUESTED),
-                                DSL.jsonEntry("versions", createQuery(policy, allowedTypes)))))
+                                literalJsonEntry("id", EXTERNAL_ID.EXTERNAL_ID_),
+                                literalJsonEntry("provider", EXTERNAL_ID.PROVIDER),
+                                literalJsonEntry("created", EXTERNAL_ID.CREATED),
+                                literalJsonEntry("modified", EXTERNAL_ID.MODIFIED),
+                                literalJsonEntry("requested", EXTERNAL_ID.REQUESTED),
+                                literalJsonEntry("versions", createQuery(policy, allowedTypes)))))
                     .from(EXTERNAL_ID)
                     .where(EXTERNAL_ID.WORKFLOW_RUN_ID.eq(WORKFLOW_RUN.ID)))));
 
     fields.add(
-        DSL.jsonEntry(
+        literalJsonEntry(
             "analysis",
             DSL.field(
                 DSL.select(
@@ -1037,8 +1016,10 @@ public final class Main implements ServerConfig {
                                     DSL.select(
                                             DSL.jsonArrayAgg(
                                                 DSL.jsonObject(
-                                                    DSL.jsonEntry("provider", EXTERNAL_ID.PROVIDER),
-                                                    DSL.jsonEntry("id", EXTERNAL_ID.EXTERNAL_ID_))))
+                                                    literalJsonEntry(
+                                                        "provider", EXTERNAL_ID.PROVIDER),
+                                                    literalJsonEntry(
+                                                        "id", EXTERNAL_ID.EXTERNAL_ID_))))
                                         .from(
                                             EXTERNAL_ID
                                                 .join(ANALYSIS_EXTERNAL_ID)
@@ -1135,7 +1116,8 @@ public final class Main implements ServerConfig {
     DSL.using(tx)
         .select(
             DSL.jsonObject(
-                DSL.jsonEntry("name", WORKFLOW.NAME), DSL.jsonEntry("labels", WORKFLOW.LABELS)))
+                literalJsonEntry("name", WORKFLOW.NAME),
+                literalJsonEntry("labels", WORKFLOW.LABELS)))
         .from(WORKFLOW)
         .where(
             DSL.exists(
@@ -1163,7 +1145,7 @@ public final class Main implements ServerConfig {
     DSL.using(tx)
         .select(
             DSL.jsonObject(
-                DSL.jsonEntry(
+                literalJsonEntry(
                     "accessoryFiles",
                     DSL.field(
                         DSL.select(
@@ -1179,12 +1161,12 @@ public final class Main implements ServerConfig {
                                     .where(
                                         WORKFLOW_VERSION_ACCESSORY.WORKFLOW_VERSION.eq(
                                             WORKFLOW_VERSION.ID))))),
-                DSL.jsonEntry("language", WORKFLOW_DEFINITION.WORKFLOW_LANGUAGE),
-                DSL.jsonEntry("name", WORKFLOW_VERSION.NAME),
-                DSL.jsonEntry("outputs", WORKFLOW_VERSION.METADATA),
-                DSL.jsonEntry("parameters", WORKFLOW_VERSION.PARAMETERS),
-                DSL.jsonEntry("version", WORKFLOW_VERSION.VERSION),
-                DSL.jsonEntry("workflow", WORKFLOW_DEFINITION.WORKFLOW_FILE)))
+                literalJsonEntry("language", WORKFLOW_DEFINITION.WORKFLOW_LANGUAGE),
+                literalJsonEntry("name", WORKFLOW_VERSION.NAME),
+                literalJsonEntry("outputs", WORKFLOW_VERSION.METADATA),
+                literalJsonEntry("parameters", WORKFLOW_VERSION.PARAMETERS),
+                literalJsonEntry("version", WORKFLOW_VERSION.VERSION),
+                literalJsonEntry("workflow", WORKFLOW_DEFINITION.WORKFLOW_FILE)))
         .from(
             WORKFLOW_VERSION
                 .join(WORKFLOW_DEFINITION)
@@ -1262,19 +1244,19 @@ public final class Main implements ServerConfig {
                       DSL.select(
                               DSL.jsonArrayAgg(
                                   DSL.jsonObject(
-                                      DSL.jsonEntry("id", EXTERNAL_ID.EXTERNAL_ID_),
-                                      DSL.jsonEntry("provider", EXTERNAL_ID.PROVIDER),
-                                      DSL.jsonEntry("created", EXTERNAL_ID.CREATED),
-                                      DSL.jsonEntry("modified", EXTERNAL_ID.MODIFIED),
-                                      DSL.jsonEntry("requested", EXTERNAL_ID.REQUESTED),
-                                      DSL.jsonEntry(
+                                      literalJsonEntry("id", EXTERNAL_ID.EXTERNAL_ID_),
+                                      literalJsonEntry("provider", EXTERNAL_ID.PROVIDER),
+                                      literalJsonEntry("created", EXTERNAL_ID.CREATED),
+                                      literalJsonEntry("modified", EXTERNAL_ID.MODIFIED),
+                                      literalJsonEntry("requested", EXTERNAL_ID.REQUESTED),
+                                      literalJsonEntry(
                                           "versions", createQuery(VersionPolicy.ALL, null)))))
                           .from(
                               EXTERNAL_ID
                                   .join(ANALYSIS_EXTERNAL_ID)
                                   .on(EXTERNAL_ID.ID.eq(ANALYSIS_EXTERNAL_ID.EXTERNAL_ID_ID)))
                           .where(ANALYSIS_EXTERNAL_ID.ANALYSIS_ID.eq(ANALYSIS.ID))),
-                  DSL.jsonEntry(
+                  literalJsonEntry(
                       "run",
                       DSL.field(
                           DSL.select(WORKFLOW_RUN.HASH_ID)
@@ -1489,15 +1471,15 @@ public final class Main implements ServerConfig {
           .select(
               DSL.jsonArrayAgg(
                   DSL.jsonObject(
-                      DSL.jsonEntry("workflow", WORKFLOW_VERSION.NAME),
-                      DSL.jsonEntry(
+                      literalJsonEntry("workflow", WORKFLOW_VERSION.NAME),
+                      literalJsonEntry(
                           "oldest",
                           DSL.field(
                               DSL.select(DSL.min(WORKFLOW_RUN.CREATED))
                                   .from(WORKFLOW_RUN)
                                   .where(
                                       WORKFLOW_RUN.WORKFLOW_VERSION_ID.eq(WORKFLOW_VERSION.ID)))),
-                      DSL.jsonEntry(
+                      literalJsonEntry(
                           "workflowRuns",
                           DSL.field(
                               DSL.select(DSL.jsonArrayAgg(WORKFLOW_RUN.HASH_ID))
@@ -1538,17 +1520,17 @@ public final class Main implements ServerConfig {
               .select(
                   DSL.jsonArrayAgg(
                       DSL.jsonObject(
-                          DSL.jsonEntry("name", WORKFLOW_VERSION.NAME),
-                          DSL.jsonEntry("version", WORKFLOW_VERSION.VERSION),
-                          DSL.jsonEntry("metadata", WORKFLOW_VERSION.METADATA),
-                          DSL.jsonEntry("parameters", WORKFLOW_VERSION.PARAMETERS),
-                          DSL.jsonEntry(
+                          literalJsonEntry("name", WORKFLOW_VERSION.NAME),
+                          literalJsonEntry("version", WORKFLOW_VERSION.VERSION),
+                          literalJsonEntry("metadata", WORKFLOW_VERSION.METADATA),
+                          literalJsonEntry("parameters", WORKFLOW_VERSION.PARAMETERS),
+                          literalJsonEntry(
                               "labels",
                               DSL.field(
                                   DSL.select(WORKFLOW.LABELS)
                                       .from(WORKFLOW)
                                       .where(WORKFLOW.NAME.eq(WORKFLOW_VERSION.NAME)))),
-                          DSL.jsonEntry("language", WORKFLOW_DEFINITION.WORKFLOW_LANGUAGE))))
+                          literalJsonEntry("language", WORKFLOW_DEFINITION.WORKFLOW_LANGUAGE))))
               .from(
                   WORKFLOW_VERSION
                       .join(WORKFLOW_DEFINITION)
@@ -1568,6 +1550,31 @@ public final class Main implements ServerConfig {
       exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/json");
       exchange.setStatusCode(StatusCodes.OK);
       exchange.getResponseSender().send(response == null ? "[]" : response.data());
+    } catch (SQLException e) {
+      e.printStackTrace();
+      exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);
+      exchange.getResponseSender().send(e.getMessage());
+    }
+  }
+
+  private void getWorkflow(HttpServerExchange exchange) {
+    final var name =
+        exchange.getAttachment(PathTemplateMatch.ATTACHMENT_KEY).getParameters().get("name");
+
+    try (final var connection = dataSource.getConnection()) {
+      final var result =
+          DSL.using(connection, SQLDialect.POSTGRES)
+              .select(
+                  DSL.jsonObject(
+                      literalJsonEntry("labels", WORKFLOW.LABELS),
+                      literalJsonEntry("isActive", WORKFLOW.IS_ACTIVE),
+                      literalJsonEntry("MaxInFlight", WORKFLOW.MAX_IN_FLIGHT)))
+              .from(WORKFLOW)
+              .where(WORKFLOW.NAME.eq(name))
+              .fetchOptional()
+              .map(r -> r.value1().data());
+      exchange.setStatusCode(result.isPresent() ? StatusCodes.OK : StatusCodes.NOT_FOUND);
+      exchange.getResponseSender().send(result.orElse("null"));
     } catch (SQLException e) {
       e.printStackTrace();
       exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);

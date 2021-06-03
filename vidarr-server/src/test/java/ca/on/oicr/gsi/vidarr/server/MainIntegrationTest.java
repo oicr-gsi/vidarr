@@ -9,15 +9,18 @@ import ca.on.oicr.gsi.vidarr.core.Phase;
 import ca.on.oicr.gsi.vidarr.core.RawInputProvisioner;
 import ca.on.oicr.gsi.vidarr.server.dto.ServerConfiguration;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.restassured.RestAssured;
 import io.restassured.common.mapper.TypeRef;
-import io.restassured.filter.log.LogDetail;
 import io.restassured.http.ContentType;
 import io.restassured.parsing.Parser;
+import io.restassured.path.json.JsonPath;
+import java.io.File;
+import java.io.IOException;
 import java.net.http.HttpClient;
 import java.net.http.HttpClient.Redirect;
 import java.sql.SQLException;
@@ -35,6 +38,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 import org.postgresql.ds.PGSimpleDataSource;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.JdbcDatabaseContainer;
@@ -53,6 +57,7 @@ public class MainIntegrationTest {
   private static Main main;
   private static HttpClient CLIENT =
       HttpClient.newBuilder().followRedirects(Redirect.NORMAL).build();
+  @ClassRule public static final TemporaryFolder unloadDirectory = new TemporaryFolder();
 
   private static ServerConfiguration getTestServerConfig(GenericContainer pg) {
     ServerConfiguration config = new ServerConfiguration();
@@ -70,6 +75,7 @@ public class MainIntegrationTest {
     config.setOutputProvisioners(new HashMap<>());
     config.setRuntimeProvisioners(new HashMap<>());
     config.setTargets(new HashMap<>());
+    config.setUnloadDirectory(unloadDirectory.getRoot().getAbsolutePath());
     return config;
   }
 
@@ -158,13 +164,9 @@ public class MainIntegrationTest {
     get("/api/workflow/{name}", "novel")
         .then()
         .assertThat()
-        .body(
-            "labels.keySet()",
-            emptyIterable(),
-            "maxInFlight",
-            equalTo(0),
-            "isActive",
-            equalTo(true));
+        .body("labels.keySet()", emptyIterable())
+        .body("maxInFlight", equalTo(0))
+        .body("isActive", equalTo(true));
   }
 
   @Test
@@ -175,6 +177,7 @@ public class MainIntegrationTest {
         .get("/api/workflows")
         .then()
         .assertThat()
+        .statusCode(200)
         .body("size()", is(2));
 
     var noParamWorkflow = MAPPER.writeValueAsString(new HashMap<>());
@@ -194,7 +197,6 @@ public class MainIntegrationTest {
         .then()
         .assertThat()
         .statusCode(200)
-        .and()
         .body("size()", is(2));
   }
 
@@ -207,6 +209,7 @@ public class MainIntegrationTest {
             .get("/api/workflows")
             .then()
             .assertThat()
+            .statusCode(200)
             .body("size()", is(2))
             .and()
             .extract()
@@ -229,14 +232,9 @@ public class MainIntegrationTest {
         .then()
         .assertThat()
         .statusCode(200)
-        .and()
-        .body(
-            "size()",
-            is(2),
-            "name",
-            everyItem(not(hasItem("bcl2fastq"))),
-            "version",
-            hasItems("1.0.0.12901362", "1.1.0"));
+        .body("size()", is(2))
+        .body("name", everyItem(not(hasItem("bcl2fastq"))))
+        .body("version", hasItems("1.0.0.12901362", "1.1.0"));
 
     var body = MAPPER.createObjectNode();
     body.put("language", "UNIX_SHELL");
@@ -264,8 +262,7 @@ public class MainIntegrationTest {
             .then()
             .assertThat()
             .statusCode(200)
-            .and()
-            .body("name", hasItems("import_fastq", "bcl2fastq"), "size()", is(15))
+            .body("name", hasItems("import_fastq", "bcl2fastq"), "size()", is(3))
             .and()
             .extract()
             .body()
@@ -339,7 +336,6 @@ public class MainIntegrationTest {
         .then()
         .assertThat()
         .statusCode(400)
-        .and()
         .body(containsString("workflow"), containsString("outputs"), containsString("parameters"));
 
     wfv.put("workflow", "#!/bin/sh 'missing some '");
@@ -350,7 +346,6 @@ public class MainIntegrationTest {
         .then()
         .assertThat()
         .statusCode(400)
-        .and()
         .body(
             not(containsString("workflow")),
             containsString("outputs"),
@@ -366,7 +361,6 @@ public class MainIntegrationTest {
         .then()
         .assertThat()
         .statusCode(400)
-        .and()
         .body(
             not(containsString("workflow")),
             not(containsString("outputs")),
@@ -409,8 +403,6 @@ public class MainIntegrationTest {
         .when()
         .post("/api/workflow/{name}/{version}", wfName, wfVersion)
         .then()
-        .log()
-        .ifValidationFails(LogDetail.BODY)
         .assertThat()
         .statusCode(201);
 
@@ -438,6 +430,7 @@ public class MainIntegrationTest {
         .get("/api/workflows")
         .then()
         .assertThat()
+        .statusCode(200)
         .body("size()", is(2));
 
     given().when().delete("/api/workflow/{name}", "novel").then().assertThat().statusCode(404);
@@ -449,7 +442,6 @@ public class MainIntegrationTest {
         .then()
         .assertThat()
         .statusCode(200)
-        .and()
         .body("size()", is(2));
   }
 
@@ -477,7 +469,6 @@ public class MainIntegrationTest {
         .then()
         .assertThat()
         .statusCode(200)
-        .and()
         .body("size()", is(0));
   }
 
@@ -490,6 +481,7 @@ public class MainIntegrationTest {
         .get("/api/workflow/{name}", workflow)
         .then()
         .assertThat()
+        .statusCode(200)
         .body("isActive", is(true));
 
     given().when().delete("/api/workflow/{name}", workflow).then().assertThat().statusCode(200);
@@ -500,6 +492,7 @@ public class MainIntegrationTest {
         .get("/api/workflow/{name}", workflow)
         .then()
         .assertThat()
+        .statusCode(200)
         .body("isActive", is(false));
   }
 
@@ -516,6 +509,7 @@ public class MainIntegrationTest {
         .get("/api/workflow/{name}", "bcl2fastq")
         .then()
         .assertThat()
+        .statusCode(200)
         .body("isActive", is(false));
   }
 
@@ -526,6 +520,7 @@ public class MainIntegrationTest {
             .when()
             .get("/api/waiting")
             .then()
+            .assertThat()
             .statusCode(200)
             .and()
             .extract()
@@ -546,7 +541,6 @@ public class MainIntegrationTest {
         .then()
         .assertThat()
         .statusCode(200)
-        .and()
         .body("$", hasKey("timestamp"), "workflows", hasKey("import_fastq"));
   }
 
@@ -679,7 +673,6 @@ public class MainIntegrationTest {
         .then()
         .assertThat()
         .statusCode(200)
-        .and()
         .body(
             "workflowName", equalTo("bcl2fastq"), "arguments.workflowRunSWID", equalTo("4444444"));
   }
@@ -704,16 +697,10 @@ public class MainIntegrationTest {
         .then()
         .assertThat()
         .statusCode(200)
-        .and()
-        .body(
-            "completed",
-            nullValue(),
-            "operationStatus",
-            equalTo("N/A"),
-            "waiting_resource",
-            equalTo("prometheus-alert-manager"),
-            "enginePhase",
-            equalTo(Phase.WAITING_FOR_RESOURCES.toString()));
+        .body("completed", nullValue())
+        .body("operationStatus", equalTo("N/A"))
+        .body("waiting_resource", equalTo("prometheus-alert-manager"))
+        .body("enginePhase", equalTo(Phase.WAITING_FOR_RESOURCES.toString()));
   }
 
   @Test
@@ -736,16 +723,10 @@ public class MainIntegrationTest {
         .then()
         .assertThat()
         .statusCode(200)
-        .and()
-        .body(
-            "completed",
-            not(nullValue()),
-            "operationStatus",
-            equalTo("N/A"),
-            "waiting_resource",
-            nullValue(),
-            "enginePhase",
-            nullValue());
+        .body("completed", not(nullValue()))
+        .body("operationStatus", equalTo("N/A"))
+        .body("waiting_resource", nullValue())
+        .body("enginePhase", nullValue());
   }
 
   @Test
@@ -756,6 +737,146 @@ public class MainIntegrationTest {
         .then()
         .assertThat()
         .statusCode(404);
+  }
+
+  @Test
+  public void whenGetWorkflowRunUrl_thenWorkflowRunIsReturned() {
+    given()
+        .when()
+        .get("/api/url/{hash}", "8b16674e6e2a36d1f689632b1f36d0fe0876b7d54583dfbdf76c4c58e0588531")
+        .then()
+        .assertThat()
+        .statusCode(200)
+        .body("run", equalTo("a5f036ac00769744f9349775b376bf9412a5b28191fb7dd5ca4e635338e9f2b5"))
+        .body("labels.keySet()", hasItems("read_count", "read_number", "niassa-file-accession"));
+  }
+
+  @Test
+  public void whenCopyOut_thenRecordsAreCopied() {
+    ObjectNode copyOutFilter = getBcl2FastqUnloadFilter();
+
+    var resp =
+        given()
+            .contentType(ContentType.JSON)
+            .body(copyOutFilter)
+            .when()
+            .post("/api/copy-out")
+            .then()
+            .assertThat()
+            .statusCode(200)
+            .body("workflowRuns.size()", is(8))
+            .body("workflowRuns.findAll { it.workflowName == \"bcl2fastq\" }.size()", is(8))
+            .and()
+            .extract()
+            .jsonPath();
+    var firstHash = resp.get("workflowRuns[0].id");
+
+    // Confirm run hasn't been unloaded
+    given().when().get("/api/run/{hash}", firstHash).then().assertThat().statusCode(200);
+  }
+
+  @Test
+  public void whenUnloadWorkflowRuns_thenFilesAreGone() throws IOException {
+    // Confirm that a bcl2fastq workflow run exists
+    given()
+        .when()
+        .get("/api/run/{hash}", "2f52b25df0a20cf41b0476b9114ad40a7d8d2edbddf0bed7d2d1b01d3f2d2b56")
+        .then()
+        .assertThat()
+        .statusCode(200)
+        .body("workflowName", equalTo("bcl2fastq"));
+
+    ObjectNode unloadFilter = getBcl2FastqUnloadFilter();
+
+    var unloadFileQuotedName =
+        given()
+            .contentType(ContentType.JSON)
+            .body(unloadFilter)
+            .when()
+            .post("/api/unload")
+            .then()
+            .assertThat()
+            .statusCode(200)
+            .and()
+            .extract()
+            .asInputStream();
+
+    var unloadFileName = MAPPER.readTree(unloadFileQuotedName).toString().replaceAll("\"", "");
+    var unloadedFilePath = unloadDirectory.getRoot().getAbsolutePath() + "/" + unloadFileName;
+
+    var unloaded = JsonPath.from(new File(unloadedFilePath));
+    assertThat(unloaded.getList("workflowRuns").size(), equalTo(8));
+    assertThat(
+        unloaded.getList("workflowRuns.findAll { it.workflowName == \"bcl2fastq\" }").size(),
+        equalTo(8));
+    var firstHash = unloaded.get("workflowRuns[0].id");
+
+    // Confirm that the bcl2fastq workflow run has been unloaded from the database
+    given().when().get("/api/run/{hash}", firstHash).then().assertThat().statusCode(404);
+  }
+
+  @Test
+  public void whenWorkflowRunsAreUnloaded_thenTheyCanBeLoaded() throws IOException {
+    var bcl2fastqHash = "2f52b25df0a20cf41b0476b9114ad40a7d8d2edbddf0bed7d2d1b01d3f2d2b56";
+    // Confirm that the bcl2fastq workflow run exists in the database
+    given().when().get("/api/run/{hash}", bcl2fastqHash).then().assertThat().statusCode(200);
+
+    ObjectNode unloadFilter = getBcl2FastqUnloadFilter();
+
+    var unloadFileQuotedName =
+        given()
+            .contentType(ContentType.JSON)
+            .body(unloadFilter)
+            .when()
+            .post("/api/unload")
+            .then()
+            .assertThat()
+            .statusCode(200)
+            .and()
+            .extract()
+            .asInputStream();
+
+    var unloadFileName = MAPPER.readTree(unloadFileQuotedName).toString().replaceAll("\"", "");
+    var unloadedFilePath = unloadDirectory.getRoot().getAbsolutePath() + "/" + unloadFileName;
+
+    var unloaded = MAPPER.readTree(new File(unloadedFilePath));
+
+    // Confirm that the bcl2fastq workflow run has been unloaded from the database
+    given().when().get("/api/run/{hash}", bcl2fastqHash).then().assertThat().statusCode(404);
+
+    given()
+        .contentType(ContentType.JSON)
+        .body(unloaded)
+        .when()
+        .post("/api/load")
+        .then()
+        .assertThat()
+        .statusCode(200);
+
+    // Confirm that the bcl2fastq workflow run has been loaded back into the database
+    given().when().get("/api/run/{hash}", bcl2fastqHash).then().assertThat().statusCode(200);
+
+    // Confirm that unloading the same data again produces the same result
+    var unload2FileQuotedName =
+        given()
+            .contentType(ContentType.JSON)
+            .body(unloadFilter)
+            .when()
+            .post("/api/unload")
+            .then()
+            .assertThat()
+            .statusCode(200)
+            .and()
+            .extract()
+            .asInputStream();
+    var unload2FileName = MAPPER.readTree(unload2FileQuotedName).toString().replaceAll("\"", "");
+    var unloaded2FilePath = unloadDirectory.getRoot().getAbsolutePath() + "/" + unload2FileName;
+
+    var reUnloaded = MAPPER.readTree(new File(unloaded2FilePath));
+    // Created and modified fields will be affected by our re-loading them into the db
+    removeCreatedAndModifiedFieldsForBetterComparisons(unloaded);
+    removeCreatedAndModifiedFieldsForBetterComparisons(reUnloaded);
+    assertEquals(reUnloaded, unloaded);
   }
 
   private ObjectNode getAnalysisFile() {
@@ -793,9 +914,39 @@ public class MainIntegrationTest {
     return on;
   }
 
+  private ObjectNode getBcl2FastqUnloadFilter() {
+    ObjectNode unloadFilter = MAPPER.createObjectNode();
+    unloadFilter.put("recursive", true);
+    ObjectNode filterType = MAPPER.createObjectNode();
+    filterType.put("type", "vidarr-workflow-name");
+    filterType.put("name", "bcl2fastq");
+    unloadFilter.set("filter", filterType);
+    return unloadFilter;
+  }
+
   private long dateFromTime(String timeString) throws ParseException {
     SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX");
     df.setTimeZone(TimeZone.getTimeZone("EST"));
     return df.parse(timeString).getTime();
+  }
+
+  private void removeCreatedAndModifiedFieldsForBetterComparisons(JsonNode unload) {
+    unload
+        .get("workflowRuns")
+        .forEach(
+            wfr -> {
+              ((ObjectNode) wfr).remove("modified");
+              wfr.get("externalKeys")
+                  .forEach(
+                      ek -> {
+                        ((ObjectNode) ek).remove("created");
+                        ((ObjectNode) ek).remove("modified");
+                      });
+              wfr.get("analysis")
+                  .forEach(
+                      a -> {
+                        ((ObjectNode) a).remove("modified");
+                      });
+            });
   }
 }

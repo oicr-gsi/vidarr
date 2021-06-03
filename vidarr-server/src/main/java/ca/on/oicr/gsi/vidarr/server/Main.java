@@ -64,6 +64,7 @@ import ca.on.oicr.gsi.vidarr.core.Phase;
 import ca.on.oicr.gsi.vidarr.core.Target;
 import ca.on.oicr.gsi.vidarr.server.DatabaseBackedProcessor.DeleteResultHandler;
 import ca.on.oicr.gsi.vidarr.server.dto.ServerConfiguration;
+import ca.on.oicr.gsi.vidarr.server.jooq.tables.ExternalIdVersion;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -273,67 +274,47 @@ public final class Main implements ServerConfig {
   private static Field<?> createQuery(VersionPolicy policy, Set<String> allowedTypes) {
     switch (policy) {
       case ALL:
-        {
-          var condition = EXTERNAL_ID.ID.eq(EXTERNAL_ID_VERSION.EXTERNAL_ID_ID);
-          if (allowedTypes != null) {
-            condition = condition.and(EXTERNAL_ID_VERSION.KEY.in(allowedTypes));
-          }
-          final var externalIdVersionAlias = EXTERNAL_ID_VERSION.as("externalIdVersionInner");
-          final var table =
-              DSL.selectDistinct(EXTERNAL_ID_VERSION.KEY.as("desired_key"))
-                  .from(EXTERNAL_ID_VERSION)
-                  .where(condition)
-                  .asTable("keys");
-
-          return DSL.field(
-              DSL.select(
-                      DSL.jsonObjectAgg(
-                          DSL.jsonEntry(
-                              table.field(0, String.class),
-                              DSL.field(
-                                  DSL.select(DSL.jsonArrayAgg(externalIdVersionAlias.VALUE))
-                                      .from(externalIdVersionAlias)
-                                      .where(
-                                          externalIdVersionAlias
-                                              .KEY
-                                              .eq(table.field(0, String.class))
-                                              .and(
-                                                  externalIdVersionAlias.EXTERNAL_ID_ID.eq(
-                                                      EXTERNAL_ID.ID)))))))
-                  .from(table));
-        }
+        return createQueryOnVersion(
+            externalVersionId -> DSL.jsonArrayAgg(externalVersionId.VALUE), allowedTypes);
       case LATEST:
-        {
-          var condition = EXTERNAL_ID.ID.eq(EXTERNAL_ID_VERSION.EXTERNAL_ID_ID);
-          if (allowedTypes != null) {
-            condition = condition.and(EXTERNAL_ID_VERSION.KEY.in(allowedTypes));
-          }
-          final var externalIdVersionAlias = EXTERNAL_ID_VERSION.as("externalIdVersionInner");
-          return DSL.field(
-              DSL.select(
-                      DSL.jsonObjectAgg(
-                          DSL.jsonEntry(
-                              EXTERNAL_ID_VERSION.KEY,
-                              DSL.field(
-                                  DSL.select(
-                                          DSL.lastValue(externalIdVersionAlias.VALUE)
-                                              .over()
-                                              .orderBy(externalIdVersionAlias.CREATED))
-                                      .from(externalIdVersionAlias)
-                                      .where(
-                                          externalIdVersionAlias
-                                              .KEY
-                                              .eq(EXTERNAL_ID_VERSION.KEY)
-                                              .and(
-                                                  externalIdVersionAlias.EXTERNAL_ID_ID.eq(
-                                                      EXTERNAL_ID.ID)))))))
-                  .from(EXTERNAL_ID_VERSION)
-                  .where(condition)
-                  .groupBy(EXTERNAL_ID_VERSION.KEY));
-        }
+        return createQueryOnVersion(
+            externalVersionId ->
+                DSL.lastValue(externalVersionId.VALUE).over().orderBy(externalVersionId.CREATED),
+            allowedTypes);
       default:
         return DSL.inline(null, SQLDataType.JSON);
     }
+  }
+
+  private static Field<?> createQueryOnVersion(
+      Function<ExternalIdVersion, Field<?>> fieldConstructor, Set<String> allowedTypes) {
+    var condition = EXTERNAL_ID.ID.eq(EXTERNAL_ID_VERSION.EXTERNAL_ID_ID);
+    if (allowedTypes != null) {
+      condition = condition.and(EXTERNAL_ID_VERSION.KEY.in(allowedTypes));
+    }
+    final var externalIdVersionAlias = EXTERNAL_ID_VERSION.as("externalIdVersionInner");
+    final var table =
+        DSL.selectDistinct(EXTERNAL_ID_VERSION.KEY.as("desired_key"))
+            .from(EXTERNAL_ID_VERSION)
+            .where(condition)
+            .asTable("keys");
+
+    return DSL.field(
+        DSL.select(
+                DSL.jsonObjectAgg(
+                    DSL.jsonEntry(
+                        table.field(0, String.class),
+                        DSL.field(
+                            DSL.select(fieldConstructor.apply(externalIdVersionAlias))
+                                .from(externalIdVersionAlias)
+                                .where(
+                                    externalIdVersionAlias
+                                        .KEY
+                                        .eq(table.field(0, String.class))
+                                        .and(
+                                            externalIdVersionAlias.EXTERNAL_ID_ID.eq(
+                                                EXTERNAL_ID.ID)))))))
+            .from(table));
   }
 
   private static void handleException(HttpServerExchange exchange) {

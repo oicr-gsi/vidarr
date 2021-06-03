@@ -1,0 +1,2 @@
+DROP INDEX IF EXISTS analysis_external_id_analysis_id;
+CREATE INDEX analysis_external_id_analysis_id ON analysis_external_id(analysis_id);

@@ -1517,14 +1517,8 @@ public final class Main implements ServerConfig {
                       .join(WORKFLOW_DEFINITION)
                       .on(WORKFLOW_VERSION.WORKFLOW_DEFINITION.eq(WORKFLOW_DEFINITION.ID)))
               .where(
-                  WORKFLOW_VERSION
-                      .NAME
-                      .in(DSL.select(WORKFLOW.NAME).from(WORKFLOW).where(WORKFLOW.IS_ACTIVE))
-                      .and(
-                          WORKFLOW_VERSION.MODIFIED.eq(
-                              DSL.select(DSL.max(workflowVersionAlias.MODIFIED))
-                                  .from(workflowVersionAlias)
-                                  .where(workflowVersionAlias.NAME.eq(WORKFLOW_VERSION.NAME)))))
+                  WORKFLOW_VERSION.NAME.in(
+                      DSL.select(WORKFLOW.NAME).from(WORKFLOW).where(WORKFLOW.IS_ACTIVE)))
               .fetchOptional()
               .orElseThrow()
               .value1();

@@ -43,7 +43,7 @@ public class NiassaOutputProvisioner implements OutputProvisioner {
           Map.entry("txt/junction", "text/junction"),
           Map.entry("txt/plain", "text/plain"));
 
-  private static Map<String, Semaphore> mkdirSemaphores = Map.of();
+  private static Semaphore mkdirSemaphore = new Semaphore(1);
 
   public static OutputProvisionerProvider provider() {
     return () -> Stream.of(new Pair<>("niassa", NiassaOutputProvisioner.class));
@@ -137,7 +137,6 @@ public class NiassaOutputProvisioner implements OutputProvisioner {
           }
           String sourcePath = dataAsJson.get("path").asText();
           Path targetPath = Path.of(metadata.get("outputDirectory").asText());
-          mkdirSemaphores.put(targetPath.toString(), new Semaphore(1));
 
           // Append chunks to target directory by repeatedly resolving path with chunk added
           int startIndex = 0;
@@ -151,9 +150,9 @@ public class NiassaOutputProvisioner implements OutputProvisioner {
 
           // Use the sftp client to create symlink to the TARGET
           try {
-            mkdirSemaphores.get(targetPath.toString()).acquire();
+            mkdirSemaphore.acquire();
             sftp.mkdirs(targetPath.toString());
-            mkdirSemaphores.get(targetPath.toString()).release();
+            mkdirSemaphore.release();
 
             // Be explicit about the target filename - sftp just says "failure" otherwise
             String[] sourcePathSplit = sourcePath.split("/");

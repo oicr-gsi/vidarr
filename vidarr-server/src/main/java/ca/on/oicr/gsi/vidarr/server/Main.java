@@ -410,7 +410,7 @@ public final class Main implements ServerConfig {
                                 monitor(
                                     new BlockingHandler(
                                         JsonPost.parse(
-                                            AddWorkflowRequest.class, server::addWorkflow))))
+                                            AddWorkflowRequest.class, server::upsertWorkflow))))
                             .delete(
                                 "/api/workflow/{name}",
                                 monitor(new BlockingHandler(server::disableWorkflow)))
@@ -736,7 +736,7 @@ public final class Main implements ServerConfig {
     unloadDirectory = Path.of(configuration.getUnloadDirectory());
   }
 
-  private void addWorkflow(HttpServerExchange exchange, AddWorkflowRequest request) {
+  private void upsertWorkflow(HttpServerExchange exchange, AddWorkflowRequest request) {
     final var name =
         exchange.getAttachment(PathTemplateMatch.ATTACHMENT_KEY).getParameters().get("name");
 
@@ -1881,11 +1881,11 @@ public final class Main implements ServerConfig {
                       workflowRun.getId(), String.join("; ", labelErrors)));
           return;
         }
-        final var knowExternalIds =
+        final var knownExternalIds =
             workflowRun.getExternalKeys().stream()
                 .map(e -> new Pair<>(e.getProvider(), e.getId()))
                 .collect(Collectors.toSet());
-        if (knowExternalIds.size() != workflowRun.getExternalKeys().size()) {
+        if (knownExternalIds.size() != workflowRun.getExternalKeys().size()) {
           exchange.setStatusCode(StatusCodes.BAD_REQUEST);
           exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
           exchange
@@ -1959,7 +1959,7 @@ public final class Main implements ServerConfig {
             return;
           }
           for (final var externalId : output.getExternalKeys()) {
-            if (!knowExternalIds.contains(
+            if (!knownExternalIds.contains(
                 new Pair<>(externalId.getProvider(), externalId.getId()))) {
               exchange.setStatusCode(StatusCodes.BAD_REQUEST);
               exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);

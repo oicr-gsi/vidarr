@@ -235,7 +235,7 @@ public abstract class DatabaseBackedProcessor
     }
     if (providedCount != labelCount) {
       return Stream.of(
-          String.format("%d labels are provided by %d are expected.", providedCount, labelCount));
+          String.format("%d labels are provided but %d are expected.", providedCount, labelCount));
     }
     return labels.entrySet().stream()
         .flatMap(

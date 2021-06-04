@@ -156,17 +156,6 @@ INSERT INTO active_workflow_run (id, attempt, cleanup_state, completed, consumab
 ((SELECT id FROM workflow_run WHERE hash_id = 'df7df7df7df7df7df7df7df7df7df70df7df7df7df7df7df7df7df7df7df7df7'), 1, '{"ok": "maybe"}', NULL, '{"required_services": ["inhibited-workflow"]}',('2021-01-01 02:00:00-04'::timestamptz), 0, true,('2021-01-01 02:00:00-04'::timestamptz), true, '{"gimme": "data"}', NULL, NULL, 'prometheus-alert-manager', NULL)
 ON CONFLICT DO NOTHING;
 
----- Update all primary key sequence trackers to account for our manual inserts
---SELECT setval(pg_get_serial_sequence('"active_operation"', 'id'), coalesce(max("id"), 1), max("id") IS NOT NULL) FROM "active_operation";
---SELECT setval(pg_get_serial_sequence('"active_workflow_run"', 'id'), coalesce(max("id"), 1), max("id") IS NOT NULL) FROM "active_workflow_run";
---SELECT setval(pg_get_serial_sequence('"analysis"', 'id'), coalesce(max("id"), 1), max("id") IS NOT NULL) FROM "analysis";
---SELECT setval(pg_get_serial_sequence('"external_id"', 'id'), coalesce(max("id"), 1), max("id") IS NOT NULL) FROM "external_id";
---SELECT setval(pg_get_serial_sequence('"external_id_version"', 'id'), coalesce(max("id"), 1), max("id") IS NOT NULL) FROM "external_id_version";
---SELECT setval(pg_get_serial_sequence('"workflow"', 'id'), coalesce(max("id"), 1), max("id") IS NOT NULL) FROM "workflow";
---SELECT setval(pg_get_serial_sequence('"workflow_definition"', 'id'), coalesce(max("id"), 1), max("id") IS NOT NULL) FROM "workflow_definition";
---SELECT setval(pg_get_serial_sequence('"workflow_run"', 'id'), coalesce(max("id"), 1), max("id") IS NOT NULL) FROM "workflow_run";
---SELECT setval(pg_get_serial_sequence('"workflow_version"', 'id'), coalesce(max("id"), 1), max("id") IS NOT NULL) FROM "workflow_version";
-
 -- Re-enable all triggers
 ALTER TABLE active_workflow_run ENABLE TRIGGER active_workflow_run_update;
 ALTER TABLE analysis ENABLE TRIGGER analysis_update;

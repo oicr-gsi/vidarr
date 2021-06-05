@@ -84,7 +84,7 @@ submitter can provide either:
 - a file known to Víðarr by its ID: `{"type": "INTERNAL", "contents": ["`_id_`"]}`
 - an external file and the external identifiers for this file: `{"type": "EXTERNAL", "contents": {"externalIds": `_externals_`, "configuration": `_config_`} }`
 
-_id_ is a single Víðarr ID in the form `vidarr:`_instance_`/`_hash_.
+_id_ is a single Víðarr ID in the form `vidarr:`_instance_`/file/`_hash_.
 _externals_ is a list of external IDs, encoded as an array of `{"id":
 "`_identifier_`", "provider": "`_provider_`"}` objects, where _identifier_ and
 _provider_ are arbitrary strings that match up to an external data source, such

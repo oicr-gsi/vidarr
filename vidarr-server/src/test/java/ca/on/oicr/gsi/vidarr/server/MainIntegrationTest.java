@@ -265,7 +265,7 @@ public class MainIntegrationTest {
             .assertThat()
             .statusCode(200)
             .and()
-            .body("name", hasItems("import_fastq", "bcl2fastq"), "size()", is(3))
+            .body("name", hasItems("import_fastq", "bcl2fastq"), "size()", is(15))
             .and()
             .extract()
             .body()

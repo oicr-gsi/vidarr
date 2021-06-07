@@ -18,10 +18,12 @@ import java.util.stream.Stream;
 abstract class BaseOutputExtractor<R, E> implements OutputType.Visitor<R> {
 
   public interface OutputData {
+
     <T> T visit(OutputDataVisitor<T> visitor);
   }
 
   public interface OutputDataVisitor<T> {
+
     T all();
 
     T external(Stream<ExternalId> ids);
@@ -58,14 +60,13 @@ abstract class BaseOutputExtractor<R, E> implements OutputType.Visitor<R> {
   }
 
   private R handle(WorkflowOutputDataType format, boolean optional) {
-
     if (metadata.isObject()
         && metadata.has("type")
         && metadata.get("type").isTextual()
         && metadata.has("contents")) {
       final var contents = metadata.get("contents");
       if (!contents.isArray()) {
-        return invalid("'metadata' 'contents' are not array.");
+        return invalid("(in metadata): 'contents' must be array.");
       }
       switch (metadata.get("type").asText()) {
         case "REMAINING":
@@ -73,7 +74,8 @@ abstract class BaseOutputExtractor<R, E> implements OutputType.Visitor<R> {
           if (contents.size() != remainingExpectedSize) {
             return invalid(
                 String.format(
-                    "Incorrect number of 'metadata' 'contents' of type REMAINING in %s. "
+                    "(in metadata): Incorrect number of values for 'contents' of 'type' "
+                        + "REMAINING in %s. "
                         + "Expected %d but got %d.",
                     format, remainingExpectedSize, contents.size()));
           }
@@ -93,7 +95,7 @@ abstract class BaseOutputExtractor<R, E> implements OutputType.Visitor<R> {
           if (contents.size() != allExpectedSize) {
             return invalid(
                 String.format(
-                    "Incorrect number of 'metadata' 'contents' of 'type' ALL in "
+                    "(in metadata): Incorrect number of values for 'contents' of 'type' ALL in "
                         + "%s. Expected %d but got %d.",
                     format, allExpectedSize, contents.size()));
           }
@@ -114,8 +116,8 @@ abstract class BaseOutputExtractor<R, E> implements OutputType.Visitor<R> {
             if (contents.size() != manualExpectedSize) {
               return invalid(
                   String.format(
-                      "Incorrect number of 'metadata' 'contents' of 'type' MANUAL in %s. "
-                          + "Expected %d but got %d",
+                      "(in metadata): Incorrect number of values for 'contents' of 'type' MANUAL "
+                          + "in %s. Expected %d but got %d",
                       format, manualExpectedSize, contents.size()));
             }
             var externalIds = mapper().treeToValue(contents.get(1), ExternalId[].class);
@@ -137,10 +139,21 @@ abstract class BaseOutputExtractor<R, E> implements OutputType.Visitor<R> {
         default:
           return invalid(
               String.format(
-                  "Unknown 'metadata' 'type' %s in %s.", metadata.get("type").asText(), format));
+                  "(in metadata): Unknown 'type' %s in %s.",
+                  metadata.get("type").asText(), format));
       }
+    } else if (!metadata.isObject()) {
+      return invalid(
+          String.format(
+              "(in metadata): this must be an object (because it's for output %s), but instead "
+                  + "it's a %s full of %s",
+              format, metadata.getNodeType(), metadata.toString()));
+    } else if (!metadata.has("type") || !metadata.get("type").isTextual()) {
+      return invalid("(in metadata): must contain field 'type' which has a text value.");
+    } else if (!metadata.has("contents")) {
+      return invalid("(in metadata): must contain field 'contents'.");
     } else {
-      return invalid(String.format("'metadata' is not an object in %s.", format));
+      return invalid("(in metadata): this object is misformatted");
     }
   }
 
@@ -211,7 +224,7 @@ abstract class BaseOutputExtractor<R, E> implements OutputType.Visitor<R> {
         }
         for (final var child : output) {
           if (!child.isObject()) {
-            return invalid("Element of 'output' list in is not object.");
+            return invalid("Element of 'output' list must be an object.");
           }
           final var key = new TreeMap<String, Object>();
           for (final var identifier : keys.entrySet()) {

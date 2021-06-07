@@ -1589,13 +1589,20 @@ public final class Main implements ServerConfig {
                   DSL.jsonObject(
                       literalJsonEntry("labels", WORKFLOW.LABELS),
                       literalJsonEntry("isActive", WORKFLOW.IS_ACTIVE),
-                      literalJsonEntry("MaxInFlight", WORKFLOW.MAX_IN_FLIGHT)))
+                      literalJsonEntry("maxInFlight", WORKFLOW.MAX_IN_FLIGHT)))
               .from(WORKFLOW)
               .where(WORKFLOW.NAME.eq(name))
               .fetchOptional()
               .map(r -> r.value1().data());
-      exchange.setStatusCode(result.isPresent() ? StatusCodes.OK : StatusCodes.NOT_FOUND);
-      exchange.getResponseSender().send(result.orElse("null"));
+      if (result.isPresent()) {
+        exchange.setStatusCode(StatusCodes.OK);
+        exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_JSON);
+        exchange.getResponseSender().send(result.get());
+      } else {
+        exchange.setStatusCode(StatusCodes.NOT_FOUND);
+        exchange.getResponseHeaders().put(Headers.CONTENT_LENGTH, 0);
+        exchange.getResponseSender().send("");
+      }
     } catch (SQLException e) {
       e.printStackTrace();
       exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);

@@ -7,6 +7,7 @@ tracked without modifying existing workflows.
 - [Víðarr Architecture](architecture.md)
 - [Administrator's Guide](admin-guide.md)
 - [Plugin Developer's Guide](plugin-guide.md)
+- [Anatomy of a Submission](submission.md)
 - [Understanding the Víðarr Type System](types.md)
 - [Loading and Unloading](load-unload.md)
 - [Víðarr Identifiers](identifiers.md)

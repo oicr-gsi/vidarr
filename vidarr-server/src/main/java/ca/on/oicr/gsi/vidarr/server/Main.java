@@ -208,9 +208,11 @@ public final class Main implements ServerConfig {
                             DSL.select(
                                     DSL.max(
                                         DSL.case_(ACTIVE_OPERATION.STATUS)
-                                            .when(OperationStatus.FAILED, 2)
-                                            .when(OperationStatus.SUCCEEDED, 0)
-                                            .otherwise(1)))
+                                            .when(DSL.inline(OperationStatus.FAILED), DSL.inline(2))
+                                            .when(
+                                                DSL.inline(OperationStatus.SUCCEEDED),
+                                                DSL.inline(0))
+                                            .otherwise(DSL.inline(1))))
                                 .from(ACTIVE_OPERATION)
                                 .where(
                                     ACTIVE_OPERATION
@@ -219,11 +221,11 @@ public final class Main implements ServerConfig {
                                         .and(
                                             ACTIVE_OPERATION.ATTEMPT.eq(
                                                 ACTIVE_WORKFLOW_RUN.ATTEMPT)))),
-                        -1))
-                .when(0, "SUCCEEDED")
-                .when(2, "FAILED")
-                .when(-1, "N/A")
-                .otherwise("WAITING")));
+                        DSL.inline(-1)))
+                .when(DSL.inline(0), DSL.inline("SUCCEEDED"))
+                .when(DSL.inline(2), DSL.inline("FAILED"))
+                .when(DSL.inline(-1), DSL.inline("N/A"))
+                .otherwise(DSL.inline("WAITING"))));
     STATUS_FIELDS.add(literalJsonEntry("created", WORKFLOW_RUN.CREATED));
     STATUS_FIELDS.add(literalJsonEntry("id", WORKFLOW_RUN.HASH_ID));
     STATUS_FIELDS.add(literalJsonEntry("inputFiles", WORKFLOW_RUN.INPUT_FILE_IDS));
@@ -237,15 +239,17 @@ public final class Main implements ServerConfig {
     STATUS_FIELDS.add(
         literalJsonEntry(
             "running",
-            DSL.nvl(DSL.field(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE.ne(Phase.FAILED)), false)));
+            DSL.nvl(
+                DSL.field(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE.ne(DSL.inline(Phase.FAILED))),
+                DSL.inline(false))));
     STATUS_FIELDS.add(literalJsonEntry("attempt", ACTIVE_WORKFLOW_RUN.ATTEMPT));
     STATUS_FIELDS.add(
         literalJsonEntry(
             "enginePhase",
             DSL.case_(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE)
-                .mapValues(
+                .mapFields(
                     Stream.of(Phase.values())
-                        .collect(Collectors.toMap(Function.identity(), Phase::name)))));
+                        .collect(Collectors.toMap(DSL::inline, v -> DSL.inline(v.name()))))));
 
     STATUS_FIELDS.add(literalJsonEntry("preflightOk", ACTIVE_WORKFLOW_RUN.PREFLIGHT_OKAY));
     STATUS_FIELDS.add(literalJsonEntry("target", ACTIVE_WORKFLOW_RUN.TARGET));
@@ -261,11 +265,11 @@ public final class Main implements ServerConfig {
                                 literalJsonEntry(
                                     "enginePhase",
                                     DSL.case_(ACTIVE_OPERATION.ENGINE_PHASE)
-                                        .mapValues(
+                                        .mapFields(
                                             Stream.of(Phase.values())
                                                 .collect(
                                                     Collectors.toMap(
-                                                        Function.identity(), Phase::name)))),
+                                                        DSL::inline, p -> DSL.inline(p.name()))))),
                                 literalJsonEntry("recoveryState", ACTIVE_OPERATION.RECOVERY_STATE),
                                 literalJsonEntry("debugInformation", ACTIVE_OPERATION.DEBUG_INFO),
                                 literalJsonEntry("status", ACTIVE_OPERATION.STATUS),

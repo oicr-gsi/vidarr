@@ -80,7 +80,7 @@ public class PrometheusAlertManagerConsumableResource implements ConsumableResou
 
   @Override
   public Optional<Pair<String, BasicType>> inputFromSubmitter() {
-    return Optional.of(new Pair<>("required_services", BasicType.STRING.asList()));
+    return Optional.of(new Pair<>("stop_if_autoinhibits_firing", BasicType.STRING.asList()));
   }
 
   @Override

@@ -1,0 +1,2 @@
+DROP INDEX IF EXISTS active_operation_workflow_run_id;
+CREATE INDEX active_operation_workflow_run_id ON active_operation(workflow_run_id);

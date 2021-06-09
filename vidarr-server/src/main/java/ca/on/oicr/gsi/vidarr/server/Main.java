@@ -757,6 +757,11 @@ public final class Main implements ServerConfig {
                       .doUpdate()
                       .set(WORKFLOW.IS_ACTIVE, true)
                       .set(WORKFLOW.MAX_IN_FLIGHT, request.getMaxInFlight())
+                      .where(
+                          WORKFLOW
+                              .IS_ACTIVE
+                              .isFalse()
+                              .or(WORKFLOW.MAX_IN_FLIGHT.ne(request.getMaxInFlight())))
                       .execute());
       maxInFlightPerWorkflow.set(name, request.getMaxInFlight());
       exchange.setStatusCode(StatusCodes.CREATED);
@@ -870,7 +875,7 @@ public final class Main implements ServerConfig {
                 }
                 dsl.update(WORKFLOW)
                     .set(WORKFLOW.IS_ACTIVE, true)
-                    .where(WORKFLOW.NAME.eq(name))
+                    .where(WORKFLOW.NAME.eq(name).and(WORKFLOW.IS_ACTIVE.isFalse()))
                     .execute();
                 if (!accessoryHashes.isEmpty()) {
 
@@ -1118,7 +1123,7 @@ public final class Main implements ServerConfig {
                       DSL.using(context)
                           .update(WORKFLOW)
                           .set(WORKFLOW.IS_ACTIVE, false)
-                          .where(WORKFLOW.NAME.eq(name))
+                          .where(WORKFLOW.NAME.eq(name).and(WORKFLOW.IS_ACTIVE.isTrue()))
                           .execute());
       exchange.setStatusCode(count == 0 ? StatusCodes.NOT_FOUND : StatusCodes.OK);
       exchange.getResponseHeaders().put(Headers.CONTENT_LENGTH, 0);

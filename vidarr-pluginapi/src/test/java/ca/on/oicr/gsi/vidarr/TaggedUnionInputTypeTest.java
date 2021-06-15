@@ -3,8 +3,6 @@ package ca.on.oicr.gsi.vidarr;
 import static ca.on.oicr.gsi.vidarr.VeryLongString.VERY_LONG;
 
 import ca.on.oicr.gsi.Pair;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -28,23 +26,13 @@ public class TaggedUnionInputTypeTest extends InputTypeTest {
   @Test
   public void testSerializeMany() {
     List<Pair<String, InputType>> varargs = new LinkedList<>();
-    ObjectNode root = MAPPER.createObjectNode(), options = MAPPER.createObjectNode();
-    root.put("is", "tagged-union");
-    String json = "";
+    String json =
+        "{\"is\":\"tagged-union\",\"options\":{\"fieldz\":\"boolean\",\"fielda\":\"boolean\",\"fieldg\":\"boolean\",\"fieldf\":\"boolean\",\"fieldi\":\"boolean\",\"fieldh\":\"boolean\",\"fieldc\":\"boolean\",\"fieldb\":\"boolean\",\"fielde\":\"boolean\",\"fieldd\":\"boolean\",\"fieldo\":\"boolean\",\"fieldn\":\"boolean\",\"fieldq\":\"boolean\",\"fieldp\":\"boolean\",\"fieldk\":\"boolean\",\"fieldj\":\"boolean\",\"fieldm\":\"boolean\",\"fieldl\":\"boolean\",\"fieldw\":\"boolean\",\"fieldv\":\"boolean\",\"fieldy\":\"boolean\",\"fieldx\":\"boolean\",\"fields\":\"boolean\",\"fieldr\":\"boolean\",\"fieldu\":\"boolean\",\"fieldt\":\"boolean\"}}";
 
-    // FIXME the limit is set to 'b' here because at 'c' it stops serializing in alphabetical order.
-    // This isn't actually something that should break the test
-    for (char c = 'a'; c <= 'b'; c++) {
+    for (char c = 'a'; c <= 'z'; c++) {
       varargs.add(new Pair<>("field" + c, InputType.BOOLEAN));
-      options.put("field" + c, "boolean");
-      root.set("options", options);
-      try {
-        json = MAPPER.writeValueAsString(root);
-      } catch (JsonProcessingException e) {
-        Assert.fail("JsonProcessingException writing long json: " + e.getMessage());
-      }
-      serializeTester(json, InputType.taggedUnionFromPairs(varargs.stream()));
     }
+    serializeTester(json, InputType.taggedUnionFromPairs(varargs.stream()));
   }
 
   @Test

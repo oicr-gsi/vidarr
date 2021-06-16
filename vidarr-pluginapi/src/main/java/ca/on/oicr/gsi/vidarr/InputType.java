@@ -11,12 +11,7 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.ValueNode;
 import java.io.IOException;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Spliterators;
-import java.util.TreeMap;
+import java.util.*;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -551,6 +546,14 @@ public abstract class InputType {
       for (final var type : union.values()) {
         Objects.requireNonNull(type, "union type contents");
       }
+
+      if (union.size() == 0)
+        throw new IllegalArgumentException("TaggedUnion InputType needs at least 1 field, got 0.");
+
+      if (union.containsKey(""))
+        throw new IllegalArgumentException(
+            "Found illegal field key \"\" while creating TaggedUnion InputType.");
+
       this.union = Collections.unmodifiableMap(union);
     }
 
@@ -582,6 +585,23 @@ public abstract class InputType {
 
     private TupleInputType(InputType[] types) {
       this.types = types;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) {
+        return true;
+      }
+      if (o == null || getClass() != o.getClass()) {
+        return false;
+      }
+      TupleInputType that = (TupleInputType) o;
+      return Arrays.equals(this.types, that.types);
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(types);
     }
 
     @Override
@@ -684,15 +704,39 @@ public abstract class InputType {
    * Create a new object type
    *
    * @param fields the names and types of the fields; duplicate names are not permitted
+   * @throws IllegalArgumentException if given a Stream with 0 elements, or a field key is empty
+   *     string
    */
   public static InputType object(Stream<Pair<String, InputType>> fields) {
-    return new ObjectInputType(fields);
+    // Sanity checking
+    final List<Pair<String, InputType>> fieldsList = fields.collect(Collectors.toList());
+    if (fieldsList.size() == 0)
+      throw new IllegalArgumentException("Object InputType needs at least 1 field, got 0.");
+
+    for (final Map.Entry<String, Long> entry :
+        fieldsList.stream()
+            .collect(Collectors.groupingBy(Pair::first, Collectors.counting()))
+            .entrySet()) {
+      if (entry.getKey().equals("")) {
+        throw new IllegalArgumentException(
+            "Found illegal field key \"\" while creating Object InputType.");
+      }
+      if (entry.getValue() > 1) {
+        throw new IllegalArgumentException(
+            "Found illegal duplicate key(s) "
+                + entry.getValue()
+                + " while creating Object InputType.");
+      }
+    }
+
+    return new ObjectInputType(fieldsList.stream());
   }
 
   /**
    * Create a new object type
    *
    * @param fields the names and types of the fields; duplicate names are not permitted
+   * @throws IllegalArgumentException if given a Stream with 0 elements
    */
   @SafeVarargs
   public static InputType object(Pair<String, InputType>... fields) {
@@ -754,16 +798,15 @@ public abstract class InputType {
    * @param elements the possible data structures; the string identifiers must be unique
    */
   public static InputType taggedUnionFromPairs(Stream<Pair<String, InputType>> elements) {
-    return new InputType() {
-      private final Map<String, InputType> union =
-          Collections.unmodifiableMap(
-              elements.collect(Collectors.toMap(Pair::first, Pair::second)));
-
-      @Override
-      public <R> R apply(Visitor<R> transformer) {
-        return transformer.taggedUnion(union.entrySet().stream());
-      }
-    };
+    return new TaggedUnionInputType(
+        elements.collect(
+            Collectors.toMap(
+                Pair::first,
+                Pair::second,
+                (a, b) -> {
+                  throw new IllegalArgumentException("Duplicate identifier in tagged union.");
+                },
+                TreeMap::new)));
   }
 
   /**

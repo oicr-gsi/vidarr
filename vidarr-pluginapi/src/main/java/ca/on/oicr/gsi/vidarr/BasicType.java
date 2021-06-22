@@ -161,7 +161,7 @@ public abstract class BasicType {
           case "string":
             return BasicType.STRING;
           default:
-            throw new IllegalArgumentException("Unknown engine type: " + str);
+            throw new IllegalArgumentException("Unknown basic type: " + str);
         }
       } else if (node.isObject() && node instanceof ObjectNode) {
         final var obj = (ObjectNode) node;

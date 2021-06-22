@@ -410,7 +410,7 @@ public final class Main implements ServerConfig {
                                 monitor(
                                     new BlockingHandler(
                                         JsonPost.parse(
-                                            AddWorkflowRequest.class, server::addWorkflow))))
+                                            AddWorkflowRequest.class, server::upsertWorkflow))))
                             .delete(
                                 "/api/workflow/{name}",
                                 monitor(new BlockingHandler(server::disableWorkflow)))
@@ -736,7 +736,7 @@ public final class Main implements ServerConfig {
     unloadDirectory = Path.of(configuration.getUnloadDirectory());
   }
 
-  private void addWorkflow(HttpServerExchange exchange, AddWorkflowRequest request) {
+  private void upsertWorkflow(HttpServerExchange exchange, AddWorkflowRequest request) {
     final var name =
         exchange.getAttachment(PathTemplateMatch.ATTACHMENT_KEY).getParameters().get("name");
 
@@ -905,10 +905,10 @@ public final class Main implements ServerConfig {
                   }
                   accessoryQuery.execute();
                 }
+                exchange.setStatusCode(StatusCodes.CREATED);
+                exchange.getResponseHeaders().put(Headers.CONTENT_LENGTH, 0);
+                exchange.getResponseSender().send("");
               });
-      exchange.setStatusCode(StatusCodes.CREATED);
-      exchange.getResponseHeaders().put(Headers.CONTENT_LENGTH, 0);
-      exchange.getResponseSender().send("");
     } catch (SQLException e) {
       e.printStackTrace();
       exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);
@@ -1886,11 +1886,11 @@ public final class Main implements ServerConfig {
                       workflowRun.getId(), String.join("; ", labelErrors)));
           return;
         }
-        final var knowExternalIds =
+        final var knownExternalIds =
             workflowRun.getExternalKeys().stream()
                 .map(e -> new Pair<>(e.getProvider(), e.getId()))
                 .collect(Collectors.toSet());
-        if (knowExternalIds.size() != workflowRun.getExternalKeys().size()) {
+        if (knownExternalIds.size() != workflowRun.getExternalKeys().size()) {
           exchange.setStatusCode(StatusCodes.BAD_REQUEST);
           exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
           exchange
@@ -1964,7 +1964,7 @@ public final class Main implements ServerConfig {
             return;
           }
           for (final var externalId : output.getExternalKeys()) {
-            if (!knowExternalIds.contains(
+            if (!knownExternalIds.contains(
                 new Pair<>(externalId.getProvider(), externalId.getId()))) {
               exchange.setStatusCode(StatusCodes.BAD_REQUEST);
               exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
@@ -1981,7 +1981,7 @@ public final class Main implements ServerConfig {
               return;
             }
           }
-          if (!output.getType().equals("file") && output.getType().equals("url")) {
+          if (!output.getType().equals("file") && !output.getType().equals("url")) {
             exchange.setStatusCode(StatusCodes.BAD_REQUEST);
             exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
             exchange
@@ -2580,24 +2580,30 @@ public final class Main implements ServerConfig {
   private Map<String, BasicType> upsertWorkflowReturningLabels(
       Configuration configuration, String workflowName, Map<String, BasicType> workflowLabels)
       throws JsonProcessingException {
-    return MAPPER.readValue(
-        DSL.using(configuration)
-            .insertInto(WORKFLOW)
-            .set(WORKFLOW.NAME, workflowName)
-            .set(WORKFLOW.IS_ACTIVE, false)
-            .set(WORKFLOW.MAX_IN_FLIGHT, 0)
-            .set(WORKFLOW.LABELS, JSONB.valueOf(MAPPER.writeValueAsString(workflowLabels)))
-            .onConflict(WORKFLOW.NAME)
-            .doUpdate()
-            .set(
-                WORKFLOW.IS_ACTIVE, WORKFLOW.IS_ACTIVE) // We do this pointless update because if we
-            // don't, Postgres will return no rows
-            .returningResult(WORKFLOW.LABELS)
-            .fetchOptional()
-            .orElseThrow()
-            .value1()
-            .data(),
-        new TypeReference<>() {});
+    var result =
+        Optional.ofNullable(
+                DSL.using(configuration)
+                    .insertInto(WORKFLOW)
+                    .set(WORKFLOW.NAME, workflowName)
+                    .set(WORKFLOW.IS_ACTIVE, false)
+                    .set(WORKFLOW.MAX_IN_FLIGHT, 0)
+                    .set(WORKFLOW.LABELS, JSONB.valueOf(MAPPER.writeValueAsString(workflowLabels)))
+                    .onConflict(WORKFLOW.NAME)
+                    .doUpdate()
+                    .set(
+                        WORKFLOW.IS_ACTIVE,
+                        WORKFLOW.IS_ACTIVE) // We do this pointless update because if we
+                    // don't, Postgres will return no rows
+                    .returningResult(WORKFLOW.LABELS)
+                    .fetchOptional()
+                    .orElseThrow()
+                    .value1())
+            .map(r -> r.data())
+            .orElseGet(() -> "{}"); // There are some cases
+    // where value1 is present enough to be returned, but null-like enough to throw NPE when
+    // calling .data() on it.
+
+    return MAPPER.readValue(result, new TypeReference<>() {});
   }
 
   private Condition workflowUsesInputFrom(Collection<Integer> workflowIds) {

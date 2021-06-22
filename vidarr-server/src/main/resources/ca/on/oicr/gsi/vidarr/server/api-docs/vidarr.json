@@ -23,6 +23,101 @@
           }
         }
       },
+      "CopyUnloadFilter": {
+        "properties": {
+          "recursive": {
+            "type": "boolean",
+            "description": "Whether the workflows that consumed the output of the filtered workflow should be dumped as well. This can be toggled for copy-out, but unload is always recursive"
+          },
+          "filter": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "description": "literal string 'type' of the kind of filter to be applied",
+                "type": "string"
+              },
+              "name": {
+                "description": "name of the kind of filter to be applied",
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "CopyUnloadOutput": {
+        "properties": {
+          "workflows": {
+            "type": "array",
+            "items": {
+              "description": "Workflows that match the items in the filter",
+              "properties": {
+                "labels": {
+                  "additionalProperties": {
+                    "$ref": "#/components/SimpleType"
+                  },
+                  "type": "object"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            }
+          },
+          "workflowVersions": {
+            "type": "array",
+            "items": {
+              "description": "Workflow versions that match the items in the filter",
+              "properties": {
+                "accessoryFiles": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "description": "Any supplemental files required by the workflow (e.g. other workflows that are imported or included by the main workflow",
+                  "type": "object"
+                },
+                "language": {
+                  "$ref": "#/components/schemas/WorkflowLanguage"
+                },
+                "name": {
+                  "description": "The name of the workflow associated with this workflow version",
+                  "type": "string"
+                },
+                "outputs": {
+                  "additionalProperties": {
+                    "$ref": "#/components/schemas/OutputProvisionType"
+                  },
+                  "description": "The outputs from the workflow that should be provisioned by Víðarr.",
+                  "type": "object"
+                },
+                "parameters": {
+                  "additionalProperties": {
+                    "$ref": "#/components/schemas/InputType"
+                  },
+                  "description": "The user-defined labels that must be supplied with this job. This cannot be modified after the initial creation of the workflow.",
+                  "type": "object"
+                },
+                "version": {
+                  "description": "Version of the workflow",
+                  "type": "string"
+                },
+                "workflow": {
+                  "description": "Instructions of what to run with the workflow, written in the WorkflowLanguage",
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            }
+          },
+          "workflowRuns": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowRun"
+            }
+          },
+          "type": "object"
+        }
+      },
       "ExternalKey": {
         "items": {
           "properties": {
@@ -712,6 +807,82 @@
           }
         },
         "type": "object"
+      },
+      "WorkflowStatus":  {
+        "properties": {
+          "arguments": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "completed": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "created": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "engineParameters": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "enginePhase": {
+            "type": "integer"
+          },
+          "id": {
+            "type": "string"
+          },
+          "inputFiles": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "labels": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "modified": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "operations": {
+            "items": {
+              "properties": {
+                "recoveryState": {},
+                "status": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "preflightOk": {
+            "type": "boolean"
+          },
+          "running": {
+            "type": "boolean"
+          },
+          "started": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          },
+          "workflowRunUrl": {
+            "type": "string"
+          }
+        },
+        "type": "object"
       }
     }
   },
@@ -742,6 +913,96 @@
                     }
                   },
                   "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/copy-out": {
+      "post": {
+        "description": "Get the workflow, workflow version, and workflow run data for the items selected by the filter. If 'recursive' is true, the output will also include any workflow runs that consumed the output of a workflow run selected by the filter.",
+        "requestBody": {
+          "description": "Available filters are: [\"and\", \"not\", \"or\", \"vidarr-analysis-id\", \"vidarr-completed-after\", \"vidarr-external-id\", \"vidarr-external-provider\", \"vidarr-last-submitted-after\", \"vidarr-workflow-id\", \"vidarr-workflow-name\", \"vidarr-workflow-run-id\"]. Filters can be combined.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CopyUnloadFilter"
+              },
+              "type": "object"
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "A copy of the selected workflow, workflow version, and workflow run data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CopyUnloadOutput"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request filters are malformed"
+          }
+        }
+      }
+    },
+    "/api/unload": {
+      "post": {
+        "description": "Remove selected workflow runs and any workflow runs that consumed their output from the database and download them to the configured 'unloadDirectory'. Any unfinished workflow runs that consumed the selected workflow runs will enter a failed state but will not be removed directly.",
+        "requestBody": {
+          "description": "Available filters are: [\"and\", \"not\", \"or\", \"vidarr-analysis-id\", \"vidarr-completed-after\", \"vidarr-external-id\", \"vidarr-external-provider\", \"vidarr-last-submitted-after\", \"vidarr-workflow-id\", \"vidarr-workflow-name\", \"vidarr-workflow-run-id\"]. Filters can be combined. Definitionally, 'recursive' is true",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CopyUnloadFilter"
+              },
+              "type": "object"
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Name of the file in the configured 'unloadDirectory' where the unloaded data is stored. This data will be removed from the Vidarr database",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "example": "unload-2021-0603T13:14:36.679474Z.json"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/load": {
+      "post": {
+        "description": "Add workflow and workflow run data to the Vidarr database.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CopyUnloadOutput"
+              },
+              "type": "object"
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Workflows and workflow runs were added to the Vidarr database"
+          },
+          "400":  {
+            "description": "Workflows, workflow versions, or workflow runs are malformed or in conflict with existing data",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -914,6 +1175,28 @@
         ]
       }
     },
+    "/api/status": {
+      "get": {
+        "description": "Get information about all workflow runs that are not yet completed",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "description": "Status information for all workflow runs that are not yet completed",
+                "items": {
+                  "$ref": "#/components/schemas/WorkflowStatus"
+                },
+                "type": "array"
+              }
+            }
+          }
+        },
+        "summary": "Get status of all active workflow runs",
+        "tags": [
+          "workflow-run"
+        ]
+      }
+    },
     "/api/status/{hash}": {
       "get": {
         "description": "Get the information about a workflow run that is not yet completed",
@@ -930,80 +1213,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "arguments": {
-                      "additionalProperties": true,
-                      "type": "object"
-                    },
-                    "completed": {
-                      "format": "date-time",
-                      "type": "string"
-                    },
-                    "created": {
-                      "format": "date-time",
-                      "type": "string"
-                    },
-                    "engineParameters": {
-                      "additionalProperties": true,
-                      "type": "object"
-                    },
-                    "enginePhase": {
-                      "type": "integer"
-                    },
-                    "id": {
-                      "type": "string"
-                    },
-                    "inputFiles": {
-                      "items": {
-                        "type": "string"
-                      },
-                      "type": "array"
-                    },
-                    "labels": {
-                      "additionalProperties": true,
-                      "type": "object"
-                    },
-                    "metadata": {
-                      "additionalProperties": true,
-                      "type": "object"
-                    },
-                    "modified": {
-                      "format": "date-time",
-                      "type": "string"
-                    },
-                    "operations": {
-                      "items": {
-                        "properties": {
-                          "recoveryState": {},
-                          "status": {
-                            "type": "string"
-                          },
-                          "type": {
-                            "type": "string"
-                          }
-                        },
-                        "type": "object"
-                      },
-                      "type": "array"
-                    },
-                    "preflightOk": {
-                      "type": "boolean"
-                    },
-                    "running": {
-                      "type": "boolean"
-                    },
-                    "started": {
-                      "format": "date-time",
-                      "type": "string"
-                    },
-                    "target": {
-                      "type": "string"
-                    },
-                    "workflowRunUrl": {
-                      "type": "string"
-                    }
-                  },
-                  "type": "object"
+                  "$ref": "#/components/schemas/WorkflowStatus"
                 }
               }
             },
@@ -1014,6 +1224,28 @@
           }
         },
         "summary": "Get status of a workflow run",
+        "tags": [
+          "workflow-run"
+        ]
+      },
+      "delete": {
+        "description": "Delete an active workflow run using the workflow run's unique identifier",
+        "parameters": [{
+          "name": "hash",
+          "in": "path",
+          "description": "Unique workflow run identifier",
+          "required": true,
+          "type": "string"
+        }],
+        "responses": {
+          "200": {
+            "description": "The workflow run was deleted"
+          },
+          "404": {
+            "description": "No workflow run was found for the given identifier"
+          }
+        },
+        "summary": "Delete an active workflow run",
         "tags": [
           "workflow-run"
         ]
@@ -1189,10 +1421,7 @@
             "description": "All available targets"
           }
         },
-        "summary": "List available targets",
-        "tags": [
-          "workflow"
-        ]
+        "summary": "List available targets"
       }
     },
     "/api/url/{hash}": {
@@ -1267,8 +1496,8 @@
                           "description": "The new value to insert using the new version key.",
                           "type": "string"
                         },
-                        "identifer": {
-                          "description": "The external identifier's name.",
+                        "id": {
+                          "description": "The external id's name.",
                           "type": "string"
                         },
                         "old": {
@@ -1284,8 +1513,7 @@
                 "type": "object"
               }
             }
-          },
-          "description": "TODO"
+          }
         },
         "responses": {
           "200": {
@@ -1296,13 +1524,10 @@
                 }
               }
             },
-            "description": "The number of records update."
+            "description": "The number of records that were updated."
           }
         },
-        "summary": "Update external versions",
-        "tags": [
-          "workflow-run"
-        ]
+        "summary": "Update external versions"
       }
     },
     "/api/workflow/{name}": {
@@ -1374,11 +1599,11 @@
         ]
       },
       "post": {
-        "description": "Create or configure a workflow. If a workflow was previously deactivated, this reactivates that workflow.",
+        "description": "Create a workflow. If the workflow already exists, update its max-in-flight. If a workflow was previously deactivated, this reactivates that workflow.",
         "parameters": [{
           "name": "name",
           "in": "path",
-          "description": "Name of workflow to add",
+          "description": "Name of workflow to add or update",
           "required": true,
           "type": "string"
         }],

@@ -4,20 +4,26 @@ import static io.restassured.RestAssured.*;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 
 import ca.on.oicr.gsi.vidarr.core.Phase;
 import ca.on.oicr.gsi.vidarr.core.RawInputProvisioner;
 import ca.on.oicr.gsi.vidarr.server.dto.ServerConfiguration;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.restassured.RestAssured;
 import io.restassured.common.mapper.TypeRef;
-import io.restassured.filter.log.LogDetail;
 import io.restassured.http.ContentType;
 import io.restassured.parsing.Parser;
+import io.restassured.path.json.JsonPath;
+import java.io.File;
+import java.io.IOException;
 import java.net.http.HttpClient;
 import java.net.http.HttpClient.Redirect;
 import java.sql.SQLException;
@@ -35,6 +41,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 import org.postgresql.ds.PGSimpleDataSource;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.JdbcDatabaseContainer;
@@ -51,8 +58,9 @@ public class MainIntegrationTest {
   private static final ObjectMapper MAPPER = new ObjectMapper();
   private static ServerConfiguration config;
   private static Main main;
-  private static HttpClient CLIENT =
+  private static final HttpClient CLIENT =
       HttpClient.newBuilder().followRedirects(Redirect.NORMAL).build();
+  @ClassRule public static final TemporaryFolder unloadDirectory = new TemporaryFolder();
 
   private static ServerConfiguration getTestServerConfig(GenericContainer pg) {
     ServerConfiguration config = new ServerConfiguration();
@@ -70,6 +78,7 @@ public class MainIntegrationTest {
     config.setOutputProvisioners(new HashMap<>());
     config.setRuntimeProvisioners(new HashMap<>());
     config.setTargets(new HashMap<>());
+    config.setUnloadDirectory(unloadDirectory.getRoot().getAbsolutePath());
     return config;
   }
 
@@ -108,13 +117,12 @@ public class MainIntegrationTest {
 
   @Test
   public void whenGetHomepage_then200Response() {
-    when().get("/").then().assertThat().statusCode(200);
+    get("/").then().assertThat().statusCode(200);
   }
 
   @Test
-  public void whenGetWorkflows_thenAvailableWorkflowsAreFound() throws JsonProcessingException {
-    List<Map<String, Object>> activeWorkflows =
-        get("/api/workflows").as(new TypeRef<List<Map<String, Object>>>() {});
+  public void whenGetWorkflows_thenAvailableWorkflowsAreFound() {
+    List<Map<String, Object>> activeWorkflows = get("/api/workflows").as(new TypeRef<>() {});
     assertThat(activeWorkflows, hasSize(2));
 
     assertThat(activeWorkflows.get(0).get("name"), equalTo("import_fastq"));
@@ -137,13 +145,7 @@ public class MainIntegrationTest {
 
   @Test
   public void whenAddWorkflow_thenWorkflowIsAdded() throws JsonProcessingException {
-    given()
-        .contentType(ContentType.JSON)
-        .when()
-        .get("/api/workflow/{name}", "novel")
-        .then()
-        .assertThat()
-        .statusCode(404);
+    get("/api/workflow/{name}", "novel").then().assertThat().statusCode(404);
 
     var noParamWorkflow = MAPPER.writeValueAsString(new HashMap<>());
 
@@ -158,24 +160,65 @@ public class MainIntegrationTest {
     get("/api/workflow/{name}", "novel")
         .then()
         .assertThat()
-        .body(
-            "labels.keySet()",
-            emptyIterable(),
-            "maxInFlight",
-            equalTo(0),
-            "isActive",
-            equalTo(true));
+        .body("labels.keySet()", emptyIterable())
+        .body("maxInFlight", equalTo(0))
+        .body("isActive", equalTo(true));
+  }
+
+  @Test
+  public void whenReAddWorkflow_thenWorkflowMaxInFlightIsUpdated() {
+    var bcl2fastq = get("/api/workflow/{name}", "bcl2fastq").then().extract().jsonPath();
+    assertNull(bcl2fastq.get("labels"));
+
+    var newValues = MAPPER.createObjectNode();
+    var newLabels = newValues.putObject("labels");
+    newLabels.put("importantParam", "string");
+    newValues.put("maxInFlight", ((Integer) bcl2fastq.get("maxInFlight")) + 5);
+
+    given()
+        .body(newValues)
+        .when()
+        .post("/api/workflow/{name}", "bcl2fastq")
+        .then()
+        .assertThat()
+        .statusCode(201);
+
+    var newBcl2fastq = get("/api/workflow/{name}", "bcl2fastq").then().extract().jsonPath();
+
+    // Labels can't be updated after workflow creation (because they apply to all instances of
+    // the workflow, including ones already run), so the ones we tried to add should be ignored.
+    assertNull(newBcl2fastq.get("labels"));
+    assertNotEquals(newBcl2fastq.get("maxInFlight"), bcl2fastq.get("maxInFlight"));
+  }
+
+  @Test
+  public void whenAddDuplicateWorkflow_thenWorkflowIsUnchanged() throws JsonProcessingException {
+    var importFastq = get("/api/workflow/{name}", "import_fastq").then().extract().jsonPath();
+
+    var newValues = MAPPER.createObjectNode();
+    newValues.set("labels", importFastq.get("labels"));
+    newValues.put("maxInFlight", ((Integer) importFastq.get("maxInFlight")));
+
+    given()
+        .body(newValues)
+        .when()
+        .post("/api/workflow/{name}", "importFastq")
+        .then()
+        .assertThat()
+        .statusCode(201);
+
+    var newImportFastq = get("/api/workflow/{name}", "importFastq").then().extract().jsonPath();
+
+    assertEquals(importFastq.get("isActive").toString(), newImportFastq.get("isActive").toString());
+    assertNull(importFastq.get("labels"));
+    assertNull(newImportFastq.get("labels"));
+    assertEquals(
+        importFastq.get("maxInFlight").toString(), newImportFastq.get("maxInFlight").toString());
   }
 
   @Test
   public void whenAddWorkflow_thenWorkflowIsNotAvailable() throws JsonProcessingException {
-    given()
-        .contentType(ContentType.JSON)
-        .when()
-        .get("/api/workflows")
-        .then()
-        .assertThat()
-        .body("size()", is(2));
+    get("/api/workflows").then().assertThat().statusCode(200).body("size()", is(2));
 
     var noParamWorkflow = MAPPER.writeValueAsString(new HashMap<>());
 
@@ -187,26 +230,16 @@ public class MainIntegrationTest {
         .assertThat()
         .statusCode(201);
 
-    given()
-        .contentType(ContentType.JSON)
-        .when()
-        .get("/api/workflows")
-        .then()
-        .assertThat()
-        .statusCode(200)
-        .and()
-        .body("size()", is(2));
+    get("/api/workflows").then().assertThat().statusCode(200).body("size()", is(2));
   }
 
   @Test
   public void whenAddDuplicateWorkflow_thenWorkflowIsNotAdded() {
     var workflows =
-        given()
-            .contentType(ContentType.JSON)
-            .when()
-            .get("/api/workflows")
+        get("/api/workflows")
             .then()
             .assertThat()
+            .statusCode(200)
             .body("size()", is(2))
             .and()
             .extract()
@@ -219,24 +252,16 @@ public class MainIntegrationTest {
   }
 
   @Test
-  public void whenAddWorkflowVersion_thenWorkflowIsAvailable() throws JsonProcessingException {
+  public void whenAddWorkflowVersion_thenWorkflowIsAvailable() {
     var wfName = "bcl2fastq";
     var version = "1.new.0";
-    given()
-        .contentType(ContentType.JSON)
-        .when()
-        .get("/api/workflows")
+    get("/api/workflows")
         .then()
         .assertThat()
         .statusCode(200)
-        .and()
-        .body(
-            "size()",
-            is(2),
-            "name",
-            everyItem(not(hasItem("bcl2fastq"))),
-            "version",
-            hasItems("1.0.0.12901362", "1.1.0"));
+        .body("size()", is(2))
+        .body("name", everyItem(not(hasItem("bcl2fastq"))))
+        .body("version", hasItems("1.0.0.12901362", "1.1.0"));
 
     var body = MAPPER.createObjectNode();
     body.put("language", "UNIX_SHELL");
@@ -257,15 +282,12 @@ public class MainIntegrationTest {
     // Adding this makes the bcl2fastq workflow and all its versions available
 
     var versions =
-        given()
-            .contentType(ContentType.JSON)
-            .when()
-            .get("/api/workflows")
+        get("/api/workflows")
             .then()
             .assertThat()
             .statusCode(200)
-            .and()
-            .body("name", hasItems("import_fastq", "bcl2fastq"), "size()", is(15))
+            .body("name", hasItems("import_fastq", "bcl2fastq"))
+            .body("size()", is(15))
             .and()
             .extract()
             .body()
@@ -303,10 +325,7 @@ public class MainIntegrationTest {
   }
 
   private Set<Object> getWorkflowVersions(String wfName) {
-    return given()
-        .contentType(ContentType.JSON)
-        .when()
-        .get("/api/workflows")
+    return get("/api/workflows")
         .then()
         .assertThat()
         .statusCode(200)
@@ -327,7 +346,7 @@ public class MainIntegrationTest {
     var wfName = "import_fastq";
     var wfVersion = "incompl";
     var wfBefore = getWorkflowVersions(wfName);
-    assertThat(wfBefore.stream().filter(v -> wfVersion.equals(v)).count(), equalTo(0L));
+    assertThat(wfBefore.stream().filter(wfVersion::equals).count(), equalTo(0L));
 
     ObjectNode wfv = MAPPER.createObjectNode();
     wfv.put("language", "NIASSA");
@@ -339,7 +358,6 @@ public class MainIntegrationTest {
         .then()
         .assertThat()
         .statusCode(400)
-        .and()
         .body(containsString("workflow"), containsString("outputs"), containsString("parameters"));
 
     wfv.put("workflow", "#!/bin/sh 'missing some '");
@@ -350,7 +368,6 @@ public class MainIntegrationTest {
         .then()
         .assertThat()
         .statusCode(400)
-        .and()
         .body(
             not(containsString("workflow")),
             containsString("outputs"),
@@ -366,7 +383,6 @@ public class MainIntegrationTest {
         .then()
         .assertThat()
         .statusCode(400)
-        .and()
         .body(
             not(containsString("workflow")),
             not(containsString("outputs")),
@@ -391,7 +407,7 @@ public class MainIntegrationTest {
     var wfVersion = "2.double";
 
     var versionsBefore = getWorkflowVersions(wfName);
-    assertThat(versionsBefore.stream().filter(v -> wfVersion.equals(v)).count(), equalTo(0L));
+    assertThat(versionsBefore.stream().filter(wfVersion::equals).count(), equalTo(0L));
 
     ObjectNode wfv_import_fastq = MAPPER.createObjectNode();
     ObjectNode parameters = MAPPER.createObjectNode();
@@ -409,13 +425,11 @@ public class MainIntegrationTest {
         .when()
         .post("/api/workflow/{name}/{version}", wfName, wfVersion)
         .then()
-        .log()
-        .ifValidationFails(LogDetail.BODY)
         .assertThat()
         .statusCode(201);
 
     var versionsAfterFirst = getWorkflowVersions(wfName);
-    assertThat(versionsAfterFirst.stream().filter(v -> wfVersion.equals(v)).count(), equalTo(1L));
+    assertThat(versionsAfterFirst.stream().filter(wfVersion::equals).count(), equalTo(1L));
 
     // And again:
     given()
@@ -427,143 +441,98 @@ public class MainIntegrationTest {
         .statusCode(201);
 
     var versionsAfterSecond = getWorkflowVersions(wfName);
-    assertThat(versionsAfterSecond.stream().filter(v -> wfVersion.equals(v)).count(), equalTo(1L));
+    assertThat(versionsAfterSecond.stream().filter(wfVersion::equals).count(), equalTo(1L));
   }
 
   @Test
   public void whenDisableUnknownWorkflow_thenAvailableWorkflowsAreUnchanged() {
-    given()
-        .contentType(ContentType.JSON)
-        .when()
-        .get("/api/workflows")
-        .then()
-        .assertThat()
-        .body("size()", is(2));
+    get("/api/workflows").then().assertThat().statusCode(200).body("size()", is(2));
 
-    given().when().delete("/api/workflow/{name}", "novel").then().assertThat().statusCode(404);
+    delete("/api/workflow/{name}", "novel").then().assertThat().statusCode(404);
 
-    given()
-        .contentType(ContentType.JSON)
-        .when()
-        .get("/api/workflows")
-        .then()
-        .assertThat()
-        .statusCode(200)
-        .and()
-        .body("size()", is(2));
+    get("/api/workflows").then().assertThat().statusCode(200).body("size()", is(2));
   }
 
   @Test
   public void whenDisableKnownWorkflow_thenAvailableWorkflowsAreUpdated() {
-    given()
-        .contentType(ContentType.JSON)
-        .when()
-        .get("/api/workflows")
-        .then()
-        .assertThat()
-        .body("size()", is(2));
+    get("/api/workflows").then().assertThat().body("size()", is(2));
 
-    given()
-        .when()
-        .delete("/api/workflow/{name}", "import_fastq")
-        .then()
-        .assertThat()
-        .statusCode(200);
+    delete("/api/workflow/{name}", "import_fastq").then().assertThat().statusCode(200);
 
-    given()
-        .contentType(ContentType.JSON)
-        .when()
-        .get("/api/workflows")
-        .then()
-        .assertThat()
-        .statusCode(200)
-        .and()
-        .body("size()", is(0));
+    get("/api/workflows").then().assertThat().statusCode(200).body("size()", is(0));
   }
 
   @Test
   public void whenDeleteWorkflow_thenWorkflowIsInactivated() {
     var workflow = "import_fastq";
-    given()
-        .contentType(ContentType.JSON)
-        .when()
-        .get("/api/workflow/{name}", workflow)
+    get("/api/workflow/{name}", workflow)
         .then()
         .assertThat()
+        .statusCode(200)
         .body("isActive", is(true));
 
-    given().when().delete("/api/workflow/{name}", workflow).then().assertThat().statusCode(200);
+    delete("/api/workflow/{name}", workflow).then().assertThat().statusCode(200);
 
-    given()
-        .contentType(ContentType.JSON)
-        .when()
-        .get("/api/workflow/{name}", workflow)
+    get("/api/workflow/{name}", workflow)
         .then()
         .assertThat()
+        .statusCode(200)
         .body("isActive", is(false));
   }
 
   @Test
   public void whenGetUnknownWorkflow_thenNoWorkflowIsFound() {
-    given().when().get("/api/workflow/{name}", "garbage").then().assertThat().statusCode(404);
+    get("/api/workflow/{name}", "garbage").then().assertThat().statusCode(404);
   }
 
   @Test
   public void whenGetWorkflow_thenWorkflowIsFound() {
-    given()
-        .contentType(ContentType.JSON)
-        .when()
-        .get("/api/workflow/{name}", "bcl2fastq")
+    get("/api/workflow/{name}", "bcl2fastq")
         .then()
         .assertThat()
+        .statusCode(200)
         .body("isActive", is(false));
   }
 
   @Test
-  public void whenGetWaiting_thenNoneAreFoundWaiting() {
-    var waitingWorkflows =
-        given()
-            .when()
-            .get("/api/waiting")
+  public void whenGetWaiting_thenWaitingWorkflowsAreFound() {
+    var waitingBcl2fastq =
+        get("/api/waiting")
             .then()
+            .assertThat()
             .statusCode(200)
             .and()
             .extract()
             .body()
-            .as(new TypeRef<List<Map<String, Object>>>() {});
-    assertThat(waitingWorkflows.size(), is(1));
-    assertThat(waitingWorkflows.get(0).get("workflow"), equalTo("bcl2fastq"));
+            .as(new TypeRef<List<Map<String, Object>>>() {})
+            .stream()
+            .filter(w -> "bcl2fastq".equals(w.get("workflow")))
+            .findFirst();
+    assertNotNull(waitingBcl2fastq);
+    assertEquals(waitingBcl2fastq.get().get("oldest"), "2015-02-19T03:00:48.262-05:00");
     assertThat(
-        ((List<String>) waitingWorkflows.get(0).get("workflowRuns")),
+        ((List<String>) waitingBcl2fastq.get().get("workflowRuns")),
         hasItem("df7df7df7df7df7df7df7df7df7df70df7df7df7df7df7df7df7df7df7df7df7"));
   }
 
   @Test
   public void whenGetMaxInFlight_thenGetMaxInFlightData() {
-    given()
-        .when()
-        .get("/api/max-in-flight")
+    get("/api/max-in-flight")
         .then()
         .assertThat()
         .statusCode(200)
-        .and()
         .body("$", hasKey("timestamp"), "workflows", hasKey("import_fastq"));
   }
 
   @Test
   public void whenGetUnknownFile_thenNoFileIsFound() {
-    given().when().get("/api/file/{hash}", "abcdefedcbabcdefedcba").then().statusCode(404);
+    get("/api/file/{hash}", "abcdefedcbabcdefedcba").then().statusCode(404);
   }
 
   @Test
-  public void whenGetFile_thenFileIsFound() throws InterruptedException {
+  public void whenGetFile_thenFileIsFound() {
     var foundFile =
-        given()
-            .when()
-            .contentType(ContentType.JSON)
-            .get(
-                "/api/file/{hash}",
-                "916df707b105ddd88d8979e41208f2507a6d0c8d3ef57677750efa7857c4f6b2")
+        get("/api/file/{hash}", "916df707b105ddd88d8979e41208f2507a6d0c8d3ef57677750efa7857c4f6b2")
             .then()
             .assertThat()
             .statusCode(200)
@@ -578,10 +547,7 @@ public class MainIntegrationTest {
 
   @Test
   public void whenUnknownFileIsRequested_thenNoFileIsReturned() {
-    given()
-        .when()
-        .contentType(ContentType.JSON)
-        .get("/api/file/{hash}", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+    get("/api/file/{hash}", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
         .then()
         .assertThat()
         .statusCode(404);
@@ -673,54 +639,84 @@ public class MainIntegrationTest {
 
   @Test
   public void whenGetWorkflowRun_thenReturnWorkflowRun() {
-    given()
-        .when()
-        .get("/api/run/{hash}", "df7df7df7df7df7df7df7df7df7df70df7df7df7df7df7df7df7df7df7df7df7")
+    get("/api/run/{hash}", "df7df7df7df7df7df7df7df7df7df70df7df7df7df7df7df7df7df7df7df7df7")
         .then()
         .assertThat()
         .statusCode(200)
-        .and()
         .body(
             "workflowName", equalTo("bcl2fastq"), "arguments.workflowRunSWID", equalTo("4444444"));
   }
 
   @Test
   public void whenGetUnknownWorkflowRun_thenNoWorkflowRunIsFound() {
-    given()
-        .when()
-        .get("/api/run/{hash}", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+    get("/api/run/{hash}", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
         .then()
         .assertThat()
         .statusCode(404);
   }
 
   @Test
-  public void whenGetWorkflowStatus_thenWorkflowStatusIsReturned() {
-    given()
-        .when()
-        .get(
-            "/api/status/{hash}",
-            "df7df7df7df7df7df7df7df7df7df70df7df7df7df7df7df7df7df7df7df7df7")
+  public void whenDeleteActiveWorkflowRun_thenWorkflowRunIsDeleted() {
+    get("/api/status/{hash}", "df7df7df7df7df7df7df7df7df7df70df7df7df7df7df7df7df7df7df7df7df7")
+        .then()
+        .assertThat()
+        .statusCode(200);
+
+    delete("/api/status/{hash}", "df7df7df7df7df7df7df7df7df7df70df7df7df7df7df7df7df7df7df7df7df7")
+        .then()
+        .assertThat()
+        .statusCode(200);
+
+    get("/api/status/{hash}", "df7df7df7df7df7df7df7df7df7df70df7df7df7df7df7df7df7df7df7df7df7")
+        .then()
+        .assertThat()
+        .statusCode(404);
+  }
+
+  @Test
+  public void whenDeleteUnknownWorkflowRun_thenNoWorkflowRunIsDeleted() {
+    delete("/api/status/{hash}", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+        .then()
+        .assertThat()
+        .statusCode(404);
+  }
+
+  @Test
+  public void whenDeleteCompletedWorkflowRun_thenNoWorkflowRunIsDeleted() {
+    delete("/api/status/{hash}", "5d93d47a8dfc7e038bdc3ffc4b7faf6a53a22c51ae9df7d683aef912510b0a88")
+        .then()
+        .assertThat()
+        .statusCode(404);
+  }
+
+  @Test
+  public void whenGetAllWorkflowStatuses_thenStatusesForAllWorkflowsAreReturned() {
+    get("/api/status")
         .then()
         .assertThat()
         .statusCode(200)
-        .and()
-        .body(
-            "completed",
-            nullValue(),
-            "operationStatus",
-            equalTo("N/A"),
-            "waiting_resource",
-            equalTo("prometheus-alert-manager"),
-            "enginePhase",
-            equalTo(Phase.WAITING_FOR_RESOURCES.toString()));
+        .body("size()", equalTo(1))
+        .body("[0].completed", nullValue())
+        .body("[0].operationStatus", equalTo("N/A"))
+        .body("[0].waiting_resource", equalTo("prometheus-alert-manager"))
+        .body("[0].enginePhase", equalTo(Phase.WAITING_FOR_RESOURCES.toString()));
+  }
+
+  @Test
+  public void whenGetWorkflowStatus_thenStatusForWorkflowIsReturned() {
+    get("/api/status/{hash}", "df7df7df7df7df7df7df7df7df7df70df7df7df7df7df7df7df7df7df7df7df7")
+        .then()
+        .assertThat()
+        .statusCode(200)
+        .body("completed", nullValue())
+        .body("operationStatus", equalTo("N/A"))
+        .body("waiting_resource", equalTo("prometheus-alert-manager"))
+        .body("enginePhase", equalTo(Phase.WAITING_FOR_RESOURCES.toString()));
   }
 
   @Test
   public void whenGetUnknownWorkflowStatus_thenNoWorkflowStatusIsReturned() {
-    given()
-        .when()
-        .get("/api/status/{hash}", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+    get("/api/status/{hash}", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
         .then()
         .assertThat()
         .statusCode(404);
@@ -728,34 +724,243 @@ public class MainIntegrationTest {
 
   @Test
   public void whenGetCompletedWorkflowStatus_thenWorkflowStatusIsReturned() {
-    given()
-        .when()
-        .get(
-            "/api/status/{hash}",
-            "2f52b25df0a20cf41b0476b9114ad40a7d8d2edbddf0bed7d2d1b01d3f2d2b56")
+    get("/api/status/{hash}", "2f52b25df0a20cf41b0476b9114ad40a7d8d2edbddf0bed7d2d1b01d3f2d2b56")
         .then()
         .assertThat()
         .statusCode(200)
-        .and()
-        .body(
-            "completed",
-            not(nullValue()),
-            "operationStatus",
-            equalTo("N/A"),
-            "waiting_resource",
-            nullValue(),
-            "enginePhase",
-            nullValue());
+        .body("completed", not(nullValue()))
+        .body("operationStatus", equalTo("N/A"))
+        .body("waiting_resource", nullValue())
+        .body("enginePhase", nullValue());
   }
 
   @Test
   public void whenGetWorkflowRunUrlForFileType_thenNoWorkflowRunIsReturned() {
-    given()
-        .when()
-        .get("/api/url/{hash}", "916df707b105ddd88d8979e41208f2507a6d0c8d3ef57677750efa7857c4f6b2")
+    get("/api/url/{hash}", "916df707b105ddd88d8979e41208f2507a6d0c8d3ef57677750efa7857c4f6b2")
         .then()
         .assertThat()
         .statusCode(404);
+  }
+
+  @Test
+  public void whenGetWorkflowRunUrl_thenWorkflowRunIsReturned() {
+    get("/api/url/{hash}", "8b16674e6e2a36d1f689632b1f36d0fe0876b7d54583dfbdf76c4c58e0588531")
+        .then()
+        .assertThat()
+        .statusCode(200)
+        .body("run", equalTo("a5f036ac00769744f9349775b376bf9412a5b28191fb7dd5ca4e635338e9f2b5"))
+        .body("labels.keySet()", hasItems("read_count", "read_number", "niassa-file-accession"));
+  }
+
+  @Test
+  public void whenCopyOut_thenRecordsAreCopied() {
+    ObjectNode copyOutFilter = getBcl2FastqUnloadFilter();
+
+    var resp =
+        given()
+            .contentType(ContentType.JSON)
+            .body(copyOutFilter)
+            .when()
+            .post("/api/copy-out")
+            .then()
+            .assertThat()
+            .statusCode(200)
+            .body("workflowRuns.size()", is(8))
+            .body("workflowRuns.findAll { it.workflowName == \"bcl2fastq\" }.size()", is(8))
+            .and()
+            .extract()
+            .jsonPath();
+    var firstHash = resp.get("workflowRuns[0].id");
+
+    // Confirm run hasn't been unloaded
+    get("/api/run/{hash}", firstHash).then().assertThat().statusCode(200);
+  }
+
+  @Test
+  public void whenUnloadWorkflowRuns_thenFilesAreGone() throws IOException {
+    // Confirm that a bcl2fastq workflow run exists
+    get("/api/run/{hash}", "2f52b25df0a20cf41b0476b9114ad40a7d8d2edbddf0bed7d2d1b01d3f2d2b56")
+        .then()
+        .assertThat()
+        .statusCode(200)
+        .body("workflowName", equalTo("bcl2fastq"));
+
+    ObjectNode unloadFilter = getBcl2FastqUnloadFilter();
+
+    var unloadFileQuotedName =
+        given()
+            .contentType(ContentType.JSON)
+            .body(unloadFilter)
+            .when()
+            .post("/api/unload")
+            .then()
+            .assertThat()
+            .statusCode(200)
+            .and()
+            .extract()
+            .asInputStream();
+
+    var unloadFileName = MAPPER.readTree(unloadFileQuotedName).toString().replaceAll("\"", "");
+    var unloadedFilePath = unloadDirectory.getRoot().getAbsolutePath() + "/" + unloadFileName;
+
+    var unloaded = JsonPath.from(new File(unloadedFilePath));
+    assertThat(unloaded.getList("workflowRuns").size(), equalTo(8));
+    assertThat(
+        unloaded.getList("workflowRuns.findAll { it.workflowName == \"bcl2fastq\" }").size(),
+        equalTo(8));
+    var firstHash = unloaded.get("workflowRuns[0].id");
+
+    // Confirm that the bcl2fastq workflow run has been unloaded from the database
+    get("/api/run/{hash}", firstHash).then().assertThat().statusCode(404);
+  }
+
+  @Test
+  public void whenWorkflowRunsAreUnloaded_thenTheyCanBeLoaded() throws IOException {
+    var bcl2fastqHash = "2f52b25df0a20cf41b0476b9114ad40a7d8d2edbddf0bed7d2d1b01d3f2d2b56";
+    // Confirm that the bcl2fastq workflow run exists in the database
+    get("/api/run/{hash}", bcl2fastqHash).then().assertThat().statusCode(200);
+
+    ObjectNode unloadFilter = getBcl2FastqUnloadFilter();
+
+    var unloadFileQuotedName =
+        given()
+            .contentType(ContentType.JSON)
+            .body(unloadFilter)
+            .when()
+            .post("/api/unload")
+            .then()
+            .assertThat()
+            .statusCode(200)
+            .and()
+            .extract()
+            .asInputStream();
+
+    var unloadFileName = MAPPER.readTree(unloadFileQuotedName).toString().replaceAll("\"", "");
+    var unloadedFilePath = unloadDirectory.getRoot().getAbsolutePath() + "/" + unloadFileName;
+
+    var unloaded = MAPPER.readTree(new File(unloadedFilePath));
+
+    // Confirm that the bcl2fastq workflow run has been unloaded from the database
+    get("/api/run/{hash}", bcl2fastqHash).then().assertThat().statusCode(404);
+
+    given()
+        .contentType(ContentType.JSON)
+        .body(unloaded)
+        .when()
+        .post("/api/load")
+        .then()
+        .assertThat()
+        .statusCode(200);
+
+    // Confirm that the bcl2fastq workflow run has been loaded back into the database
+    get("/api/run/{hash}", bcl2fastqHash).then().assertThat().statusCode(200);
+
+    // Confirm that unloading the same data again produces the same result
+    var unload2FileQuotedName =
+        given()
+            .contentType(ContentType.JSON)
+            .body(unloadFilter)
+            .when()
+            .post("/api/unload")
+            .then()
+            .assertThat()
+            .statusCode(200)
+            .and()
+            .extract()
+            .asInputStream();
+    var unload2FileName = MAPPER.readTree(unload2FileQuotedName).toString().replaceAll("\"", "");
+    var unloaded2FilePath = unloadDirectory.getRoot().getAbsolutePath() + "/" + unload2FileName;
+
+    var reUnloaded = MAPPER.readTree(new File(unloaded2FilePath));
+    // Created and modified fields will be affected by our re-loading them into the db
+    removeCreatedAndModifiedFieldsForBetterComparisons(unloaded);
+    removeCreatedAndModifiedFieldsForBetterComparisons(reUnloaded);
+    assertEquals(reUnloaded, unloaded);
+  }
+
+  @Test
+  public void whenExternalIdsAreUpdated_thenUpdatedVersionsAreSaved() {
+    var runHash = "2f52b25df0a20cf41b0476b9114ad40a7d8d2edbddf0bed7d2d1b01d3f2d2b56";
+    JsonPath initial = get("/api/run/{hash}", runHash).then().extract().jsonPath();
+    assertThat(initial.getList("externalKeys"), hasSize(1));
+    assertThat(initial.get("externalKeys[0].versions.keySet()"), hasSize(1));
+
+    var bulkUpdate = MAPPER.createObjectNode();
+    bulkUpdate.put("newVersionKey", "pinery-hash-52");
+    bulkUpdate.put("oldVersionKey", "pinery-hash-2");
+    bulkUpdate.put("provider", "pinery-miso");
+    var updates = bulkUpdate.putArray("updates");
+    var first = MAPPER.createObjectNode();
+    first.put("add", "fadefadefadefadefadefadefadefadefadefadefadefadefadefadefadefade");
+    first.put("old", "bea8063d6c8e66e4c6faae52ddc8e5e7ab249782cb98ec7fb64261f12e82a3bf");
+    first.put("id", "3786_1_LDI31800");
+    updates.add(first);
+
+    given()
+        .body(bulkUpdate)
+        .post("/api/versions")
+        .then()
+        .assertThat()
+        .statusCode(200)
+        .body(equalTo("1"));
+
+    JsonPath updated = get("/api/run/{hash}", runHash).then().extract().jsonPath();
+    assertThat(updated.getList("externalKeys"), hasSize(1));
+    assertThat(updated.get("externalKeys[0].versions.keySet()"), hasSize(2));
+
+    assertEquals(updated.getString("externalKeys[0].id"), initial.getString("externalKeys[0].id"));
+    assertEquals(
+        updated.getString("externalKeys[0].provider"),
+        initial.getString("externalKeys[0].provider"));
+    assertNotEquals(
+        updated.getString("externalKeys[0].versions"),
+        initial.getString("externalKeys[0].versions"));
+    assertThat(
+        updated.get("externalKeys[0].versions.keySet()"),
+        hasItems("pinery-hash-52", "pinery-hash-2"));
+  }
+
+  @Test
+  public void whenExternalVersionFieldsMismatch_thenVersionsAreNotUpdated() {
+    // mismatch on external_id_version.key (old)
+    var bulkUpdateOldKey = MAPPER.createObjectNode();
+    bulkUpdateOldKey.put("newVersionKey", "pinery-hash-52");
+    bulkUpdateOldKey.put("oldVersionKey", "pinery-hash-0");
+    bulkUpdateOldKey.put("provider", "pinery-miso");
+    var updatesOldKey = bulkUpdateOldKey.putArray("updates");
+    var firstOldKey = MAPPER.createObjectNode();
+    firstOldKey.put("add", "fadefadefadefadefadefadefadefadefadefadefadefadefadefadefadefade");
+    firstOldKey.put("old", "bea8063d6c8e66e4c6faae52ddc8e5e7ab249782cb98ec7fb64261f12e82a3bf");
+    firstOldKey.put("id", "3786_1_LDI31800");
+    updatesOldKey.add(firstOldKey);
+
+    given()
+        .body(bulkUpdateOldKey)
+        .post("/api/versions")
+        .then()
+        .assertThat()
+        .statusCode(200)
+        .body(equalTo("0")); // 0 records were updated
+
+    // mismatch on external_id.external_id
+    var bulkUpdateExternalId = MAPPER.createObjectNode();
+    bulkUpdateExternalId.put("newVersionKey", "pinery-hash-52");
+    bulkUpdateExternalId.put("oldVersionKey", "pinery-hash-2");
+    bulkUpdateExternalId.put("provider", "pinery-miso");
+    var updatesExternalId = bulkUpdateExternalId.putArray("updates");
+    var firstExternalId = MAPPER.createObjectNode();
+    firstExternalId.put("add", "fadefadefadefadefadefadefadefadefadefadefadefadefadefadefadefade");
+    firstExternalId.put("old", "bea8063d6c8e66e4c6faae52ddc8e5e7ab249782cb98ec7fb64261f12e82a3bf");
+    firstExternalId.put("id", "1000_1_LDI00001");
+    updatesExternalId.add(firstExternalId);
+
+    given()
+        .body(bulkUpdateExternalId)
+        .post("/api/versions")
+        .then()
+        .assertThat()
+        .statusCode(200)
+        .body(equalTo("0")); // 0 records were updated
   }
 
   private ObjectNode getAnalysisFile() {
@@ -793,9 +998,35 @@ public class MainIntegrationTest {
     return on;
   }
 
+  private ObjectNode getBcl2FastqUnloadFilter() {
+    ObjectNode unloadFilter = MAPPER.createObjectNode();
+    unloadFilter.put("recursive", true);
+    ObjectNode filterType = MAPPER.createObjectNode();
+    filterType.put("type", "vidarr-workflow-name");
+    filterType.put("name", "bcl2fastq");
+    unloadFilter.set("filter", filterType);
+    return unloadFilter;
+  }
+
   private long dateFromTime(String timeString) throws ParseException {
     SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX");
     df.setTimeZone(TimeZone.getTimeZone("EST"));
     return df.parse(timeString).getTime();
+  }
+
+  private void removeCreatedAndModifiedFieldsForBetterComparisons(JsonNode unload) {
+    unload
+        .get("workflowRuns")
+        .forEach(
+            wfr -> {
+              ((ObjectNode) wfr).remove("modified");
+              wfr.get("externalKeys")
+                  .forEach(
+                      ek -> {
+                        ((ObjectNode) ek).remove("created");
+                        ((ObjectNode) ek).remove("modified");
+                      });
+              wfr.get("analysis").forEach(a -> ((ObjectNode) a).remove("modified"));
+            });
   }
 }

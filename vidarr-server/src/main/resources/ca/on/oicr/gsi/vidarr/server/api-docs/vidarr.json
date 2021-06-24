@@ -1642,6 +1642,64 @@
       }
     },
     "/api/workflow/{name}/{version}": {
+      "get": {
+        "description": "Get a workflow version",
+        "parameters": [{
+          "name": "name",
+          "in": "path",
+          "description": "Name of workflow",
+          "required": true,
+          "type": "string"
+        }, {
+          "name": "version",
+          "in": "path",
+          "description":  "Version of workflow",
+          "required": true,
+          "type": "string"
+        }],
+        "responses": {
+          "200": {
+            "description": "The workflow version.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "name": {
+                    "description": "Workflow name",
+                    "type": "string"
+                  },
+                  "version": {
+                    "description": "Workflow version",
+                    "type": "string"
+                  },
+                  "metadata": {
+                    "description": "Workflow-specific metadata",
+                    "type": "object"
+                  },
+                  "parameters": {
+                    "description": "Workflow-specific parameters",
+                    "type": "object"
+                  },
+                  "labels": {
+                    "description": "Labels for workflow",
+                    "type": "array"
+                  },
+                  "language": {
+                    "description": "Workflow language",
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No workflow with the given name and version was found."
+          }
+        },
+        "summary": "Get workflow version",
+        "tags": [
+          "workflow"
+        ]
+      },
       "post": {
         "description": "Create a workflow version. The workflow must previously have been created.",
         "parameters": [{

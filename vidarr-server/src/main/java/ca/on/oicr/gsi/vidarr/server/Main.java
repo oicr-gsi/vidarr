@@ -414,6 +414,9 @@ public final class Main implements ServerConfig {
                             .delete(
                                 "/api/workflow/{name}",
                                 monitor(new BlockingHandler(server::disableWorkflow)))
+                            .get(
+                                "/api/workflow/{name}/{version}",
+                                monitor(new BlockingHandler(server::fetchWorkflowVersion)))
                             .post(
                                 "/api/workflow/{name}/{version}",
                                 monitor(
@@ -1615,6 +1618,53 @@ public final class Main implements ServerConfig {
     } catch (SQLException e) {
       e.printStackTrace();
       exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);
+      exchange.getResponseSender().send(e.getMessage());
+    }
+  }
+
+  private void fetchWorkflowVersion(HttpServerExchange exchange) {
+    final var name =
+        exchange.getAttachment(PathTemplateMatch.ATTACHMENT_KEY).getParameters().get("name");
+    final var version =
+        exchange.getAttachment(PathTemplateMatch.ATTACHMENT_KEY).getParameters().get("version");
+    try (final var connection = dataSource.getConnection()) {
+      final var workflowVersionAlias = WORKFLOW_VERSION.as("other_workflow_version");
+      final var result =
+          DSL.using(connection, SQLDialect.POSTGRES)
+              .select(
+                  DSL.jsonArrayAgg(
+                      DSL.jsonObject(
+                          literalJsonEntry("name", WORKFLOW_VERSION.NAME),
+                          literalJsonEntry("version", WORKFLOW_VERSION.VERSION),
+                          literalJsonEntry("metadata", WORKFLOW_VERSION.METADATA),
+                          literalJsonEntry("parameters", WORKFLOW_VERSION.PARAMETERS),
+                          literalJsonEntry(
+                              "labels",
+                              DSL.field(
+                                  DSL.select(WORKFLOW.LABELS)
+                                      .from(WORKFLOW)
+                                      .where(WORKFLOW.NAME.eq(WORKFLOW_VERSION.NAME)))),
+                          literalJsonEntry("language", WORKFLOW_DEFINITION.WORKFLOW_LANGUAGE))))
+              .from(
+                  WORKFLOW_VERSION
+                      .join(WORKFLOW_DEFINITION)
+                      .on(WORKFLOW_VERSION.WORKFLOW_DEFINITION.eq(WORKFLOW_DEFINITION.ID)))
+              .where(WORKFLOW_VERSION.NAME.eq(name).and(WORKFLOW_VERSION.VERSION.eq(version)))
+              .fetchOptional()
+              .map(r -> r.value1().data());
+      if (result.isPresent()) {
+        exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_JSON);
+        exchange.setStatusCode(StatusCodes.OK);
+        exchange.getResponseSender().send(result.get());
+      } else {
+        exchange.setStatusCode(StatusCodes.NOT_FOUND);
+        exchange.getResponseHeaders().put(Headers.CONTENT_LENGTH, 0);
+        exchange.getResponseSender().send("");
+      }
+    } catch (SQLException e) {
+      e.printStackTrace();
+      exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);
+      exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
       exchange.getResponseSender().send(e.getMessage());
     }
   }

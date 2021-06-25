@@ -259,7 +259,7 @@ public abstract class OutputType {
                 @Override
                 public Printer qualityControl(boolean optional) {
                   return g ->
-                      g.writeString(optional ? "optioal-quality-control" : "quality-control");
+                      g.writeString(optional ? "optional-quality-control" : "quality-control");
                 }
 
                 @Override
@@ -451,6 +451,11 @@ public abstract class OutputType {
    * @param outputs the entries in the structure
    */
   public static OutputType list(Map<String, IdentifierKey> keys, Map<String, OutputType> outputs) {
+    // keys and outputs have to be non-empty
+    if (null == keys || keys.isEmpty() || keys.containsKey(""))
+      throw new IllegalArgumentException("ListOutputType cannot have empty keys");
+    if (null == outputs || outputs.isEmpty() || outputs.containsKey(""))
+      throw new IllegalArgumentException("ListOutputType cannot have empty outputs");
     if (keys.keySet().stream().anyMatch(outputs.keySet()::contains)) {
       throw new IllegalArgumentException("Overlap between input and output entry sets");
     }

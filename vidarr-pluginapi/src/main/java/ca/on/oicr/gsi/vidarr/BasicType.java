@@ -535,6 +535,14 @@ public abstract class BasicType {
       for (final var type : union.values()) {
         Objects.requireNonNull(type, "union type contents");
       }
+
+      if (union.size() == 0)
+        throw new IllegalArgumentException("TaggedUnion BasicType needs at least 1 field, got 0.");
+
+      if (union.containsKey(""))
+        throw new IllegalArgumentException(
+            "Found illegal field key \"\" while creating TaggedUnion BasicType.");
+
       this.union = Collections.unmodifiableMap(union);
     }
 
@@ -677,7 +685,27 @@ public abstract class BasicType {
    *     are not permitted and will result in an exception
    */
   public static BasicType object(Stream<Pair<String, BasicType>> fields) {
-    return new ObjectBasicType(fields);
+    // Sanity checking
+    final List<Pair<String, BasicType>> fieldsList = fields.collect(Collectors.toList());
+    if (fieldsList.size() == 0)
+      throw new IllegalArgumentException("Object BasicType needs at least 1 field, got 0.");
+
+    for (final Map.Entry<String, Long> entry :
+        fieldsList.stream()
+            .collect(Collectors.groupingBy(Pair::first, Collectors.counting()))
+            .entrySet()) {
+      if (entry.getKey().equals("")) {
+        throw new IllegalArgumentException(
+            "Found illegal field key \"\" while creating Object BasicType.");
+      }
+      if (entry.getValue() > 1) {
+        throw new IllegalArgumentException(
+            "Found illegal duplicate key(s) "
+                + entry.getValue()
+                + " while creating Object BasicType.");
+      }
+    }
+    return new ObjectBasicType(fieldsList.stream());
   }
 
   /**

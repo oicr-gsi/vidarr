@@ -30,6 +30,25 @@ import java.util.stream.StreamSupport;
 @JsonSerialize(using = OutputType.JacksonSerializer.class)
 @JsonDeserialize(using = OutputType.JacksonDeserializer.class)
 public abstract class OutputType {
+  private static final String STR_FILE = "file",
+      STR_FILE_OPTIONAL = "optional-file",
+      STR_FILES = "files",
+      STR_FILES_OPTIONAL = "optional-files",
+      STR_FILES_WITH_LABELS = "files-with-labels",
+      STR_FILES_WITH_LABELS_OPTIONAL = "optional-files-with-labels",
+      STR_FILE_WITH_LABELS = "file-with-labels",
+      STR_FILE_WITH_LABELS_OPTIONAL = "optional-file-with-labels",
+      STR_LOGS = "logs",
+      STR_LOGS_OPTIONAL = "optional-logs",
+      STR_QUALITY_CONTROL = "quality-control",
+      STR_QUALITY_CONTROL_OPTIONAL = "optional-quality-control",
+      STR_UNKNOWN = "unknown",
+      STR_WAREHOUSE_RECORDS = "warehouse-records",
+      STR_WAREHOUSE_RECORDS_OPTIONAL = "optional-warehouse-records",
+      STR_LIST = "list",
+      STR_IS = "is",
+      STR_KEYS = "keys",
+      STR_OUTPUTS = "outputs";
   /**
    * The type of elements to used as keys when provisioning out structures
    *
@@ -123,59 +142,59 @@ public abstract class OutputType {
       if (node.isValueNode() && ((ValueNode) node).isTextual()) {
         final var str = ((ValueNode) node).asText();
         switch (str) {
-          case "file":
+          case STR_FILE:
             return OutputType.FILE;
-          case "files":
+          case STR_FILES:
             return OutputType.FILES;
-          case "file-with-labels":
+          case STR_FILE_WITH_LABELS:
             return OutputType.FILE_WITH_LABELS;
-          case "files-with-labels":
+          case STR_FILES_WITH_LABELS:
             return OutputType.FILES_WITH_LABELS;
-          case "logs":
+          case STR_LOGS:
             return OutputType.LOGS;
-          case "quality-control":
+          case STR_QUALITY_CONTROL:
             return OutputType.QUALITY_CONTROL;
-          case "unknown":
+          case STR_UNKNOWN:
             return OutputType.UNKNOWN;
-          case "warehouse-records":
+          case STR_WAREHOUSE_RECORDS:
             return OutputType.WAREHOUSE_RECORDS;
-          case "optional-file":
+          case STR_FILE_OPTIONAL:
             return OutputType.FILE_OPTIONAL;
-          case "optional-files":
+          case STR_FILES_OPTIONAL:
             return OutputType.FILES_OPTIONAL;
-          case "optional-file-with-labels":
+          case STR_FILE_WITH_LABELS_OPTIONAL:
             return OutputType.FILE_WITH_LABELS_OPTIONAL;
-          case "optional-files-with-labels":
+          case STR_FILES_WITH_LABELS_OPTIONAL:
             return OutputType.FILES_WITH_LABELS_OPTIONAL;
-          case "optional-logs":
+          case STR_LOGS_OPTIONAL:
             return OutputType.LOGS_OPTIONAL;
-          case "optional-quality-control":
+          case STR_QUALITY_CONTROL_OPTIONAL:
             return OutputType.QUALITY_CONTROL_OPTIONAL;
-          case "optional-warehouse-records":
+          case STR_WAREHOUSE_RECORDS_OPTIONAL:
             return OutputType.WAREHOUSE_RECORDS_OPTIONAL;
           default:
             throw new IllegalArgumentException("Unknown output type: " + str);
         }
       } else if (node.isObject() && node instanceof ObjectNode) {
         final var obj = (ObjectNode) node;
-        if (obj.has("is") && obj.get("is").isTextual()) {
-          switch (obj.get("is").asText()) {
-            case "list":
-              if (!obj.has("keys")) {
+        if (obj.has(STR_IS) && obj.get(STR_IS).isTextual()) {
+          switch (obj.get(STR_IS).asText()) {
+            case STR_LIST:
+              if (!obj.has(STR_KEYS)) {
                 throw new IllegalArgumentException("List is missing 'keys' property");
               }
-              if (!obj.has("outputs")) {
+              if (!obj.has(STR_OUTPUTS)) {
                 throw new IllegalArgumentException("List is missing 'outputs' property");
               }
               return list(
                   (StreamSupport.stream(
-                          Spliterators.spliteratorUnknownSize(obj.get("keys").fields(), 0), false)
+                          Spliterators.spliteratorUnknownSize(obj.get(STR_KEYS).fields(), 0), false)
                       .collect(
                           Collectors.toMap(
                               Map.Entry::getKey,
                               e -> IdentifierKey.valueOf(e.getValue().asText().toUpperCase())))),
                   (StreamSupport.stream(
-                          Spliterators.spliteratorUnknownSize(obj.get("outputs").fields(), 0),
+                          Spliterators.spliteratorUnknownSize(obj.get(STR_OUTPUTS).fields(), 0),
                           false)
                       .collect(
                           Collectors.toMap(Map.Entry::getKey, e -> deserialize(e.getValue())))));
@@ -206,43 +225,45 @@ public abstract class OutputType {
               new Visitor<Printer>() {
                 @Override
                 public Printer file(boolean optional) {
-                  return g -> g.writeString(optional ? "optional-file" : "file");
+                  return g -> g.writeString(optional ? STR_FILE_OPTIONAL : STR_FILE);
                 }
 
                 @Override
                 public Printer fileWithLabels(boolean optional) {
                   return g ->
-                      g.writeString(optional ? "optional-file-with-labels" : "file-with-labels");
+                      g.writeString(
+                          optional ? STR_FILE_WITH_LABELS_OPTIONAL : STR_FILE_WITH_LABELS);
                 }
 
                 @Override
                 public Printer files(boolean optional) {
-                  return g -> g.writeString(optional ? "optional-files" : "files");
+                  return g -> g.writeString(optional ? STR_FILES_OPTIONAL : STR_FILES);
                 }
 
                 @Override
                 public Printer filesWithLabels(boolean optional) {
                   return g ->
-                      g.writeString(optional ? "optional-files-with-labels" : "files-with-labels");
+                      g.writeString(
+                          optional ? STR_FILES_WITH_LABELS_OPTIONAL : STR_FILES_WITH_LABELS);
                 }
 
                 @Override
                 public Printer list(
                     Map<String, IdentifierKey> keys, Map<String, OutputType> outputs) {
-                  final var printOuputs =
+                  final var printOutputs =
                       outputs.entrySet().stream()
                           .collect(
                               Collectors.toMap(Map.Entry::getKey, e -> e.getValue().apply(this)));
                   return g -> {
                     g.writeStartObject();
-                    g.writeStringField("is", "list");
-                    g.writeObjectFieldStart("keys");
+                    g.writeStringField(STR_IS, STR_LIST);
+                    g.writeObjectFieldStart(STR_KEYS);
                     for (final var key : keys.entrySet()) {
                       g.writeStringField(key.getKey(), key.getValue().name().toLowerCase());
                     }
                     g.writeEndObject();
-                    g.writeObjectFieldStart("outputs");
-                    for (final var output : printOuputs.entrySet()) {
+                    g.writeObjectFieldStart(STR_OUTPUTS);
+                    for (final var output : printOutputs.entrySet()) {
                       g.writeFieldName(output.getKey());
                       output.getValue().print(g);
                     }
@@ -253,24 +274,25 @@ public abstract class OutputType {
 
                 @Override
                 public Printer logs(boolean optional) {
-                  return g -> g.writeString(optional ? "optional-logs" : "logs");
+                  return g -> g.writeString(optional ? STR_LOGS_OPTIONAL : STR_LOGS);
                 }
 
                 @Override
                 public Printer qualityControl(boolean optional) {
                   return g ->
-                      g.writeString(optional ? "optional-quality-control" : "quality-control");
+                      g.writeString(optional ? STR_QUALITY_CONTROL_OPTIONAL : STR_QUALITY_CONTROL);
                 }
 
                 @Override
                 public Printer unknown() {
-                  return g -> g.writeString("unknown");
+                  return g -> g.writeString(STR_UNKNOWN);
                 }
 
                 @Override
                 public Printer warehouseRecords(boolean optional) {
                   return g ->
-                      g.writeString(optional ? "optional-warehouse-records" : "warehouse-records");
+                      g.writeString(
+                          optional ? STR_WAREHOUSE_RECORDS_OPTIONAL : STR_WAREHOUSE_RECORDS);
                 }
               })
           .print(jsonGenerator);

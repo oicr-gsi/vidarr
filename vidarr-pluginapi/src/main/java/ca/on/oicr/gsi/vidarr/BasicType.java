@@ -31,6 +31,28 @@ import java.util.stream.StreamSupport;
 @JsonSerialize(using = BasicType.JacksonSerializer.class)
 @JsonDeserialize(using = BasicType.JacksonDeserializer.class)
 public abstract class BasicType {
+  private static final String STR_BOOLEAN = "boolean",
+      STR_DATE = "date",
+      STR_FLOATING = "floating",
+      STR_INTEGER = "integer",
+      STR_JSON = "json",
+      STR_STRING = "string",
+      STR_DICTIONARY = "dictionary",
+      STR_OBJECT = "object",
+      STR_PAIR = "pair",
+      STR_TAGGED_UNION = "tagged-union",
+      STR_TUPLE = "tuple",
+      STR_LIST = "list",
+      STR_OPTIONAL = "optional",
+      STR_IS = "is",
+      STR_KEY = "key",
+      STR_VALUE = "value",
+      STR_INNER = "inner",
+      STR_FIELDS = "fields",
+      STR_LEFT = "left",
+      STR_RIGHT = "right",
+      STR_OPTIONS = "options",
+      STR_ELEMENTS = "elements";
   /**
    * Convert an engine type into another value
    *
@@ -148,74 +170,75 @@ public abstract class BasicType {
       if (node.isValueNode() && ((ValueNode) node).isTextual()) {
         final var str = ((ValueNode) node).asText();
         switch (str) {
-          case "boolean":
+          case STR_BOOLEAN:
             return BasicType.BOOLEAN;
-          case "date":
+          case STR_DATE:
             return BasicType.DATE;
-          case "floating":
+          case STR_FLOATING:
             return BasicType.FLOAT;
-          case "integer":
+          case STR_INTEGER:
             return BasicType.INTEGER;
-          case "json":
+          case STR_JSON:
             return BasicType.JSON;
-          case "string":
+          case STR_STRING:
             return BasicType.STRING;
           default:
             throw new IllegalArgumentException("Unknown basic type: " + str);
         }
       } else if (node.isObject() && node instanceof ObjectNode) {
         final var obj = (ObjectNode) node;
-        if (obj.has("is") && obj.get("is").isTextual()) {
-          switch (obj.get("is").asText()) {
-            case "dictionary":
-              if (!obj.has("key")) {
+        if (obj.has(STR_IS) && obj.get(STR_IS).isTextual()) {
+          switch (obj.get(STR_IS).asText()) {
+            case STR_DICTIONARY:
+              if (!obj.has(STR_KEY)) {
                 throw new IllegalArgumentException("Missing 'key' in dictionary.");
               }
-              if (!obj.has("value")) {
+              if (!obj.has(STR_VALUE)) {
                 throw new IllegalArgumentException("Missing 'value' in dictionary.");
               }
-              return dictionary(deserialize(obj.get("key")), deserialize(obj.get("value")));
-            case "list":
-              if (!obj.has("inner")) {
+              return dictionary(deserialize(obj.get(STR_KEY)), deserialize(obj.get(STR_VALUE)));
+            case STR_LIST:
+              if (!obj.has(STR_INNER)) {
                 throw new IllegalArgumentException("Missing 'inner' in list.");
               }
-              return deserialize(obj.get("inner")).asList();
-            case "object":
-              if (!obj.has("fields")) {
+              return deserialize(obj.get(STR_INNER)).asList();
+            case STR_OBJECT:
+              if (!obj.has(STR_FIELDS)) {
                 throw new IllegalArgumentException("Missing 'fields' in object.");
               }
               return object(
                   StreamSupport.stream(
-                          Spliterators.spliteratorUnknownSize(obj.get("fields").fields(), 0), false)
+                          Spliterators.spliteratorUnknownSize(obj.get(STR_FIELDS).fields(), 0),
+                          false)
                       .map(e -> new Pair<>(e.getKey(), deserialize(e.getValue()))));
-            case "optional":
-              if (!obj.has("inner")) {
+            case STR_OPTIONAL:
+              if (!obj.has(STR_INNER)) {
                 throw new IllegalArgumentException("Missing 'inner' in optional.");
               }
-              return deserialize(obj.get("inner")).asOptional();
-            case "pair":
-              if (!obj.has("left")) {
+              return deserialize(obj.get(STR_INNER)).asOptional();
+            case STR_PAIR:
+              if (!obj.has(STR_LEFT)) {
                 throw new IllegalArgumentException("Missing 'left' in pair.");
               }
-              if (!obj.has("right")) {
+              if (!obj.has(STR_RIGHT)) {
                 throw new IllegalArgumentException("Missing 'right' in pair.");
               }
-              return pair(deserialize(obj.get("left")), deserialize(obj.get("right")));
-            case "tagged-union":
-              if (!obj.has("options")) {
+              return pair(deserialize(obj.get(STR_LEFT)), deserialize(obj.get(STR_RIGHT)));
+            case STR_TAGGED_UNION:
+              if (!obj.has(STR_OPTIONS)) {
                 throw new IllegalArgumentException("Missing 'options' in tagged union.");
               }
               return taggedUnionFromPairs(
                   StreamSupport.stream(
-                          Spliterators.spliteratorUnknownSize(obj.get("options").fields(), 0),
+                          Spliterators.spliteratorUnknownSize(obj.get(STR_OPTIONS).fields(), 0),
                           false)
                       .map(e -> new Pair<>(e.getKey(), deserialize(e.getValue()))));
-            case "tuple":
-              if (!obj.has("elements")) {
+            case STR_TUPLE:
+              if (!obj.has(STR_ELEMENTS)) {
                 throw new IllegalArgumentException("Missing 'elements' in tuple.");
               }
               return tuple(
-                  StreamSupport.stream(obj.get("elements").spliterator(), false)
+                  StreamSupport.stream(obj.get(STR_ELEMENTS).spliterator(), false)
                       .map(this::deserialize)
                       .toArray(BasicType[]::new));
             default:
@@ -245,12 +268,12 @@ public abstract class BasicType {
               new Visitor<Printer>() {
                 @Override
                 public Printer bool() {
-                  return g -> g.writeString("boolean");
+                  return g -> g.writeString(STR_BOOLEAN);
                 }
 
                 @Override
                 public Printer date() {
-                  return g -> g.writeString("date");
+                  return g -> g.writeString(STR_DATE);
                 }
 
                 @Override
@@ -259,10 +282,10 @@ public abstract class BasicType {
                   final var printValue = value.apply(this);
                   return g -> {
                     g.writeStartObject();
-                    g.writeStringField("is", "dictionary");
-                    g.writeFieldName("key");
+                    g.writeStringField(STR_IS, STR_DICTIONARY);
+                    g.writeFieldName(STR_KEY);
                     printKey.print(g);
-                    g.writeFieldName("value");
+                    g.writeFieldName(STR_VALUE);
                     printValue.print(g);
                     g.writeEndObject();
                   };
@@ -270,17 +293,17 @@ public abstract class BasicType {
 
                 @Override
                 public Printer floating() {
-                  return g -> g.writeString("floating");
+                  return g -> g.writeString(STR_FLOATING);
                 }
 
                 @Override
                 public Printer integer() {
-                  return g -> g.writeString("integer");
+                  return g -> g.writeString(STR_INTEGER);
                 }
 
                 @Override
                 public Printer json() {
-                  return g -> g.writeString("json");
+                  return g -> g.writeString(STR_JSON);
                 }
 
                 @Override
@@ -288,8 +311,8 @@ public abstract class BasicType {
                   final var printInner = inner.apply(this);
                   return g -> {
                     g.writeStartObject();
-                    g.writeStringField("is", "list");
-                    g.writeFieldName("inner");
+                    g.writeStringField(STR_IS, STR_LIST);
+                    g.writeFieldName(STR_INNER);
                     printInner.print(g);
                     g.writeEndObject();
                   };
@@ -303,8 +326,8 @@ public abstract class BasicType {
                           .collect(Collectors.toList());
                   return g -> {
                     g.writeStartObject();
-                    g.writeStringField("is", "object");
-                    g.writeObjectFieldStart("fields");
+                    g.writeStringField(STR_IS, STR_OBJECT);
+                    g.writeObjectFieldStart(STR_FIELDS);
                     for (final var field : fields) {
                       g.writeFieldName(field.first());
                       field.second().print(g);
@@ -319,8 +342,8 @@ public abstract class BasicType {
                   final var printInner = inner.apply(this);
                   return g -> {
                     g.writeStartObject();
-                    g.writeStringField("is", "optional");
-                    g.writeFieldName("inner");
+                    g.writeStringField(STR_IS, STR_OPTIONAL);
+                    g.writeFieldName(STR_INNER);
                     printInner.print(g);
                     g.writeEndObject();
                   };
@@ -332,10 +355,10 @@ public abstract class BasicType {
                   final var printRight = right.apply(this);
                   return g -> {
                     g.writeStartObject();
-                    g.writeStringField("is", "pair");
-                    g.writeFieldName("left");
+                    g.writeStringField(STR_IS, STR_PAIR);
+                    g.writeFieldName(STR_LEFT);
                     printLeft.print(g);
-                    g.writeFieldName("right");
+                    g.writeFieldName(STR_RIGHT);
                     printRight.print(g);
                     g.writeEndObject();
                   };
@@ -343,7 +366,7 @@ public abstract class BasicType {
 
                 @Override
                 public Printer string() {
-                  return g -> g.writeString("string");
+                  return g -> g.writeString(STR_STRING);
                 }
 
                 @Override
@@ -353,8 +376,8 @@ public abstract class BasicType {
                           Collectors.toMap(Map.Entry::getKey, e -> e.getValue().apply(this)));
                   return g -> {
                     g.writeStartObject();
-                    g.writeStringField("is", "tagged-union");
-                    g.writeObjectFieldStart("options");
+                    g.writeStringField(STR_IS, STR_TAGGED_UNION);
+                    g.writeObjectFieldStart(STR_OPTIONS);
                     for (final var union : unions.entrySet()) {
                       g.writeFieldName(union.getKey());
                       union.getValue().print(g);
@@ -370,8 +393,8 @@ public abstract class BasicType {
                       contents.map(e -> e.apply(this)).collect(Collectors.toList());
                   return g -> {
                     g.writeStartObject();
-                    g.writeStringField("is", "tuple");
-                    g.writeArrayFieldStart("elements");
+                    g.writeStringField(STR_IS, STR_TUPLE);
+                    g.writeArrayFieldStart(STR_ELEMENTS);
                     for (final var element : elements) {
                       element.print(g);
                     }

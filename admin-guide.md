@@ -56,6 +56,9 @@ Create a new PostgreSQL database and role for Víðarr.
 
     CREATE ROLE vidarr LOGIN PASSWORD 'mash keyboard here';
     CREATE DATABASE vidarr OWNER vidarr;
+    \c vidarr;
+    ALTER SCHEMA public OWNER TO vidarr;
+    GRANT ALL ON SCHEMA public TO vidarr;
 
 Now prepare the JSON configuration file `/srv/vidarr/config` as follows:
 

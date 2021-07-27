@@ -286,7 +286,9 @@ public final class Main implements ServerConfig {
       case LATEST:
         return createQueryOnVersion(
             externalVersionId ->
-                DSL.lastValue(externalVersionId.VALUE).over().orderBy(externalVersionId.CREATED),
+                DSL.lastValue(externalVersionId.VALUE)
+                    .over()
+                    .orderBy(externalVersionId.CREATED.desc()),
             allowedTypes);
       default:
         return DSL.inline(null, SQLDataType.JSON);
@@ -320,7 +322,8 @@ public final class Main implements ServerConfig {
                                         .eq(table.field(0, String.class))
                                         .and(
                                             externalIdVersionAlias.EXTERNAL_ID_ID.eq(
-                                                EXTERNAL_ID.ID)))))))
+                                                EXTERNAL_ID.ID)))
+                                .limit(1)))))
             .from(table));
   }
 

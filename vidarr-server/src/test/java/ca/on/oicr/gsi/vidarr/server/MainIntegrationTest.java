@@ -3,15 +3,13 @@ package ca.on.oicr.gsi.vidarr.server;
 import static io.restassured.RestAssured.*;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
+import static org.junit.Assert.*;
 
 import ca.on.oicr.gsi.vidarr.core.Phase;
 import ca.on.oicr.gsi.vidarr.core.RawInputProvisioner;
 import ca.on.oicr.gsi.vidarr.server.dto.ServerConfiguration;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -28,9 +26,12 @@ import java.net.http.HttpClient;
 import java.net.http.HttpClient.Redirect;
 import java.sql.SQLException;
 import java.text.ParseException;
-import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -123,24 +124,34 @@ public class MainIntegrationTest {
   @Test
   public void whenGetWorkflows_thenAvailableWorkflowsAreFound() {
     List<Map<String, Object>> activeWorkflows = get("/api/workflows").as(new TypeRef<>() {});
-    assertThat(activeWorkflows, hasSize(2));
+    assertTrue(activeWorkflows.size() > 1);
+    var importFastq1 =
+        activeWorkflows.stream()
+            .filter(
+                w ->
+                    w.get("name").equals("import_fastq")
+                        && w.get("version").equals("1.0.0.12901362"))
+            .findFirst()
+            .get();
 
-    assertThat(activeWorkflows.get(0).get("name"), equalTo("import_fastq"));
-    assertThat(activeWorkflows.get(0).get("version"), equalTo("1.0.0.12901362"));
-    assertThat(activeWorkflows.get(0).get("language"), equalTo("NIASSA"));
-    assertThat(activeWorkflows.get(0).get("labels"), is(nullValue()));
-    assertThat(activeWorkflows.get(0), hasKey("metadata"));
-    Map<String, String> metadata = (Map<String, String>) activeWorkflows.get(0).get("metadata");
+    assertThat(importFastq1.get("language"), equalTo("NIASSA"));
+    assertThat(importFastq1.get("labels"), is(nullValue()));
+    assertThat(importFastq1, hasKey("metadata"));
+    Map<String, String> metadata = (Map<String, String>) importFastq1.get("metadata");
     assertThat(metadata, hasKey("fastqs"));
     assertThat(metadata.get("fastqs"), equalTo("files"));
-    assertThat(activeWorkflows.get(0), hasKey("parameters"));
-    Map<String, String> parameters = (Map<String, String>) activeWorkflows.get(0).get("parameters");
+    assertThat(importFastq1, hasKey("parameters"));
+    Map<String, String> parameters = (Map<String, String>) importFastq1.get("parameters");
     assertThat(parameters, hasKey("workflowRunSWID"));
     assertThat(parameters.get("workflowRunSWID"), equalTo("integer"));
 
-    assertThat(activeWorkflows.get(1).get("name"), equalTo("import_fastq"));
-    assertThat(activeWorkflows.get(1).get("version"), equalTo("1.1.0"));
-    assertThat(activeWorkflows.get(1).get("language"), equalTo("NIASSA"));
+    assertTrue(
+        activeWorkflows.stream()
+            .anyMatch(
+                w ->
+                    "import_fastq".equals(w.get("name"))
+                        && "1.1.0".equals(w.get("version"))
+                        && "NIASSA".equals(w.get("language"))));
   }
 
   @Test
@@ -192,8 +203,19 @@ public class MainIntegrationTest {
   }
 
   @Test
-  public void whenAddDuplicateWorkflow_thenWorkflowIsUnchanged() throws JsonProcessingException {
+  public void whenAddDuplicateWorkflowParams_thenWorkflowIsUnchanged()
+      throws JsonProcessingException {
     var importFastq = get("/api/workflow/{name}", "import_fastq").then().extract().jsonPath();
+    var originalWorkflowCount =
+        get("/api/workflows")
+            .then()
+            .assertThat()
+            .statusCode(200)
+            .and()
+            .extract()
+            .body()
+            .as(new TypeRef<List<Map<String, Object>>>() {})
+            .size();
 
     var newValues = MAPPER.createObjectNode();
     newValues.set("labels", importFastq.get("labels"));
@@ -202,23 +224,60 @@ public class MainIntegrationTest {
     given()
         .body(newValues)
         .when()
-        .post("/api/workflow/{name}", "importFastq")
+        .post("/api/workflow/{name}", "import_fastq")
         .then()
         .assertThat()
         .statusCode(201);
 
-    var newImportFastq = get("/api/workflow/{name}", "importFastq").then().extract().jsonPath();
+    var newImportFastq = get("/api/workflow/{name}", "import_fastq").then().extract().jsonPath();
+    var updatedWorkflowCount =
+        get("/api/workflows")
+            .then()
+            .assertThat()
+            .statusCode(200)
+            .and()
+            .extract()
+            .body()
+            .as(new TypeRef<List<Map<String, Object>>>() {})
+            .size();
 
     assertEquals(importFastq.get("isActive").toString(), newImportFastq.get("isActive").toString());
     assertNull(importFastq.get("labels"));
     assertNull(newImportFastq.get("labels"));
     assertEquals(
         importFastq.get("maxInFlight").toString(), newImportFastq.get("maxInFlight").toString());
+    assertEquals(originalWorkflowCount, updatedWorkflowCount);
+  }
+
+  @Test
+  public void whenAddDuplicateWorkflowName_thenWorkflowIsNotAdded() {
+    var workflows =
+        get("/api/workflows")
+            .then()
+            .assertThat()
+            .statusCode(200)
+            .and()
+            .extract()
+            .as(new TypeRef<List<Map<String, Object>>>() {});
+    assertThat(
+        workflows.stream().filter(wf -> "import_fastq".equals(wf.get("name"))).count(),
+        greaterThan(0L));
+
+    given().when().post("/api/workflow/{name}", "import_fastq").then().statusCode(400);
   }
 
   @Test
   public void whenAddWorkflow_thenWorkflowIsNotAvailable() throws JsonProcessingException {
-    get("/api/workflows").then().assertThat().statusCode(200).body("size()", is(2));
+    var oldSize =
+        get("/api/workflows")
+            .then()
+            .assertThat()
+            .statusCode(200)
+            .and()
+            .extract()
+            .body()
+            .as(new TypeRef<List<Map<String, Object>>>() {})
+            .size();
 
     var noParamWorkflow = MAPPER.writeValueAsString(new HashMap<>());
 
@@ -230,38 +289,35 @@ public class MainIntegrationTest {
         .assertThat()
         .statusCode(201);
 
-    get("/api/workflows").then().assertThat().statusCode(200).body("size()", is(2));
-  }
-
-  @Test
-  public void whenAddDuplicateWorkflow_thenWorkflowIsNotAdded() {
-    var workflows =
+    var newSize =
         get("/api/workflows")
             .then()
             .assertThat()
             .statusCode(200)
-            .body("size()", is(2))
             .and()
             .extract()
-            .as(new TypeRef<List<Map<String, Object>>>() {});
-    assertThat(
-        workflows.stream().filter(wf -> "import_fastq".equals(wf.get("name"))).count(),
-        greaterThan(0L));
-
-    given().when().post("/api/workflow/import_fastq").then().statusCode(400);
+            .body()
+            .as(new TypeRef<List<Map<String, Object>>>() {})
+            .size();
+    assertEquals(oldSize, newSize);
   }
 
   @Test
   public void whenAddWorkflowVersion_thenWorkflowIsAvailable() {
     var wfName = "bcl2fastq";
     var version = "1.new.0";
-    get("/api/workflows")
-        .then()
-        .assertThat()
-        .statusCode(200)
-        .body("size()", is(2))
-        .body("name", everyItem(not(hasItem("bcl2fastq"))))
-        .body("version", hasItems("1.0.0.12901362", "1.1.0"));
+    var oldSize =
+        get("/api/workflows")
+            .then()
+            .assertThat()
+            .statusCode(200)
+            .body("name", everyItem(not(hasItem("bcl2fastq"))))
+            .body("version", hasItems("1.0.0.12901362", "1.1.0"))
+            .and()
+            .extract()
+            .body()
+            .as(new TypeRef<List<Map<String, Object>>>() {})
+            .size();
 
     var body = MAPPER.createObjectNode();
     body.put("language", "UNIX_SHELL");
@@ -281,21 +337,23 @@ public class MainIntegrationTest {
         .statusCode(201);
     // Adding this makes the bcl2fastq workflow and all its versions available
 
-    var versions =
+    var updated =
         get("/api/workflows")
             .then()
             .assertThat()
             .statusCode(200)
             .body("name", hasItems("import_fastq", "bcl2fastq"))
-            .body("size()", is(15))
             .and()
             .extract()
             .body()
-            .as(new TypeRef<List<Map<String, Object>>>() {})
-            .stream()
+            .as(new TypeRef<List<Map<String, Object>>>() {});
+    var newSize = updated.size();
+    var versions =
+        updated.stream()
             .filter(wf -> wfName.equals(wf.get("name")))
             .map(wf -> wf.get("version"))
             .collect(Collectors.toSet());
+    assertTrue(newSize > oldSize);
     assertThat(versions, hasItem(version));
   }
 
@@ -446,20 +504,53 @@ public class MainIntegrationTest {
 
   @Test
   public void whenDisableUnknownWorkflow_thenAvailableWorkflowsAreUnchanged() {
-    get("/api/workflows").then().assertThat().statusCode(200).body("size()", is(2));
+    var before =
+        get("/api/workflows")
+            .then()
+            .assertThat()
+            .statusCode(200)
+            .and()
+            .extract()
+            .body()
+            .as(new TypeRef<List<Map<String, Object>>>() {});
 
     delete("/api/workflow/{name}", "novel").then().assertThat().statusCode(404);
 
-    get("/api/workflows").then().assertThat().statusCode(200).body("size()", is(2));
+    var after =
+        get("/api/workflows")
+            .then()
+            .assertThat()
+            .statusCode(200)
+            .and()
+            .extract()
+            .body()
+            .as(new TypeRef<List<Map<String, Object>>>() {});
+
+    assertEquals(before.size(), after.size());
   }
 
   @Test
   public void whenDisableKnownWorkflow_thenAvailableWorkflowsAreUpdated() {
-    get("/api/workflows").then().assertThat().body("size()", is(2));
+    var before =
+        get("/api/workflows")
+            .then()
+            .extract()
+            .body()
+            .as(new TypeRef<List<Map<String, Object>>>() {});
 
     delete("/api/workflow/{name}", "import_fastq").then().assertThat().statusCode(200);
 
-    get("/api/workflows").then().assertThat().statusCode(200).body("size()", is(0));
+    var after =
+        get("/api/workflows")
+            .then()
+            .assertThat()
+            .statusCode(200)
+            .and()
+            .extract()
+            .body()
+            .as(new TypeRef<List<Map<String, Object>>>() {});
+
+    assertTrue(before.size() > after.size());
   }
 
   @Test
@@ -553,19 +644,66 @@ public class MainIntegrationTest {
         .statusCode(404);
   }
 
-  @Test
-  public void whenGetProvenance_thenProvenanceIsReturned() {
+  private ObjectNode buildProvenanceRequestBody(
+      String versionPolicy, Instant epoch, Instant timestamp) {
     var requestBody = MAPPER.createObjectNode();
-    var analysisTypes = MAPPER.createArrayNode();
+    var analysisTypes = requestBody.putArray("analysisTypes");
     analysisTypes.add("FILE");
-    requestBody.set("analysisTypes", analysisTypes);
-    requestBody.put("epoch", 0);
+    requestBody.put("epoch", (epoch == null ? 0 : epoch.toEpochMilli()));
     requestBody.put("includeParameters", true);
-    requestBody.put("timestamp", 0);
-    requestBody.put("versionPolicy", "NONE");
-    var versionTypes = MAPPER.createArrayNode();
-    versionTypes.add("string");
-    requestBody.set("versionTypes", versionTypes);
+    requestBody.put("timestamp", timestamp.toEpochMilli());
+    requestBody.put("versionPolicy", versionPolicy);
+    var versionTypes = requestBody.putArray("versionTypes");
+    versionTypes.add("pinery-hash-1");
+    versionTypes.add("pinery-hash-2");
+    versionTypes.add("pinery-hash-7");
+    versionTypes.add("pinery-hash-8");
+    return requestBody;
+  }
+
+  @Test
+  public void whenGetProvenanceRecordsLatestVersion_thenLatestVersionIsReturned() {
+    var requestBody =
+        buildProvenanceRequestBody("LATEST", Instant.ofEpochMilli(0), Instant.ofEpochMilli(0));
+    // we really provenance to pick this targetVersion and not the f8f8f8f8 one which was the
+    // same provider version but created earlier
+    String targetVersion = "f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9";
+    String antiTargetVersion = "f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8";
+
+    List<ObjectNode> response =
+        given()
+            .contentType(ContentType.JSON)
+            .body(requestBody)
+            .when()
+            .post("/api/provenance")
+            .then()
+            .extract()
+            .body()
+            .as(ProvenanceResponse.class)
+            .getResults();
+    var externalKeysList =
+        response.stream().map(r -> r.get("externalKeys")).collect(Collectors.toSet());
+
+    // Do this in two steps because JsonNode doesn't want to stream
+    var nodeVersions = new ArrayList<>(); // [{}]
+    externalKeysList.forEach(
+        ekl ->
+            ekl.forEach(
+                ek -> {
+                  nodeVersions.add(ek.get("versions"));
+                }));
+
+    assertTrue(
+        nodeVersions.stream()
+            .map(v -> MAPPER.convertValue(v, new TypeReference<Map<String, String>>() {}))
+            .map(v -> v.values())
+            .anyMatch(a -> a.contains(targetVersion) && !a.contains(antiTargetVersion)));
+  }
+
+  @Test
+  public void whenGetProvenanceRecordsNoneVersion_thenNullVersionsAreReturned() {
+    var requestBody =
+        buildProvenanceRequestBody("NONE", Instant.ofEpochMilli(0), Instant.ofEpochMilli(0));
 
     var results =
         given()
@@ -578,26 +716,92 @@ public class MainIntegrationTest {
             .statusCode(200)
             .and()
             .extract()
-            .jsonPath()
-            .getList("results");
-    assertThat(results, hasSize(10));
+            .body()
+            .as(ProvenanceResponse.class)
+            .getResults();
+    var externalKeysList =
+        results.stream().map(r -> r.get("externalKeys")).collect(Collectors.toSet());
+
+    externalKeysList.forEach(
+        ekl ->
+            ekl.forEach(
+                ek -> {
+                  assertTrue(ek.get("versions") == null || ek.get("versions").isNull());
+                }));
+  }
+
+  @Test
+  public void whenGetProvenanceRecordsAllVersions_thenAllVersionsAreReturned() {
+    var requestBody =
+        buildProvenanceRequestBody("ALL", Instant.ofEpochMilli(0), Instant.ofEpochMilli(0));
+    Set<String> targetVersions = new HashSet<>();
+    targetVersions.add("f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2");
+    targetVersions.add("a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2");
+    targetVersions.add("f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8");
+    targetVersions.add("f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7");
+    targetVersions.add("f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9");
+
+    var response =
+        given()
+            .contentType(ContentType.JSON)
+            .body(requestBody)
+            .when()
+            .post("/api/provenance")
+            .then()
+            .assertThat()
+            .statusCode(200)
+            .and()
+            .extract()
+            .body()
+            .as(ProvenanceResponse.class)
+            .getResults();
+    var externalKeysList =
+        response.stream().map(r -> r.get("externalKeys")).collect(Collectors.toSet());
+
+    // Do this as a second step because JsonNode doesn't want to stream
+    var versions = new ArrayList<>(); // [{}]
+    externalKeysList.forEach(
+        ekl ->
+            ekl.forEach(
+                ek -> {
+                  versions.add(ek.get("versions"));
+                }));
+
+    // Lucky us, this one gives us a list of all the values for each provider version
+    // e.g. [{"pinery-hash-2":["bead860","daef391"]}, {"pinery-hash-1": ["abcd1234"],
+    // "pinery-hash-2": ["deff1940"]}]
+    var values =
+        versions.stream()
+            .map(v -> MAPPER.convertValue(v, new TypeReference<Map<String, List<String>>>() {}))
+            .map(v -> v.values().stream().flatMap(List::stream).collect(Collectors.toSet()))
+            .collect(Collectors.toSet());
+    assertTrue(values.stream().anyMatch(v -> v.containsAll(targetVersions)));
   }
 
   @Test
   public void whenGetProvenanceAfterGivenTimestamp_thenRecordsAfterGivenTimestampAreReturned()
       throws ParseException {
-    var endTime = 1577836860000L;
-    var requestBody = MAPPER.createObjectNode();
-    var analysisTypes = MAPPER.createArrayNode();
-    analysisTypes.add("FILE");
-    requestBody.set("analysisTypes", analysisTypes);
-    requestBody.put("epoch", 0);
-    requestBody.put("includeParameters", true);
-    requestBody.put("timestamp", endTime); // 2020-01-01 00:01:00
-    requestBody.put("versionPolicy", "NONE");
-    var versionTypes = MAPPER.createArrayNode();
-    versionTypes.add("string");
-    requestBody.set("versionTypes", versionTypes);
+    var requestAllRecords =
+        buildProvenanceRequestBody("NONE", Instant.ofEpochMilli(0), Instant.ofEpochMilli(0));
+
+    var allRecordsSize =
+        given()
+            .contentType(ContentType.JSON)
+            .body(requestAllRecords)
+            .when()
+            .post("/api/provenance")
+            .then()
+            .assertThat()
+            .statusCode(200)
+            .and()
+            .extract()
+            .body()
+            .as(ProvenanceResponse.class)
+            .getResults()
+            .size();
+
+    var endTime = Instant.ofEpochMilli(1577836860000L); // 2020-01-01 00:01:00
+    var requestBody = buildProvenanceRequestBody("NONE", Instant.ofEpochMilli(0L), endTime);
 
     // First request gets us the epoch, which we'll need to get the server to pay attention our
     // timestamp field in the second request
@@ -629,11 +833,11 @@ public class MainIntegrationTest {
             .extract()
             .jsonPath()
             .getList("results");
-    assertThat(results, hasSize(6));
+    assertTrue(results.size() < allRecordsSize);
 
     for (Map<String, Object> r : results) {
-      long modTime = dateFromTime((String) r.get("modified"));
-      assertThat(modTime, greaterThan(endTime));
+      Instant modTime = dateFromTime((String) r.get("modified"));
+      assertTrue(modTime.isAfter(endTime));
     }
   }
 
@@ -1008,10 +1212,8 @@ public class MainIntegrationTest {
     return unloadFilter;
   }
 
-  private long dateFromTime(String timeString) throws ParseException {
-    SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX");
-    df.setTimeZone(TimeZone.getTimeZone("EST"));
-    return df.parse(timeString).getTime();
+  private Instant dateFromTime(String timeString) throws ParseException {
+    return OffsetDateTime.parse(timeString).toInstant();
   }
 
   private void removeCreatedAndModifiedFieldsForBetterComparisons(JsonNode unload) {
@@ -1028,5 +1230,37 @@ public class MainIntegrationTest {
                       });
               wfr.get("analysis").forEach(a -> ((ObjectNode) a).remove("modified"));
             });
+  }
+
+  private static class ProvenanceResponse {
+    public ProvenanceResponse() {}
+
+    long epoch;
+    List<ObjectNode> results;
+    long timestamp;
+
+    public long getEpoch() {
+      return epoch;
+    }
+
+    public List<ObjectNode> getResults() {
+      return results;
+    }
+
+    public long getTimestamp() {
+      return timestamp;
+    }
+
+    public void setEpoch(long epoch) {
+      this.epoch = epoch;
+    }
+
+    public void setResults(List<ObjectNode> results) {
+      this.results = results;
+    }
+
+    public void setTimestamp(long timestamp) {
+      this.timestamp = timestamp;
+    }
   }
 }

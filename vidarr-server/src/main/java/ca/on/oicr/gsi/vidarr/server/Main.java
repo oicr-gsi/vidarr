@@ -185,6 +185,12 @@ public final class Main implements ServerConfig {
               "The number of times a remote instance returned an error.")
           .labelNames("remote")
           .register();
+  private static final Counter PROVENANCE_ERROR_COUNT =
+      Counter.build(
+              "vidarr_provenance_error_count",
+              "The number of times Vidarr encountered an error when building a provenance "
+                  + "response")
+          .register();
   private static final LatencyHistogram REMOTE_RESPONSE_TIME =
       new LatencyHistogram(
           "vidarr_remote_vidarr_response_time",
@@ -1342,6 +1348,7 @@ public final class Main implements ServerConfig {
         output.writeEndObject();
       }
     } catch (IOException | SQLException e) {
+      PROVENANCE_ERROR_COUNT.inc();
       internalServerErrorResponse(exchange, e);
     } finally {
       epochLock.readLock().unlock();

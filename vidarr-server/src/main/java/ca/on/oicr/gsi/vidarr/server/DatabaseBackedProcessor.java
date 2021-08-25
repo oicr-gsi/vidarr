@@ -444,8 +444,8 @@ public abstract class DatabaseBackedProcessor
         .flatMap(
             p ->
                 arguments.has(p.name())
-                    ? Stream.empty()
-                    : p.type().apply(new ExtractInputVidarrIds(MAPPER, arguments.get(p.name()))))
+                    ? p.type().apply(new ExtractInputVidarrIds(MAPPER, arguments.get(p.name())))
+                    : Stream.empty())
         .map(id -> BaseProcessor.ANALYSIS_RECORD_ID.matcher(id).group("hash"))
         .collect(Collectors.toCollection(TreeSet::new));
   }

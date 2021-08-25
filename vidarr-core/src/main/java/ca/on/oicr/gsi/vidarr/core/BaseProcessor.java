@@ -266,7 +266,8 @@ public abstract class BaseProcessor<
                                             id -> {
                                               final var file = BaseProcessor.this.pathForId(id);
                                               if (file.isPresent()) {
-                                                discoveredInputFiles.add(id);
+                                                discoveredInputFiles.add(
+                                                    id); // This ID might be wrong?
                                               }
                                               return file;
                                             },
@@ -277,16 +278,21 @@ public abstract class BaseProcessor<
                           }
                         });
                 activeWorkflow.realInput(realInput, transaction);
-                final var outputRequestedInputIds =
+                final var outputRequestedExternalIds =
                     new HashSet<>(activeWorkflow.requestedExternalIds());
-                final var discoveredInputIds =
+                final var discoveredExternalIds =
                     discoveredInputFiles.stream()
                         .flatMap(i -> BaseProcessor.this.pathForId(i).orElseThrow().externalKeys())
                         .map(i -> new ExternalId(i.getProvider(), i.getId()))
                         .collect(Collectors.toSet());
-                if (activeWorkflow.extraInputIdsHandled()
-                    ? discoveredInputIds.containsAll(outputRequestedInputIds)
-                    : discoveredInputIds.equals(outputRequestedInputIds)) {
+                if (activeWorkflow
+                        .extraInputIdsHandled() // Set to true when in Remaining or All case
+                    ? discoveredExternalIds.containsAll(
+                        outputRequestedExternalIds) // Doesn't need to be equal in this case
+                    : discoveredExternalIds.equals(
+                        outputRequestedExternalIds)) { // Al's debug notes: discoveredExternalIds =
+                                                       // ["5193_1_LDI65165"],
+                                                       // outputRequestedExternalIds = []
                   startNextPhase(this, provisionInTasks, transaction);
                 } else {
                   activeWorkflow.phase(Phase.FAILED, Collections.emptyList(), transaction);

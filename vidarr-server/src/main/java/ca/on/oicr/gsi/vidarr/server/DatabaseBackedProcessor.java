@@ -224,7 +224,10 @@ public abstract class DatabaseBackedProcessor
   }
 
   private static String hashFromAnalysisId(String id) {
-    return BaseProcessor.ANALYSIS_RECORD_ID.matcher(id).group("hash");
+    Matcher matcher = BaseProcessor.ANALYSIS_RECORD_ID.matcher(id);
+    if (!matcher.matches())
+      throw new IllegalStateException("Failed to match ANALYSIS_RECORD_ID regex to id: " + id);
+    return matcher.group("hash");
   }
 
   public static Stream<String> validateLabels(

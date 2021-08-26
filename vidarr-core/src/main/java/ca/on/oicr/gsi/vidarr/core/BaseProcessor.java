@@ -291,8 +291,8 @@ public abstract class BaseProcessor<
                         outputRequestedExternalIds) // Doesn't need to be equal in this case
                     : discoveredExternalIds.equals(
                         outputRequestedExternalIds)) { // Al's debug notes: discoveredExternalIds =
-                                                       // ["5193_1_LDI65165"],
-                                                       // outputRequestedExternalIds = []
+                  // ["5193_1_LDI65165"],
+                  // outputRequestedExternalIds = []
                   startNextPhase(this, provisionInTasks, transaction);
                 } else {
                   activeWorkflow.phase(Phase.FAILED, Collections.emptyList(), transaction);

@@ -125,6 +125,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
+import java.util.regex.Matcher;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.xml.stream.XMLStreamException;
@@ -1967,7 +1968,14 @@ public final class Main implements ServerConfig {
                                 .apply(
                                     new ExtractInputVidarrIds(
                                         MAPPER, workflowRun.getArguments().get(param.getKey()))))
-                    .map(id -> BaseProcessor.ANALYSIS_RECORD_ID.matcher(id).group("hash"))
+                    .map(
+                        id -> {
+                          Matcher matcher = BaseProcessor.ANALYSIS_RECORD_ID.matcher(id);
+                          if (!matcher.matches())
+                            throw new IllegalStateException(
+                                "Failed to match ANALYSIS_RECORD_ID regex with id: " + id);
+                          return matcher.group("hash");
+                        })
                     .collect(Collectors.toCollection(TreeSet::new)),
                 workflowRun.getExternalKeys());
 

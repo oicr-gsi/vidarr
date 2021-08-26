@@ -32,7 +32,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.regex.Matcher;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.jooq.Condition;
@@ -188,13 +187,14 @@ public abstract class DatabaseBackedProcessor
       String name,
       ObjectNode providedLabels,
       Iterable<String> labels,
-      TreeSet<String> inputIds,
+      TreeSet<String>
+          inputIds, // In both existing calls, Main.hashFromAnalysisId has already been called.
       Collection<? extends ExternalId> externalIds) {
     try {
       final var digest = MessageDigest.getInstance("SHA-256");
       digest.update(name.getBytes(StandardCharsets.UTF_8));
       for (final var id : inputIds) {
-        final var idBytes = hashFromAnalysisId(id).getBytes(StandardCharsets.UTF_8);
+        final var idBytes = id.getBytes(StandardCharsets.UTF_8);
         digest.update(new byte[] {0});
         digest.update(idBytes);
       }
@@ -221,13 +221,6 @@ public abstract class DatabaseBackedProcessor
     } catch (NoSuchAlgorithmException | JsonProcessingException e) {
       throw new IOError(e);
     }
-  }
-
-  private static String hashFromAnalysisId(String id) {
-    Matcher matcher = BaseProcessor.ANALYSIS_RECORD_ID.matcher(id);
-    if (!matcher.matches())
-      throw new IllegalStateException("Failed to match ANALYSIS_RECORD_ID regex to id: " + id);
-    return matcher.group("hash");
   }
 
   public static Stream<String> validateLabels(
@@ -450,7 +443,7 @@ public abstract class DatabaseBackedProcessor
                 arguments.has(p.name())
                     ? p.type().apply(new ExtractInputVidarrIds(MAPPER, arguments.get(p.name())))
                     : Stream.empty())
-        .map(DatabaseBackedProcessor::hashFromAnalysisId)
+        .map(Main::hashFromAnalysisId)
         .collect(Collectors.toCollection(TreeSet::new));
   }
 

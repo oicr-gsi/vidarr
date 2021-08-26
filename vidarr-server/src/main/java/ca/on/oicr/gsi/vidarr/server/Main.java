@@ -1968,14 +1968,7 @@ public final class Main implements ServerConfig {
                                 .apply(
                                     new ExtractInputVidarrIds(
                                         MAPPER, workflowRun.getArguments().get(param.getKey()))))
-                    .map(
-                        id -> {
-                          Matcher matcher = BaseProcessor.ANALYSIS_RECORD_ID.matcher(id);
-                          if (!matcher.matches())
-                            throw new IllegalStateException(
-                                "Failed to match ANALYSIS_RECORD_ID regex with id: " + id);
-                          return matcher.group("hash");
-                        })
+                    .map(Main::hashFromAnalysisId)
                     .collect(Collectors.toCollection(TreeSet::new)),
                 workflowRun.getExternalKeys());
 
@@ -2129,6 +2122,13 @@ public final class Main implements ServerConfig {
       exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
       exchange.getResponseSender().send(e.getMessage());
     }
+  }
+
+  public static String hashFromAnalysisId(String id) {
+    Matcher matcher = BaseProcessor.ANALYSIS_RECORD_ID.matcher(id);
+    if (!matcher.matches())
+      throw new IllegalStateException("Failed to match ANALYSIS_RECORD_ID regex to id: " + id);
+    return matcher.group("hash");
   }
 
   private void loadDataIntoDatabase(

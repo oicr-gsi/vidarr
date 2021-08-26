@@ -450,13 +450,7 @@ public abstract class DatabaseBackedProcessor
                 arguments.has(p.name())
                     ? p.type().apply(new ExtractInputVidarrIds(MAPPER, arguments.get(p.name())))
                     : Stream.empty())
-        .map(
-            id -> {
-              Matcher matcher = BaseProcessor.ANALYSIS_RECORD_ID.matcher(id);
-              if (!matcher.matches())
-                throw new IllegalStateException("Failed to do regex matching on id: " + id);
-              return matcher.group("hash");
-            })
+        .map(DatabaseBackedProcessor::hashFromAnalysisId)
         .collect(Collectors.toCollection(TreeSet::new));
   }
 

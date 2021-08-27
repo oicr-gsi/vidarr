@@ -266,8 +266,7 @@ public abstract class BaseProcessor<
                                             id -> {
                                               final var file = BaseProcessor.this.pathForId(id);
                                               if (file.isPresent()) {
-                                                discoveredInputFiles.add(
-                                                    id); // This ID might be wrong?
+                                                discoveredInputFiles.add(id);
                                               }
                                               return file;
                                             },
@@ -289,10 +288,7 @@ public abstract class BaseProcessor<
                         .extraInputIdsHandled() // Set to true when in Remaining or All case
                     ? discoveredExternalIds.containsAll(
                         outputRequestedExternalIds) // Doesn't need to be equal in this case
-                    : discoveredExternalIds.equals(
-                        outputRequestedExternalIds)) { // Al's debug notes: discoveredExternalIds =
-                  // ["5193_1_LDI65165"],
-                  // outputRequestedExternalIds = []
+                    : discoveredExternalIds.equals(outputRequestedExternalIds)) {
                   startNextPhase(this, provisionInTasks, transaction);
                 } else {
                   activeWorkflow.phase(Phase.FAILED, Collections.emptyList(), transaction);

@@ -46,7 +46,7 @@ COPY public.active_operation (id, attempt, debug_info, recovery_state, status, t
 -- Data for Name: active_workflow_run; Type: TABLE DATA; Schema: public; Owner: vidarr
 --
 
-COPY public.active_workflow_run (id, attempt, cleanup_state, completed, consumable_resources, created, engine_phase, external_input_ids_handled, modified, preflight_okay, real_input, started, target, waiting_resource, workflow_run_url) FROM stdin;
+COPY public.active_workflow_run (id, attempt, cleanup_state, completed, consumable_resources, created, engine_phase, extra_input_ids_handled, modified, preflight_okay, real_input, started, target, waiting_resource, workflow_run_url) FROM stdin;
 1	0	\N	\N	{}	2021-03-09 13:26:55-05	0	f	2021-03-09 14:16:55-05	t	\N	\N	std	The maximum number of bcl2barcode workflows has been reached.	\N
 \.
 

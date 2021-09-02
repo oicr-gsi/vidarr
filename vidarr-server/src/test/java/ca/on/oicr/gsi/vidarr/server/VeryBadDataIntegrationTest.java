@@ -115,6 +115,15 @@ public class VeryBadDataIntegrationTest {
   }
 
   @Test
+  public void disableWorkflow() {
+    List<String> filteredBlns = getNaughtyStringList();
+    filteredBlns.forEach(
+        (naughtyString) -> {
+          delete("/api/workflow/{name}", naughtyString).then().assertThat().statusCode(404);
+        });
+  }
+
+  @Test
   public void getWorkflow() {
     List<String> filteredBlns = getNaughtyStringList();
     filteredBlns.forEach(
@@ -210,6 +219,15 @@ public class VeryBadDataIntegrationTest {
     filteredBlns.forEach(
         (naughtyString) -> {
           get("/api/status/{hash}", naughtyString).then().assertThat().statusCode(404);
+        });
+  }
+
+  @Test
+  public void deleteActiveWorkflowRun() {
+    List<String> filteredBlns = getNaughtyStringList();
+    filteredBlns.forEach(
+        (naughtyString) -> {
+          delete("/api/status/{hash}", naughtyString).then().assertThat().statusCode(404);
         });
   }
 

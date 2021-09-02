@@ -329,12 +329,8 @@ public final class Main implements ServerConfig {
 
   private static void handleException(HttpServerExchange exchange) {
     final var e = (Exception) exchange.getAttachment(ExceptionHandler.THROWABLE);
-    if (e instanceof ValidationException) {
-      exchange.setStatusCode(StatusCodes.BAD_REQUEST);
-    } else {
-      exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);
-    }
     e.printStackTrace();
+    exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);
     exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
     exchange.getResponseSender().send(e.getMessage());
   }
@@ -776,8 +772,7 @@ public final class Main implements ServerConfig {
     }
   }
 
-  private void addWorkflowVersion(HttpServerExchange exchange, AddWorkflowVersionRequest request)
-      throws ValidationException {
+  private void addWorkflowVersion(HttpServerExchange exchange, AddWorkflowVersionRequest request) {
     final var name =
         exchange.getAttachment(PathTemplateMatch.ATTACHMENT_KEY).getParameters().get("name");
     final var version =

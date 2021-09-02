@@ -1,13 +1,17 @@
 package ca.on.oicr.gsi.vidarr.api;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.Objects;
 
 /** A reference to an external key */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class ExternalId {
 
+  @JsonProperty("id")
   private String id;
+
+  @JsonProperty("provider")
   private String provider;
 
   public ExternalId() {}

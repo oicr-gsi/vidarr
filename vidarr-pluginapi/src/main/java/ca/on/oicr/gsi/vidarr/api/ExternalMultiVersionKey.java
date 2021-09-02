@@ -1,6 +1,7 @@
 package ca.on.oicr.gsi.vidarr.api;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -10,7 +11,10 @@ import java.util.Set;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public final class ExternalMultiVersionKey extends ExternalId {
 
+  @JsonProperty("versions")
   private Map<String, Set<String>> versions;
+
+  public ExternalMultiVersionKey() {}
 
   public ExternalMultiVersionKey(String provider, String id) {
     super(provider, id);

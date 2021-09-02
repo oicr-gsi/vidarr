@@ -103,8 +103,12 @@ public class VeryBadDataIntegrationTest {
     List<String> blns = NaughtyStrings.getStrings();
     // These indices correspond with strings here
     // https://github.com/minimaxir/big-list-of-naughty-strings/blob/master/blns.json
+
+    // IntStream.concat() only takes two streams
     List<Integer> indices =
-        IntStream.concat(IntStream.range(0, 31), IntStream.range(194, 202))
+        IntStream.concat(
+                IntStream.range(0, 31),
+                IntStream.concat(IntStream.range(194, 202), IntStream.range(431, 467)))
             .boxed()
             .collect(Collectors.toList());
     // Filtering original list to only get strings we care about

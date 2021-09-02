@@ -6,122 +6,28 @@ import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.*;
 
 import ca.on.oicr.gsi.vidarr.core.Phase;
-import ca.on.oicr.gsi.vidarr.core.RawInputProvisioner;
-import ca.on.oicr.gsi.vidarr.server.dto.ServerConfiguration;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import io.restassured.RestAssured;
 import io.restassured.common.mapper.TypeRef;
 import io.restassured.http.ContentType;
-import io.restassured.parsing.Parser;
 import io.restassured.path.json.JsonPath;
 import java.io.File;
 import java.io.IOException;
-import java.net.http.HttpClient;
-import java.net.http.HttpClient.Redirect;
-import java.sql.SQLException;
 import java.text.ParseException;
 import java.time.Instant;
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.TimeZone;
+import java.util.*;
 import java.util.stream.Collectors;
-import org.flywaydb.core.Flyway;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.ClassRule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.postgresql.ds.PGSimpleDataSource;
-import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.containers.JdbcDatabaseContainer;
-import org.testcontainers.containers.PostgreSQLContainer;
 
-public class MainIntegrationTest {
-  @ClassRule
-  public static JdbcDatabaseContainer pg =
-      new PostgreSQLContainer("postgres:12-alpine")
-          .withDatabaseName("vidarr-test")
-          .withUsername("vidarr-test")
-          .withPassword("vidarr-test");
+public class MainIntegrationTest extends IntegrationTestBase {
 
-  private static final ObjectMapper MAPPER = new ObjectMapper();
-  private static ServerConfiguration config;
-  private static Main main;
-  private static final HttpClient CLIENT =
-      HttpClient.newBuilder().followRedirects(Redirect.NORMAL).build();
-  @ClassRule public static final TemporaryFolder unloadDirectory = new TemporaryFolder();
-
-  private static ServerConfiguration getTestServerConfig(GenericContainer pg) {
-    ServerConfiguration config = new ServerConfiguration();
-    config.setName("vidarr-test");
-    config.setDbHost(pg.getHost());
-    config.setDbName("vidarr-test");
-    config.setDbPass("vidarr-test");
-    config.setDbUser("vidarr-test");
-    config.setDbPort(pg.getFirstMappedPort());
-    config.setPort(8999);
-    config.setUrl("http://localhost:" + config.getPort());
-    config.setOtherServers(new HashMap<>());
-    config.setInputProvisioners(Collections.singletonMap("raw", new RawInputProvisioner()));
-    config.setWorkflowEngines(new HashMap<>());
-    config.setOutputProvisioners(new HashMap<>());
-    config.setRuntimeProvisioners(new HashMap<>());
-    config.setTargets(new HashMap<>());
-    config.setUnloadDirectory(unloadDirectory.getRoot().getAbsolutePath());
-    return config;
-  }
-
-  @BeforeClass
-  public static void setup() throws SQLException {
-    TimeZone.setDefault(TimeZone.getTimeZone("America/Toronto"));
-    config = getTestServerConfig(pg);
-    main = new Main(config);
-    main.startServer(main);
-    RestAssured.baseURI = config.getUrl();
-    RestAssured.port = config.getPort();
-    RestAssured.enableLoggingOfRequestAndResponseIfValidationFails();
-    defaultParser = Parser.TEXT;
-    MAPPER.registerModule(new JavaTimeModule());
-  }
-
-  @Before
-  public void cleanAndMigrateDB() {
-    final var simpleConnection = new PGSimpleDataSource();
-    simpleConnection.setServerNames(new String[] {config.getDbHost()});
-    simpleConnection.setPortNumbers(new int[] {config.getDbPort()});
-    simpleConnection.setDatabaseName(config.getDbName());
-    simpleConnection.setUser(config.getDbUser());
-    simpleConnection.setPassword(config.getDbPass());
-    var fw = Flyway.configure().dataSource(simpleConnection);
-    fw.load().clean();
-    fw.locations("classpath:db/migration").load().migrate();
-    // we do this because Flyway on its own isn't finding the test data, and it dies when you
-    // try to give it classpath + filesystem locations in one string. We ignore the "missing"
-    // migrations (run in the migrate() call above).
-    fw.locations("filesystem:src/test/resources/db/migration/")
-        .ignoreMissingMigrations(true)
-        .load()
-        .migrate();
-  }
-
-  @Test
   public void whenGetHomepage_then200Response() {
     get("/").then().assertThat().statusCode(200);
   }
 
-  @Test
   public void whenGetWorkflows_thenAvailableWorkflowsAreFound() {
     List<Map<String, Object>> activeWorkflows = get("/api/workflows").as(new TypeRef<>() {});
     assertTrue(activeWorkflows.size() > 1);
@@ -154,7 +60,6 @@ public class MainIntegrationTest {
                         && "NIASSA".equals(w.get("language"))));
   }
 
-  @Test
   public void whenAddWorkflow_thenWorkflowIsAdded() throws JsonProcessingException {
     get("/api/workflow/{name}", "novel").then().assertThat().statusCode(404);
 
@@ -176,7 +81,6 @@ public class MainIntegrationTest {
         .body("isActive", equalTo(true));
   }
 
-  @Test
   public void whenReAddWorkflow_thenWorkflowMaxInFlightIsUpdated() {
     var bcl2fastq = get("/api/workflow/{name}", "bcl2fastq").then().extract().jsonPath();
     assertNull(bcl2fastq.get("labels"));
@@ -202,7 +106,6 @@ public class MainIntegrationTest {
     assertNotEquals(newBcl2fastq.get("maxInFlight"), bcl2fastq.get("maxInFlight"));
   }
 
-  @Test
   public void whenAddDuplicateWorkflowParams_thenWorkflowIsUnchanged()
       throws JsonProcessingException {
     var importFastq = get("/api/workflow/{name}", "import_fastq").then().extract().jsonPath();
@@ -249,7 +152,6 @@ public class MainIntegrationTest {
     assertEquals(originalWorkflowCount, updatedWorkflowCount);
   }
 
-  @Test
   public void whenAddDuplicateWorkflowName_thenWorkflowIsNotAdded() {
     var workflows =
         get("/api/workflows")
@@ -266,7 +168,6 @@ public class MainIntegrationTest {
     given().when().post("/api/workflow/{name}", "import_fastq").then().statusCode(400);
   }
 
-  @Test
   public void whenAddWorkflow_thenWorkflowIsNotAvailable() throws JsonProcessingException {
     var oldSize =
         get("/api/workflows")
@@ -302,7 +203,6 @@ public class MainIntegrationTest {
     assertEquals(oldSize, newSize);
   }
 
-  @Test
   public void whenAddWorkflowVersion_thenWorkflowIsAvailable() {
     var wfName = "bcl2fastq";
     var version = "1.new.0";
@@ -357,7 +257,6 @@ public class MainIntegrationTest {
     assertThat(versions, hasItem(version));
   }
 
-  @Test
   public void whenAddWorkflowVersionToUnknownWorkflow_thenWorkflowVersionIsNotAdded() {
     ObjectNode wfv_import_fastq = MAPPER.createObjectNode();
     ObjectNode parameters = MAPPER.createObjectNode();
@@ -399,7 +298,6 @@ public class MainIntegrationTest {
         .collect(Collectors.toSet());
   }
 
-  @Test
   public void whenIncompleteWorkflowVersionIsAdded_thenWorkflowVersionIsNotAdded() {
     var wfName = "import_fastq";
     var wfVersion = "incompl";
@@ -459,7 +357,6 @@ public class MainIntegrationTest {
         .statusCode(201);
   }
 
-  @Test
   public void whenAddDuplicateWorkflowVersion_thenVersionIsNotDuplicated() {
     var wfName = "import_fastq";
     var wfVersion = "2.double";
@@ -502,7 +399,6 @@ public class MainIntegrationTest {
     assertThat(versionsAfterSecond.stream().filter(wfVersion::equals).count(), equalTo(1L));
   }
 
-  @Test
   public void whenDisableUnknownWorkflow_thenAvailableWorkflowsAreUnchanged() {
     var before =
         get("/api/workflows")
@@ -529,7 +425,6 @@ public class MainIntegrationTest {
     assertEquals(before.size(), after.size());
   }
 
-  @Test
   public void whenDisableKnownWorkflow_thenAvailableWorkflowsAreUpdated() {
     var before =
         get("/api/workflows")
@@ -553,7 +448,6 @@ public class MainIntegrationTest {
     assertTrue(before.size() > after.size());
   }
 
-  @Test
   public void whenDeleteWorkflow_thenWorkflowIsInactivated() {
     var workflow = "import_fastq";
     get("/api/workflow/{name}", workflow)
@@ -571,12 +465,10 @@ public class MainIntegrationTest {
         .body("isActive", is(false));
   }
 
-  @Test
   public void whenGetUnknownWorkflow_thenNoWorkflowIsFound() {
     get("/api/workflow/{name}", "garbage").then().assertThat().statusCode(404);
   }
 
-  @Test
   public void whenGetWorkflow_thenWorkflowIsFound() {
     get("/api/workflow/{name}", "bcl2fastq")
         .then()
@@ -585,7 +477,6 @@ public class MainIntegrationTest {
         .body("isActive", is(false));
   }
 
-  @Test
   public void whenGetWaiting_thenWaitingWorkflowsAreFound() {
     var waitingBcl2fastq =
         get("/api/waiting")
@@ -606,7 +497,6 @@ public class MainIntegrationTest {
         hasItem("df7df7df7df7df7df7df7df7df7df70df7df7df7df7df7df7df7df7df7df7df7"));
   }
 
-  @Test
   public void whenGetMaxInFlight_thenGetMaxInFlightData() {
     get("/api/max-in-flight")
         .then()
@@ -615,12 +505,10 @@ public class MainIntegrationTest {
         .body("$", hasKey("timestamp"), "workflows", hasKey("import_fastq"));
   }
 
-  @Test
   public void whenGetUnknownFile_thenNoFileIsFound() {
     get("/api/file/{hash}", "abcdefedcbabcdefedcba").then().statusCode(404);
   }
 
-  @Test
   public void whenGetFile_thenFileIsFound() {
     var foundFile =
         get("/api/file/{hash}", "916df707b105ddd88d8979e41208f2507a6d0c8d3ef57677750efa7857c4f6b2")
@@ -636,7 +524,6 @@ public class MainIntegrationTest {
     assertEquals(given, foundFile);
   }
 
-  @Test
   public void whenUnknownFileIsRequested_thenNoFileIsReturned() {
     get("/api/file/{hash}", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
         .then()
@@ -661,7 +548,6 @@ public class MainIntegrationTest {
     return requestBody;
   }
 
-  @Test
   public void whenGetProvenanceRecordsLatestVersion_thenLatestVersionIsReturned() {
     var requestBody =
         buildProvenanceRequestBody("LATEST", Instant.ofEpochMilli(0), Instant.ofEpochMilli(0));
@@ -700,7 +586,6 @@ public class MainIntegrationTest {
             .anyMatch(a -> a.contains(targetVersion) && !a.contains(antiTargetVersion)));
   }
 
-  @Test
   public void whenGetProvenanceRecordsNoneVersion_thenNullVersionsAreReturned() {
     var requestBody =
         buildProvenanceRequestBody("NONE", Instant.ofEpochMilli(0), Instant.ofEpochMilli(0));
@@ -730,7 +615,6 @@ public class MainIntegrationTest {
                 }));
   }
 
-  @Test
   public void whenGetProvenanceRecordsAllVersions_thenAllVersionsAreReturned() {
     var requestBody =
         buildProvenanceRequestBody("ALL", Instant.ofEpochMilli(0), Instant.ofEpochMilli(0));
@@ -778,7 +662,6 @@ public class MainIntegrationTest {
     assertTrue(values.stream().anyMatch(v -> v.containsAll(targetVersions)));
   }
 
-  @Test
   public void whenGetProvenanceAfterGivenTimestamp_thenRecordsAfterGivenTimestampAreReturned()
       throws ParseException {
     var requestAllRecords =
@@ -841,7 +724,6 @@ public class MainIntegrationTest {
     }
   }
 
-  @Test
   public void whenGetWorkflowRun_thenReturnWorkflowRun() {
     get("/api/run/{hash}", "df7df7df7df7df7df7df7df7df7df70df7df7df7df7df7df7df7df7df7df7df7")
         .then()
@@ -851,7 +733,6 @@ public class MainIntegrationTest {
             "workflowName", equalTo("bcl2fastq"), "arguments.workflowRunSWID", equalTo("4444444"));
   }
 
-  @Test
   public void whenGetUnknownWorkflowRun_thenNoWorkflowRunIsFound() {
     get("/api/run/{hash}", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
         .then()
@@ -859,7 +740,6 @@ public class MainIntegrationTest {
         .statusCode(404);
   }
 
-  @Test
   public void whenDeleteActiveWorkflowRun_thenWorkflowRunIsDeleted() {
     get("/api/status/{hash}", "df7df7df7df7df7df7df7df7df7df70df7df7df7df7df7df7df7df7df7df7df7")
         .then()
@@ -877,7 +757,6 @@ public class MainIntegrationTest {
         .statusCode(404);
   }
 
-  @Test
   public void whenDeleteUnknownWorkflowRun_thenNoWorkflowRunIsDeleted() {
     delete("/api/status/{hash}", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
         .then()
@@ -885,7 +764,6 @@ public class MainIntegrationTest {
         .statusCode(404);
   }
 
-  @Test
   public void whenDeleteCompletedWorkflowRun_thenNoWorkflowRunIsDeleted() {
     delete("/api/status/{hash}", "5d93d47a8dfc7e038bdc3ffc4b7faf6a53a22c51ae9df7d683aef912510b0a88")
         .then()
@@ -893,7 +771,6 @@ public class MainIntegrationTest {
         .statusCode(404);
   }
 
-  @Test
   public void whenGetAllWorkflowStatuses_thenStatusesForAllWorkflowsAreReturned() {
     get("/api/status")
         .then()
@@ -906,7 +783,6 @@ public class MainIntegrationTest {
         .body("[0].enginePhase", equalTo(Phase.WAITING_FOR_RESOURCES.toString()));
   }
 
-  @Test
   public void whenGetWorkflowStatus_thenStatusForWorkflowIsReturned() {
     get("/api/status/{hash}", "df7df7df7df7df7df7df7df7df7df70df7df7df7df7df7df7df7df7df7df7df7")
         .then()
@@ -918,7 +794,6 @@ public class MainIntegrationTest {
         .body("enginePhase", equalTo(Phase.WAITING_FOR_RESOURCES.toString()));
   }
 
-  @Test
   public void whenGetUnknownWorkflowStatus_thenNoWorkflowStatusIsReturned() {
     get("/api/status/{hash}", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
         .then()
@@ -926,7 +801,6 @@ public class MainIntegrationTest {
         .statusCode(404);
   }
 
-  @Test
   public void whenGetCompletedWorkflowStatus_thenWorkflowStatusIsReturned() {
     get("/api/status/{hash}", "2f52b25df0a20cf41b0476b9114ad40a7d8d2edbddf0bed7d2d1b01d3f2d2b56")
         .then()
@@ -938,7 +812,6 @@ public class MainIntegrationTest {
         .body("enginePhase", nullValue());
   }
 
-  @Test
   public void whenGetWorkflowRunUrlForFileType_thenNoWorkflowRunIsReturned() {
     get("/api/url/{hash}", "916df707b105ddd88d8979e41208f2507a6d0c8d3ef57677750efa7857c4f6b2")
         .then()
@@ -946,7 +819,6 @@ public class MainIntegrationTest {
         .statusCode(404);
   }
 
-  @Test
   public void whenGetWorkflowRunUrl_thenWorkflowRunIsReturned() {
     get("/api/url/{hash}", "8b16674e6e2a36d1f689632b1f36d0fe0876b7d54583dfbdf76c4c58e0588531")
         .then()
@@ -956,7 +828,6 @@ public class MainIntegrationTest {
         .body("labels.keySet()", hasItems("read_count", "read_number", "niassa-file-accession"));
   }
 
-  @Test
   public void whenCopyOut_thenRecordsAreCopied() {
     ObjectNode copyOutFilter = getBcl2FastqUnloadFilter();
 
@@ -980,7 +851,6 @@ public class MainIntegrationTest {
     get("/api/run/{hash}", firstHash).then().assertThat().statusCode(200);
   }
 
-  @Test
   public void whenUnloadWorkflowRuns_thenFilesAreGone() throws IOException {
     // Confirm that a bcl2fastq workflow run exists
     get("/api/run/{hash}", "2f52b25df0a20cf41b0476b9114ad40a7d8d2edbddf0bed7d2d1b01d3f2d2b56")
@@ -1018,7 +888,6 @@ public class MainIntegrationTest {
     get("/api/run/{hash}", firstHash).then().assertThat().statusCode(404);
   }
 
-  @Test
   public void whenWorkflowRunsAreUnloaded_thenTheyCanBeLoaded() throws IOException {
     var bcl2fastqHash = "2f52b25df0a20cf41b0476b9114ad40a7d8d2edbddf0bed7d2d1b01d3f2d2b56";
     // Confirm that the bcl2fastq workflow run exists in the database
@@ -1082,7 +951,6 @@ public class MainIntegrationTest {
     assertEquals(reUnloaded, unloaded);
   }
 
-  @Test
   public void whenExternalIdsAreUpdated_thenUpdatedVersionsAreSaved() {
     var runHash = "2f52b25df0a20cf41b0476b9114ad40a7d8d2edbddf0bed7d2d1b01d3f2d2b56";
     JsonPath initial = get("/api/run/{hash}", runHash).then().extract().jsonPath();
@@ -1124,7 +992,6 @@ public class MainIntegrationTest {
         hasItems("pinery-hash-52", "pinery-hash-2"));
   }
 
-  @Test
   public void whenExternalVersionFieldsMismatch_thenVersionsAreNotUpdated() {
     // mismatch on external_id_version.key (old)
     var bulkUpdateOldKey = MAPPER.createObjectNode();

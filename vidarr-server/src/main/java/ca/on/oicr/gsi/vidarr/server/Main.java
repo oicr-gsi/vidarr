@@ -138,7 +138,6 @@ import org.jooq.JSONB;
 import org.jooq.JSONEntry;
 import org.jooq.Record1;
 import org.jooq.SQLDialect;
-import org.jooq.exception.NoDataFoundException;
 import org.jooq.impl.DSL;
 import org.jooq.impl.SQLDataType;
 import org.postgresql.ds.PGSimpleDataSource;
@@ -1655,8 +1654,13 @@ public final class Main implements ServerConfig {
                       .on(WORKFLOW_VERSION.WORKFLOW_DEFINITION.eq(WORKFLOW_DEFINITION.ID)))
               .where(WORKFLOW_VERSION.NAME.eq(name).and(WORKFLOW_VERSION.VERSION.eq(version)))
               .fetchOptional()
-              .orElseThrow(() -> new NoDataFoundException("..."))
-              .map(r -> r.value1().data());
+              .map(
+                  r -> {
+                    if (r.value1() != null) {
+                      return r.value1().data();
+                    }
+                    return null;
+                  });
       if (result.isPresent()) {
         exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_JSON);
         exchange.setStatusCode(StatusCodes.OK);

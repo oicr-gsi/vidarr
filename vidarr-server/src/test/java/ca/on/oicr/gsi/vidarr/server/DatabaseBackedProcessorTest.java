@@ -16,6 +16,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -25,14 +26,10 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.mockito.Mockito;
-import org.mockito.junit.MockitoJUnitRunner;
 import org.postgresql.ds.PGSimpleDataSource;
 import org.testcontainers.containers.JdbcDatabaseContainer;
 import org.testcontainers.containers.PostgreSQLContainer;
 
-@RunWith(MockitoJUnitRunner.class)
 public class DatabaseBackedProcessorTest {
   private static final String vidarrTest = "vidarr-test";
   private static final String dbName = vidarrTest;
@@ -46,8 +43,7 @@ public class DatabaseBackedProcessorTest {
           .withUsername(dbUser)
           .withPassword(dbPass);
 
-  private static ScheduledExecutorService mockExecutor =
-      Mockito.mock(ScheduledExecutorService.class);
+  private static ScheduledExecutorService executor = Executors.newScheduledThreadPool(1);
   private static HikariConfig dbConfig;
   private DatabaseBackedProcessor sut;
 
@@ -82,7 +78,7 @@ public class DatabaseBackedProcessorTest {
         .migrate();
 
     sut =
-        new DatabaseBackedProcessor(mockExecutor, new HikariDataSource(dbConfig)) {
+        new DatabaseBackedProcessor(executor, new HikariDataSource(dbConfig)) {
           private Optional<FileMetadata> fetchPathForId(String id) {
             return Optional.empty();
           }

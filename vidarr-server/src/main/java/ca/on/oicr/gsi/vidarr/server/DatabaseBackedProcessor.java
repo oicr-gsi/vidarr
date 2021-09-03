@@ -178,7 +178,7 @@ public abstract class DatabaseBackedProcessor
         ? resource
             .second()
             .apply(
-                new CheckSimpleType(
+                new ValidateJsonToSimpleType(
                     "Consumable resource: " + resource.first(),
                     consumableResources.get(resource.first())))
         : Stream.of(String.format("Missing required consumable resource %s", resource.first()));
@@ -243,7 +243,7 @@ public abstract class DatabaseBackedProcessor
                 return entry
                     .getValue()
                     .apply(
-                        new CheckSimpleType(
+                        new ValidateJsonToSimpleType(
                             "Label: " + entry.getKey(), providedLabels.get(entry.getKey())))
                     .map(String.format("Label %s: ", entry.getKey())::concat);
               } else {

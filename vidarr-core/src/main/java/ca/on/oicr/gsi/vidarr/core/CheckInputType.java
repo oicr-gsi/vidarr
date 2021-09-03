@@ -129,7 +129,7 @@ public final class CheckInputType implements InputType.Visitor<Stream<String>> {
           return target
               .provisionerFor(format)
               .externalTypeFor(format)
-              .apply(new CheckSimpleType(context, contents.get(EXTERNAL__CONFIG)));
+              .apply(new ValidateJsonToSimpleType(context, contents.get(EXTERNAL__CONFIG)));
         case "INTERNAL":
           if (contents.isArray() && contents.size() == 1 && contents.get(0).isTextual()) {
             final var id = contents.get(0).asText();

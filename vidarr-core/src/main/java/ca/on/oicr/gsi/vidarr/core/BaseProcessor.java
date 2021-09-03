@@ -772,7 +772,9 @@ public abstract class BaseProcessor<
                     .engineParameters()
                     .map(
                         p ->
-                            p.apply(new CheckSimpleType("\"engine parameters\"", engineParameters)))
+                            p.apply(
+                                new ValidateJsonToSimpleType(
+                                    "\"engine parameters\"", engineParameters)))
                     .orElseGet(
                         () ->
                             engineParameters == null

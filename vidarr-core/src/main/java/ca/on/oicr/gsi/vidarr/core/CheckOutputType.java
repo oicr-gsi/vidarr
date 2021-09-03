@@ -44,7 +44,7 @@ public final class CheckOutputType extends BaseOutputExtractor<Stream<String>, S
     } else {
       return provision
           .typeFor(format.format())
-          .apply(new CheckSimpleType(context + "|" + format.name(), metadata));
+          .apply(new ValidateJsonToSimpleType(context + "|" + format.name(), metadata));
     }
   }
 

@@ -10,6 +10,7 @@ import ca.on.oicr.gsi.vidarr.WorkflowDefinition;
 import ca.on.oicr.gsi.vidarr.api.BulkVersionRequest;
 import ca.on.oicr.gsi.vidarr.api.ExternalId;
 import ca.on.oicr.gsi.vidarr.api.ExternalKey;
+import ca.on.oicr.gsi.vidarr.api.ExternalMultiVersionKey;
 import ca.on.oicr.gsi.vidarr.core.*;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -758,23 +759,29 @@ public abstract class DatabaseBackedProcessor
                                 r.get(EXTERNAL_ID.PROVIDER), r.get(EXTERNAL_ID.EXTERNAL_ID_)),
                         Collectors.toMap(
                             r -> r.get(EXTERNAL_ID_VERSION.KEY),
-                            r -> r.get(EXTERNAL_ID_VERSION.VALUE)))))
+                            r ->
+                                Stream.of(r.get(EXTERNAL_ID_VERSION.VALUE))
+                                    .collect(Collectors.toSet()),
+                            (a, b) -> {
+                              a.addAll(b);
+                              return a;
+                            }))))
             .entrySet()
             .stream()
             .<FileMetadata>map(
                 e ->
                     new FileMetadata() {
-                      private final List<ExternalKey> keys =
+                      private final List<ExternalMultiVersionKey> keys =
                           e.getValue().entrySet().stream()
                               .map(
                                   ee ->
-                                      new ExternalKey(
+                                      new ExternalMultiVersionKey(
                                           ee.getKey().first(), ee.getKey().second(), ee.getValue()))
                               .collect(Collectors.toList());
                       private final String path = e.getKey();
 
                       @Override
-                      public Stream<ExternalKey> externalKeys() {
+                      public Stream<ExternalMultiVersionKey> externalKeys() {
                         return keys.stream();
                       }
 

@@ -689,16 +689,18 @@ public final class Main implements ServerConfig {
                           .GET()
                           .build(),
                       new JsonBodyHandler<>(
-                          MAPPER, new TypeReference<ProvenanceAnalysisRecord<ExternalKey>>() {}));
+                          MAPPER,
+                          new TypeReference<
+                              ProvenanceAnalysisRecord<ExternalMultiVersionKey>>() {}));
               if (response.statusCode() == HttpURLConnection.HTTP_OK) {
                 final var result = response.body().get();
                 return Optional.of(
                     new FileMetadata() {
-                      private final List<ExternalKey> keys = result.getExternalKeys();
+                      private final List<ExternalMultiVersionKey> keys = result.getExternalKeys();
                       private final String path = result.getPath();
 
                       @Override
-                      public Stream<ExternalKey> externalKeys() {
+                      public Stream<ExternalMultiVersionKey> externalKeys() {
                         return keys.stream();
                       }
 

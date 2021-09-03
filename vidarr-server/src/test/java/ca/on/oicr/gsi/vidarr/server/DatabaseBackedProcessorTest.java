@@ -4,12 +4,12 @@ import static org.junit.Assert.*;
 
 import ca.on.oicr.gsi.vidarr.BasicType;
 import ca.on.oicr.gsi.vidarr.api.ExternalId;
-import ca.on.oicr.gsi.vidarr.api.ExternalKey;
 import ca.on.oicr.gsi.vidarr.api.ExternalMultiVersionKey;
 import ca.on.oicr.gsi.vidarr.core.FileMetadata;
 import ca.on.oicr.gsi.vidarr.core.Target;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -190,7 +190,7 @@ public class DatabaseBackedProcessorTest {
   }
 
   @Test
-  public void testResolveInDatabase_singleExternalIdVersion() {
+  public void testResolveInDatabase_forFileWithSingleExternalIdVersion() {
     FileMetadata expected =
         new FileMetadata() {
           String fileHashId = "916df707b105ddd88d8979e41208f2507a6d0c8d3ef57677750efa7857c4f6b2";
@@ -201,12 +201,14 @@ public class DatabaseBackedProcessorTest {
           }
 
           @Override
-          public Stream<ExternalKey> externalKeys() {
-            Map<String, String> versions = new HashMap<>();
+          public Stream<ExternalMultiVersionKey> externalKeys() {
+            Map<String, Set<String>> versions = new HashMap<>();
             versions.put(
                 "pinery-hash-2",
-                "bea8063d6c8e66e4c6faae52ddc8e5e7ab249782cb98ec7fb64261f12e82a3bf");
-            return Stream.of(new ExternalKey("pinery-miso", "3786_1_LDI31800", versions));
+                Stream.of("bea8063d6c8e66e4c6faae52ddc8e5e7ab249782cb98ec7fb64261f12e82a3bf")
+                    .collect(Collectors.toSet()));
+            return Stream.of(
+                new ExternalMultiVersionKey("pinery-miso", "3786_1_LDI31800", versions));
           }
         };
     FileMetadata metadata =
@@ -215,17 +217,17 @@ public class DatabaseBackedProcessorTest {
     assertEquals(expected.path(), metadata.path());
 
     assertEquals(
-        getExternalIdInfo(expected, ExternalKey::getId),
-        getExternalIdInfo(metadata, ExternalKey::getId));
+        getExternalIdInfo(expected, ExternalMultiVersionKey::getId),
+        getExternalIdInfo(metadata, ExternalMultiVersionKey::getId));
     assertEquals(
-        getExternalIdInfo(expected, ExternalKey::getProvider),
-        getExternalIdInfo(metadata, ExternalKey::getProvider));
+        getExternalIdInfo(expected, ExternalMultiVersionKey::getProvider),
+        getExternalIdInfo(metadata, ExternalMultiVersionKey::getProvider));
     assertEquals(getExternalKeyKeys(expected), getExternalKeyKeys(metadata));
     assertEquals(getExternalKeyValues(expected), getExternalKeyValues(metadata));
   }
 
   @Test
-  public void testResolveInDatabase_multipleExternalIdVersion() {
+  public void testResolveInDatabase_forFileWithMultipleExternalIdVersions() {
     FileMetadata expected =
         new FileMetadata() {
           String fileHashId = "fa270cc072affa270cc072affa270cc072affa270cc072affa270cc072af";
@@ -237,12 +239,26 @@ public class DatabaseBackedProcessorTest {
           }
 
           @Override
-          public Stream<ExternalKey> externalKeys() {
-            Map<String, String> versions = new HashMap<>();
-            versions.put( // TODO: incorrect
+          public Stream<ExternalMultiVersionKey> externalKeys() {
+            Map<String, Set<String>> versions = new HashMap<>();
+            versions.put(
                 "pinery-hash-2",
-                "bea8063d6c8e66e4c6faae52ddc8e5e7ab249782cb98ec7fb64261f12e82a3bf");
-            return Stream.of(new ExternalKey("pinery-miso", "5042_1_LDI55100", versions));
+                Stream.of("f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2f2")
+                    .collect(Collectors.toSet()));
+            versions.put(
+                "pinery-hash-7",
+                Stream.of("f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7")
+                    .collect(Collectors.toSet()));
+            versions.put(
+                "pinery-hash-8",
+                Arrays.asList(
+                        "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2",
+                        "f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8",
+                        "f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9")
+                    .stream()
+                    .collect(Collectors.toSet()));
+            return Stream.of(
+                new ExternalMultiVersionKey("pinery-miso", "5042_1_LDI55100", versions));
           }
         };
     FileMetadata metadata =
@@ -250,16 +266,23 @@ public class DatabaseBackedProcessorTest {
     assertEquals(expected.path(), metadata.path());
 
     assertEquals(
-        getExternalIdInfo(expected, ExternalKey::getId),
-        getExternalIdInfo(metadata, ExternalKey::getId));
+        getExternalIdInfo(expected, ExternalMultiVersionKey::getId),
+        getExternalIdInfo(metadata, ExternalMultiVersionKey::getId));
     assertEquals(
-        getExternalIdInfo(expected, ExternalKey::getProvider),
-        getExternalIdInfo(metadata, ExternalKey::getProvider));
+        getExternalIdInfo(expected, ExternalMultiVersionKey::getProvider),
+        getExternalIdInfo(metadata, ExternalMultiVersionKey::getProvider));
     assertEquals(getExternalKeyKeys(expected), getExternalKeyKeys(metadata));
     assertEquals(getExternalKeyValues(expected), getExternalKeyValues(metadata));
   }
 
-  private Set<String> getExternalIdInfo(FileMetadata fm, Function<ExternalKey, String> fn) {
+  @Test
+  public void testResolveInDatabase_invalidFileId() {
+    Optional<FileMetadata> metadata = sut.resolveInDatabase("doesNotExist");
+    assertFalse(metadata.isPresent());
+  }
+
+  private Set<String> getExternalIdInfo(
+      FileMetadata fm, Function<ExternalMultiVersionKey, String> fn) {
     return fm.externalKeys().map(r -> fn.apply(r)).collect(Collectors.toSet());
   }
 
@@ -272,6 +295,7 @@ public class DatabaseBackedProcessorTest {
   private Set<String> getExternalKeyValues(FileMetadata fm) {
     return fm.externalKeys()
         .flatMap(ek -> ek.getVersions().values().stream())
+        .flatMap(v -> v.stream())
         .collect(Collectors.toSet());
   }
 }

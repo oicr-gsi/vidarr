@@ -262,7 +262,7 @@ public abstract class DatabaseBackedProcessor
     super(executor);
     this.dataSource = dataSource;
   }
-  // TODO: test this?
+
   private void addNewExternalKeyVersions(
       Set<ExternalKey> externalKeys,
       DSLContext transaction,
@@ -449,7 +449,7 @@ public abstract class DatabaseBackedProcessor
         .map(DatabaseBackedProcessor::hashFromAnalysisId)
         .collect(Collectors.toCollection(TreeSet::new));
   }
-  // TODO: Test this
+
   private List<String> findMatchingVersionKeysMatchingExternalId(
       DSLContext transaction, Integer workflowRunId, ExternalKey externalKey) {
     return transaction

@@ -406,7 +406,7 @@ public abstract class DatabaseBackedProcessor
       return handler.internalError(e);
     }
   }
-  // TODO: when is this used?
+
   private TreeSet<ExternalId> extractExternalIds(
       JsonNode arguments, WorkflowInformation workflow, TreeSet<String> unresolvedIds) {
     return workflow

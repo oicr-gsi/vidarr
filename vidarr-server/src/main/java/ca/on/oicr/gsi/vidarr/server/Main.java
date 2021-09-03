@@ -1826,7 +1826,7 @@ public final class Main implements ServerConfig {
           badRequestResponse(
               exchange,
               String.format(
-                  "Workflow run %s references missing workflow %s/%s in load request.",
+                  "Workflow run %s references missing workflow version %s/%s in load request.",
                   workflowRun.getId(),
                   workflowRun.getWorkflowName(),
                   workflowRun.getWorkflowVersion()));

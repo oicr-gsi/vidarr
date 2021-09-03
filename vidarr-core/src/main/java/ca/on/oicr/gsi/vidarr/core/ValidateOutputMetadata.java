@@ -12,12 +12,14 @@ import java.util.stream.Stream;
  *
  * <p>The result will be a stream of errors; if empty, no errors were found.
  */
-public final class CheckOutputType extends BaseOutputExtractor<Stream<String>, Stream<String>> {
+public final class ValidateOutputMetadata
+    extends BaseOutputExtractor<Stream<String>, Stream<String>> {
   private final ObjectMapper mapper;
   private final Target target;
   private final String context;
 
-  public CheckOutputType(ObjectMapper mapper, Target target, String context, JsonNode metadata) {
+  public ValidateOutputMetadata(
+      ObjectMapper mapper, Target target, String context, JsonNode metadata) {
     super(null, metadata);
     this.mapper = mapper;
     this.target = target;
@@ -61,7 +63,8 @@ public final class CheckOutputType extends BaseOutputExtractor<Stream<String>, S
   @Override
   protected Stream<String> processChild(
       Map<String, Object> key, String name, OutputType type, JsonNode metadata, JsonNode output) {
-    return type.apply(new CheckOutputType(mapper, target, context + key + "." + name, metadata));
+    return type.apply(
+        new ValidateOutputMetadata(mapper, target, context + key + "." + name, metadata));
   }
 
   @Override

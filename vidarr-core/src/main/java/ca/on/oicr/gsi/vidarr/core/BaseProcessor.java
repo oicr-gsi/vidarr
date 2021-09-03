@@ -742,7 +742,7 @@ public abstract class BaseProcessor<
                             metadata.has(o.name())
                                 ? o.type()
                                     .apply(
-                                        new CheckOutputType(
+                                        new ValidateOutputMetadata(
                                             mapper,
                                             target,
                                             "\"" + o.name() + "\"",

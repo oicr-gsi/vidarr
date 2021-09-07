@@ -32,6 +32,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.regex.Matcher;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.jooq.Condition;
@@ -443,7 +444,7 @@ public abstract class DatabaseBackedProcessor
                 arguments.has(p.name())
                     ? p.type().apply(new ExtractInputVidarrIds(MAPPER, arguments.get(p.name())))
                     : Stream.empty())
-        .map(Main::hashFromAnalysisId)
+        .map(DatabaseBackedProcessor::hashFromAnalysisId)
         .collect(Collectors.toCollection(TreeSet::new));
   }
 
@@ -1176,5 +1177,12 @@ public abstract class DatabaseBackedProcessor
                 .flatMap(cr -> checkConsumableResource(consumableResources, cr)))
         .flatMap(Function.identity())
         .collect(Collectors.toSet());
+  }
+
+  public static String hashFromAnalysisId(String id) {
+    Matcher matcher = BaseProcessor.ANALYSIS_RECORD_ID.matcher(id);
+    if (!matcher.matches())
+      throw new IllegalStateException("Failed to match ANALYSIS_RECORD_ID regex to id: " + id);
+    return matcher.group("hash");
   }
 }

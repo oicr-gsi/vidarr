@@ -37,7 +37,7 @@ public final class ExternalMultiVersionKey extends ExternalId {
   @Override
   public boolean equals(Object o) {
     if (!super.equals(o)) return false;
-    ExternalKey that = (ExternalKey) o;
+    ExternalMultiVersionKey that = (ExternalMultiVersionKey) o;
     return versions.keySet().equals(that.getVersions().keySet())
         && versions.keySet().stream()
             .allMatch(k -> versions.get(k).equals(that.getVersions().get(k)));

@@ -196,7 +196,7 @@ public abstract class DatabaseBackedProcessor
       final var digest = MessageDigest.getInstance("SHA-256");
       digest.update(name.getBytes(StandardCharsets.UTF_8));
       for (final var id : inputIds) {
-        final var idBytes = id.getBytes(StandardCharsets.UTF_8);
+        final var idBytes = hashFromAnalysisId(id).getBytes(StandardCharsets.UTF_8);
         digest.update(new byte[] {0});
         digest.update(idBytes);
       }

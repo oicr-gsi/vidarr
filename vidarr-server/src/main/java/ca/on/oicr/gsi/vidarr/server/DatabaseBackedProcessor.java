@@ -1190,7 +1190,8 @@ public abstract class DatabaseBackedProcessor
   public static String hashFromAnalysisId(String id) {
     Matcher matcher = BaseProcessor.ANALYSIS_RECORD_ID.matcher(id);
     if (!matcher.matches())
-      throw new IllegalStateException("Failed to match ANALYSIS_RECORD_ID regex to id: " + id);
+      throw new IllegalArgumentException(
+          String.format("'%s' is a malformed Vidarr identifier", id));
     return matcher.group("hash");
   }
 }

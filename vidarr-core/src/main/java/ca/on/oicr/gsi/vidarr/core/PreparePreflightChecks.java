@@ -48,6 +48,7 @@ final class PreparePreflightChecks extends BaseOutputExtractor<Boolean, Boolean>
           new OutputDataVisitor<Void>() {
             @Override
             public Void all() {
+              extraInputIdsHandled.run();
               return null;
             }
 

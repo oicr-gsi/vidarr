@@ -49,4 +49,9 @@ public class ExternalId {
   public void setProvider(String provider) {
     this.provider = provider;
   }
+
+  @Override
+  public String toString() {
+    return "ExternalId{" + "provider='" + provider + '\'' + ", id='" + id + '\'' + '}';
+  }
 }

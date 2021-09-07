@@ -1967,7 +1967,7 @@ public final class Main implements ServerConfig {
                                 .apply(
                                     new ExtractInputVidarrIds(
                                         MAPPER, workflowRun.getArguments().get(param.getKey()))))
-                    .map(id -> BaseProcessor.ANALYSIS_RECORD_ID.matcher(id).group("hash"))
+                    .map(DatabaseBackedProcessor::hashFromAnalysisId)
                     .collect(Collectors.toCollection(TreeSet::new)),
                 workflowRun.getExternalKeys());
 

@@ -80,7 +80,7 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
         .columns(
             ACTIVE_WORKFLOW_RUN.ID,
             ACTIVE_WORKFLOW_RUN.ENGINE_PHASE,
-            ACTIVE_WORKFLOW_RUN.EXTERNAL_INPUT_IDS_HANDLED,
+            ACTIVE_WORKFLOW_RUN.EXTRA_INPUT_IDS_HANDLED,
             ACTIVE_WORKFLOW_RUN.PREFLIGHT_OKAY,
             ACTIVE_WORKFLOW_RUN.TARGET,
             ACTIVE_WORKFLOW_RUN.CONSUMABLE_RESOURCES)
@@ -163,7 +163,7 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
         record.get(WORKFLOW_RUN.ENGINE_PARAMETERS),
         record.get(WORKFLOW_RUN.METADATA),
         record.get(ACTIVE_WORKFLOW_RUN.CLEANUP_STATE),
-        record.get(ACTIVE_WORKFLOW_RUN.EXTERNAL_INPUT_IDS_HANDLED),
+        record.get(ACTIVE_WORKFLOW_RUN.EXTRA_INPUT_IDS_HANDLED),
         inputIds,
         requestedInputIds,
         record.get(ACTIVE_WORKFLOW_RUN.PREFLIGHT_OKAY),
@@ -197,7 +197,7 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
                 ACTIVE_WORKFLOW_RUN.CONSUMABLE_RESOURCES,
                 Main.MAPPER.<JsonNode>valueToTree(consumableResources))
             .set(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE, Phase.WAITING_FOR_RESOURCES)
-            .set(ACTIVE_WORKFLOW_RUN.EXTERNAL_INPUT_IDS_HANDLED, false)
+            .set(ACTIVE_WORKFLOW_RUN.EXTRA_INPUT_IDS_HANDLED, false)
             .set(ACTIVE_WORKFLOW_RUN.PREFLIGHT_OKAY, true)
             .where(ACTIVE_WORKFLOW_RUN.ID.eq(dbId))
             .returningResult(ACTIVE_WORKFLOW_RUN.ATTEMPT)
@@ -381,7 +381,7 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
   @Override
   public void extraInputIdsHandled(boolean extraInputIdsHandled, DSLContext transaction) {
     this.extraInputIdsHandled = extraInputIdsHandled;
-    updateField(ACTIVE_WORKFLOW_RUN.EXTERNAL_INPUT_IDS_HANDLED, extraInputIdsHandled, transaction);
+    updateField(ACTIVE_WORKFLOW_RUN.EXTRA_INPUT_IDS_HANDLED, extraInputIdsHandled, transaction);
   }
 
   @Override

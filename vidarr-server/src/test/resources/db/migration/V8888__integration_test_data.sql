@@ -167,7 +167,7 @@ INSERT INTO analysis_external_id (external_id_id, analysis_id) VALUES
   (12, (SELECT id FROM analysis WHERE hash_id = 'fedcbafedcbafedcbafedcbafedcbafedcbafedcbafedcbafedcbafedcbafedc'))
   ON CONFLICT DO NOTHING;
 
-INSERT INTO active_workflow_run (id, attempt, cleanup_state, completed, consumable_resources, created, engine_phase, external_input_ids_handled, modified, preflight_okay, real_input, started, target, waiting_resource, workflow_run_url) VALUES
+INSERT INTO active_workflow_run (id, attempt, cleanup_state, completed, consumable_resources, created, engine_phase, extra_input_ids_handled, modified, preflight_okay, real_input, started, target, waiting_resource, workflow_run_url) VALUES
 ((SELECT id FROM workflow_run WHERE hash_id = 'df7df7df7df7df7df7df7df7df7df70df7df7df7df7df7df7df7df7df7df7df7'), 1, '{"ok": "maybe"}', NULL, '{"required_services": ["inhibited-workflow"]}',('2021-01-01 02:00:00-04'::timestamptz), 0, true,('2021-01-01 02:00:00-04'::timestamptz), true, '{"gimme": "data"}', NULL, NULL, 'prometheus-alert-manager', NULL)
 ON CONFLICT DO NOTHING;
 

@@ -9,7 +9,7 @@ import ca.on.oicr.gsi.vidarr.core.FileMetadata;
 import ca.on.oicr.gsi.vidarr.core.Target;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
-import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -96,15 +96,6 @@ public class DatabaseBackedProcessorTest {
   }
 
   @Test
-  public void testGetHashFromAnalysisId() {
-    var analysisIdentifier =
-        "vidarr:test/file/fa270cc072affa270cc072affa270cc072affa270cc072affa270cc072af";
-    assertEquals(
-        "fa270cc072affa270cc072affa270cc072affa270cc072affa270cc072af",
-        sut.hashFromAnalysisId(analysisIdentifier));
-  }
-
-  @Test
   public void testValidateLabels_validLabels() {
     var providedLabels = sut.mapper().createObjectNode();
     providedLabels.put("reference", "hg38");
@@ -112,7 +103,9 @@ public class DatabaseBackedProcessorTest {
     var expectedLabels = new HashMap<String, BasicType>();
     expectedLabels.put("reference", BasicType.STRING);
     expectedLabels.put("tumor_group", BasicType.STRING);
-    var validated = sut.validateLabels(providedLabels, expectedLabels).collect(Collectors.toSet());
+    var validated =
+        DatabaseBackedProcessor.validateLabels(providedLabels, expectedLabels)
+            .collect(Collectors.toSet());
     var expected = new HashSet<String>();
     assertEquals(expected, validated);
   }
@@ -125,7 +118,9 @@ public class DatabaseBackedProcessorTest {
     var expectedLabels = new HashMap<String, BasicType>();
     expectedLabels.put("reference", BasicType.STRING);
     expectedLabels.put("tumor_group", BasicType.BOOLEAN);
-    var validated = sut.validateLabels(providedLabels, expectedLabels).collect(Collectors.toSet());
+    var validated =
+        DatabaseBackedProcessor.validateLabels(providedLabels, expectedLabels)
+            .collect(Collectors.toSet());
     var expected = new HashSet<String>();
     expected.add("Label tumor_group: Label: tumor_group: Expected Boolean but got \"first\".");
     assertEquals(expected, validated);
@@ -138,7 +133,9 @@ public class DatabaseBackedProcessorTest {
     providedLabels.put("tumor_group", "first");
     var expectedLabels = new HashMap<String, BasicType>();
     expectedLabels.put("reference", BasicType.STRING);
-    var validated = sut.validateLabels(providedLabels, expectedLabels).collect(Collectors.toSet());
+    var validated =
+        DatabaseBackedProcessor.validateLabels(providedLabels, expectedLabels)
+            .collect(Collectors.toSet());
     var expected = new HashSet<String>();
     expected.add("2 labels are provided but 1 are expected.");
     assertEquals(expected, validated);
@@ -159,18 +156,20 @@ public class DatabaseBackedProcessorTest {
     var externalKeys = new HashSet<ExternalMultiVersionKey>();
     var ekv1 = new HashMap<String, Set<String>>();
     var ekvv1 = new HashSet<String>();
-    ekvv1.add("a1a1a1a1a1a1a1a1");
     ekvv1.add("b2b2b2b2b2b2b2b2");
     ekv1.put("pinery-hash-22", ekvv1);
+    var ekvv2 = new HashSet<String>();
+    ekvv2.add("a1a1a1a1a1a1a1a1");
+    ekv1.put("shesmu-sha3", ekvv2);
     var ek = new ExternalMultiVersionKey("pinery-miso", "1234_1_LIB1234");
     ek.setVersions(ekv1);
     externalKeys.add(ek);
 
     var compute1 =
-        sut.computeWorkflowRunHashId(
+        DatabaseBackedProcessor.computeWorkflowRunHashId(
             workflowName, providedLabels, expectedLabels, inputIds, externalKeys);
     var compute2 =
-        sut.computeWorkflowRunHashId(
+        DatabaseBackedProcessor.computeWorkflowRunHashId(
             workflowName, providedLabels, expectedLabels, inputIds, externalKeys);
     assertEquals(compute1, compute2);
 
@@ -180,7 +179,7 @@ public class DatabaseBackedProcessorTest {
     var ei = new ExternalId("pinery-miso", "1234_1_LIB1234");
     externalIds.add(ei);
     var compute3 =
-        sut.computeWorkflowRunHashId(
+        DatabaseBackedProcessor.computeWorkflowRunHashId(
             workflowName, providedLabels, expectedLabels, inputIds, externalIds);
     assertEquals(compute1, compute3);
   }
@@ -189,7 +188,8 @@ public class DatabaseBackedProcessorTest {
   public void testResolveInDatabase_forFileWithSingleExternalIdVersion() {
     FileMetadata expected =
         new FileMetadata() {
-          String fileHashId = "916df707b105ddd88d8979e41208f2507a6d0c8d3ef57677750efa7857c4f6b2";
+          final String fileHashId =
+              "916df707b105ddd88d8979e41208f2507a6d0c8d3ef57677750efa7857c4f6b2";
 
           @Override
           public String path() {
@@ -226,7 +226,7 @@ public class DatabaseBackedProcessorTest {
   public void testResolveInDatabase_forFileWithMultipleExternalIdVersions() {
     FileMetadata expected =
         new FileMetadata() {
-          String fileHashId = "fa270cc072affa270cc072affa270cc072affa270cc072affa270cc072af";
+          final String fileHashId = "fa270cc072affa270cc072affa270cc072affa270cc072affa270cc072af";
 
           @Override
           public String path() {
@@ -247,11 +247,10 @@ public class DatabaseBackedProcessorTest {
                     .collect(Collectors.toSet()));
             versions.put(
                 "pinery-hash-8",
-                Arrays.asList(
+                Stream.of(
                         "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2",
                         "f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8",
                         "f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9")
-                    .stream()
                     .collect(Collectors.toSet()));
             return Stream.of(
                 new ExternalMultiVersionKey("pinery-miso", "5042_1_LDI55100", versions));
@@ -279,7 +278,7 @@ public class DatabaseBackedProcessorTest {
 
   private Set<String> getExternalIdInfo(
       FileMetadata fm, Function<ExternalMultiVersionKey, String> fn) {
-    return fm.externalKeys().map(r -> fn.apply(r)).collect(Collectors.toSet());
+    return fm.externalKeys().map(fn::apply).collect(Collectors.toSet());
   }
 
   private Set<String> getExternalKeyKeys(FileMetadata fm) {
@@ -291,7 +290,7 @@ public class DatabaseBackedProcessorTest {
   private Set<String> getExternalKeyValues(FileMetadata fm) {
     return fm.externalKeys()
         .flatMap(ek -> ek.getVersions().values().stream())
-        .flatMap(v -> v.stream())
+        .flatMap(Collection::stream)
         .collect(Collectors.toSet());
   }
 }

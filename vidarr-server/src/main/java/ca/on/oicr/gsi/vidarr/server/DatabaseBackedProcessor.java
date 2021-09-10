@@ -189,9 +189,7 @@ public abstract class DatabaseBackedProcessor
       String name,
       ObjectNode providedLabels,
       Iterable<String> labels,
-      TreeSet<String>
-          inputIds, // In both existing calls, hashFromAnalysisId has already been called. TODO:
-      // maybe refactor if any more calls are needed
+      TreeSet<String> inputIds,
       Collection<? extends ExternalId> externalIds) {
     try {
       final var digest = MessageDigest.getInstance("SHA-256");
@@ -446,7 +444,6 @@ public abstract class DatabaseBackedProcessor
                 arguments.has(p.name())
                     ? p.type().apply(new ExtractInputVidarrIds(MAPPER, arguments.get(p.name())))
                     : Stream.empty())
-        .map(DatabaseBackedProcessor::hashFromAnalysisId)
         .collect(Collectors.toCollection(TreeSet::new));
   }
 
@@ -1187,11 +1184,11 @@ public abstract class DatabaseBackedProcessor
         .collect(Collectors.toSet());
   }
 
-  public static String hashFromAnalysisId(String id) {
+  private static String hashFromAnalysisId(String id) {
     Matcher matcher = BaseProcessor.ANALYSIS_RECORD_ID.matcher(id);
     if (!matcher.matches())
       throw new IllegalArgumentException(
-          String.format("'%s' is a malformed Vidarr identifier", id));
+          String.format("'%s' is a malformed Vidarr file identifier", id));
     return matcher.group("hash");
   }
 }

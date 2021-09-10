@@ -1869,7 +1869,6 @@ public final class Main implements ServerConfig {
                                 .apply(
                                     new ExtractInputVidarrIds(
                                         MAPPER, workflowRun.getArguments().get(param.getKey()))))
-                    .map(DatabaseBackedProcessor::hashFromAnalysisId)
                     .collect(Collectors.toCollection(TreeSet::new)),
                 workflowRun.getExternalKeys());
 

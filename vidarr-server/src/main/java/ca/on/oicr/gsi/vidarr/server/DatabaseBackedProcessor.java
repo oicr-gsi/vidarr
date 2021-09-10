@@ -190,7 +190,7 @@ public abstract class DatabaseBackedProcessor
       Iterable<String> labels,
       TreeSet<String>
           inputIds, // In both existing calls, hashFromAnalysisId has already been called. TODO:
-                    // maybe refactor if any more calls are needed
+      // maybe refactor if any more calls are needed
       Collection<? extends ExternalId> externalIds) {
     try {
       final var digest = MessageDigest.getInstance("SHA-256");

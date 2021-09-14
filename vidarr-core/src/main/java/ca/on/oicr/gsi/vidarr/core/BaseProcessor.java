@@ -194,7 +194,6 @@ public abstract class BaseProcessor<
   private class Phase1Preflight implements PhaseManager<W, Boolean, JsonMutation, PO> {
     private final W activeWorkflow;
     private final WorkflowDefinition definition;
-    private final List<String> discoveredInputFiles = new ArrayList<>();
     private boolean ok;
     private final AtomicInteger outstanding;
     private final Target target;
@@ -263,13 +262,7 @@ public abstract class BaseProcessor<
                                             target,
                                             activeWorkflow.arguments().get(parameter.name()),
                                             Stream.of(JsonPath.object(parameter.name())),
-                                            id -> {
-                                              final var file = BaseProcessor.this.pathForId(id);
-                                              if (file.isPresent()) {
-                                                discoveredInputFiles.add(id);
-                                              }
-                                              return file;
-                                            },
+                                            BaseProcessor.this,
                                             provisionInTasks::add)));
                           } else {
                             throw new IllegalArgumentException(
@@ -279,10 +272,22 @@ public abstract class BaseProcessor<
                 activeWorkflow.realInput(realInput, transaction);
                 final var outputRequestedExternalIds =
                     new HashSet<>(activeWorkflow.requestedExternalIds());
+                // In the case of EXTERNAL ids, pass to ExtractInputExternalIds which knows how to
+                // make sense of whatever non-vidarr id we pass it
                 final var discoveredExternalIds =
-                    discoveredInputFiles.stream()
-                        .flatMap(i -> BaseProcessor.this.pathForId(i).orElseThrow().externalKeys())
-                        .map(i -> new ExternalId(i.getProvider(), i.getId()))
+                    definition
+                        .parameters()
+                        .flatMap(
+                            parameter ->
+                                activeWorkflow.arguments().has(parameter.name())
+                                    ? parameter
+                                        .type()
+                                        .apply(
+                                            new ExtractInputExternalIds(
+                                                mapper(),
+                                                activeWorkflow.arguments().get(parameter.name()),
+                                                BaseProcessor.this))
+                                    : Stream.empty())
                         .collect(Collectors.toSet());
                 if (activeWorkflow
                         .extraInputIdsHandled() // Set to true when in Remaining or All case

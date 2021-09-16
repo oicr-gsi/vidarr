@@ -101,9 +101,9 @@ public class VeryBadDataIntegrationTest {
 
   public List<String> getNaughtyStringList() {
     List<String> blns = NaughtyStrings.getStrings();
+
     // These indices correspond with strings here
     // https://github.com/minimaxir/big-list-of-naughty-strings/blob/master/blns.json
-
     // IntStream.concat() only takes two streams
     List<Integer> indices =
         IntStream.concat(
@@ -111,6 +111,7 @@ public class VeryBadDataIntegrationTest {
                 IntStream.concat(IntStream.range(194, 202), IntStream.range(431, 467)))
             .boxed()
             .collect(Collectors.toList());
+
     // Filtering original list to only get strings we care about
     return IntStream.range(0, blns.size())
         .filter(indices::contains)
@@ -118,7 +119,7 @@ public class VeryBadDataIntegrationTest {
         .collect(Collectors.toList());
   }
 
-  @Test
+  @Test(expected = IllegalArgumentException.class)
   public void disableWorkflow() {
     List<String> filteredBlns = getNaughtyStringList();
     filteredBlns.forEach(
@@ -127,7 +128,7 @@ public class VeryBadDataIntegrationTest {
         });
   }
 
-  @Test
+  @Test(expected = IllegalArgumentException.class)
   public void getWorkflow() {
     List<String> filteredBlns = getNaughtyStringList();
     filteredBlns.forEach(
@@ -136,7 +137,7 @@ public class VeryBadDataIntegrationTest {
         });
   }
 
-  @Test
+  @Test(expected = IllegalArgumentException.class)
   public void addWorkflow() throws JsonProcessingException {
     List<String> filteredBlns = getNaughtyStringList();
     var noParamWorkflow = MAPPER.writeValueAsString(new HashMap<>());
@@ -162,7 +163,7 @@ public class VeryBadDataIntegrationTest {
         });
   }
 
-  @Test
+  @Test(expected = IllegalArgumentException.class)
   public void getWorkflowVersion() {
     List<String> filteredBlns = getNaughtyStringList();
     filteredBlns.forEach(
@@ -174,7 +175,7 @@ public class VeryBadDataIntegrationTest {
         });
   }
 
-  @Test
+  @Test(expected = IllegalArgumentException.class)
   public void addWorkflowVersion() {
     List<String> filteredBlns = getNaughtyStringList();
     filteredBlns.forEach(
@@ -199,7 +200,7 @@ public class VeryBadDataIntegrationTest {
         });
   }
 
-  @Test
+  @Test(expected = IllegalArgumentException.class)
   public void getProvisionedFileData() {
     List<String> filteredBlns = getNaughtyStringList();
     filteredBlns.forEach(
@@ -208,7 +209,7 @@ public class VeryBadDataIntegrationTest {
         });
   }
 
-  @Test
+  @Test(expected = IllegalArgumentException.class)
   public void getFinishedWorkflowRunData() {
     List<String> filteredBlns = getNaughtyStringList();
     filteredBlns.forEach(
@@ -217,7 +218,7 @@ public class VeryBadDataIntegrationTest {
         });
   }
 
-  @Test
+  @Test(expected = IllegalArgumentException.class)
   public void getWorkflowRunStatus() {
     List<String> filteredBlns = getNaughtyStringList();
     filteredBlns.forEach(
@@ -226,7 +227,7 @@ public class VeryBadDataIntegrationTest {
         });
   }
 
-  @Test
+  @Test(expected = IllegalArgumentException.class)
   public void deleteActiveWorkflowRun() {
     List<String> filteredBlns = getNaughtyStringList();
     filteredBlns.forEach(
@@ -235,7 +236,7 @@ public class VeryBadDataIntegrationTest {
         });
   }
 
-  @Test
+  @Test(expected = IllegalArgumentException.class)
   public void accessProvisionedUrl() {
     List<String> filteredBlns = getNaughtyStringList();
     filteredBlns.forEach(

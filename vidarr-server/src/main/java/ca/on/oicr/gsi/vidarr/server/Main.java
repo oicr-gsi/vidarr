@@ -12,6 +12,7 @@ import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.WORKFLOW_DEFINITION;
 import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.WORKFLOW_RUN;
 import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.WORKFLOW_VERSION;
 import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.WORKFLOW_VERSION_ACCESSORY;
+import static org.jooq.impl.DSL.param;
 
 import ca.on.oicr.gsi.Pair;
 import ca.on.oicr.gsi.prometheus.LatencyHistogram;
@@ -129,15 +130,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.xml.stream.XMLStreamException;
 import org.flywaydb.core.Flyway;
-import org.jooq.Condition;
-import org.jooq.Configuration;
-import org.jooq.DSLContext;
-import org.jooq.Field;
-import org.jooq.JSON;
-import org.jooq.JSONB;
-import org.jooq.JSONEntry;
-import org.jooq.Record1;
-import org.jooq.SQLDialect;
+import org.jooq.*;
 import org.jooq.impl.DSL;
 import org.jooq.impl.SQLDataType;
 import org.postgresql.ds.PGSimpleDataSource;
@@ -816,7 +809,7 @@ public final class Main implements ServerConfig {
                 var matchingWorkflow =
                     dsl.select(WORKFLOW.ID)
                         .from(WORKFLOW)
-                        .where(WORKFLOW.NAME.eq(name))
+                        .where(WORKFLOW.NAME.eq(param("workflow-name", name)))
                         .fetchOptional(Record1::value1);
                 if (matchingWorkflow.isEmpty()) {
                   exchange.setStatusCode(StatusCodes.NOT_FOUND);
@@ -868,12 +861,17 @@ public final class Main implements ServerConfig {
                             DSL.field(
                                 DSL.select(WORKFLOW_DEFINITION.ID)
                                     .from(WORKFLOW_DEFINITION)
-                                    .where(WORKFLOW_DEFINITION.HASH_ID.eq(definitionHash))),
+                                    .where(
+                                        WORKFLOW_DEFINITION.HASH_ID.eq(
+                                            param("definition-hash", definitionHash)))),
                             DSL.val(version))
                         .onConflict(WORKFLOW_VERSION.NAME, WORKFLOW_VERSION.VERSION)
                         .doNothing()
-                        .returningResult(DSL.field(WORKFLOW_VERSION.HASH_ID.eq(versionHash)))
+                        .returningResult(
+                            DSL.field(
+                                WORKFLOW_VERSION.HASH_ID.eq(param("version-hash", versionHash))))
                         .fetchOptional();
+                System.out.println(result.toString());
                 if (result.map(r -> !r.value1()).orElse(false)) {
                   exchange.setStatusCode(StatusCodes.CONFLICT);
                   exchange.getResponseHeaders().add(Headers.CONTENT_LENGTH, 0);
@@ -881,7 +879,11 @@ public final class Main implements ServerConfig {
                 }
                 dsl.update(WORKFLOW)
                     .set(WORKFLOW.IS_ACTIVE, true)
-                    .where(WORKFLOW.NAME.eq(name).and(WORKFLOW.IS_ACTIVE.isFalse()))
+                    .where(
+                        WORKFLOW
+                            .NAME
+                            .eq(param("workflow-name", name))
+                            .and(WORKFLOW.IS_ACTIVE.isFalse()))
                     .execute();
                 if (!accessoryHashes.isEmpty()) {
 
@@ -901,13 +903,17 @@ public final class Main implements ServerConfig {
                                     .where(
                                         WORKFLOW_VERSION
                                             .NAME
-                                            .eq(name)
-                                            .and(WORKFLOW_VERSION.VERSION.eq(version)))),
+                                            .eq(param("workflow-name", name))
+                                            .and(
+                                                WORKFLOW_VERSION.VERSION.eq(
+                                                    param("workflow-version", version))))),
                             DSL.val(accessory.getKey()),
                             DSL.field(
                                 DSL.select(WORKFLOW_DEFINITION.ID)
                                     .from(WORKFLOW_DEFINITION)
-                                    .where(WORKFLOW_DEFINITION.HASH_ID.eq(accessory.getValue()))));
+                                    .where(
+                                        WORKFLOW_DEFINITION.HASH_ID.eq(
+                                            param("hash-id", accessory.getValue())))));
                   }
                   accessoryQuery.execute();
                 }
@@ -932,7 +938,9 @@ public final class Main implements ServerConfig {
             WORKFLOW_VERSION_ACCESSORY.WORKFLOW_DEFINITION,
             DSL.select(WORKFLOW_DEFINITION.ID)
                 .from(WORKFLOW_DEFINITION)
-                .where(WORKFLOW_DEFINITION.HASH_ID.eq(accessoryWorkflowHash)))
+                .where(
+                    WORKFLOW_DEFINITION.HASH_ID.eq(
+                        param("accessory-workflow-hash", accessoryWorkflowHash))))
         .set(WORKFLOW_VERSION_ACCESSORY.WORKFLOW_VERSION, id)
         .execute();
   }
@@ -1129,7 +1137,11 @@ public final class Main implements ServerConfig {
                       DSL.using(context)
                           .update(WORKFLOW)
                           .set(WORKFLOW.IS_ACTIVE, false)
-                          .where(WORKFLOW.NAME.eq(name).and(WORKFLOW.IS_ACTIVE.isTrue()))
+                          .where(
+                              WORKFLOW
+                                  .NAME
+                                  .eq(param("workflow-name", name))
+                                  .and(WORKFLOW.IS_ACTIVE.isTrue()))
                           .execute());
       exchange.setStatusCode(count == 0 ? StatusCodes.NOT_FOUND : StatusCodes.OK);
       exchange.getResponseHeaders().put(Headers.CONTENT_LENGTH, 0);
@@ -1298,7 +1310,11 @@ public final class Main implements ServerConfig {
                               .from(WORKFLOW_RUN)
                               .where(WORKFLOW_RUN.ID.eq(ANALYSIS.WORKFLOW_RUN_ID))))))
           .from(ANALYSIS)
-          .where(ANALYSIS.HASH_ID.eq(vidarrId).and(ANALYSIS.ANALYSIS_TYPE.eq(type)))
+          .where(
+              ANALYSIS
+                  .HASH_ID
+                  .eq(param("vidarr-id", vidarrId))
+                  .and(ANALYSIS.ANALYSIS_TYPE.eq(param("type", type))))
           .fetchOptional()
           .map(Record1::value1)
           .ifPresentOrElse(
@@ -1399,7 +1415,7 @@ public final class Main implements ServerConfig {
               WORKFLOW_RUN
                   .leftJoin(ACTIVE_WORKFLOW_RUN)
                   .on(WORKFLOW_RUN.ID.eq(ACTIVE_WORKFLOW_RUN.ID)))
-          .where(WORKFLOW_RUN.HASH_ID.eq(vidarrId))
+          .where(WORKFLOW_RUN.HASH_ID.eq(param("vidarr-id", vidarrId)))
           .fetchOptional(Record1::value1)
           .ifPresentOrElse(
               complete -> {
@@ -1414,7 +1430,7 @@ public final class Main implements ServerConfig {
                       null,
                       true,
                       Set.of(AnalysisOutputType.FILE, AnalysisOutputType.URL),
-                      WORKFLOW_RUN.HASH_ID.eq(vidarrId));
+                      WORKFLOW_RUN.HASH_ID.eq(param("vidarr-id", vidarrId)));
                 } catch (IOException | SQLException e) {
                   e.printStackTrace();
                 }
@@ -1442,7 +1458,7 @@ public final class Main implements ServerConfig {
               WORKFLOW_RUN
                   .leftJoin(ACTIVE_WORKFLOW_RUN)
                   .on(WORKFLOW_RUN.ID.eq(ACTIVE_WORKFLOW_RUN.ID)))
-          .where(WORKFLOW_RUN.HASH_ID.eq(vidarrId))
+          .where(WORKFLOW_RUN.HASH_ID.eq(param("vidarr-id", vidarrId)))
           .fetchOptional(Record1::value1)
           .ifPresentOrElse(
               record -> {
@@ -1652,7 +1668,11 @@ public final class Main implements ServerConfig {
                   WORKFLOW_VERSION
                       .join(WORKFLOW_DEFINITION)
                       .on(WORKFLOW_VERSION.WORKFLOW_DEFINITION.eq(WORKFLOW_DEFINITION.ID)))
-              .where(WORKFLOW_VERSION.NAME.eq(name).and(WORKFLOW_VERSION.VERSION.eq(version)))
+              .where(
+                  WORKFLOW_VERSION
+                      .NAME
+                      .eq(param("workflow-name", name))
+                      .and(WORKFLOW_VERSION.VERSION.eq(param("workflow-version", version))))
               .fetchOptional()
               .map(
                   r -> {
@@ -1721,9 +1741,13 @@ public final class Main implements ServerConfig {
                       .where(
                           EXTERNAL_ID
                               .WORKFLOW_RUN_ID
-                              .eq(id)
-                              .and(EXTERNAL_ID.PROVIDER.eq(externalId.getProvider()))
-                              .and(EXTERNAL_ID.EXTERNAL_ID_.eq(externalId.getId())))));
+                              .eq(param("workflow-run-id", id))
+                              .and(
+                                  EXTERNAL_ID.PROVIDER.eq(
+                                      param("external-id-provider", externalId.getProvider())))
+                              .and(
+                                  EXTERNAL_ID.EXTERNAL_ID_.eq(
+                                      param("external-id", externalId.getId()))))));
     }
     associate.execute();
   }
@@ -1816,7 +1840,8 @@ public final class Main implements ServerConfig {
             WORKFLOW_VERSION.WORKFLOW_DEFINITION,
             DSL.select(WORKFLOW_DEFINITION.ID)
                 .from(WORKFLOW_DEFINITION)
-                .where(WORKFLOW_DEFINITION.HASH_ID.eq(rootWorkflowHash)))
+                .where(
+                    WORKFLOW_DEFINITION.HASH_ID.eq(param("root-workflow-hash", rootWorkflowHash))))
         .onConflict(WORKFLOW_VERSION.NAME, WORKFLOW_VERSION.VERSION)
         .doNothing()
         .returningResult(WORKFLOW_VERSION.ID)
@@ -2192,7 +2217,7 @@ public final class Main implements ServerConfig {
               DSL.using(configuration)
                   .select(WORKFLOW_VERSION.ID)
                   .from(WORKFLOW_VERSION)
-                  .where(WORKFLOW_VERSION.HASH_ID.eq(workflowHashId))
+                  .where(WORKFLOW_VERSION.HASH_ID.eq(param("workflow-hash-id", workflowHashId)))
                   .fetchOptional(WORKFLOW_VERSION.ID)
                   .orElseThrow());
         }

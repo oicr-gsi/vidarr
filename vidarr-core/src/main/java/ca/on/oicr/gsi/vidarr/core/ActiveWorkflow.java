@@ -94,16 +94,19 @@ public interface ActiveWorkflow<O extends ActiveOperation<TX>, TX>
    */
   void preflightFailed(TX transaction);
 
-  /** Get the parameters after provisioning in has modified them */
-  ObjectNode realInput();
-
   /**
    * Set the parameters after provisioning in has modified them
    *
    * @param realInput the modified parameters
    * @param transaction the transaction to update the information in
    */
-  void realInput(ObjectNode realInput, TX transaction);
+  void realInput(List<ObjectNode> realInput, TX transaction);
+
+  /** Increment the current real input index and return it */
+  int realInputTryNext(TX transaction);
+
+  /** Get all variations of the parameters after provisioning in has modified them */
+  List<ObjectNode> realInputs();
 
   /** Get the external IDs associated with the files in this workflow run */
   Set<ExternalId> requestedExternalIds();

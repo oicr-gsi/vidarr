@@ -10,6 +10,7 @@ import ca.on.oicr.gsi.vidarr.core.BaseProcessor;
 import ca.on.oicr.gsi.vidarr.core.Phase;
 import ca.on.oicr.gsi.vidarr.core.Target;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -110,6 +111,7 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
         true,
         Phase.WAITING_FOR_RESOURCES,
         null,
+        0,
         liveness.apply(dbId));
   }
 
@@ -170,7 +172,9 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
         record.get(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE),
         record.get(ACTIVE_WORKFLOW_RUN.REAL_INPUT).isNull()
             ? null
-            : (ObjectNode) record.get(ACTIVE_WORKFLOW_RUN.REAL_INPUT),
+            : Main.MAPPER.convertValue(
+                record.get(ACTIVE_WORKFLOW_RUN.REAL_INPUT), new TypeReference<>() {}),
+        record.get(ACTIVE_WORKFLOW_RUN.REAL_INPUT_INDEX),
         liveness);
   }
 
@@ -199,6 +203,7 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
             .set(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE, Phase.WAITING_FOR_RESOURCES)
             .set(ACTIVE_WORKFLOW_RUN.EXTRA_INPUT_IDS_HANDLED, false)
             .set(ACTIVE_WORKFLOW_RUN.PREFLIGHT_OKAY, true)
+            .set(ACTIVE_WORKFLOW_RUN.REAL_INPUT_INDEX, 0)
             .where(ACTIVE_WORKFLOW_RUN.ID.eq(dbId))
             .returningResult(ACTIVE_WORKFLOW_RUN.ATTEMPT)
             .fetchOne()
@@ -267,11 +272,12 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
         true,
         Phase.WAITING_FOR_RESOURCES,
         null,
+        0,
         liveness);
   }
 
   private final JsonNode arguments;
-  private final int attempt;
+  private int attempt;
   private JsonNode cleanup;
   private final JsonNode engineArguments;
   private boolean extraInputIdsHandled;
@@ -281,7 +287,8 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
   private final AtomicBoolean liveness;
   private final JsonNode metadata;
   private Phase phase;
-  private ObjectNode realInput;
+  private List<ObjectNode> realInput;
+  private int realInputIndex;
   private Set<ExternalId> requestedInputIds;
   private final Target target;
   private final String vidarrId;
@@ -304,7 +311,8 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
       Set<ExternalId> requestedInputIds,
       boolean isPreflightOkay,
       Phase phase,
-      ObjectNode realInput,
+      List<ObjectNode> realInput,
+      int realInputIndex,
       AtomicBoolean liveness) {
     this.target = target;
     this.attempt = attempt;
@@ -322,6 +330,7 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
     this.isPreflightOkay = isPreflightOkay;
     this.phase = phase;
     this.realInput = realInput;
+    this.realInputIndex = realInputIndex;
     this.liveness = liveness;
   }
 
@@ -513,14 +522,21 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
   }
 
   @Override
-  public ObjectNode realInput() {
-    return realInput;
+  public void realInput(List<ObjectNode> realInput, DSLContext transaction) {
+    this.realInput = realInput;
+    updateField(ACTIVE_WORKFLOW_RUN.REAL_INPUT, Main.MAPPER.valueToTree(realInput), transaction);
   }
 
   @Override
-  public void realInput(ObjectNode realInput, DSLContext transaction) {
-    this.realInput = realInput;
-    updateField(ACTIVE_WORKFLOW_RUN.REAL_INPUT, realInput, transaction);
+  public int realInputTryNext(DSLContext transaction) {
+    updateField(ACTIVE_WORKFLOW_RUN.ATTEMPT, ++attempt, transaction);
+    updateField(ACTIVE_WORKFLOW_RUN.REAL_INPUT_INDEX, ++realInputIndex, transaction);
+    return realInputIndex;
+  }
+
+  @Override
+  public List<ObjectNode> realInputs() {
+    return realInput;
   }
 
   @Override

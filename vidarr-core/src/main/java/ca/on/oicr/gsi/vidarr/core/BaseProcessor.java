@@ -11,6 +11,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.NullNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.lang.System.Logger.Level;
 import java.util.*;
 import java.util.concurrent.ScheduledExecutorService;
@@ -247,6 +248,19 @@ public abstract class BaseProcessor<
             if (outstanding.decrementAndGet() == 0) {
               if (ok) {
                 final var provisionInTasks = new ArrayList<TaskStarter<JsonMutation>>();
+                final Map<Integer, List<Consumer<ObjectNode>>> retryModifications =
+                    definition
+                        .parameters()
+                        .flatMap(
+                            p ->
+                                activeWorkflow.arguments().has(p.name())
+                                    ? p.type()
+                                        .apply(
+                                            new ExtractRetryValues(
+                                                mapper(), activeWorkflow.arguments().get(p.name())))
+                                    : Stream.empty())
+                        .distinct()
+                        .collect(Collectors.toMap(Function.identity(), i -> new ArrayList<>()));
                 final var realInput = mapper().createObjectNode();
                 definition
                     .parameters()
@@ -263,18 +277,30 @@ public abstract class BaseProcessor<
                                             activeWorkflow.arguments().get(parameter.name()),
                                             Stream.of(JsonPath.object(parameter.name())),
                                             BaseProcessor.this,
-                                            provisionInTasks::add)));
+                                            provisionInTasks::add,
+                                            retryModifications)));
                           } else {
                             throw new IllegalArgumentException(
                                 String.format("Missing required parameter: %s", parameter.name()));
                           }
                         });
-                activeWorkflow.realInput(realInput, transaction);
-                final Set<ExternalId> outputRequestedExternalIds =
+                final var realInputs = new ArrayList<ObjectNode>();
+                while (realInputs.size() < retryModifications.size() - 1) {
+                  realInputs.add(realInput.deepCopy());
+                }
+                realInputs.add(realInput);
+                for (final var entry : retryModifications.entrySet()) {
+                  final var input = realInputs.get(entry.getKey());
+                  for (final var modification : entry.getValue()) {
+                    modification.accept(input);
+                  }
+                }
+                activeWorkflow.realInput(realInputs, transaction);
+                final var outputRequestedExternalIds =
                     new HashSet<>(activeWorkflow.requestedExternalIds());
                 // In the case of EXTERNAL ids, pass to ExtractInputExternalIds which knows how to
                 // make sense of whatever non-vidarr id we pass it
-                final Set<ExternalId> discoveredExternalIds =
+                final var discoveredExternalIds =
                     definition
                         .parameters()
                         .flatMap(
@@ -364,19 +390,21 @@ public abstract class BaseProcessor<
           semaphore.acquireUninterruptibly();
           startTransaction(
               transaction -> {
-                final var input = activeWorkflow.realInput();
-                final var path = result.getPath();
-                JsonNode current = input;
-                for (var i = 0; i < path.size() - 1; i++) {
-                  current = path.get(i).get(current);
+                final var inputs = activeWorkflow.realInputs();
+                for (final var input : inputs) {
+                  final var path = result.getPath();
+                  JsonNode current = input;
+                  for (var i = 0; i < path.size() - 1; i++) {
+                    current = path.get(i).get(current);
+                  }
+                  path.get(path.size() - 1).set(current, result.getResult());
                 }
-                path.get(path.size() - 1).set(current, result.getResult());
-                activeWorkflow.realInput(input, transaction);
+                activeWorkflow.realInput(inputs, transaction);
                 if (size.decrementAndGet() == 0) {
                   startNextPhase(
                       Phase2ProvisionIn.this,
-                      Collections.singletonList(
-                          (workflowLanguage, workflowId, operation1) ->
+                      List.of(
+                          (workflowLanguage, workflowId, operation) ->
                               new Pair<>(
                                   "",
                                   target
@@ -386,9 +414,9 @@ public abstract class BaseProcessor<
                                           definition.contents(),
                                           definition.accessoryFiles(),
                                           activeWorkflow.id(),
-                                          input,
+                                          inputs.get(0),
                                           activeWorkflow.engineArguments(),
-                                          operation1))),
+                                          operation))),
                       transaction);
                 }
               });
@@ -440,7 +468,37 @@ public abstract class BaseProcessor<
       return new BaseOperationMonitor<Result<JsonNode>>(operation) {
         @Override
         protected void failed() {
-          // Do nothing.
+          final var realInputs = activeWorkflow.realInputs();
+          startTransaction(
+              tx -> {
+                final var index = activeWorkflow.realInputTryNext(tx);
+                if (index < realInputs.size()) {
+                  final var monitor =
+                      new DelayWorkMonitor<WorkflowEngine.Result<JsonNode>, JsonNode>();
+                  final var initialState =
+                      target
+                          .engine()
+                          .run(
+                              definition.language(),
+                              definition.contents(),
+                              definition.accessoryFiles(),
+                              activeWorkflow.id(),
+                              realInputs.get(index),
+                              activeWorkflow.engineArguments(),
+                              monitor);
+                  final var nextPhaseManager = new Phase3Run(target, definition, 1, activeWorkflow);
+                  monitor.set(nextPhaseManager.createMonitor(operation));
+                  final var operations =
+                      workflow()
+                          .phase(
+                              nextPhaseManager.phase(), List.of(new Pair<>("", initialState)), tx);
+                  if (operations.size() != 1) {
+                    // The backing store has decided to abandon this workflow run.
+                    return;
+                  }
+                  monitor.set(nextPhaseManager.createMonitor(operations.get(0)));
+                }
+              });
         }
 
         @Override
@@ -773,7 +831,7 @@ public abstract class BaseProcessor<
                             return Stream.of(
                                 String.format(
                                     "Argument missing: %s. Only found " + "arguments %s",
-                                    p.name(), arguments.toString()));
+                                    p.name(), arguments));
                           }
                         }),
                 target

@@ -1,5 +1,6 @@
 package ca.on.oicr.gsi.vidarr.core;
 
+import ca.on.oicr.gsi.vidarr.BasicType;
 import ca.on.oicr.gsi.vidarr.InputProvisionFormat;
 import ca.on.oicr.gsi.vidarr.InputType;
 import ca.on.oicr.gsi.vidarr.api.ExternalId;
@@ -11,6 +12,7 @@ import java.util.stream.Stream;
 /** Fina all external IDs referenced by the input */
 public final class ExtractInputExternalIds
     extends BaseInputExtractor<
+        Stream<? extends ExternalId>,
         Stream<? extends ExternalId>,
         Stream<? extends ExternalId>,
         Stream<? extends ExternalId>,
@@ -47,6 +49,12 @@ public final class ExtractInputExternalIds
   protected Stream<? extends ExternalId> aggregateObject(
       Stream<Stream<? extends ExternalId>> fields) {
     return fields.flatMap(Function.identity());
+  }
+
+  @Override
+  protected Stream<? extends ExternalId> aggregateRetry(
+      Stream<Stream<? extends ExternalId>> alternatives) {
+    return alternatives.flatMap(Function.identity());
   }
 
   @Override
@@ -107,6 +115,11 @@ public final class ExtractInputExternalIds
 
   @Override
   public Stream<? extends ExternalId> json() {
+    return Stream.empty();
+  }
+
+  @Override
+  protected Stream<? extends ExternalId> retry(String id, BasicType type, JsonNode value) {
     return Stream.empty();
   }
 

@@ -212,10 +212,6 @@ public abstract class OutputType {
   }
 
   public static final class JacksonSerializer extends JsonSerializer<OutputType> {
-    private interface Printer {
-      void print(JsonGenerator jsonGenerator) throws IOException;
-    }
-
     @Override
     public void serialize(
         OutputType outputType, JsonGenerator jsonGenerator, SerializerProvider serializerProvider)

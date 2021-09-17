@@ -35,6 +35,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
@@ -854,6 +855,12 @@ public abstract class DatabaseBackedProcessor
                                             if (!errors.isEmpty()) {
                                               return handler.invalidWorkflow(errors);
                                             }
+                                            final var retryError =
+                                                validateWorkflowRetry(arguments, workflow);
+                                            if (retryError.isPresent()) {
+                                              return handler.invalidWorkflow(
+                                                  Set.of(retryError.get()));
+                                            }
 
                                             if (workflow
                                                 .definition()
@@ -1206,6 +1213,49 @@ public abstract class DatabaseBackedProcessor
                 .flatMap(cr -> checkConsumableResource(consumableResources, cr)))
         .flatMap(Function.identity())
         .collect(Collectors.toSet());
+  }
+
+  private Optional<String> validateWorkflowRetry(JsonNode arguments, WorkflowInformation workflow) {
+    final var retryCounts =
+        workflow
+            .definition()
+            .parameters()
+            .flatMap(
+                p ->
+                    arguments.has(p.name())
+                        ? p.type().apply(new ExtractRetryValues(MAPPER, arguments.get(p.name())))
+                        : Stream.empty())
+            .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
+    return retryCounts.keySet().stream()
+        .max(Comparator.naturalOrder())
+        .flatMap(
+            max -> {
+              if (IntStream.rangeClosed(0, max).allMatch(retryCounts::containsKey)) {
+                return Optional.empty();
+              } else {
+                return Optional.of(
+                    String.format("Retry keys are not a continuous range from 0 to %d.", max));
+              }
+            })
+        .or(
+            () ->
+                retryCounts.values().stream()
+                    .max(Comparator.naturalOrder())
+                    .flatMap(
+                        max -> {
+                          final var badEntries =
+                              retryCounts.entrySet().stream()
+                                  .filter(e -> !e.getValue().equals(max))
+                                  .map(Map.Entry::getKey)
+                                  .collect(Collectors.toList());
+                          if (badEntries.isEmpty()) {
+                            return Optional.empty();
+                          } else {
+                            return Optional.of(
+                                "Retry values are not consistent. Some entries are missing for: "
+                                    + badEntries);
+                          }
+                        }));
   }
 
   private static String hashFromAnalysisId(String id) {

@@ -1,12 +1,14 @@
 package ca.on.oicr.gsi.vidarr.core;
 
 import ca.on.oicr.gsi.Pair;
+import ca.on.oicr.gsi.vidarr.BasicType;
 import ca.on.oicr.gsi.vidarr.InputProvisionFormat;
 import ca.on.oicr.gsi.vidarr.InputType;
 import ca.on.oicr.gsi.vidarr.WorkMonitor;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.NullNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -34,6 +36,7 @@ final class PrepareInputProvisioning implements InputType.Visitor<JsonNode> {
   private final JsonNode input;
   private final List<JsonPath> jsonPath;
   private final FileResolver resolver;
+  private final Map<Integer, List<Consumer<ObjectNode>>> retryModifications;
   private final Target target;
 
   public PrepareInputProvisioning(
@@ -41,12 +44,14 @@ final class PrepareInputProvisioning implements InputType.Visitor<JsonNode> {
       JsonNode input,
       Stream<JsonPath> jsonPath,
       FileResolver resolver,
-      Consumer<TaskStarter<JsonMutation>> consumer) {
+      Consumer<TaskStarter<JsonMutation>> consumer,
+      Map<Integer, List<Consumer<ObjectNode>>> retryModifications) {
     this.target = target;
     this.input = input;
     this.jsonPath = jsonPath.collect(Collectors.toList());
     this.resolver = resolver;
     this.consumer = consumer;
+    this.retryModifications = retryModifications;
   }
 
   @Override
@@ -82,7 +87,8 @@ final class PrepareInputProvisioning implements InputType.Visitor<JsonNode> {
                     entry.getValue(),
                     Stream.concat(jsonPath.stream(), Stream.of(JsonPath.object(entry.getKey()))),
                     resolver,
-                    consumer)));
+                    consumer,
+                    retryModifications)));
       }
       return output;
     } else if (input.isArray()) {
@@ -101,7 +107,8 @@ final class PrepareInputProvisioning implements InputType.Visitor<JsonNode> {
                     Stream.concat(
                         jsonPath.stream(), Stream.of(JsonPath.array(i), JsonPath.array(0))),
                     resolver,
-                    consumer)));
+                    consumer,
+                    retryModifications)));
         outputEntry.add(
             key.apply(
                 new PrepareInputProvisioning(
@@ -110,7 +117,8 @@ final class PrepareInputProvisioning implements InputType.Visitor<JsonNode> {
                     Stream.concat(
                         jsonPath.stream(), Stream.of(JsonPath.array(i), JsonPath.array(1))),
                     resolver,
-                    consumer)));
+                    consumer,
+                    retryModifications)));
         output.add(outputEntry);
       }
       return output;
@@ -204,7 +212,8 @@ final class PrepareInputProvisioning implements InputType.Visitor<JsonNode> {
                     input.get(i),
                     Stream.concat(jsonPath.stream(), Stream.of(JsonPath.array(i))),
                     resolver,
-                    consumer)));
+                    consumer,
+                    retryModifications)));
       }
       return output;
     } else {
@@ -228,7 +237,8 @@ final class PrepareInputProvisioning implements InputType.Visitor<JsonNode> {
                               Stream.concat(
                                   jsonPath.stream(), Stream.of(JsonPath.object(p.first()))),
                               resolver,
-                              consumer))));
+                              consumer,
+                              retryModifications))));
       return output;
     } else {
       contents.close();
@@ -258,7 +268,8 @@ final class PrepareInputProvisioning implements InputType.Visitor<JsonNode> {
                     input.get(0),
                     Stream.concat(jsonPath.stream(), Stream.of(JsonPath.object("left"))),
                     resolver,
-                    consumer)));
+                    consumer,
+                    retryModifications)));
         output.set(
             "right",
             right.apply(
@@ -267,7 +278,8 @@ final class PrepareInputProvisioning implements InputType.Visitor<JsonNode> {
                     input.get(1),
                     Stream.concat(jsonPath.stream(), Stream.of(JsonPath.object("right"))),
                     resolver,
-                    consumer)));
+                    consumer,
+                    retryModifications)));
         return output;
       } else {
         throw new IllegalArgumentException("Pair with incorrect number of arguments");
@@ -283,7 +295,8 @@ final class PrepareInputProvisioning implements InputType.Visitor<JsonNode> {
                     input.get("left"),
                     Stream.concat(jsonPath.stream(), Stream.of(JsonPath.object("left"))),
                     resolver,
-                    consumer)));
+                    consumer,
+                    retryModifications)));
         output.set(
             "right",
             right.apply(
@@ -292,7 +305,8 @@ final class PrepareInputProvisioning implements InputType.Visitor<JsonNode> {
                     input.get("right"),
                     Stream.concat(jsonPath.stream(), Stream.of(JsonPath.object("right"))),
                     resolver,
-                    consumer)));
+                    consumer,
+                    retryModifications)));
         return output;
 
       } else {
@@ -302,6 +316,18 @@ final class PrepareInputProvisioning implements InputType.Visitor<JsonNode> {
     } else {
       throw new IllegalArgumentException();
     }
+  }
+
+  @Override
+  public JsonNode retry(BasicType inner) {
+    final var fields = input.fields();
+    while (fields.hasNext()) {
+      final var field = fields.next();
+      retryModifications
+          .get(Integer.parseUnsignedInt(field.getKey()))
+          .add(new ApplyRetry(jsonPath, field.getValue()));
+    }
+    return NullNode.getInstance();
   }
 
   @Override
@@ -329,7 +355,8 @@ final class PrepareInputProvisioning implements InputType.Visitor<JsonNode> {
                               input.get("contents"),
                               jsonPath.stream(),
                               resolver,
-                              consumer)))
+                              consumer,
+                              retryModifications)))
           .orElseThrow();
     } else {
       throw new IllegalArgumentException();
@@ -353,7 +380,8 @@ final class PrepareInputProvisioning implements InputType.Visitor<JsonNode> {
                           input.get(index),
                           Stream.concat(jsonPath.stream(), Stream.of(JsonPath.array(index))),
                           resolver,
-                          consumer)));
+                          consumer,
+                          retryModifications)));
               index++;
             }
           });

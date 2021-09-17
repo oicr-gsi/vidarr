@@ -1,6 +1,7 @@
 package ca.on.oicr.gsi.vidarr.core;
 
 import ca.on.oicr.gsi.Pair;
+import ca.on.oicr.gsi.vidarr.BasicType;
 import ca.on.oicr.gsi.vidarr.InputProvisionFormat;
 import ca.on.oicr.gsi.vidarr.InputType;
 import ca.on.oicr.gsi.vidarr.api.ExternalId;
@@ -22,8 +23,9 @@ import java.util.stream.StreamSupport;
  * @param <E> the type from each element in a tuple
  * @param <F> the type from each field in an object
  * @param <L> the type from each element in a list
+ * @param <Y> the type from each element in a retry
  */
-abstract class BaseInputExtractor<R, D, E, F, L> implements InputType.Visitor<R> {
+abstract class BaseInputExtractor<R, D, E, F, L, Y> implements InputType.Visitor<R> {
 
   public static final String EXTERNAL__IDS = "externalIds";
   public static final String EXTERNAL__CONFIG = "configuration";
@@ -36,6 +38,8 @@ abstract class BaseInputExtractor<R, D, E, F, L> implements InputType.Visitor<R>
   protected abstract R aggregateList(Stream<L> elements);
 
   protected abstract R aggregateObject(Stream<F> fields);
+
+  protected abstract R aggregateRetry(Stream<Y> alternatives);
 
   protected abstract R aggregateTuple(Stream<E> elements);
 
@@ -127,6 +131,19 @@ abstract class BaseInputExtractor<R, D, E, F, L> implements InputType.Visitor<R>
   }
 
   protected abstract L list(int index, InputType type, JsonNode value);
+
+  @Override
+  public final R retry(BasicType inner) {
+    if (input.isArray()) {
+      return aggregateRetry(
+          StreamSupport.stream(Spliterators.spliteratorUnknownSize(input.fields(), 0), false)
+              .map(e -> retry(e.getKey(), inner, e.getValue())));
+    } else {
+      throw new IllegalArgumentException();
+    }
+  }
+
+  protected abstract Y retry(String id, BasicType type, JsonNode value);
 
   protected abstract ObjectMapper mapper();
 

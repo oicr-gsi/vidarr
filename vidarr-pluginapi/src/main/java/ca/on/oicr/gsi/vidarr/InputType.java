@@ -21,6 +21,7 @@ import java.util.stream.StreamSupport;
 @JsonSerialize(using = InputType.JacksonSerializer.class)
 @JsonDeserialize(using = InputType.JacksonDeserializer.class)
 public abstract class InputType {
+
   private static final String STR_BOOLEAN = "boolean",
       STR_DATE = "date",
       STR_DIRECTORY = "directory",
@@ -32,6 +33,7 @@ public abstract class InputType {
       STR_DICTIONARY = "dictionary",
       STR_OBJECT = "object",
       STR_PAIR = "pair",
+      STR_RETRY = "retry",
       STR_TAGGED_UNION = "tagged-union",
       STR_TUPLE = "tuple",
       STR_LIST = "list",
@@ -104,6 +106,13 @@ public abstract class InputType {
 
     /** Convert a pair of values */
     R pair(InputType left, InputType right);
+
+    /**
+     * Convert a type that can have multiple values for retrying the same value
+     *
+     * @param inner the type that can be retried
+     */
+    R retry(BasicType inner);
 
     /** Convert a <tt>string</tt> type */
     R string();
@@ -227,6 +236,11 @@ public abstract class InputType {
                 throw new IllegalArgumentException("Missing 'right' in pair.");
               }
               return pair(deserialize(obj.get(STR_LEFT)), deserialize(obj.get(STR_RIGHT)));
+            case STR_RETRY:
+              if (!obj.has(STR_INNER)) {
+                throw new IllegalArgumentException("Missing 'inner' in retry.");
+              }
+              return retry(BasicType.deserialize(obj.get(STR_INNER)));
             case STR_TAGGED_UNION:
               if (!obj.has(STR_OPTIONS)) {
                 throw new IllegalArgumentException("Missing 'options' in tagged union.");
@@ -258,9 +272,6 @@ public abstract class InputType {
   }
 
   public static final class JacksonSerializer extends JsonSerializer<InputType> {
-    private interface Printer {
-      void print(JsonGenerator jsonGenerator) throws IOException;
-    }
 
     @Override
     public void serialize(
@@ -373,6 +384,18 @@ public abstract class InputType {
                     printLeft.print(g);
                     g.writeFieldName(STR_RIGHT);
                     printRight.print(g);
+                    g.writeEndObject();
+                  };
+                }
+
+                @Override
+                public Printer retry(BasicType inner) {
+                  final var printInner = inner.apply(BasicType.CREATE_PRINTER);
+                  return g -> {
+                    g.writeStartObject();
+                    g.writeStringField(STR_IS, STR_RETRY);
+                    g.writeFieldName(STR_INNER);
+                    printInner.print(g);
                     g.writeEndObject();
                   };
                 }
@@ -563,6 +586,36 @@ public abstract class InputType {
     }
   }
 
+  private static final class RetryInputType extends InputType {
+    private final BasicType inner;
+
+    public RetryInputType(BasicType inner) {
+      this.inner = inner;
+    }
+
+    @Override
+    public <R> R apply(Visitor<R> transformer) {
+      return transformer.retry(inner);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) {
+        return true;
+      }
+      if (o == null || getClass() != o.getClass()) {
+        return false;
+      }
+      RetryInputType that = (RetryInputType) o;
+      return inner.equals(that.inner);
+    }
+
+    @Override
+    public int hashCode() {
+      return 33 * Objects.hash(inner);
+    }
+  }
+
   private static final class TaggedUnionInputType extends InputType {
     private final Map<String, InputType> union;
 
@@ -643,6 +696,7 @@ public abstract class InputType {
           return transformer.bool();
         }
       };
+
   /** The type of a date, encoded as string containing an ISO-8601 date in UTC */
   public static final InputType DATE =
       new InputType() {
@@ -778,6 +832,11 @@ public abstract class InputType {
    */
   public static InputType pair(InputType left, InputType right) {
     return new PairInputType(left, right);
+  }
+
+  public static InputType retry(BasicType inner) {
+    Objects.requireNonNull(inner, "retry type contents");
+    return new RetryInputType(inner);
   }
 
   /**

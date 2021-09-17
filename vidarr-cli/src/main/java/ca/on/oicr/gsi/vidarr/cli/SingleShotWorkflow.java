@@ -25,7 +25,8 @@ final class SingleShotWorkflow implements ActiveWorkflow<SingleShotOperation, Vo
   private final JsonNode metadata;
   private Phase phase = Phase.INITIALIZING;
   private final String prefix;
-  private ObjectNode realInput;
+  private List<ObjectNode> realInput;
+  private int realInputIndex = 0;
   private final OutputProvisioningHandler<Void> resultHandler;
 
   SingleShotWorkflow(
@@ -158,13 +159,18 @@ final class SingleShotWorkflow implements ActiveWorkflow<SingleShotOperation, Vo
   }
 
   @Override
-  public ObjectNode realInput() {
-    return realInput;
+  public void realInput(List<ObjectNode> realInput, Void transaction) {
+    this.realInput = realInput;
   }
 
   @Override
-  public void realInput(ObjectNode realInput, Void transaction) {
-    this.realInput = realInput;
+  public int realInputTryNext(Void transaction) {
+    return ++realInputIndex;
+  }
+
+  @Override
+  public List<ObjectNode> realInputs() {
+    return realInput;
   }
 
   @Override

@@ -4,6 +4,7 @@ import static ca.on.oicr.gsi.vidarr.core.BaseInputExtractor.EXTERNAL__CONFIG;
 import static ca.on.oicr.gsi.vidarr.core.BaseInputExtractor.EXTERNAL__IDS;
 
 import ca.on.oicr.gsi.Pair;
+import ca.on.oicr.gsi.vidarr.BasicType;
 import ca.on.oicr.gsi.vidarr.InputProvisionFormat;
 import ca.on.oicr.gsi.vidarr.InputType;
 import ca.on.oicr.gsi.vidarr.api.ExternalId;
@@ -13,6 +14,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.Map;
+import java.util.Spliterators;
 import java.util.function.Function;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -243,6 +245,25 @@ public final class CheckInputType implements InputType.Visitor<Stream<String>> {
               "%s: Expected pair (as object with left and right), but got %s.",
               context, input.toPrettyString()));
     }
+  }
+
+  @Override
+  public Stream<String> retry(BasicType inner) {
+    if (input.isObject()) {
+      return Stream.concat(
+          StreamSupport.stream(Spliterators.spliterator(input.fields(), input.size(), 0), false)
+              .flatMap(
+                  e ->
+                      Stream.concat(
+                          e.getKey().chars().allMatch(Character::isDigit)
+                              ? Stream.empty()
+                              : Stream.of(context + "[" + e.getKey() + "]: Key is not numeric"),
+                          inner.apply(
+                              new ValidateJsonToSimpleType(
+                                  context + "[" + e.getKey() + "]", e.getValue())))),
+          input.has("0") ? Stream.empty() : Stream.of(context + ": No entry for 0 is present."));
+    }
+    return Stream.of(context + ": Expected object, but got " + input.toPrettyString());
   }
 
   @Override

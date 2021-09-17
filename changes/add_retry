@@ -1,0 +1,1 @@
+* Adds a new `retry` type that allows a workflows that fail to be retried with different arguments

@@ -1,5 +1,6 @@
 package ca.on.oicr.gsi.vidarr.core;
 
+import ca.on.oicr.gsi.vidarr.BasicType;
 import ca.on.oicr.gsi.vidarr.InputProvisionFormat;
 import ca.on.oicr.gsi.vidarr.InputType;
 import ca.on.oicr.gsi.vidarr.api.ExternalId;
@@ -11,7 +12,12 @@ import java.util.stream.Stream;
 /** Find all Vidarr IDs reference by the input to a workflow run */
 public final class ExtractInputVidarrIds
     extends BaseInputExtractor<
-        Stream<String>, Stream<String>, Stream<String>, Stream<String>, Stream<String>> {
+        Stream<String>,
+        Stream<String>,
+        Stream<String>,
+        Stream<String>,
+        Stream<String>,
+        Stream<String>> {
 
   private final ObjectMapper mapper;
 
@@ -38,6 +44,11 @@ public final class ExtractInputVidarrIds
   @Override
   protected Stream<String> aggregateObject(Stream<Stream<String>> fields) {
     return fields.flatMap(Function.identity());
+  }
+
+  @Override
+  protected Stream<String> aggregateRetry(Stream<Stream<String>> alternatives) {
+    return alternatives.flatMap(Function.identity());
   }
 
   @Override
@@ -91,6 +102,11 @@ public final class ExtractInputVidarrIds
 
   @Override
   public Stream<String> json() {
+    return Stream.empty();
+  }
+
+  @Override
+  protected Stream<String> retry(String id, BasicType type, JsonNode value) {
     return Stream.empty();
   }
 

@@ -80,13 +80,20 @@ Now prepare the JSON configuration file `/srv/vidarr/config` as follows:
     }
 
 Replace all the `pg_db_` values with the appropriate values to connect to the
-database. `"port"` determines the port on which the Víðarr HTTP server will
-run. Choose something appropriate, especially if a reverse proxy. `"url"`
-should be set to the URL this Víðarr server is accessible on, after reverse
-proxying; Víðarr will use this to generate any self-referential URLs. Víðarr
-also operates in a federated fashion so `"name"` should be set to a unique
-identifier for this server independent of its URL. `"otherServers"` can be set
-up to connect these identifiers to the URLs for other servers.
+database. 
+
+`"port"` determines the port on which the Víðarr HTTP server will
+run. Choose something appropriate, especially if using a reverse proxy. 
+
+`"url"` should be set to the URL this Víðarr server is accessible on, after 
+reverse proxying; Víðarr will use this to generate any self-referential URLs. 
+
+Víðarr also operates in a federated fashion so `"name"` should be set to a 
+unique identifier for this server independent of its URL. 
+
+`"otherServers"` can be set up to connect to other Víðarr servers, using the
+other server's `"name"` identifier as the key and the other server's URL as 
+the value.
 
 Now, the plugins must be configured. Here are example configurations for using
 Cromwell in an HPC environment. Note that the names are arbitrary and multiple

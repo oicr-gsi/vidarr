@@ -3,6 +3,7 @@ package ca.on.oicr.gsi.vidarr;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -39,11 +40,13 @@ public final class JsonBodyHandler<W> implements HttpResponse.BodyHandler<Suppli
   private final JavaType targetType;
 
   public JsonBodyHandler(ObjectMapper mapper, Class<W> targetType) {
+    mapper.registerModule(new JavaTimeModule());
     this.mapper = mapper;
     this.targetType = mapper.getTypeFactory().constructType(targetType);
   }
 
   public JsonBodyHandler(ObjectMapper mapper, TypeReference<W> targetType) {
+    mapper.registerModule(new JavaTimeModule());
     this.mapper = mapper;
     this.targetType = mapper.getTypeFactory().constructType(targetType);
   }

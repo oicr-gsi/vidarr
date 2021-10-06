@@ -25,11 +25,13 @@ module ca.on.oicr.gsi.vidarr.pluginapi {
   opens ca.on.oicr.gsi.vidarr.api to
       com.fasterxml.jackson.annotation,
       com.fasterxml.jackson.core,
-      com.fasterxml.jackson.databind;
+      com.fasterxml.jackson.databind,
+      com.fasterxml.jackson.datatype.jsr310;
 
   requires transitive ca.on.oicr.gsi.serverutils;
   requires transitive com.fasterxml.jackson.core;
   requires transitive com.fasterxml.jackson.databind;
+  requires transitive com.fasterxml.jackson.datatype.jsr310;
   requires java.xml;
   requires java.net.http;
 }

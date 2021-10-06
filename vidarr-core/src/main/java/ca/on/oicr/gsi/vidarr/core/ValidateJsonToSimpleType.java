@@ -15,12 +15,12 @@ import java.util.stream.StreamSupport;
  *
  * <p>The result will be a stream of errors; if empty, no errors were found.
  */
-public final class CheckSimpleType implements BasicType.Visitor<Stream<String>> {
+public final class ValidateJsonToSimpleType implements BasicType.Visitor<Stream<String>> {
 
   private final String context;
   private final JsonNode input;
 
-  public CheckSimpleType(String context, JsonNode input) {
+  public ValidateJsonToSimpleType(String context, JsonNode input) {
     this.context = context;
     this.input = input;
   }
@@ -51,7 +51,7 @@ public final class CheckSimpleType implements BasicType.Visitor<Stream<String>> 
   public Stream<String> dictionary(BasicType key, BasicType value) {
     if (input.isObject() && key == BasicType.STRING) {
       return StreamSupport.stream(input.spliterator(), false)
-          .flatMap(v -> value.apply(new CheckSimpleType(context + "{value}", v)));
+          .flatMap(v -> value.apply(new ValidateJsonToSimpleType(context + "{value}", v)));
     }
     if (input.isArray()) {
       return StreamSupport.stream(input.spliterator(), false)
@@ -63,8 +63,9 @@ public final class CheckSimpleType implements BasicType.Visitor<Stream<String>> 
                               "%s: Expected inner key as array with two elements, but got %s.",
                               context, e.toPrettyString()))
                       : Stream.concat(
-                          key.apply(new CheckSimpleType(context + "{key}", e.get(0))),
-                          value.apply(new CheckSimpleType(context + "{value}", e.get(1)))));
+                          key.apply(new ValidateJsonToSimpleType(context + "{key}", e.get(0))),
+                          value.apply(
+                              new ValidateJsonToSimpleType(context + "{value}", e.get(1)))));
     } else {
       return Stream.of(
           String.format("%s: Expected dictionary, but got %s.", context, input.toPrettyString()));
@@ -102,7 +103,8 @@ public final class CheckSimpleType implements BasicType.Visitor<Stream<String>> 
 
                 @Override
                 public Stream<? extends String> apply(JsonNode e) {
-                  return inner.apply(new CheckSimpleType(context + "[" + (index++) + "]", e));
+                  return inner.apply(
+                      new ValidateJsonToSimpleType(context + "[" + (index++) + "]", e));
                 }
               });
     } else {
@@ -118,7 +120,7 @@ public final class CheckSimpleType implements BasicType.Visitor<Stream<String>> 
       return contents.flatMap(
           p ->
               input.has(p.first())
-                  ? p.second().apply(new CheckSimpleType(context, input.get(p.first())))
+                  ? p.second().apply(new ValidateJsonToSimpleType(context, input.get(p.first())))
                   : Stream.of(
                       String.format("%s: Missing attribute %s in object.", context, p.first())));
     } else {
@@ -136,7 +138,10 @@ public final class CheckSimpleType implements BasicType.Visitor<Stream<String>> 
         return elements
             .filter(e -> e.getKey().equals(typeStr))
             .findAny()
-            .map(e -> e.getValue().apply(new CheckSimpleType(context, input.get("contents"))))
+            .map(
+                e ->
+                    e.getValue()
+                        .apply(new ValidateJsonToSimpleType(context, input.get("contents"))))
             .orElseGet(
                 () ->
                     Stream.of(
@@ -165,8 +170,8 @@ public final class CheckSimpleType implements BasicType.Visitor<Stream<String>> 
   public Stream<String> pair(BasicType left, BasicType right) {
     if (input.isObject() && input.has("left") && input.has("right")) {
       return Stream.concat(
-          left.apply(new CheckSimpleType(context + ".left", input.get("left"))),
-          right.apply(new CheckSimpleType(context + ".right", input.get("right"))));
+          left.apply(new ValidateJsonToSimpleType(context + ".left", input.get("left"))),
+          right.apply(new ValidateJsonToSimpleType(context + ".right", input.get("right"))));
     } else {
       return Stream.of(
           String.format(
@@ -193,7 +198,7 @@ public final class CheckSimpleType implements BasicType.Visitor<Stream<String>> 
             @Override
             public Stream<String> apply(BasicType inputType) {
               return inputType.apply(
-                  new CheckSimpleType(context + "[" + index + "]", input.get(index++)));
+                  new ValidateJsonToSimpleType(context + "[" + index + "]", input.get(index++)));
             }
           });
     } else {

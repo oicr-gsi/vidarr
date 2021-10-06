@@ -10,6 +10,7 @@ import ca.on.oicr.gsi.vidarr.WorkflowDefinition;
 import ca.on.oicr.gsi.vidarr.api.BulkVersionRequest;
 import ca.on.oicr.gsi.vidarr.api.ExternalId;
 import ca.on.oicr.gsi.vidarr.api.ExternalKey;
+import ca.on.oicr.gsi.vidarr.api.ExternalMultiVersionKey;
 import ca.on.oicr.gsi.vidarr.core.*;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -178,7 +179,7 @@ public abstract class DatabaseBackedProcessor
         ? resource
             .second()
             .apply(
-                new CheckSimpleType(
+                new ValidateJsonToSimpleType(
                     "Consumable resource: " + resource.first(),
                     consumableResources.get(resource.first())))
         : Stream.of(String.format("Missing required consumable resource %s", resource.first()));
@@ -188,15 +189,13 @@ public abstract class DatabaseBackedProcessor
       String name,
       ObjectNode providedLabels,
       Iterable<String> labels,
-      TreeSet<String>
-          inputIds, // In both existing calls, hashFromAnalysisId has already been called. TODO:
-      // maybe refactor if any more calls are needed
+      TreeSet<String> inputIds,
       Collection<? extends ExternalId> externalIds) {
     try {
       final var digest = MessageDigest.getInstance("SHA-256");
       digest.update(name.getBytes(StandardCharsets.UTF_8));
       for (final var id : inputIds) {
-        final var idBytes = id.getBytes(StandardCharsets.UTF_8);
+        final var idBytes = hashFromAnalysisId(id).getBytes(StandardCharsets.UTF_8);
         digest.update(new byte[] {0});
         digest.update(idBytes);
       }
@@ -243,7 +242,7 @@ public abstract class DatabaseBackedProcessor
                 return entry
                     .getValue()
                     .apply(
-                        new CheckSimpleType(
+                        new ValidateJsonToSimpleType(
                             "Label: " + entry.getKey(), providedLabels.get(entry.getKey())))
                     .map(String.format("Label %s: ", entry.getKey())::concat);
               } else {
@@ -445,7 +444,6 @@ public abstract class DatabaseBackedProcessor
                 arguments.has(p.name())
                     ? p.type().apply(new ExtractInputVidarrIds(MAPPER, arguments.get(p.name())))
                     : Stream.empty())
-        .map(DatabaseBackedProcessor::hashFromAnalysisId)
         .collect(Collectors.toCollection(TreeSet::new));
   }
 
@@ -758,23 +756,29 @@ public abstract class DatabaseBackedProcessor
                                 r.get(EXTERNAL_ID.PROVIDER), r.get(EXTERNAL_ID.EXTERNAL_ID_)),
                         Collectors.toMap(
                             r -> r.get(EXTERNAL_ID_VERSION.KEY),
-                            r -> r.get(EXTERNAL_ID_VERSION.VALUE)))))
+                            r ->
+                                Stream.of(r.get(EXTERNAL_ID_VERSION.VALUE))
+                                    .collect(Collectors.toSet()),
+                            (a, b) -> {
+                              a.addAll(b);
+                              return a;
+                            }))))
             .entrySet()
             .stream()
             .<FileMetadata>map(
                 e ->
                     new FileMetadata() {
-                      private final List<ExternalKey> keys =
+                      private final List<ExternalMultiVersionKey> keys =
                           e.getValue().entrySet().stream()
                               .map(
                                   ee ->
-                                      new ExternalKey(
+                                      new ExternalMultiVersionKey(
                                           ee.getKey().first(), ee.getKey().second(), ee.getValue()))
                               .collect(Collectors.toList());
                       private final String path = e.getKey();
 
                       @Override
-                      public Stream<ExternalKey> externalKeys() {
+                      public Stream<ExternalMultiVersionKey> externalKeys() {
                         return keys.stream();
                       }
 
@@ -1180,10 +1184,11 @@ public abstract class DatabaseBackedProcessor
         .collect(Collectors.toSet());
   }
 
-  public static String hashFromAnalysisId(String id) {
+  private static String hashFromAnalysisId(String id) {
     Matcher matcher = BaseProcessor.ANALYSIS_RECORD_ID.matcher(id);
     if (!matcher.matches())
-      throw new IllegalStateException("Failed to match ANALYSIS_RECORD_ID regex to id: " + id);
+      throw new IllegalArgumentException(
+          String.format("'%s' is a malformed Vidarr file identifier", id));
     return matcher.group("hash");
   }
 }

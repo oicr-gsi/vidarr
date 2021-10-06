@@ -329,12 +329,8 @@ public final class Main implements ServerConfig {
 
   private static void handleException(HttpServerExchange exchange) {
     final var e = (Exception) exchange.getAttachment(ExceptionHandler.THROWABLE);
-    if (e instanceof ValidationException) {
-      exchange.setStatusCode(StatusCodes.BAD_REQUEST);
-    } else {
-      exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);
-    }
     e.printStackTrace();
+    exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);
     exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
     exchange.getResponseSender().send(e.getMessage());
   }
@@ -693,16 +689,18 @@ public final class Main implements ServerConfig {
                           .GET()
                           .build(),
                       new JsonBodyHandler<>(
-                          MAPPER, new TypeReference<ProvenanceAnalysisRecord<ExternalKey>>() {}));
+                          MAPPER,
+                          new TypeReference<
+                              ProvenanceAnalysisRecord<ExternalMultiVersionKey>>() {}));
               if (response.statusCode() == HttpURLConnection.HTTP_OK) {
                 final var result = response.body().get();
                 return Optional.of(
                     new FileMetadata() {
-                      private final List<ExternalKey> keys = result.getExternalKeys();
+                      private final List<ExternalMultiVersionKey> keys = result.getExternalKeys();
                       private final String path = result.getPath();
 
                       @Override
-                      public Stream<ExternalKey> externalKeys() {
+                      public Stream<ExternalMultiVersionKey> externalKeys() {
                         return keys.stream();
                       }
 
@@ -776,8 +774,7 @@ public final class Main implements ServerConfig {
     }
   }
 
-  private void addWorkflowVersion(HttpServerExchange exchange, AddWorkflowVersionRequest request)
-      throws ValidationException {
+  private void addWorkflowVersion(HttpServerExchange exchange, AddWorkflowVersionRequest request) {
     final var name =
         exchange.getAttachment(PathTemplateMatch.ATTACHMENT_KEY).getParameters().get("name");
     final var version =
@@ -1829,7 +1826,7 @@ public final class Main implements ServerConfig {
           badRequestResponse(
               exchange,
               String.format(
-                  "Workflow run %s references missing workflow %s/%s in load request.",
+                  "Workflow run %s references missing workflow version %s/%s in load request.",
                   workflowRun.getId(),
                   workflowRun.getWorkflowName(),
                   workflowRun.getWorkflowVersion()));
@@ -1872,7 +1869,6 @@ public final class Main implements ServerConfig {
                                 .apply(
                                     new ExtractInputVidarrIds(
                                         MAPPER, workflowRun.getArguments().get(param.getKey()))))
-                    .map(DatabaseBackedProcessor::hashFromAnalysisId)
                     .collect(Collectors.toCollection(TreeSet::new)),
                 workflowRun.getExternalKeys());
 

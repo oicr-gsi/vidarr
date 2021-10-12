@@ -187,8 +187,8 @@ public abstract class DatabaseBackedProcessor
 
   static String computeWorkflowRunHashId(
       String name,
-      ObjectNode providedLabels,
-      Iterable<String> labels,
+      ObjectNode labelsFromClient,
+      Iterable<String> labelsFromWorkflow,
       TreeSet<String> inputIds,
       Collection<? extends ExternalId> externalIds) {
     try {
@@ -211,11 +211,13 @@ public abstract class DatabaseBackedProcessor
         digest.update(new byte[] {0});
       }
 
-      for (final var label : labels) {
+      // The client may submit any number of workflow labels, but this hashing/matching only
+      // takes into account the labels that the workflow is configured with.
+      for (final var label : labelsFromWorkflow) {
         digest.update(new byte[] {0});
         digest.update(label.getBytes(StandardCharsets.UTF_8));
         digest.update(new byte[] {0});
-        digest.update(MAPPER.writeValueAsBytes(providedLabels.get(label)));
+        digest.update(MAPPER.writeValueAsBytes(labelsFromClient.get(label)));
       }
 
       return hexDigits(digest.digest());

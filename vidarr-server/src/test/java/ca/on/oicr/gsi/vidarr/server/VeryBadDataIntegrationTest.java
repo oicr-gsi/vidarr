@@ -11,6 +11,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.rasklaad.blns.NaughtyStrings;
 import io.restassured.RestAssured;
+import io.restassured.http.ContentType;
 import io.restassured.parsing.Parser;
 import java.net.http.HttpClient;
 import java.sql.SQLException;
@@ -108,7 +109,7 @@ public class VeryBadDataIntegrationTest {
     List<Integer> indices =
         IntStream.concat(
                 IntStream.range(0, 31),
-                IntStream.concat(IntStream.range(194, 202), IntStream.range(431, 467)))
+                IntStream.concat(IntStream.range(194, 202), IntStream.range(435, 475)))
             .boxed()
             .collect(Collectors.toList());
 
@@ -185,12 +186,13 @@ public class VeryBadDataIntegrationTest {
           var parameters = MAPPER.createObjectNode();
           outputs.put("fastqs", "files");
           parameters.put("test", "boolean");
-          body.put("language", "UNIX_SHELL");
+          body.put("language", "NIASSA");
           body.set("outputs", outputs);
           body.set("parameters", parameters);
           body.put("workflow", "#!/bin/sh echo '" + naughtyString + "'");
 
           given()
+              .contentType(ContentType.JSON)
               .body(body)
               .when()
               .post("/api/workflow/{name}/{version}", naughtyString, naughtyString)

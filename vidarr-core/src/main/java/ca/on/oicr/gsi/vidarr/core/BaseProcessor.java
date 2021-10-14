@@ -812,7 +812,7 @@ public abstract class BaseProcessor<
                 target, activeOperations.size(), workflow, definition, workflow.isPreflightOkay());
         for (final var operation : activeOperations) {
           target
-              .provisionerFor(OutputProvisionFormat.valueOf(operation.type()))
+              .provisionerFor(WorkflowOutputDataType.valueOf(operation.type()).format())
               .preflightRecover(operation.recoveryState(), p1.createMonitor(operation));
         }
         break;

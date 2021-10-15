@@ -754,7 +754,7 @@ public final class Main implements ServerConfig {
               context ->
                   DSL.using(context)
                       .insertInto(WORKFLOW)
-                      .set(WORKFLOW.NAME, param("name", name))
+                      .set(WORKFLOW.NAME, param("workflowName", name))
                       .set(WORKFLOW.LABELS, param("labels", labels))
                       .set(WORKFLOW.IS_ACTIVE, param("isActive", true))
                       .set(WORKFLOW.MAX_IN_FLIGHT, param("maxInFlight", request.getMaxInFlight()))
@@ -854,7 +854,7 @@ public final class Main implements ServerConfig {
                             DSL.val(
                                 MAPPER.valueToTree(request.getOutputs()),
                                 WORKFLOW_VERSION.METADATA.getDataType()))
-                        .set(WORKFLOW_VERSION.NAME, param("name", name))
+                        .set(WORKFLOW_VERSION.NAME, param("workflowName", name))
                         .set(
                             WORKFLOW_VERSION.PARAMETERS,
                             DSL.val(

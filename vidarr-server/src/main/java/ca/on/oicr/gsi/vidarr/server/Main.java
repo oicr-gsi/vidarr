@@ -12,6 +12,7 @@ import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.WORKFLOW_DEFINITION;
 import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.WORKFLOW_RUN;
 import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.WORKFLOW_VERSION;
 import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.WORKFLOW_VERSION_ACCESSORY;
+import static org.jooq.impl.DSL.param;
 
 import ca.on.oicr.gsi.Pair;
 import ca.on.oicr.gsi.prometheus.LatencyHistogram;
@@ -751,12 +752,10 @@ public final class Main implements ServerConfig {
               context ->
                   DSL.using(context)
                       .insertInto(WORKFLOW)
-                      .columns(
-                          WORKFLOW.NAME,
-                          WORKFLOW.LABELS,
-                          WORKFLOW.IS_ACTIVE,
-                          WORKFLOW.MAX_IN_FLIGHT)
-                      .values(name, labels, true, request.getMaxInFlight())
+                      .set(WORKFLOW.NAME, param("workflowName", name))
+                      .set(WORKFLOW.LABELS, param("labels", labels))
+                      .set(WORKFLOW.IS_ACTIVE, param("isActive", true))
+                      .set(WORKFLOW.MAX_IN_FLIGHT, param("maxInFlight", request.getMaxInFlight()))
                       .onConflict(WORKFLOW.NAME)
                       .doUpdate()
                       .set(WORKFLOW.IS_ACTIVE, true)
@@ -806,7 +805,7 @@ public final class Main implements ServerConfig {
                 var matchingWorkflow =
                     dsl.select(WORKFLOW.ID)
                         .from(WORKFLOW)
-                        .where(WORKFLOW.NAME.eq(name))
+                        .where(WORKFLOW.NAME.eq(param("workflowName", name)))
                         .fetchOptional(Record1::value1);
                 if (matchingWorkflow.isEmpty()) {
                   notFoundResponse(exchange, String.format("No workflow with name %s found", name));
@@ -835,31 +834,33 @@ public final class Main implements ServerConfig {
                 }
                 final var versionHash = hexDigits(versionDigest.digest());
                 final var result =
-                    dsl.insertInto(
-                            WORKFLOW_VERSION,
-                            WORKFLOW_VERSION.HASH_ID,
+                    dsl.insertInto(WORKFLOW_VERSION)
+                        .set(WORKFLOW_VERSION.HASH_ID, param("hashId", versionHash))
+                        .set(
                             WORKFLOW_VERSION.METADATA,
-                            WORKFLOW_VERSION.NAME,
-                            WORKFLOW_VERSION.PARAMETERS,
-                            WORKFLOW_VERSION.WORKFLOW_DEFINITION,
-                            WORKFLOW_VERSION.VERSION)
-                        .values(
-                            DSL.val(versionHash),
                             DSL.val(
                                 MAPPER.valueToTree(request.getOutputs()),
-                                WORKFLOW_VERSION.METADATA.getDataType()),
-                            DSL.val(name),
+                                WORKFLOW_VERSION.METADATA.getDataType()))
+                        .set(WORKFLOW_VERSION.NAME, param("workflowName", name))
+                        .set(
+                            WORKFLOW_VERSION.PARAMETERS,
                             DSL.val(
                                 MAPPER.valueToTree(request.getParameters()),
-                                WORKFLOW_VERSION.PARAMETERS.getDataType()),
+                                WORKFLOW_VERSION.PARAMETERS.getDataType()))
+                        .set(
+                            WORKFLOW_VERSION.WORKFLOW_DEFINITION,
                             DSL.field(
                                 DSL.select(WORKFLOW_DEFINITION.ID)
                                     .from(WORKFLOW_DEFINITION)
-                                    .where(WORKFLOW_DEFINITION.HASH_ID.eq(definitionHash))),
-                            DSL.val(version))
+                                    .where(
+                                        WORKFLOW_DEFINITION.HASH_ID.eq(
+                                            param("definitionHash", definitionHash)))))
+                        .set(WORKFLOW_VERSION.VERSION, param("version", version))
                         .onConflict(WORKFLOW_VERSION.NAME, WORKFLOW_VERSION.VERSION)
                         .doNothing()
-                        .returningResult(DSL.field(WORKFLOW_VERSION.HASH_ID.eq(versionHash)))
+                        .returningResult(
+                            DSL.field(
+                                WORKFLOW_VERSION.HASH_ID.eq(param("versionHash", versionHash))))
                         .fetchOptional();
                 if (result.map(r -> !r.value1()).orElse(false)) {
                   conflictResponse(exchange);
@@ -867,7 +868,11 @@ public final class Main implements ServerConfig {
                 }
                 dsl.update(WORKFLOW)
                     .set(WORKFLOW.IS_ACTIVE, true)
-                    .where(WORKFLOW.NAME.eq(name).and(WORKFLOW.IS_ACTIVE.isFalse()))
+                    .where(
+                        WORKFLOW
+                            .NAME
+                            .eq(param("workflowName", name))
+                            .and(WORKFLOW.IS_ACTIVE.isFalse()))
                     .execute();
                 if (!accessoryHashes.isEmpty()) {
 
@@ -887,13 +892,17 @@ public final class Main implements ServerConfig {
                                     .where(
                                         WORKFLOW_VERSION
                                             .NAME
-                                            .eq(name)
-                                            .and(WORKFLOW_VERSION.VERSION.eq(version)))),
+                                            .eq(param("workflowName", name))
+                                            .and(
+                                                WORKFLOW_VERSION.VERSION.eq(
+                                                    param("workflowVersion", version))))),
                             DSL.val(accessory.getKey()),
                             DSL.field(
                                 DSL.select(WORKFLOW_DEFINITION.ID)
                                     .from(WORKFLOW_DEFINITION)
-                                    .where(WORKFLOW_DEFINITION.HASH_ID.eq(accessory.getValue()))));
+                                    .where(
+                                        WORKFLOW_DEFINITION.HASH_ID.eq(
+                                            param("hashId", accessory.getValue())))));
                   }
                   accessoryQuery.execute();
                 }
@@ -908,13 +917,15 @@ public final class Main implements ServerConfig {
       Configuration configuration, int id, String fileName, String accessoryWorkflowHash) {
     DSL.using(configuration)
         .insertInto(WORKFLOW_VERSION_ACCESSORY)
-        .set(WORKFLOW_VERSION_ACCESSORY.FILENAME, fileName)
+        .set(WORKFLOW_VERSION_ACCESSORY.FILENAME, param("filename", fileName))
         .set(
             WORKFLOW_VERSION_ACCESSORY.WORKFLOW_DEFINITION,
             DSL.select(WORKFLOW_DEFINITION.ID)
                 .from(WORKFLOW_DEFINITION)
-                .where(WORKFLOW_DEFINITION.HASH_ID.eq(accessoryWorkflowHash)))
-        .set(WORKFLOW_VERSION_ACCESSORY.WORKFLOW_VERSION, id)
+                .where(
+                    WORKFLOW_DEFINITION.HASH_ID.eq(
+                        param("accessoryWorkflowHash", accessoryWorkflowHash))))
+        .set(WORKFLOW_VERSION_ACCESSORY.WORKFLOW_VERSION, param("workflowVersion", id))
         .execute();
   }
 
@@ -1107,7 +1118,11 @@ public final class Main implements ServerConfig {
                       DSL.using(context)
                           .update(WORKFLOW)
                           .set(WORKFLOW.IS_ACTIVE, false)
-                          .where(WORKFLOW.NAME.eq(name).and(WORKFLOW.IS_ACTIVE.isTrue()))
+                          .where(
+                              WORKFLOW
+                                  .NAME
+                                  .eq(param("workflowName", name))
+                                  .and(WORKFLOW.IS_ACTIVE.isTrue()))
                           .execute());
       if (count == 0) {
         notFoundResponse(exchange);
@@ -1271,7 +1286,11 @@ public final class Main implements ServerConfig {
                               .from(WORKFLOW_RUN)
                               .where(WORKFLOW_RUN.ID.eq(ANALYSIS.WORKFLOW_RUN_ID))))))
           .from(ANALYSIS)
-          .where(ANALYSIS.HASH_ID.eq(vidarrId).and(ANALYSIS.ANALYSIS_TYPE.eq(type)))
+          .where(
+              ANALYSIS
+                  .HASH_ID
+                  .eq(param("vidarrId", vidarrId))
+                  .and(ANALYSIS.ANALYSIS_TYPE.eq(param("type", type))))
           .fetchOptional()
           .map(Record1::value1)
           .ifPresentOrElse(
@@ -1359,7 +1378,7 @@ public final class Main implements ServerConfig {
               WORKFLOW_RUN
                   .leftJoin(ACTIVE_WORKFLOW_RUN)
                   .on(WORKFLOW_RUN.ID.eq(ACTIVE_WORKFLOW_RUN.ID)))
-          .where(WORKFLOW_RUN.HASH_ID.eq(vidarrId))
+          .where(WORKFLOW_RUN.HASH_ID.eq(param("vidarrId", vidarrId)))
           .fetchOptional(Record1::value1)
           .ifPresentOrElse(
               complete -> {
@@ -1374,7 +1393,7 @@ public final class Main implements ServerConfig {
                       null,
                       true,
                       Set.of(AnalysisOutputType.FILE, AnalysisOutputType.URL),
-                      WORKFLOW_RUN.HASH_ID.eq(vidarrId));
+                      WORKFLOW_RUN.HASH_ID.eq(param("vidarrId", vidarrId)));
                 } catch (IOException | SQLException e) {
                   e.printStackTrace();
                 }
@@ -1397,7 +1416,7 @@ public final class Main implements ServerConfig {
               WORKFLOW_RUN
                   .leftJoin(ACTIVE_WORKFLOW_RUN)
                   .on(WORKFLOW_RUN.ID.eq(ACTIVE_WORKFLOW_RUN.ID)))
-          .where(WORKFLOW_RUN.HASH_ID.eq(vidarrId))
+          .where(WORKFLOW_RUN.HASH_ID.eq(param("vidarrId", vidarrId)))
           .fetchOptional(Record1::value1)
           .ifPresentOrElse(
               record -> {
@@ -1582,9 +1601,19 @@ public final class Main implements ServerConfig {
                   WORKFLOW_VERSION
                       .join(WORKFLOW_DEFINITION)
                       .on(WORKFLOW_VERSION.WORKFLOW_DEFINITION.eq(WORKFLOW_DEFINITION.ID)))
-              .where(WORKFLOW_VERSION.NAME.eq(name).and(WORKFLOW_VERSION.VERSION.eq(version)))
+              .where(
+                  WORKFLOW_VERSION
+                      .NAME
+                      .eq(param("workflowName", name))
+                      .and(WORKFLOW_VERSION.VERSION.eq(param("workflowVersion", version))))
               .fetchOptional()
-              .map(r -> r.value1().data());
+              .map(
+                  r -> {
+                    if (r.value1() != null) {
+                      return r.value1().data();
+                    }
+                    return null;
+                  });
       if (result.isPresent()) {
         okJsonResponse(exchange, result.get());
       } else {
@@ -1607,19 +1636,27 @@ public final class Main implements ServerConfig {
     final var analysisId =
         DSL.using(configuration)
             .insertInto(ANALYSIS)
-            .set(ANALYSIS.WORKFLOW_RUN_ID, id)
-            .set(ANALYSIS.HASH_ID, analysis.getId())
-            .set(ANALYSIS.ANALYSIS_TYPE, analysis.getType())
-            .set(ANALYSIS.CREATED, analysis.getCreated().toOffsetDateTime())
+            .set(ANALYSIS.WORKFLOW_RUN_ID, param("workflowRunId", id))
+            .set(ANALYSIS.HASH_ID, param("hashId", analysis.getId()))
+            .set(ANALYSIS.ANALYSIS_TYPE, param("analysisType", analysis.getType()))
+            .set(ANALYSIS.CREATED, param("created", analysis.getCreated().toOffsetDateTime()))
             .set(
                 ANALYSIS.FILE_PATH,
-                analysis.getType().equals("file") ? analysis.getPath() : analysis.getUrl())
-            .set(ANALYSIS.FILE_MD5SUM, analysis.getType().equals("file") ? analysis.getMd5() : null)
+                param(
+                    "filePath",
+                    analysis.getType().equals("file") ? analysis.getPath() : analysis.getUrl()))
+            .set(
+                ANALYSIS.FILE_MD5SUM,
+                param("md5sum", analysis.getType().equals("file") ? analysis.getMd5() : null))
             .set(
                 ANALYSIS.FILE_METATYPE,
-                analysis.getType().equals("file") ? analysis.getMetatype() : null)
+                param(
+                    "fileMetatype",
+                    analysis.getType().equals("file") ? analysis.getMetatype() : null))
             .set(ANALYSIS.FILE_SIZE, analysis.getType().equals("file") ? analysis.getSize() : null)
-            .set(ANALYSIS.LABELS, DatabaseWorkflow.labelsToJson(analysis.getLabels()))
+            .set(
+                ANALYSIS.LABELS,
+                param("labels", DatabaseWorkflow.labelsToJson(analysis.getLabels())))
             .returningResult(ANALYSIS.ID)
             .fetchOptional()
             .orElseThrow()
@@ -1638,9 +1675,13 @@ public final class Main implements ServerConfig {
                       .where(
                           EXTERNAL_ID
                               .WORKFLOW_RUN_ID
-                              .eq(id)
-                              .and(EXTERNAL_ID.PROVIDER.eq(externalId.getProvider()))
-                              .and(EXTERNAL_ID.EXTERNAL_ID_.eq(externalId.getId())))));
+                              .eq(param("workflowRunId", id))
+                              .and(
+                                  EXTERNAL_ID.PROVIDER.eq(
+                                      param("externalIdProvider", externalId.getProvider())))
+                              .and(
+                                  EXTERNAL_ID.EXTERNAL_ID_.eq(
+                                      param("externalId", externalId.getId()))))));
     }
     associate.execute();
   }
@@ -1650,9 +1691,9 @@ public final class Main implements ServerConfig {
     final var externalIdDbId =
         DSL.using(configuration)
             .insertInto(EXTERNAL_ID)
-            .set(EXTERNAL_ID.PROVIDER, externalId.getProvider())
-            .set(EXTERNAL_ID.EXTERNAL_ID_, externalId.getId())
-            .set(EXTERNAL_ID.WORKFLOW_RUN_ID, id)
+            .set(EXTERNAL_ID.PROVIDER, param("provider", externalId.getProvider()))
+            .set(EXTERNAL_ID.EXTERNAL_ID_, param("externalId", externalId.getId()))
+            .set(EXTERNAL_ID.WORKFLOW_RUN_ID, param("workflowRunId", id))
             .returningResult(EXTERNAL_ID.ID)
             .fetchOptional()
             .orElseThrow()
@@ -1679,9 +1720,9 @@ public final class Main implements ServerConfig {
       WorkflowLanguage workflowLanguage) {
     DSL.using(configuration)
         .insertInto(WORKFLOW_DEFINITION)
-        .set(WORKFLOW_DEFINITION.WORKFLOW_FILE, workflowScript)
-        .set(WORKFLOW_DEFINITION.WORKFLOW_LANGUAGE, workflowLanguage)
-        .set(WORKFLOW_DEFINITION.HASH_ID, rootWorkflowHash)
+        .set(WORKFLOW_DEFINITION.WORKFLOW_FILE, param("workflowFile", workflowScript))
+        .set(WORKFLOW_DEFINITION.WORKFLOW_LANGUAGE, param("workflowLanguage", workflowLanguage))
+        .set(WORKFLOW_DEFINITION.HASH_ID, param("hashId", rootWorkflowHash))
         .onConflict(WORKFLOW_DEFINITION.HASH_ID)
         .doNothing()
         .execute();
@@ -1694,19 +1735,23 @@ public final class Main implements ServerConfig {
       ca.on.oicr.gsi.vidarr.api.ProvenanceWorkflowRun<ExternalMultiVersionKey> run) {
     return DSL.using(configuration)
         .insertInto(WORKFLOW_RUN)
-        .set(WORKFLOW_RUN.HASH_ID, run.getId())
-        .set(WORKFLOW_RUN.WORKFLOW_VERSION_ID, workflowId)
-        .set(WORKFLOW_RUN.ENGINE_PARAMETERS, run.getEngineParameters())
+        .set(WORKFLOW_RUN.HASH_ID, param("hashId", run.getId()))
+        .set(WORKFLOW_RUN.WORKFLOW_VERSION_ID, param("workflowVersionId", workflowId))
+        .set(
+            WORKFLOW_RUN.ENGINE_PARAMETERS,
+            run.getEngineParameters()) // JsonNode and ObjectNode are not accepted by param
         .set(WORKFLOW_RUN.ARGUMENTS, run.getArguments())
         .set(WORKFLOW_RUN.METADATA, run.getMetadata())
-        .set(WORKFLOW_RUN.LABELS, DatabaseWorkflow.labelsToJson(run.getLabels()))
-        .set(WORKFLOW_RUN.INPUT_FILE_IDS, run.getInputFiles().toArray(String[]::new))
-        .set(WORKFLOW_RUN.CREATED, run.getCreated().toOffsetDateTime())
-        .set(WORKFLOW_RUN.COMPLETED, run.getCompleted().toOffsetDateTime())
-        .set(WORKFLOW_RUN.LAST_ACCESSED, now)
+        .set(WORKFLOW_RUN.LABELS, param("labels", DatabaseWorkflow.labelsToJson(run.getLabels())))
+        .set(
+            WORKFLOW_RUN.INPUT_FILE_IDS,
+            param("inputFileIds", run.getInputFiles().toArray(String[]::new)))
+        .set(WORKFLOW_RUN.CREATED, param("created", run.getCreated().toOffsetDateTime()))
+        .set(WORKFLOW_RUN.COMPLETED, param("completed", run.getCompleted().toOffsetDateTime()))
+        .set(WORKFLOW_RUN.LAST_ACCESSED, param("lastAccessed", now))
         .set(
             WORKFLOW_RUN.STARTED,
-            run.getStarted() == null ? null : run.getStarted().toOffsetDateTime())
+            param("started", run.getStarted() == null ? null : run.getStarted().toOffsetDateTime()))
         .onConflict(WORKFLOW_RUN.HASH_ID)
         .doNothing()
         .returningResult(WORKFLOW_RUN.ID)
@@ -1724,16 +1769,19 @@ public final class Main implements ServerConfig {
       Map<String, InputType> parameters) {
     return DSL.using(configuration)
         .insertInto(WORKFLOW_VERSION)
-        .set(WORKFLOW_VERSION.HASH_ID, workflowHashId)
-        .set(WORKFLOW_VERSION.NAME, workflowName)
-        .set(WORKFLOW_VERSION.VERSION, workflowVersion)
-        .set(WORKFLOW_VERSION.METADATA, MAPPER.<ObjectNode>valueToTree(outputs))
+        .set(WORKFLOW_VERSION.HASH_ID, param("hashId", workflowHashId))
+        .set(WORKFLOW_VERSION.NAME, param("name", workflowName))
+        .set(WORKFLOW_VERSION.VERSION, param("version", workflowVersion))
+        .set(
+            WORKFLOW_VERSION.METADATA,
+            MAPPER.<ObjectNode>valueToTree(
+                outputs)) // ObjectNode is not supported type in POSTGRES, param can't be bound
         .set(WORKFLOW_VERSION.PARAMETERS, MAPPER.<ObjectNode>valueToTree(parameters))
         .set(
             WORKFLOW_VERSION.WORKFLOW_DEFINITION,
             DSL.select(WORKFLOW_DEFINITION.ID)
                 .from(WORKFLOW_DEFINITION)
-                .where(WORKFLOW_DEFINITION.HASH_ID.eq(rootWorkflowHash)))
+                .where(WORKFLOW_DEFINITION.HASH_ID.eq(param("rootWorkflowHash", rootWorkflowHash))))
         .onConflict(WORKFLOW_VERSION.NAME, WORKFLOW_VERSION.VERSION)
         .doNothing()
         .returningResult(WORKFLOW_VERSION.ID)
@@ -2052,7 +2100,7 @@ public final class Main implements ServerConfig {
               DSL.using(configuration)
                   .select(WORKFLOW_VERSION.ID)
                   .from(WORKFLOW_VERSION)
-                  .where(WORKFLOW_VERSION.HASH_ID.eq(workflowHashId))
+                  .where(WORKFLOW_VERSION.HASH_ID.eq(param("workflow-hash-id", workflowHashId)))
                   .fetchOptional(WORKFLOW_VERSION.ID)
                   .orElseThrow());
         }
@@ -2477,11 +2525,9 @@ public final class Main implements ServerConfig {
         hexDigits(
             MessageDigest.getInstance("SHA-256").digest(workflow.getBytes(StandardCharsets.UTF_8)));
     dsl.insertInto(WORKFLOW_DEFINITION)
-        .columns(
-            WORKFLOW_DEFINITION.HASH_ID,
-            WORKFLOW_DEFINITION.WORKFLOW_FILE,
-            WORKFLOW_DEFINITION.WORKFLOW_LANGUAGE)
-        .values(definitionHash, workflow, language)
+        .set(WORKFLOW_DEFINITION.HASH_ID, param("hashId", definitionHash))
+        .set(WORKFLOW_DEFINITION.WORKFLOW_FILE, param("workflowFile", workflow))
+        .set(WORKFLOW_DEFINITION.WORKFLOW_LANGUAGE, param("workflowLanguage", language))
         .onConflict(WORKFLOW_DEFINITION.HASH_ID)
         .doNothing()
         .execute();
@@ -2495,10 +2541,12 @@ public final class Main implements ServerConfig {
         Optional.ofNullable(
                 DSL.using(configuration)
                     .insertInto(WORKFLOW)
-                    .set(WORKFLOW.NAME, workflowName)
-                    .set(WORKFLOW.IS_ACTIVE, false)
-                    .set(WORKFLOW.MAX_IN_FLIGHT, 0)
-                    .set(WORKFLOW.LABELS, JSONB.valueOf(MAPPER.writeValueAsString(workflowLabels)))
+                    .set(WORKFLOW.NAME, param("name", workflowName))
+                    .set(WORKFLOW.IS_ACTIVE, param("isActive", false))
+                    .set(WORKFLOW.MAX_IN_FLIGHT, param("maxInFlight", 0))
+                    .set(
+                        WORKFLOW.LABELS,
+                        param("labels", JSONB.valueOf(MAPPER.writeValueAsString(workflowLabels))))
                     .onConflict(WORKFLOW.NAME)
                     .doUpdate()
                     .set(

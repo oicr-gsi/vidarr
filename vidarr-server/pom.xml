@@ -103,6 +103,11 @@
       <artifactId>junit</artifactId>
       <scope>test</scope>
     </dependency>
+    <dependency>
+      <groupId>com.rasklaad</groupId>
+      <artifactId>blns-java</artifactId>
+      <version>0.0.1</version>
+    </dependency>
   </dependencies>
   <build>
     <pluginManagement>

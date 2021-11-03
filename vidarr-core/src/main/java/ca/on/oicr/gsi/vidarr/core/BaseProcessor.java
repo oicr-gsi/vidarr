@@ -270,7 +270,7 @@ public abstract class BaseProcessor<
                           }
                         });
                 activeWorkflow.realInput(realInput, transaction);
-                final var outputRequestedExternalIds =
+                final Set<ExternalId> outputRequestedExternalIds =
                     new HashSet<>(activeWorkflow.requestedExternalIds());
                 // In the case of EXTERNAL ids, pass to ExtractInputExternalIds which knows how to
                 // make sense of whatever non-vidarr id we pass it
@@ -288,6 +288,7 @@ public abstract class BaseProcessor<
                                                 activeWorkflow.arguments().get(parameter.name()),
                                                 BaseProcessor.this))
                                     : Stream.empty())
+                        .map(ei -> new ExternalId(ei.getProvider(), ei.getId()))
                         .collect(Collectors.toSet());
                 if (activeWorkflow
                         .extraInputIdsHandled() // Set to true when in Remaining or All case
@@ -296,7 +297,12 @@ public abstract class BaseProcessor<
                     : discoveredExternalIds.equals(outputRequestedExternalIds)) {
                   startNextPhase(this, provisionInTasks, transaction);
                 } else {
+                  var disjoint = discoveredExternalIds.removeAll(outputRequestedExternalIds);
                   activeWorkflow.phase(Phase.FAILED, Collections.emptyList(), transaction);
+                  throw new IllegalArgumentException(
+                      String.format(
+                          "Workflow run %s failed because the following external keys were not handled: %s",
+                          activeWorkflow.id(), disjoint));
                 }
               } else {
                 activeWorkflow.phase(Phase.FAILED, Collections.emptyList(), transaction);

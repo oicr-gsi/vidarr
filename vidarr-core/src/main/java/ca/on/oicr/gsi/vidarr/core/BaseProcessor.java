@@ -274,7 +274,7 @@ public abstract class BaseProcessor<
                     new HashSet<>(activeWorkflow.requestedExternalIds());
                 // In the case of EXTERNAL ids, pass to ExtractInputExternalIds which knows how to
                 // make sense of whatever non-vidarr id we pass it
-                final var discoveredExternalIds =
+                final Set<ExternalId> discoveredExternalIds =
                     definition
                         .parameters()
                         .flatMap(
@@ -288,7 +288,10 @@ public abstract class BaseProcessor<
                                                 activeWorkflow.arguments().get(parameter.name()),
                                                 BaseProcessor.this))
                                     : Stream.empty())
-                        .map(ei -> new ExternalId(ei.getProvider(), ei.getId()))
+                        .map(
+                            ei ->
+                                new ExternalId(
+                                    ((ExternalId) ei).getProvider(), ((ExternalId) ei).getId()))
                         .collect(Collectors.toSet());
                 if (activeWorkflow
                         .extraInputIdsHandled() // Set to true when in Remaining or All case

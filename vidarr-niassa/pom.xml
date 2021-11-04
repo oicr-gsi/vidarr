@@ -31,11 +31,11 @@
     <parent>
         <groupId>ca.on.oicr.gsi.vidarr</groupId>
         <artifactId>vidarr</artifactId>
-        <version>0.4.9-SNAPSHOT</version>
+        <version>0.4.9</version>
     </parent>
 
     <groupId>ca.on.oicr.gsi.vidarr</groupId>
     <artifactId>vidarr-niassa</artifactId>
-    <version>0.4.9-SNAPSHOT</version>
+    <version>0.4.9</version>
 
 </project>

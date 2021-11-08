@@ -147,6 +147,8 @@ public class NiassaOutputProvisioner implements OutputProvisioner {
             targetPath = targetPath.resolve(workflowRunId.substring(startIndex, endIndex));
             startIndex = endIndex;
           }
+          // Append the entire workflow run ID as a directory
+          targetPath = targetPath.resolve(workflowRunId);
 
           // Use the sftp client to create symlink to the TARGET
           try {
@@ -169,7 +171,7 @@ public class NiassaOutputProvisioner implements OutputProvisioner {
           String metatype = dataAsJson.get("metatype").asText();
           monitor.complete(
               Result.file(
-                  dataAsJson.get("path").asText(),
+                  targetPath.toString(),
                   dataAsJson.get("md5").asText(),
                   dataAsJson.get("fileSize").asLong(),
                   SUBSTITUTIONS.getOrDefault(metatype, metatype)));

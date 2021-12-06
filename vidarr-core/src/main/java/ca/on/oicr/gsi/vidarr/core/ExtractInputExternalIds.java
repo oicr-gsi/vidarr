@@ -81,7 +81,10 @@ public final class ExtractInputExternalIds
 
   @Override
   protected Stream<? extends ExternalId> internal(InputProvisionFormat format, String id) {
-    return fileResolver.pathForId(id).map(FileMetadata::externalKeys).orElseThrow();
+    return fileResolver
+        .pathForId(id)
+        .map(FileMetadata::externalKeys)
+        .orElseThrow(String.format("Could not resolve internal ID %s", id));
   }
 
   @Override

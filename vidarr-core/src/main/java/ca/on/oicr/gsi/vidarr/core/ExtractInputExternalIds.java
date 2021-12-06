@@ -84,7 +84,10 @@ public final class ExtractInputExternalIds
     return fileResolver
         .pathForId(id)
         .map(FileMetadata::externalKeys)
-        .orElseThrow(String.format("Could not resolve internal ID %s", id));
+        .orElseThrow(
+            () ->
+                new IllegalArgumentException(
+                    String.format("Could not resolve internal ID %s", id)));
   }
 
   @Override

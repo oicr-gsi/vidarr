@@ -43,7 +43,7 @@ public class NiassaOutputProvisioner implements OutputProvisioner {
           Map.entry("txt/junction", "text/junction"),
           Map.entry("txt/plain", "text/plain"));
 
-  private static Semaphore mkdirSemaphore = new Semaphore(1);
+  private static Semaphore sftpSemaphore = new Semaphore(1);
 
   public static OutputProvisionerProvider provider() {
     return () -> Stream.of(new Pair<>("niassa", NiassaOutputProvisioner.class));
@@ -152,17 +152,22 @@ public class NiassaOutputProvisioner implements OutputProvisioner {
 
           // Use the sftp client to create symlink to the TARGET
           try {
-            mkdirSemaphore.acquire();
-            sftp.mkdirs(targetPath.toString());
-            mkdirSemaphore.release();
+            sftpSemaphore.acquire();
+            try {
+              sftp.mkdirs(targetPath.toString());
 
-            // Be explicit about the target filename - sftp just says "failure" otherwise
-            String[] sourcePathSplit = sourcePath.split("/");
-            targetPath = targetPath.resolve(sourcePathSplit[sourcePathSplit.length - 1]);
+              // Be explicit about the target filename - sftp just says "failure" otherwise
+              String[] sourcePathSplit = sourcePath.split("/");
+              targetPath = targetPath.resolve(sourcePathSplit[sourcePathSplit.length - 1]);
 
-            sftp.symlink(sourcePath, targetPath.toString());
-          } catch (IOException e) {
-            throw new RuntimeException(e);
+              sftp.symlink(sourcePath, targetPath.toString());
+            } catch (IOException e) {
+              throw new RuntimeException(
+                  String.format("Failed to provision \"%s\" to \"%s\".", sourcePath, targetPath),
+                  e);
+            } finally {
+              sftpSemaphore.release();
+            }
           } catch (InterruptedException e) {
             throw new RuntimeException(e);
           }

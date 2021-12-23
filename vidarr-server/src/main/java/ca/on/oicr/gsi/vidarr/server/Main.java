@@ -2302,7 +2302,7 @@ public final class Main implements ServerConfig {
     try {
       // Non-recursive unload is not allowed.
       request.setRecursive(true);
-      final var id =
+      final var response =
           unloadSearch(
               request,
               (tx, ids) -> {
@@ -2313,6 +2313,19 @@ public final class Main implements ServerConfig {
                         Files.newOutputStream(unloadDirectory.resolve(filename)))) {
                   dumpUnloadDataToJson(tx, ids, output);
                 }
+                var res = MAPPER.createObjectNode();
+                res.put("filename", filename);
+                var deletedWorkflowRunHashes =
+                    tx.dsl()
+                        .select(WORKFLOW_RUN.HASH_ID)
+                        .from(WORKFLOW_RUN)
+                        .where(WORKFLOW_RUN.ID.eq(DSL.any(ids)))
+                        .fetch(WORKFLOW_RUN.HASH_ID);
+                var an = res.putArray("deletedWorkflowRuns");
+                for (String h : deletedWorkflowRunHashes) {
+                  an.add(h);
+                }
+
                 tx.dsl()
                     .delete(ANALYSIS_EXTERNAL_ID)
                     .where(
@@ -2339,9 +2352,9 @@ public final class Main implements ServerConfig {
                     .execute();
                 tx.dsl().delete(WORKFLOW_RUN).where(WORKFLOW_RUN.ID.eq(DSL.any(ids))).execute();
                 epoch = time.toEpochMilli();
-                return filename;
+                return res;
               });
-      okJsonResponse(exchange, MAPPER.writeValueAsString(id));
+      okJsonResponse(exchange, MAPPER.writeValueAsString(response));
     } catch (Exception e) {
       internalServerErrorResponse(exchange, e);
     } finally {

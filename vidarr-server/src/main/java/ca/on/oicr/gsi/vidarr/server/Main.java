@@ -2584,7 +2584,10 @@ public final class Main implements ServerConfig {
                                                   }
                                                 })))
                             .fetch(WORKFLOW_RUN.ID));
+                System.out.println(
+                    String.format("unload search for workflow run %s", workflowRuns));
                 if (request.isRecursive()) {
+                  System.out.println("recursive!");
                   Collection<Long> latestIds = workflowRuns;
                   do {
                     latestIds =
@@ -2597,6 +2600,7 @@ public final class Main implements ServerConfig {
                                     .isNotNull()
                                     .and(workflowUsesInputFrom(latestIds)))
                             .fetch(WORKFLOW_RUN.ID);
+                    System.out.println(String.format("found downstream workflows: %s", latestIds));
                     workflowRuns.addAll(latestIds);
                   } while (!latestIds.isEmpty());
                 }
@@ -2671,8 +2675,25 @@ public final class Main implements ServerConfig {
             .where(
                 ANALYSIS
                     .WORKFLOW_RUN_ID
-                    .eq(DSL.any(workflowIds.toArray(Long[]::new)))
+                    .eq((Field<Integer>) DSL.any(workflowIds.toArray(Long[]::new)))
                     .and(ANALYSIS.HASH_ID.eq(DSL.any(WORKFLOW_RUN.INPUT_FILE_IDS)))));
+    //                    .and(
+    //                        // DSL.select(
+    //                        DSL.array(
+    //                                DSL.select(
+    //                                        DSL.splitPart(
+    //                                            DSL.field(DSL.name("ifi"), String.class), "/", 3))
+    //                                    .from(WORKFLOW_RUN)
+    //                                    .crossJoin(
+    //                                        DSL.lateral(unnest(WORKFLOW_RUN.INPUT_FILE_IDS))
+    //                                            .as("t", "ifi"))) // )
+    //                            .contains((Field<String[]>) ANALYSIS.HASH_ID))));
+
+    //                    //                                        new
+    ////
+    // ExtractHashesFromInputFileIds().setInputFileIds(WORKFLOW_RUN.INPUT_FILE_IDS)).from(WORKFLOW_RUN)))
+    //                                                .contains(ANALYSIS.HASH_ID)))); // TODO:
+    // to-array
   }
 
   private void okEmptyResponse(HttpServerExchange exchange) {

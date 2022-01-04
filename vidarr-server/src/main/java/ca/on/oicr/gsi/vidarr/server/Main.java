@@ -2313,18 +2313,6 @@ public final class Main implements ServerConfig {
                         Files.newOutputStream(unloadDirectory.resolve(filename)))) {
                   dumpUnloadDataToJson(tx, ids, output);
                 }
-                var res = MAPPER.createObjectNode();
-                res.put("filename", filename);
-                var deletedWorkflowRunHashes =
-                    tx.dsl()
-                        .select(WORKFLOW_RUN.HASH_ID)
-                        .from(WORKFLOW_RUN)
-                        .where(WORKFLOW_RUN.ID.eq(DSL.any(ids)))
-                        .fetch(WORKFLOW_RUN.HASH_ID);
-                var an = res.putArray("deletedWorkflowRuns");
-                for (String h : deletedWorkflowRunHashes) {
-                  an.add(h);
-                }
 
                 tx.dsl()
                     .delete(ANALYSIS_EXTERNAL_ID)
@@ -2350,7 +2338,22 @@ public final class Main implements ServerConfig {
                     .delete(EXTERNAL_ID)
                     .where(EXTERNAL_ID.WORKFLOW_RUN_ID.eq(DSL.any(ids)))
                     .execute();
-                tx.dsl().delete(WORKFLOW_RUN).where(WORKFLOW_RUN.ID.eq(DSL.any(ids))).execute();
+                var hashes =
+                    tx.dsl()
+                        .delete(WORKFLOW_RUN)
+                        .where(WORKFLOW_RUN.ID.eq(DSL.any(ids)))
+                        .returningResult(DSL.field(WORKFLOW_RUN.HASH_ID))
+                        .fetch()
+                        .map(h -> h.value1());
+                //
+                // .execute();
+
+                var res = MAPPER.createObjectNode();
+                res.put("filename", filename);
+                var an = res.putArray("deletedWorkflowRuns");
+                for (String h : hashes) {
+                  an.add(h);
+                }
                 epoch = time.toEpochMilli();
                 return res;
               });

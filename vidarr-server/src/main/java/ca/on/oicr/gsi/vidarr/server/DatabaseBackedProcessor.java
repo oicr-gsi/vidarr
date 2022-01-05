@@ -1012,6 +1012,13 @@ public abstract class DatabaseBackedProcessor
                                                       candidates.get(0).second(), missingKeys);
                                                 }
 
+                                                // Exit early if no launching is to occur (e.g. dry
+                                                // run or validate mode).
+                                                if (!handler.allowLaunch()) {
+                                                  return handler.matchExisting(
+                                                      candidates.get(0).second());
+                                                }
+
                                                 addNewExternalKeyVersions(
                                                     externalKeys,
                                                     transaction,

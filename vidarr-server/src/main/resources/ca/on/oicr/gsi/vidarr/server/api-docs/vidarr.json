@@ -33,11 +33,11 @@
             "type": "object",
             "properties": {
               "type": {
-                "description": "literal string 'type' of the kind of filter to be applied",
+                "description": "flavour of filter to be applied",
                 "type": "string"
               },
-              "name": {
-                "description": "name of the kind of filter to be applied",
+              "id/name/time/provider(s)": {
+                "description": "name/id/time/provider to filter on",
                 "type": "string"
               }
             }
@@ -1656,6 +1656,12 @@
           "description":  "Version of workflow",
           "required": true,
           "type": "string"
+        }, {
+          "name": "includeDefinitions",
+          "in": "query",
+          "description": "Include the workflow version definition files in the response? (true/false)",
+          "required": false,
+          "type": "boolean"
         }],
         "responses": {
           "200": {
@@ -1686,6 +1692,18 @@
                   "language": {
                     "description": "Workflow language",
                     "type": "string"
+                  },
+                  "outputs": {
+                    "description": "Workflow output types",
+                    "type": "object"
+                  },
+                  "workflow": {
+                    "description": "Text of the file that is run for this workflow version (only included if requested in the query)",
+                    "type": "string"
+                  },
+                  "accessoryFiles": {
+                    "description": "Map of the name of the subworkflow definition file and the contents of the subworkflow definition file (only included if requested in the query)",
+                    "type": "object"
                   }
                 }
               }
@@ -1756,7 +1774,7 @@
           "description": "The configuration parameters for a workflow version."
         },
         "responses": {
-          "200": {
+          "201": {
             "description": "The workflow version has been created."
           },
           "404": {

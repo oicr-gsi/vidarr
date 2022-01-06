@@ -203,8 +203,7 @@ public class MainIntegrationTest {
   }
 
   @Test
-  public void whenAddDuplicateWorkflowParams_thenWorkflowIsUnchanged()
-      throws JsonProcessingException {
+  public void whenAddDuplicateWorkflowParams_thenWorkflowIsUnchanged() {
     var importFastq = get("/api/workflow/{name}", "import_fastq").then().extract().jsonPath();
     var originalWorkflowCount =
         get("/api/workflows")
@@ -247,6 +246,68 @@ public class MainIntegrationTest {
     assertEquals(
         importFastq.get("maxInFlight").toString(), newImportFastq.get("maxInFlight").toString());
     assertEquals(originalWorkflowCount, updatedWorkflowCount);
+  }
+
+  @Test
+  public void whenUpdateWorkflowFields_thenOnlySomeFieldsAreUpdated()
+      throws JsonProcessingException {
+    // Only maxInFlight is possible to update from the client side, and it's not possible to set
+    // isActive to false.
+    var importFastq = get("/api/workflow/{name}", "import_fastq").then().extract().jsonPath();
+
+    var newMaxInFlight = 522;
+    Map<String, String> newLabels = new HashMap<>();
+    newLabels.put("yarn", "string");
+    assertTrue(importFastq.get("isActive"));
+    var newIsActive = !((Boolean) importFastq.get("isActive")); // note the negate here, we are
+    // trying to set it to false
+
+    assertNotEquals(String.valueOf(newMaxInFlight), importFastq.get("maxInFlight"));
+    assertNull(importFastq.get("labels"));
+    assertNotEquals(newIsActive, importFastq.get("isActive"));
+
+    // maxInFlight should be modifiable
+    var modifyMaxInFlight = MAPPER.createObjectNode();
+    modifyMaxInFlight.put("maxInFlight", newMaxInFlight);
+
+    given()
+        .body(modifyMaxInFlight)
+        .when()
+        .post("/api/workflow/{name}", "import_fastq")
+        .then()
+        .assertThat()
+        .statusCode(201);
+    var mifImportFastq = get("/api/workflow/{name}", "import_fastq").then().extract().jsonPath();
+    assertTrue(newMaxInFlight == ((Integer) mifImportFastq.get("maxInFlight")));
+
+    // labels should NOT be modifiable
+    Map<String, Map<String, String>> modifyLabels = new HashMap<>();
+    modifyLabels.put("labels", newLabels);
+
+    given()
+        .body(MAPPER.writeValueAsString(modifyLabels))
+        .when()
+        .post("/api/workflow/{name}", "import_fastq")
+        .then()
+        .assertThat()
+        .statusCode(201);
+    var labelsImportFastq = get("/api/workflow/{name}", "import_fastq").then().extract().jsonPath();
+    assertNull(labelsImportFastq.get("labels"));
+
+    // isActive should NOT be modifiable by the client
+    var modifyIsActive = MAPPER.createObjectNode();
+    modifyIsActive.put("isActive", newIsActive);
+
+    given()
+        .body(MAPPER.writeValueAsString(modifyIsActive))
+        .when()
+        .post("/api/workflow/{name}", "import_fastq")
+        .then()
+        .assertThat()
+        .statusCode(201);
+    var isActiveImportFastq =
+        get("/api/workflow/{name}", "import_fastq").then().extract().jsonPath();
+    assertNotEquals(newIsActive, isActiveImportFastq.get("isActive"));
   }
 
   @Test
@@ -400,6 +461,60 @@ public class MainIntegrationTest {
   }
 
   @Test
+  public void whenGetWorkflowVersion_thenWorkflowVersionIsFound() {
+    given()
+        .get("/api/workflow/{workflow}/{version}", "fastqc", "1.0.0")
+        .then()
+        .assertThat()
+        .statusCode(200)
+        .body(
+            containsString("name"),
+            containsString("version"),
+            containsString("outputs"),
+            containsString("language"),
+            not(containsString("workflow")));
+  }
+
+  @Test
+  public void whenGetWorkflowVersionWithDefinition_thenWorkflowVersionWithDefinitionIsFound() {
+    given()
+        .get("/api/workflow/{workflow}/{version}?includeDefinitions=true", "fastqc", "1.0.0")
+        .then()
+        .assertThat()
+        .statusCode(200)
+        .body(
+            containsString("name"),
+            containsString("version"),
+            containsString("outputs"),
+            containsString("language"),
+            containsString("workflow"),
+            containsString("accessoryFiles"));
+  }
+
+  @Test
+  public void whenAddExistingWorkflowVersion_thenAddIsRejected() throws JsonProcessingException {
+    var workflowName = "fastqc";
+    var workflowVersion = "1.0.0";
+    var existingFastqc =
+        get(
+                "/api/workflow/{workflow}/{version}?includeDefinitions=true",
+                workflowName,
+                workflowVersion)
+            .then()
+            .extract()
+            .body()
+            .as(new TypeRef<Map<String, Object>>() {});
+    given()
+        .contentType(ContentType.JSON)
+        .body(MAPPER.writeValueAsString(existingFastqc))
+        .when()
+        .post("/api/workflow/{workflow}/{version}", workflowName, workflowVersion)
+        .then()
+        .assertThat()
+        .statusCode(409);
+  }
+
+  @Test
   public void whenIncompleteWorkflowVersionIsAdded_thenWorkflowVersionIsNotAdded() {
     var wfName = "import_fastq";
     var wfVersion = "incompl";
@@ -460,7 +575,7 @@ public class MainIntegrationTest {
   }
 
   @Test
-  public void whenAddDuplicateWorkflowVersion_thenVersionIsNotDuplicated() {
+  public void whenAddDuplicateWorkflowVersion_thenWorkflowVersionIsUnchanged() {
     var wfName = "import_fastq";
     var wfVersion = "2.double";
 
@@ -496,7 +611,7 @@ public class MainIntegrationTest {
         .post("/api/workflow/{name}/{version}", wfName, wfVersion)
         .then()
         .assertThat()
-        .statusCode(201);
+        .statusCode(409);
 
     var versionsAfterSecond = getWorkflowVersions(wfName);
     assertThat(versionsAfterSecond.stream().filter(wfVersion::equals).count(), equalTo(1L));

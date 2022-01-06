@@ -31,7 +31,7 @@ final class ConsumableResourceChecker implements Runnable {
 
   private final Map<String, JsonNode> consumableResources;
   private final HikariDataSource dataSource;
-  private final int dbId;
+  private final long dbId;
   private final ScheduledExecutorService executor;
   private final AtomicBoolean isLive;
   private final Runnable next;
@@ -45,7 +45,7 @@ final class ConsumableResourceChecker implements Runnable {
       Target target,
       HikariDataSource dataSource,
       ScheduledExecutorService executor,
-      int dbId,
+      long dbId,
       AtomicBoolean isLive,
       String workflow,
       String workflowVersion,

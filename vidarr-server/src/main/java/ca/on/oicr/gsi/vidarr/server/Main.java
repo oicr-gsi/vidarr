@@ -167,7 +167,7 @@ public final class Main implements ServerConfig {
   }
 
   private interface UnloadProcessor<T> {
-    T process(Configuration configuration, Integer[] workflowRuns) throws IOException, SQLException;
+    T process(Configuration configuration, Long[] workflowRuns) throws IOException, SQLException;
   }
 
   static final HttpClient CLIENT =
@@ -1140,7 +1140,7 @@ public final class Main implements ServerConfig {
     }
   }
 
-  private void dumpUnloadDataToJson(Configuration tx, Integer[] ids, JsonGenerator output)
+  private void dumpUnloadDataToJson(Configuration tx, Long[] ids, JsonGenerator output)
       throws IOException, SQLException {
     output.writeStartObject();
     output.writeArrayFieldStart("workflows");
@@ -1638,7 +1638,7 @@ public final class Main implements ServerConfig {
 
   private void insertAnalysis(
       Configuration configuration,
-      int id,
+      long id,
       ProvenanceAnalysisRecord<ca.on.oicr.gsi.vidarr.api.ExternalId> analysis) {
     final var analysisId =
         DSL.using(configuration)
@@ -1694,7 +1694,7 @@ public final class Main implements ServerConfig {
   }
 
   private void insertExternalKey(
-      Configuration configuration, int id, ExternalMultiVersionKey externalId) {
+      Configuration configuration, long id, ExternalMultiVersionKey externalId) {
     final var externalIdDbId =
         DSL.using(configuration)
             .insertInto(EXTERNAL_ID)
@@ -1735,7 +1735,7 @@ public final class Main implements ServerConfig {
         .execute();
   }
 
-  private Optional<Integer> insertWorkflowRun(
+  private Optional<Long> insertWorkflowRun(
       Configuration configuration,
       int workflowId,
       OffsetDateTime now,
@@ -2494,7 +2494,7 @@ public final class Main implements ServerConfig {
                                                 })))
                             .fetch(WORKFLOW_RUN.ID));
                 if (request.isRecursive()) {
-                  Collection<Integer> latestIds = workflowRuns;
+                  Collection<Long> latestIds = workflowRuns;
                   do {
                     latestIds =
                         DSL.using(configuration)
@@ -2509,8 +2509,7 @@ public final class Main implements ServerConfig {
                     workflowRuns.addAll(latestIds);
                   } while (!latestIds.isEmpty());
                 }
-                return handleWorkflowRuns.process(
-                    configuration, workflowRuns.toArray(Integer[]::new));
+                return handleWorkflowRuns.process(configuration, workflowRuns.toArray(Long[]::new));
               });
     }
   }
@@ -2572,14 +2571,14 @@ public final class Main implements ServerConfig {
     return MAPPER.readValue(result, new TypeReference<>() {});
   }
 
-  private Condition workflowUsesInputFrom(Collection<Integer> workflowIds) {
+  private Condition workflowUsesInputFrom(Collection<Long> workflowIds) {
     return DSL.exists(
         DSL.select()
             .from(ANALYSIS)
             .where(
                 ANALYSIS
                     .WORKFLOW_RUN_ID
-                    .eq(DSL.any(workflowIds.toArray(Integer[]::new)))
+                    .eq(DSL.any(workflowIds.toArray(Long[]::new)))
                     .and(ANALYSIS.HASH_ID.eq(DSL.any(WORKFLOW_RUN.INPUT_FILE_IDS)))));
   }
 

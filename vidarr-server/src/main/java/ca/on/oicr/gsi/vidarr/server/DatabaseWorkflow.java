@@ -21,7 +21,7 @@ import java.sql.SQLException;
 import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.IntFunction;
+import java.util.function.LongFunction;
 import java.util.stream.Collectors;
 import org.jooq.*;
 import org.jooq.Record;
@@ -42,10 +42,10 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
       SortedSet<String> fileIds,
       Set<? extends ExternalId> ids,
       Map<String, JsonNode> consumableResources,
-      IntFunction<AtomicBoolean> liveness,
+      LongFunction<AtomicBoolean> liveness,
       DSLContext dsl)
       throws SQLException {
-    final int dbId =
+    final long dbId =
         dsl.insertInto(WORKFLOW_RUN)
             .columns(
                 WORKFLOW_RUN.ARGUMENTS,
@@ -176,7 +176,7 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
 
   public static DatabaseWorkflow reinitialise(
       Target target,
-      int dbId,
+      long dbId,
       int workflowVersionId,
       String workflowName,
       String workflowVersion,
@@ -275,7 +275,7 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
   private JsonNode cleanup;
   private final JsonNode engineArguments;
   private boolean extraInputIdsHandled;
-  private final int id;
+  private final long id;
   private final Set<ExternalId> inputIds;
   private boolean isPreflightOkay;
   private final AtomicBoolean liveness;
@@ -290,7 +290,7 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
 
   private DatabaseWorkflow(
       Target target,
-      int id,
+      long id,
       String vidarrId,
       int attempt,
       String workflowName,
@@ -364,7 +364,7 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
     updateField(ACTIVE_WORKFLOW_RUN.CLEANUP_STATE, cleanupState, transaction);
   }
 
-  public int dbId() {
+  public long dbId() {
     return id;
   }
 

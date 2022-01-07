@@ -253,7 +253,7 @@ public abstract class DatabaseBackedProcessor
 
   private final HikariDataSource dataSource;
   private final Semaphore databaseLock = new Semaphore(1);
-  private final Map<Integer, SoftReference<AtomicBoolean>> liveness = new ConcurrentHashMap<>();
+  private final Map<Long, SoftReference<AtomicBoolean>> liveness = new ConcurrentHashMap<>();
 
   protected DatabaseBackedProcessor(
       ScheduledExecutorService executor, HikariDataSource dataSource) {
@@ -264,7 +264,7 @@ public abstract class DatabaseBackedProcessor
   private void addNewExternalKeyVersions(
       Set<ExternalKey> externalKeys,
       DSLContext transaction,
-      Integer workflowRunId,
+      Long workflowRunId,
       HashMap<Pair<String, String>, List<String>> knownMatches) {
     var externalVersionInsert =
         transaction
@@ -448,7 +448,7 @@ public abstract class DatabaseBackedProcessor
   }
 
   private List<String> findMatchingVersionKeysMatchingExternalId(
-      DSLContext transaction, Integer workflowRunId, ExternalKey externalKey) {
+      DSLContext transaction, Long workflowRunId, ExternalKey externalKey) {
     return transaction
         .select()
         .from(EXTERNAL_ID_VERSION)
@@ -593,7 +593,7 @@ public abstract class DatabaseBackedProcessor
             }));
   }
 
-  private AtomicBoolean liveness(int workflowRunId) {
+  private AtomicBoolean liveness(long workflowRunId) {
     return liveness
         .computeIfAbsent(workflowRunId, k -> new SoftReference<>(new AtomicBoolean(true)))
         .get();

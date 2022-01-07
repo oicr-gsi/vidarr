@@ -16,7 +16,7 @@ import org.jooq.Record;
 public class DatabaseOperation implements ActiveOperation<DSLContext> {
   public static Optional<DatabaseOperation> create(
       DSLContext dsl,
-      int workflowId,
+      long workflowId,
       Phase phase,
       String type,
       JsonNode recoveryState,
@@ -53,7 +53,7 @@ public class DatabaseOperation implements ActiveOperation<DSLContext> {
         null);
   }
 
-  private final int id;
+  private final long id;
   private final AtomicBoolean liveness;
   private JsonNode recoveryState;
   private OperationStatus status;
@@ -61,7 +61,7 @@ public class DatabaseOperation implements ActiveOperation<DSLContext> {
   private DatabaseWorkflow workflow;
 
   private DatabaseOperation(
-      int id,
+      long id,
       AtomicBoolean liveness,
       JsonNode recoveryState,
       OperationStatus status,

@@ -45,6 +45,7 @@ public final class MaxInFlightConsumableResource implements ConsumableResource {
   public ConsumableResourceResponse request(
       String workflowName, String workflowVersion, String vidarrId, Optional<JsonNode> input) {
     if (inFlight.size() <= maximum) {
+      inFlight.add(vidarrId);
       return ConsumableResourceResponse.AVAILABLE;
     } else {
       return ConsumableResourceResponse.UNAVAILABLE;

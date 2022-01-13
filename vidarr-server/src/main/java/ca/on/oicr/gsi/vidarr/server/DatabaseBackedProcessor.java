@@ -587,7 +587,7 @@ public abstract class DatabaseBackedProcessor
                 launched = true;
                 startTransaction(
                     runTransaction ->
-                        DatabaseBackedProcessor.this.start(
+                        DatabaseBackedProcessor.this.start( // runs when new workflow run submitted
                             target, workflow.definition(), dbWorkflow, runTransaction));
               }
             }));
@@ -1105,7 +1105,9 @@ public abstract class DatabaseBackedProcessor
                                                               startTransaction(
                                                                   runTransaction ->
                                                                       DatabaseBackedProcessor.this
-                                                                          .start( // run on retry
+                                                                          .start( // runs when
+                                                                              // action
+                                                                              // VIDARR-REATTEMPT'd
                                                                               target,
                                                                               workflow.definition(),
                                                                               dbWorkflow,

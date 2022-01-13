@@ -1091,8 +1091,7 @@ public abstract class DatabaseBackedProcessor
                                                           version,
                                                           candidateId,
                                                           consumableResources,
-                                                          new Runnable() { // return a
-                                                                           // ConsumableResourceChecker instead
+                                                          new Runnable() {
                                                             private boolean launched;
 
                                                             @Override

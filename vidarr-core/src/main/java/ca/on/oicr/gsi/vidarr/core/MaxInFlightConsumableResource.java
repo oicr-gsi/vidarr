@@ -42,7 +42,7 @@ public final class MaxInFlightConsumableResource implements ConsumableResource {
   }
 
   @Override
-  public ConsumableResourceResponse request(
+  public synchronized ConsumableResourceResponse request(
       String workflowName, String workflowVersion, String vidarrId, Optional<JsonNode> input) {
     if (inFlight.size() <= maximum) {
       inFlight.add(vidarrId);

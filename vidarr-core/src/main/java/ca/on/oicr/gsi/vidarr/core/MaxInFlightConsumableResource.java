@@ -12,6 +12,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
 
+// This is the global one. Per-Workflow is MaxInFlightByWorkflow
 public final class MaxInFlightConsumableResource implements ConsumableResource {
   public static ConsumableResourceProvider provider() {
     return () -> Stream.of(new Pair<>("max-in-flight", MaxInFlightConsumableResource.class));

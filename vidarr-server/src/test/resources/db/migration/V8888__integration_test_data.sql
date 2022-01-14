@@ -19,7 +19,7 @@ INSERT INTO workflow (is_active, labels, max_in_flight, modified, name) VALUES
   INSERT INTO workflow_definition (hash_id, modified, workflow_file, workflow_language) VALUES
     ('cc77e42b11c4b4f4078138dc1b0a7c3695cd1d3ba6d39df5f7ef1e787ff0d92c',('2021-05-14 09:53:52-04'::timestamptz), 14010515, 'NIASSA'),
     ('fda21dd38f908cb11d7596d587c5c478c3e7627d78312a66c9657869a2ee95cf',('2021-05-14 09:53:52-04'::timestamptz), 14244254, 'NIASSA'),
-    ('f217aea7b3d62b86611b094252ff19aed3db6b29110f11c77368fe8595ae5d7a',('2021-05-14 09:53:52-04'::timestamptz), 'version 1.1.0.538766\n\nworkflow bcl2fastq{}', 'WDL_1_0'),
+    ('f217aea7b3d62b86611b094252ff19aed3db6b29110f11c77368fe8595ae5d7a',('2021-05-14 09:53:52-04'::timestamptz), 'version 1.0.538766\n\nworkflow bcl2fastq{}', 'WDL_1_0'),
     ('6f229aace247e07be3c667175891bc8f3bcec6ca66138d885cf09c2547721298',('2021-05-14 09:53:52-04'::timestamptz), 14696389, 'NIASSA'),
     ('322142e016e988712de8c373dd1ede27b243aec64b61cd4aa5aa5137e3754b54',('2021-05-14 09:53:52-04'::timestamptz), 11034, 'NIASSA'),
     ('9e39c488f09ead0403b8fe3a1d31942ecb6a5d32e379d96eab5b3f5ef0e2bd6f',('2021-05-14 09:53:52-04'::timestamptz), 996126, 'NIASSA'),
@@ -31,7 +31,7 @@ INSERT INTO workflow (is_active, labels, max_in_flight, modified, name) VALUES
     ('5f5e1bf5e856a1c923be41e1a272a51af19168e0597cd78c433a268849b2f892',('2021-05-14 09:53:52-04'::timestamptz), 17835339, 'NIASSA'),
     ('706ca65c70cce56c9df57674e805cebeea31867e8194dc29b78fa791563b0184',('2021-05-14 09:53:52-04'::timestamptz), 12901362, 'NIASSA'),
     ('926603f4b849f9b8e772a51af19168e0597cf1e8196cb88528067dca371d6b30',('2021-05-14 09:53:52-04'::timestamptz), 29438457, 'NIASSA'),
-    ('fa270cfa270cfa270cfa270cfa270cfa270cfa270cfa270cfa270cfa270cfa270c',('2021-07-25 10:04:34-04'::timestamptz), 'version 1.0.0\n\nworkflow fastqc{}', 'WDL_1_0')
+    ('fa270cfa270cfa270cfa270cfa270cfa270cfa270cfa270cfa270cfa270cfa270c',('2021-07-25 10:04:34-04'::timestamptz), 'version 1.0\n\nworkflow fastqc{}', 'WDL_1_0')
     ON CONFLICT DO NOTHING;
 
 INSERT INTO workflow_version (hash_id, metadata, modified, name, parameters, version, workflow_definition) VALUES

@@ -65,6 +65,7 @@ import ca.on.oicr.gsi.vidarr.core.Phase;
 import ca.on.oicr.gsi.vidarr.core.Target;
 import ca.on.oicr.gsi.vidarr.server.DatabaseBackedProcessor.DeleteResultHandler;
 import ca.on.oicr.gsi.vidarr.server.dto.ServerConfiguration;
+import ca.on.oicr.gsi.vidarr.server.jooq.routines.IngestsAnUpstreamWorkflowRun;
 import ca.on.oicr.gsi.vidarr.server.jooq.tables.ExternalIdVersion;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator;
@@ -2590,6 +2591,7 @@ public final class Main implements ServerConfig {
                   System.out.println("recursive!");
                   Collection<Long> latestIds = workflowRuns;
                   do {
+                    var usesInput = ingestsAnUpstreamWorkflowRun(latestIds, configuration);
                     latestIds =
                         DSL.using(configuration)
                             .select(WORKFLOW_RUN.ID)
@@ -2598,7 +2600,7 @@ public final class Main implements ServerConfig {
                                 WORKFLOW_RUN
                                     .COMPLETED
                                     .isNotNull()
-                                    .and(workflowUsesInputFrom(latestIds)))
+                                    .and(WORKFLOW_RUN.ID.in(usesInput)))
                             .fetch(WORKFLOW_RUN.ID);
                     System.out.println(String.format("found downstream workflows: %s", latestIds));
                     workflowRuns.addAll(latestIds);
@@ -2668,16 +2670,22 @@ public final class Main implements ServerConfig {
     return MAPPER.readValue(result, new TypeReference<>() {});
   }
 
-  private Condition workflowUsesInputFrom(Collection<Long> workflowIds) {
-    return DSL.exists(
-        DSL.select()
-            .from(ANALYSIS)
-            .where(
-                ANALYSIS
-                    .WORKFLOW_RUN_ID
-                    .eq((Field<Integer>) DSL.any(workflowIds.toArray(Long[]::new)))
-                    .and(ANALYSIS.HASH_ID.eq(DSL.any(WORKFLOW_RUN.INPUT_FILE_IDS)))));
-    //                    .and(
+  private Collection<Long> ingestsAnUpstreamWorkflowRun(
+      Collection<Long> workflowRunIds, Configuration configuration) {
+    var ingestsUpstreamFiles = new IngestsAnUpstreamWorkflowRun();
+    ingestsUpstreamFiles.setWorkflowRunIds(workflowRunIds.toArray(Long[]::new));
+    ingestsUpstreamFiles.execute(configuration);
+    return List.of(ingestsUpstreamFiles.getReturnValue());
+    //        DSL.select()
+    //            .from(ANALYSIS)
+    //            .where(
+    //                ANALYSIS.HASH_ID.in(
+    //                    DSL.select(
+    //                        DSL.selectDistinct(selectUpstreamFiles.execute())
+    //                            .from(WORKFLOW_RUN))))
+    //            .and(ANALYSIS.WORKFLOW_RUN_ID.eq(DSL.any(workflowRunIds.toArray(Long[]::new)))));
+    //        .and(ANALYSIS.HASH_ID.eq(DSL.any(WORKFLOW_RUN.INPUT_FILE_IDS)))));
+    //                    .and(ANALYSIS.HASH_ID.toString()).
     //                        // DSL.select(
     //                        DSL.array(
     //                                DSL.select(
@@ -2686,7 +2694,8 @@ public final class Main implements ServerConfig {
     //                                    .from(WORKFLOW_RUN)
     //                                    .crossJoin(
     //                                        DSL.lateral(unnest(WORKFLOW_RUN.INPUT_FILE_IDS))
-    //                                            .as("t", "ifi"))) // )
+    //                                            .as("t", "ifi")))
+    //                            .as("inputs"). // )
     //                            .contains((Field<String[]>) ANALYSIS.HASH_ID))));
 
     //                    //                                        new

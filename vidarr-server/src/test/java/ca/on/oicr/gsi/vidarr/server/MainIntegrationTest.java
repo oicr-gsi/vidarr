@@ -1175,13 +1175,19 @@ public class MainIntegrationTest {
   }
 
   @Test
-  public void whenUpstreamWorkflowRunIsUnloaded_thenDownstreamWorkflowRunsAreUnloaded() {
-    var bcl2fastqWorkflowRunId = "df7df7df7df7df7df7df7df7df7df70df7df7df7df7df7df7df7df7df7df7df7";
+  public void whenUnloadUpstreamWorkflowRun_thenDownstreamWorkflowRunsAreUnloaded() {
+    var bcl2fastqWorkflowRunId = "df7d833b96031f6e8a7e869d16972706013e84434f6dd040df25f7f662ca1c8f";
+
+    get("/api/run/{hash}", "df7d833b96031f6e8a7e869d16972706013e84434f6dd040df25f7f662ca1c8f")
+        .then()
+        .assertThat()
+        .statusCode(200)
+        .body("completed", not(nullValue()));
 
     ObjectNode unloadFilter = MAPPER.createObjectNode();
     unloadFilter.put("recursive", true);
     ObjectNode filterType = MAPPER.createObjectNode();
-    filterType.put("type", "vidarr-workflow-id");
+    filterType.put("type", "vidarr-workflow-run-id");
     filterType.put("id", bcl2fastqWorkflowRunId);
     unloadFilter.set("filter", filterType);
 

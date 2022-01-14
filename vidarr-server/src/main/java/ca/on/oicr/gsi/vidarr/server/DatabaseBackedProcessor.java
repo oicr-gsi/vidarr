@@ -587,7 +587,7 @@ public abstract class DatabaseBackedProcessor
                 launched = true;
                 startTransaction(
                     runTransaction ->
-                        DatabaseBackedProcessor.this.start(
+                        DatabaseBackedProcessor.this.start( // runs when new workflow run submitted
                             target, workflow.definition(), dbWorkflow, runTransaction));
               }
             }));
@@ -1081,27 +1081,39 @@ public abstract class DatabaseBackedProcessor
                                                           transaction);
                                                   return handler.reinitialise(
                                                       candidateId,
-                                                      new Runnable() {
-                                                        private boolean launched;
+                                                      new ConsumableResourceChecker(
+                                                          target,
+                                                          dataSource,
+                                                          executor(),
+                                                          dbWorkflow.dbId(),
+                                                          liveness(dbWorkflow.dbId()),
+                                                          name,
+                                                          version,
+                                                          candidateId,
+                                                          consumableResources,
+                                                          new Runnable() {
+                                                            private boolean launched;
 
-                                                        @Override
-                                                        public void run() {
-                                                          if (launched) {
-                                                            throw new IllegalStateException(
-                                                                "Workflow has already been"
-                                                                    + " launched");
-                                                          }
-                                                          launched = true;
-                                                          startTransaction(
-                                                              runTransaction ->
-                                                                  DatabaseBackedProcessor.this
-                                                                      .start(
-                                                                          target,
-                                                                          workflow.definition(),
-                                                                          dbWorkflow,
-                                                                          runTransaction));
-                                                        }
-                                                      });
+                                                            @Override
+                                                            public void run() {
+                                                              if (launched) {
+                                                                throw new IllegalStateException(
+                                                                    "Workflow has already been"
+                                                                        + " launched");
+                                                              }
+                                                              launched = true;
+                                                              startTransaction(
+                                                                  runTransaction ->
+                                                                      DatabaseBackedProcessor.this
+                                                                          .start( // runs when
+                                                                              // action
+                                                                              // VIDARR-REATTEMPT'd
+                                                                              target,
+                                                                              workflow.definition(),
+                                                                              dbWorkflow,
+                                                                              runTransaction));
+                                                            }
+                                                          }));
                                                 } else {
                                                   return handler.matchExisting(
                                                       candidates.get(0).second());

@@ -62,7 +62,7 @@ final class MaxInFlightByWorkflow implements ConsumableResource {
   }
 
   @Override
-  public ConsumableResourceResponse request(
+  public synchronized ConsumableResourceResponse request(
       String workflowName, String workflowVersion, String vidarrId, Optional<JsonNode> input) {
     final var state = workflows.get(workflowName);
     if (state == null) {

@@ -12,6 +12,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
 
+// This is the global one. Per-Workflow is MaxInFlightByWorkflow
 public final class MaxInFlightConsumableResource implements ConsumableResource {
   public static ConsumableResourceProvider provider() {
     return () -> Stream.of(new Pair<>("max-in-flight", MaxInFlightConsumableResource.class));
@@ -42,9 +43,10 @@ public final class MaxInFlightConsumableResource implements ConsumableResource {
   }
 
   @Override
-  public ConsumableResourceResponse request(
+  public synchronized ConsumableResourceResponse request(
       String workflowName, String workflowVersion, String vidarrId, Optional<JsonNode> input) {
     if (inFlight.size() <= maximum) {
+      inFlight.add(vidarrId);
       return ConsumableResourceResponse.AVAILABLE;
     } else {
       return ConsumableResourceResponse.UNAVAILABLE;

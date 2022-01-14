@@ -110,6 +110,7 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.List;
@@ -137,6 +138,7 @@ import org.jooq.Field;
 import org.jooq.JSON;
 import org.jooq.JSONB;
 import org.jooq.JSONEntry;
+import org.jooq.JSONObjectNullStep;
 import org.jooq.Record1;
 import org.jooq.SQLDialect;
 import org.jooq.impl.DSL;
@@ -794,7 +796,10 @@ public final class Main implements ServerConfig {
     if (request.getWorkflow() == null
         || "".equals(request.getWorkflow())
         || "string".equals(request.getWorkflow())) {
-      validationErrors.add(ValidationError.forRequired("workflow"));
+      // A string containing the actual workflow commands that get run
+      validationErrors.add(
+          new ValidationError(
+              "workflow", "A workflow definition/workflow file string is required"));
     }
     if (request.getLanguage() == null) {
       validationErrors.add(ValidationError.forRequired("language"));
@@ -817,8 +822,23 @@ public final class Main implements ServerConfig {
                   notFoundResponse(exchange, String.format("No workflow with name %s found", name));
                   return;
                 }
+                var matchingWorkflowVersionId =
+                    dsl.select(WORKFLOW_VERSION.ID)
+                        .from(WORKFLOW_VERSION)
+                        .where(
+                            WORKFLOW_VERSION
+                                .NAME
+                                .eq(param("workflowName", name))
+                                .and(
+                                    WORKFLOW_VERSION.VERSION.eq(param("workflowVersion", version))))
+                        .fetchOptional(Record1::value1);
+                if (matchingWorkflowVersionId.isPresent()) {
+                  // Never modify an existing workflow version.
+                  conflictResponse(exchange);
+                  return;
+                }
                 final String definitionHash =
-                    upsertWorkflowDefinition(dsl, request.getLanguage(), request.getWorkflow());
+                    insertWorkflowDefinition(dsl, request.getLanguage(), request.getWorkflow());
                 final var versionDigest = MessageDigest.getInstance("SHA-256");
                 versionDigest.update(name.getBytes(StandardCharsets.UTF_8));
                 versionDigest.update(new byte[] {0});
@@ -831,7 +851,7 @@ public final class Main implements ServerConfig {
                 final var accessoryHashes = new TreeMap<String, String>();
                 for (final var accessory : new TreeMap<>(request.getAccessoryFiles()).entrySet()) {
                   final var accessoryHash =
-                      upsertWorkflowDefinition(dsl, request.getLanguage(), accessory.getValue());
+                      insertWorkflowDefinition(dsl, request.getLanguage(), accessory.getValue());
                   versionDigest.update(new byte[] {0});
                   versionDigest.update(accessory.getKey().getBytes(StandardCharsets.UTF_8));
                   versionDigest.update(new byte[] {0});
@@ -1581,29 +1601,81 @@ public final class Main implements ServerConfig {
     }
   }
 
+  private JSONObjectNullStep<JSON> workflowVersionFields() {
+    return DSL.jsonObject(
+        literalJsonEntry("name", WORKFLOW_VERSION.NAME),
+        literalJsonEntry("version", WORKFLOW_VERSION.VERSION),
+        literalJsonEntry("metadata", WORKFLOW_VERSION.METADATA),
+        literalJsonEntry("parameters", WORKFLOW_VERSION.PARAMETERS),
+        literalJsonEntry(
+            "labels",
+            DSL.field(
+                DSL.select(WORKFLOW.LABELS)
+                    .from(WORKFLOW)
+                    .where(WORKFLOW.NAME.eq(WORKFLOW_VERSION.NAME)))),
+        literalJsonEntry("language", WORKFLOW_DEFINITION.WORKFLOW_LANGUAGE),
+        literalJsonEntry("outputs", WORKFLOW_VERSION.METADATA));
+  }
+
+  private JSONObjectNullStep<JSON> workflowVersionWithDefinitionFields() {
+    final var accessoryDefinition = WORKFLOW_DEFINITION.as("accessoryWorkflowDefinition");
+    return DSL.jsonObject(
+        literalJsonEntry("name", WORKFLOW_VERSION.NAME),
+        literalJsonEntry("version", WORKFLOW_VERSION.VERSION),
+        literalJsonEntry("metadata", WORKFLOW_VERSION.METADATA),
+        literalJsonEntry("parameters", WORKFLOW_VERSION.PARAMETERS),
+        literalJsonEntry(
+            "labels",
+            DSL.field(
+                DSL.select(WORKFLOW.LABELS)
+                    .from(WORKFLOW)
+                    .where(WORKFLOW.NAME.eq(WORKFLOW_VERSION.NAME)))),
+        literalJsonEntry("language", WORKFLOW_DEFINITION.WORKFLOW_LANGUAGE),
+        literalJsonEntry("outputs", WORKFLOW_VERSION.METADATA),
+        literalJsonEntry("workflow", WORKFLOW_DEFINITION.WORKFLOW_FILE),
+        literalJsonEntry(
+            "accessoryFiles",
+            DSL.coalesce(
+                DSL.field(
+                    DSL.select(
+                            DSL.jsonObjectAgg(
+                                    WORKFLOW_VERSION_ACCESSORY.FILENAME,
+                                    accessoryDefinition.WORKFLOW_FILE)
+                                .absentOnNull())
+                        .from(
+                            WORKFLOW_VERSION_ACCESSORY
+                                .join(accessoryDefinition)
+                                .on(
+                                    accessoryDefinition.ID.eq(
+                                        WORKFLOW_VERSION_ACCESSORY.WORKFLOW_DEFINITION))
+                                .where(
+                                    WORKFLOW_VERSION_ACCESSORY.WORKFLOW_VERSION.eq(
+                                        WORKFLOW_VERSION.ID)))),
+                DSL.inline(JSON.json("{}")))));
+  }
+
   private void fetchWorkflowVersion(HttpServerExchange exchange) {
     final var name =
         exchange.getAttachment(PathTemplateMatch.ATTACHMENT_KEY).getParameters().get("name");
     final var version =
         exchange.getAttachment(PathTemplateMatch.ATTACHMENT_KEY).getParameters().get("version");
+    final var includeWorkflowDefinitions =
+        Arrays.stream(exchange.getQueryString().split("\\&"))
+            .map(q -> q.split("="))
+            .filter(q -> "includeDefinitions".equals(q[0]))
+            .map(q -> q[1])
+            .map(Boolean::parseBoolean)
+            .findAny()
+            .orElse(false);
     try (final var connection = dataSource.getConnection()) {
-      final var workflowVersionAlias = WORKFLOW_VERSION.as("other_workflow_version");
+      var fields =
+          (includeWorkflowDefinitions
+              ? workflowVersionWithDefinitionFields()
+              : workflowVersionFields());
       final var result =
-          DSL.using(connection, SQLDialect.POSTGRES)
-              .select(
-                  DSL.jsonArrayAgg(
-                      DSL.jsonObject(
-                          literalJsonEntry("name", WORKFLOW_VERSION.NAME),
-                          literalJsonEntry("version", WORKFLOW_VERSION.VERSION),
-                          literalJsonEntry("metadata", WORKFLOW_VERSION.METADATA),
-                          literalJsonEntry("parameters", WORKFLOW_VERSION.PARAMETERS),
-                          literalJsonEntry(
-                              "labels",
-                              DSL.field(
-                                  DSL.select(WORKFLOW.LABELS)
-                                      .from(WORKFLOW)
-                                      .where(WORKFLOW.NAME.eq(WORKFLOW_VERSION.NAME)))),
-                          literalJsonEntry("language", WORKFLOW_DEFINITION.WORKFLOW_LANGUAGE))))
+          DSL
+              .using(connection, SQLDialect.POSTGRES)
+              .select(fields)
               .from(
                   WORKFLOW_VERSION
                       .join(WORKFLOW_DEFINITION)
@@ -1614,13 +1686,16 @@ public final class Main implements ServerConfig {
                       .eq(param("workflowName", name))
                       .and(WORKFLOW_VERSION.VERSION.eq(param("workflowVersion", version))))
               .fetchOptional()
+              .stream()
               .map(
                   r -> {
                     if (r.value1() != null) {
                       return r.value1().data();
                     }
                     return null;
-                  });
+                  })
+              .filter(Objects::nonNull)
+              .findFirst();
       if (result.isPresent()) {
         okJsonResponse(exchange, result.get());
       } else {
@@ -2525,14 +2600,16 @@ public final class Main implements ServerConfig {
     }
   }
 
-  private String upsertWorkflowDefinition(
-      DSLContext dsl, WorkflowLanguage language, String workflow) throws NoSuchAlgorithmException {
+  private String insertWorkflowDefinition(
+      DSLContext dsl, WorkflowLanguage language, String workflowDefinition)
+      throws NoSuchAlgorithmException {
     final var definitionHash =
         hexDigits(
-            MessageDigest.getInstance("SHA-256").digest(workflow.getBytes(StandardCharsets.UTF_8)));
+            MessageDigest.getInstance("SHA-256")
+                .digest(workflowDefinition.getBytes(StandardCharsets.UTF_8)));
     dsl.insertInto(WORKFLOW_DEFINITION)
         .set(WORKFLOW_DEFINITION.HASH_ID, param("hashId", definitionHash))
-        .set(WORKFLOW_DEFINITION.WORKFLOW_FILE, param("workflowFile", workflow))
+        .set(WORKFLOW_DEFINITION.WORKFLOW_FILE, param("workflowFile", workflowDefinition))
         .set(WORKFLOW_DEFINITION.WORKFLOW_LANGUAGE, param("workflowLanguage", language))
         .onConflict(WORKFLOW_DEFINITION.HASH_ID)
         .doNothing()

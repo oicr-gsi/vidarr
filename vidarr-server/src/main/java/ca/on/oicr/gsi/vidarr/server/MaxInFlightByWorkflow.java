@@ -49,7 +49,10 @@ final class MaxInFlightByWorkflow implements ConsumableResource {
 
   @Override
   public void recover(String workflowName, String workflowVersion, String vidarrId) {
-    workflows.computeIfAbsent(workflowName, k -> new MaxState()).running.add(vidarrId);
+    final var stateRunning = workflows.computeIfAbsent(workflowName, k -> new MaxState()).running;
+    // since we just created it if it doesn't exist, no need for null check here
+    stateRunning.add(vidarrId);
+    currentInFlightCount.labels(workflowName).set(stateRunning.size());
   }
 
   @Override

@@ -1086,8 +1086,10 @@ public class MainIntegrationTest {
             .then()
             .assertThat()
             .statusCode(200)
-            .body("workflowRuns.size()", is(8))
-            .body("workflowRuns.findAll { it.workflowName == \"bcl2fastq\" }.size()", is(8))
+            .body("workflowRuns.size()", greaterThanOrEqualTo(8))
+            .body(
+                "workflowRuns.findAll { it.workflowName == \"bcl2fastq\" }.size()",
+                greaterThanOrEqualTo(8))
             .and()
             .extract()
             .jsonPath();
@@ -1101,7 +1103,7 @@ public class MainIntegrationTest {
   @Ignore
   public void whenCopyOutUpstreamWorkflowRun_thenDownstreamWorkflowRunsAreCopiedOut() {
     var bcl2fastqWorkflowRunId = "df7df7df7df7df7df7df7df7df7df70df7df7df7df7df7df7df7df7df7df7df7";
-    var fastqcWorkflowRunId = "fa4e0cfa4e0cfa4e0cfa4e0cfa4e0cfa4e0cfa4e0cfa4e0cfa4e0cfa4e0cfa4e0c";
+    var fastqcWorkflowRunId = "e268e7206776f44a1b438a650bbc4b26bfec46448c4825043b2cf15270f5fffc";
 
     // Confirm that a bcl2fastq workflow run exists
     get("/api/run/{hash}", bcl2fastqWorkflowRunId)
@@ -1138,7 +1140,7 @@ public class MainIntegrationTest {
   }
 
   @Test
-  public void whenUnloadWorkflowRuns_thenWorkflowRunIsDeletedFromVidarr() {
+  public void whenUnloadWorkflow_thenWorkflowRunsAreDeletedFromVidarr() {
     // Confirm that a bcl2fastq workflow run exists
     get("/api/run/{hash}", "2f52b25df0a20cf41b0476b9114ad40a7d8d2edbddf0bed7d2d1b01d3f2d2b56")
         .then()
@@ -1164,10 +1166,10 @@ public class MainIntegrationTest {
     var unloadedFilePath = unloadDirectory.getRoot().getAbsolutePath() + "/" + unloadFileName;
 
     var unloaded = JsonPath.from(new File(unloadedFilePath));
-    assertThat(unloaded.getList("workflowRuns").size(), equalTo(8));
+    assertThat(unloaded.getList("workflowRuns").size(), greaterThanOrEqualTo(8));
     assertThat(
         unloaded.getList("workflowRuns.findAll { it.workflowName == \"bcl2fastq\" }").size(),
-        equalTo(8));
+        greaterThanOrEqualTo(8));
     var firstHash = unloaded.get("workflowRuns[0].id");
 
     // Confirm that the bcl2fastq workflow run has been unloaded from the database
@@ -1176,9 +1178,9 @@ public class MainIntegrationTest {
 
   @Test
   public void whenUnloadUpstreamWorkflowRun_thenDownstreamWorkflowRunsAreUnloaded() {
-    var bcl2fastqWorkflowRunId = "df7d833b96031f6e8a7e869d16972706013e84434f6dd040df25f7f662ca1c8f";
+    var bcl2fastqWorkflowRunId = "6a3f7102a71043c7717f9f0bdc656ef14b35c92d3cf0df9e9095afa0f9a7acab";
 
-    get("/api/run/{hash}", "df7d833b96031f6e8a7e869d16972706013e84434f6dd040df25f7f662ca1c8f")
+    get("/api/run/{hash}", bcl2fastqWorkflowRunId)
         .then()
         .assertThat()
         .statusCode(200)
@@ -1216,8 +1218,9 @@ public class MainIntegrationTest {
         equalTo(1));
   }
 
+  // @Ignore // TODO: DELETE
   @Test
-  public void whenWorkflowRunsAreUnloaded_thenTheyCanBeLoaded() throws IOException {
+  public void whenWorkflowIsUnloaded_thenItAndItsRunsCanBeLoaded() throws IOException {
     var bcl2fastqHash = "2f52b25df0a20cf41b0476b9114ad40a7d8d2edbddf0bed7d2d1b01d3f2d2b56";
     // Confirm that the bcl2fastq workflow run exists in the database
     get("/api/run/{hash}", bcl2fastqHash).then().assertThat().statusCode(200);

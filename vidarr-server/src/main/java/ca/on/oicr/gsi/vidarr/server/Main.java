@@ -65,8 +65,8 @@ import ca.on.oicr.gsi.vidarr.core.Phase;
 import ca.on.oicr.gsi.vidarr.core.Target;
 import ca.on.oicr.gsi.vidarr.server.DatabaseBackedProcessor.DeleteResultHandler;
 import ca.on.oicr.gsi.vidarr.server.dto.ServerConfiguration;
-import ca.on.oicr.gsi.vidarr.server.jooq.routines.IngestsAnUpstreamWorkflowRun;
 import ca.on.oicr.gsi.vidarr.server.jooq.tables.ExternalIdVersion;
+import ca.on.oicr.gsi.vidarr.server.jooq.tables.IsDownstreamFrom;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -2151,6 +2151,7 @@ public final class Main implements ServerConfig {
         WorkflowLanguage workflowLanguage = version.second().getLanguage();
         insertWorkflowDefinition(configuration, workflowScript, rootWorkflowHash, workflowLanguage);
 
+        System.out.println("* * * * * ** * WORKFLOW VERSION HASH: " + version.first());
         final var workflowHashId = version.first();
         final var workflowVersion = version.second().getVersion();
         final var outputs = version.second().getOutputs();
@@ -2585,13 +2586,10 @@ public final class Main implements ServerConfig {
                                                   }
                                                 })))
                             .fetch(WORKFLOW_RUN.ID));
-                System.out.println(
-                    String.format("unload search for workflow run %s", workflowRuns));
                 if (request.isRecursive()) {
-                  System.out.println("recursive!");
                   Collection<Long> latestIds = workflowRuns;
                   do {
-                    var usesInput = ingestsAnUpstreamWorkflowRun(latestIds, configuration);
+                    var isDownstream = isDownstreamFrom(latestIds, configuration);
                     latestIds =
                         DSL.using(configuration)
                             .select(WORKFLOW_RUN.ID)
@@ -2600,9 +2598,8 @@ public final class Main implements ServerConfig {
                                 WORKFLOW_RUN
                                     .COMPLETED
                                     .isNotNull()
-                                    .and(WORKFLOW_RUN.ID.in(usesInput)))
+                                    .and(WORKFLOW_RUN.ID.in(isDownstream)))
                             .fetch(WORKFLOW_RUN.ID);
-                    System.out.println(String.format("found downstream workflows: %s", latestIds));
                     workflowRuns.addAll(latestIds);
                   } while (!latestIds.isEmpty());
                 }
@@ -2670,39 +2667,14 @@ public final class Main implements ServerConfig {
     return MAPPER.readValue(result, new TypeReference<>() {});
   }
 
-  private Collection<Long> ingestsAnUpstreamWorkflowRun(
+  private Collection<Long> isDownstreamFrom(
       Collection<Long> workflowRunIds, Configuration configuration) {
-    var ingestsUpstreamFiles = new IngestsAnUpstreamWorkflowRun();
-    ingestsUpstreamFiles.setWorkflowRunIds(workflowRunIds.toArray(Long[]::new));
-    ingestsUpstreamFiles.execute(configuration);
-    return List.of(ingestsUpstreamFiles.getReturnValue());
-    //        DSL.select()
-    //            .from(ANALYSIS)
-    //            .where(
-    //                ANALYSIS.HASH_ID.in(
-    //                    DSL.select(
-    //                        DSL.selectDistinct(selectUpstreamFiles.execute())
-    //                            .from(WORKFLOW_RUN))))
-    //            .and(ANALYSIS.WORKFLOW_RUN_ID.eq(DSL.any(workflowRunIds.toArray(Long[]::new)))));
-    //        .and(ANALYSIS.HASH_ID.eq(DSL.any(WORKFLOW_RUN.INPUT_FILE_IDS)))));
-    //                    .and(ANALYSIS.HASH_ID.toString()).
-    //                        // DSL.select(
-    //                        DSL.array(
-    //                                DSL.select(
-    //                                        DSL.splitPart(
-    //                                            DSL.field(DSL.name("ifi"), String.class), "/", 3))
-    //                                    .from(WORKFLOW_RUN)
-    //                                    .crossJoin(
-    //                                        DSL.lateral(unnest(WORKFLOW_RUN.INPUT_FILE_IDS))
-    //                                            .as("t", "ifi")))
-    //                            .as("inputs"). // )
-    //                            .contains((Field<String[]>) ANALYSIS.HASH_ID))));
+    workflowRunIds = workflowRunIds.stream().filter(Objects::nonNull).collect(Collectors.toList());
+    var wfr = workflowRunIds.toArray(new Long[workflowRunIds.size()]);
 
-    //                    //                                        new
-    ////
-    // ExtractHashesFromInputFileIds().setInputFileIds(WORKFLOW_RUN.INPUT_FILE_IDS)).from(WORKFLOW_RUN)))
-    //                                                .contains(ANALYSIS.HASH_ID)))); // TODO:
-    // to-array
+    var isDownstream = new IsDownstreamFrom();
+    var records = DSL.using(configuration).select().from(isDownstream.call(wfr)).fetch();
+    return records.getValues(isDownstream.WFR_ID);
   }
 
   private void okEmptyResponse(HttpServerExchange exchange) {

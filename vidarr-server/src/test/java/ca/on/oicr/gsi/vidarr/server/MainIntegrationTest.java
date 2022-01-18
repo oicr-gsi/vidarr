@@ -42,7 +42,6 @@ import org.flywaydb.core.Flyway;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.postgresql.ds.PGSimpleDataSource;
@@ -1100,9 +1099,8 @@ public class MainIntegrationTest {
   }
 
   @Test
-  @Ignore
   public void whenCopyOutUpstreamWorkflowRun_thenDownstreamWorkflowRunsAreCopiedOut() {
-    var bcl2fastqWorkflowRunId = "df7df7df7df7df7df7df7df7df7df70df7df7df7df7df7df7df7df7df7df7df7";
+    var bcl2fastqWorkflowRunId = "6a3f7102a71043c7717f9f0bdc656ef14b35c92d3cf0df9e9095afa0f9a7acab";
     var fastqcWorkflowRunId = "e268e7206776f44a1b438a650bbc4b26bfec46448c4825043b2cf15270f5fffc";
 
     // Confirm that a bcl2fastq workflow run exists
@@ -1218,7 +1216,6 @@ public class MainIntegrationTest {
         equalTo(1));
   }
 
-  // @Ignore // TODO: DELETE
   @Test
   public void whenWorkflowIsUnloaded_thenItAndItsRunsCanBeLoaded() throws IOException {
     var bcl2fastqHash = "2f52b25df0a20cf41b0476b9114ad40a7d8d2edbddf0bed7d2d1b01d3f2d2b56";

@@ -840,26 +840,17 @@ public final class Main implements ServerConfig {
                 }
                 final String definitionHash =
                     insertWorkflowDefinition(dsl, request.getLanguage(), request.getWorkflow());
-                final var versionDigest = MessageDigest.getInstance("SHA-256");
-                versionDigest.update(name.getBytes(StandardCharsets.UTF_8));
-                versionDigest.update(new byte[] {0});
-                versionDigest.update(version.getBytes(StandardCharsets.UTF_8));
-                versionDigest.update(new byte[] {0});
-                versionDigest.update(definitionHash.getBytes(StandardCharsets.UTF_8));
-                versionDigest.update(MAPPER.writeValueAsBytes(request.getOutputs()));
-                versionDigest.update(MAPPER.writeValueAsBytes(request.getParameters()));
-
-                final var accessoryHashes = new TreeMap<String, String>();
-                for (final var accessory : new TreeMap<>(request.getAccessoryFiles()).entrySet()) {
-                  final var accessoryHash =
-                      insertWorkflowDefinition(dsl, request.getLanguage(), accessory.getValue());
-                  versionDigest.update(new byte[] {0});
-                  versionDigest.update(accessory.getKey().getBytes(StandardCharsets.UTF_8));
-                  versionDigest.update(new byte[] {0});
-                  versionDigest.update(accessoryHash.getBytes(StandardCharsets.UTF_8));
-                  accessoryHashes.put(accessory.getKey(), accessoryHash);
-                }
-                final var versionHash = hexDigits(versionDigest.digest());
+                final var accessoryHashes =
+                    insertWorkflowAccessoryFiles(
+                        request.getAccessoryFiles(), request.getLanguage(), dsl);
+                final var versionHash =
+                    generateWorkflowVersionHash(
+                        name,
+                        version,
+                        definitionHash,
+                        request.getOutputs(),
+                        request.getParameters(),
+                        accessoryHashes);
                 final var result =
                     dsl.insertInto(WORKFLOW_VERSION)
                         .set(WORKFLOW_VERSION.HASH_ID, param("hashId", versionHash))
@@ -1846,13 +1837,13 @@ public final class Main implements ServerConfig {
       Configuration configuration,
       String workflowName,
       String rootWorkflowHash,
-      String workflowHashId,
+      String workflowVersionHashId,
       String workflowVersion,
       Map<String, OutputType> outputs,
       Map<String, InputType> parameters) {
     return DSL.using(configuration)
         .insertInto(WORKFLOW_VERSION)
-        .set(WORKFLOW_VERSION.HASH_ID, param("hashId", workflowHashId))
+        .set(WORKFLOW_VERSION.HASH_ID, param("hashId", workflowVersionHashId))
         .set(WORKFLOW_VERSION.NAME, param("name", workflowName))
         .set(WORKFLOW_VERSION.VERSION, param("version", workflowVersion))
         .set(
@@ -1908,35 +1899,17 @@ public final class Main implements ServerConfig {
         }
 
         // Success; compute hash ID and store in map
-        final var versionDigest = MessageDigest.getInstance("SHA-256");
-        versionDigest.update(workflowVersion.getName().getBytes(StandardCharsets.UTF_8));
-        versionDigest.update(new byte[] {0});
-        versionDigest.update(workflowVersion.getVersion().getBytes(StandardCharsets.UTF_8));
-        versionDigest.update(new byte[] {0});
-        versionDigest.update(
-            hexDigits(
-                    MessageDigest.getInstance("SHA-256")
-                        .digest(workflowVersion.getWorkflow().getBytes(StandardCharsets.UTF_8)))
-                .getBytes(StandardCharsets.UTF_8));
-        versionDigest.update(MAPPER.writeValueAsBytes(workflowVersion.getOutputs()));
-        versionDigest.update(MAPPER.writeValueAsBytes(workflowVersion.getParameters()));
-        if (workflowVersion.getAccessoryFiles() != null) {
-          for (final var accessory :
-              new TreeMap<>(workflowVersion.getAccessoryFiles()).entrySet()) {
-            final var accessoryHash =
-                hexDigits(
-                    MessageDigest.getInstance("SHA-256")
-                        .digest(accessory.getValue().getBytes(StandardCharsets.UTF_8)));
-            versionDigest.update(new byte[] {0});
-            versionDigest.update(accessory.getKey().getBytes(StandardCharsets.UTF_8));
-            versionDigest.update(new byte[] {0});
-            versionDigest.update(accessoryHash.getBytes(StandardCharsets.UTF_8));
-          }
-        }
-        info.second()
-            .put(
+        final var workflowVersionHash =
+            generateWorkflowVersionHash(
+                workflowVersion.getName(),
                 workflowVersion.getVersion(),
-                new Pair<>(hexDigits(versionDigest.digest()), workflowVersion));
+                workflowVersion.getWorkflow(),
+                workflowVersion.getOutputs(),
+                workflowVersion.getParameters(),
+                workflowVersion.getAccessoryFiles());
+
+        info.second()
+            .put(workflowVersion.getVersion(), new Pair<>(workflowVersionHash, workflowVersion));
       }
 
       // Validate the workflow runs; all workflow data must be included, so we don't need the DB for
@@ -2151,8 +2124,7 @@ public final class Main implements ServerConfig {
         WorkflowLanguage workflowLanguage = version.second().getLanguage();
         insertWorkflowDefinition(configuration, workflowScript, rootWorkflowHash, workflowLanguage);
 
-        System.out.println("* * * * * ** * WORKFLOW VERSION HASH: " + version.first());
-        final var workflowHashId = version.first();
+        final var workflowVersionHashId = version.first();
         final var workflowVersion = version.second().getVersion();
         final var outputs = version.second().getOutputs();
         final var parameters = version.second().getParameters();
@@ -2161,7 +2133,7 @@ public final class Main implements ServerConfig {
                 configuration,
                 workflowName,
                 rootWorkflowHash,
-                workflowHashId,
+                workflowVersionHashId,
                 workflowVersion,
                 outputs,
                 parameters);
@@ -2184,7 +2156,8 @@ public final class Main implements ServerConfig {
               DSL.using(configuration)
                   .select(WORKFLOW_VERSION.ID)
                   .from(WORKFLOW_VERSION)
-                  .where(WORKFLOW_VERSION.HASH_ID.eq(param("workflow-hash-id", workflowHashId)))
+                  .where(
+                      WORKFLOW_VERSION.HASH_ID.eq(param("workflow-hash-id", workflowVersionHashId)))
                   .fetchOptional(WORKFLOW_VERSION.ID)
                   .orElseThrow());
         }
@@ -2422,8 +2395,6 @@ public final class Main implements ServerConfig {
                         .returningResult(DSL.field(WORKFLOW_RUN.HASH_ID))
                         .fetch()
                         .map(h -> h.value1());
-                //
-                // .execute();
 
                 var res = MAPPER.createObjectNode();
                 res.put("filename", filename);
@@ -2665,6 +2636,46 @@ public final class Main implements ServerConfig {
     // calling .data() on it.
 
     return MAPPER.readValue(result, new TypeReference<>() {});
+  }
+
+  private String generateWorkflowVersionHash(
+      String workflowName,
+      String version,
+      String workflowDefinitionHash,
+      Map<String, OutputType> outputs,
+      Map<String, InputType> inputs,
+      Map<String, String> accessoryFiles)
+      throws NoSuchAlgorithmException, JsonProcessingException {
+    final var versionDigest = MessageDigest.getInstance("SHA-256");
+    versionDigest.update(workflowName.getBytes(StandardCharsets.UTF_8));
+    versionDigest.update(new byte[] {0});
+    versionDigest.update(version.getBytes(StandardCharsets.UTF_8));
+    versionDigest.update(new byte[] {0});
+    versionDigest.update(workflowDefinitionHash.getBytes(StandardCharsets.UTF_8));
+    versionDigest.update(MAPPER.writeValueAsBytes(outputs));
+    versionDigest.update(MAPPER.writeValueAsBytes(inputs));
+
+    if (accessoryFiles != null) {
+      for (final var accessory : new TreeMap<>(accessoryFiles).entrySet()) {
+        versionDigest.update(new byte[] {0});
+        versionDigest.update(accessory.getKey().getBytes(StandardCharsets.UTF_8));
+        versionDigest.update(new byte[] {0});
+        versionDigest.update(accessory.getValue().getBytes(StandardCharsets.UTF_8));
+      }
+    }
+    return hexDigits(versionDigest.digest());
+  }
+
+  private Map<String, String> insertWorkflowAccessoryFiles(
+      Map<String, String> accessoryFiles, WorkflowLanguage workflowLanguage, DSLContext dsl)
+      throws NoSuchAlgorithmException {
+    final var accessoryHashes = new TreeMap<String, String>();
+    for (final var accessory : new TreeMap<>(accessoryFiles).entrySet()) {
+      final var accessoryHash =
+          insertWorkflowDefinition(dsl, workflowLanguage, accessory.getValue());
+      accessoryHashes.put(accessory.getKey(), accessoryHash);
+    }
+    return accessoryHashes;
   }
 
   private Collection<Long> isDownstreamFrom(

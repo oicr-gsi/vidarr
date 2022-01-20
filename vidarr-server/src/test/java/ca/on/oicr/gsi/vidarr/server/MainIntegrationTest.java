@@ -1071,7 +1071,7 @@ public class MainIntegrationTest {
             .and()
             .extract()
             .jsonPath();
-    var unload2FileName = res.get("filename").toString();
+    var unload2FileName = res2.get("filename").toString();
     var unloaded2FilePath = unloadDirectory.getRoot().getAbsolutePath() + "/" + unload2FileName;
 
     var reUnloaded = MAPPER.readTree(new File(unloaded2FilePath));

@@ -1106,7 +1106,7 @@ public class MainIntegrationTest {
 
     ObjectNode unloadFilter = getBcl2FastqUnloadFilter();
 
-    var unloadFileQuotedName =
+    var res =
         given()
             .contentType(ContentType.JSON)
             .body(unloadFilter)
@@ -1117,9 +1117,8 @@ public class MainIntegrationTest {
             .statusCode(200)
             .and()
             .extract()
-            .asInputStream();
-
-    var unloadFileName = MAPPER.readTree(unloadFileQuotedName).toString().replaceAll("\"", "");
+            .jsonPath();
+    var unloadFileName = res.get("filename").toString();
     var unloadedFilePath = unloadDirectory.getRoot().getAbsolutePath() + "/" + unloadFileName;
 
     var unloaded = JsonPath.from(new File(unloadedFilePath));
@@ -1141,7 +1140,7 @@ public class MainIntegrationTest {
 
     ObjectNode unloadFilter = getBcl2FastqUnloadFilter();
 
-    var unloadFileQuotedName =
+    var res =
         given()
             .contentType(ContentType.JSON)
             .body(unloadFilter)
@@ -1152,9 +1151,9 @@ public class MainIntegrationTest {
             .statusCode(200)
             .and()
             .extract()
-            .asInputStream();
+            .jsonPath();
+    var unloadFileName = res.get("filename").toString();
 
-    var unloadFileName = MAPPER.readTree(unloadFileQuotedName).toString().replaceAll("\"", "");
     var unloadedFilePath = unloadDirectory.getRoot().getAbsolutePath() + "/" + unloadFileName;
 
     var unloaded = MAPPER.readTree(new File(unloadedFilePath));
@@ -1175,7 +1174,7 @@ public class MainIntegrationTest {
     get("/api/run/{hash}", bcl2fastqHash).then().assertThat().statusCode(200);
 
     // Confirm that unloading the same data again produces the same result
-    var unload2FileQuotedName =
+    var res2 =
         given()
             .contentType(ContentType.JSON)
             .body(unloadFilter)
@@ -1186,8 +1185,8 @@ public class MainIntegrationTest {
             .statusCode(200)
             .and()
             .extract()
-            .asInputStream();
-    var unload2FileName = MAPPER.readTree(unload2FileQuotedName).toString().replaceAll("\"", "");
+            .jsonPath();
+    var unload2FileName = res2.get("filename").toString();
     var unloaded2FilePath = unloadDirectory.getRoot().getAbsolutePath() + "/" + unload2FileName;
 
     var reUnloaded = MAPPER.readTree(new File(unloaded2FilePath));

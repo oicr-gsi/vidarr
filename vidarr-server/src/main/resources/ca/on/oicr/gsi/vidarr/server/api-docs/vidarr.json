@@ -967,12 +967,24 @@
         },
         "responses": {
           "200": {
-            "description": "Name of the file in the configured 'unloadDirectory' where the unloaded data is stored. This data will be removed from the Vidarr database",
+            "description": "An object detailing the name of the file in the configured 'unloadDirectory' where the unloaded data is stored (this data has been removed from the Vidarr database) and the IDs of the workflow runs which have been removed.",
             "content": {
-              "text/plain": {
+              "application/json": {
                 "schema": {
-                  "type": "string",
-                  "example": "unload-2021-0603T13:14:36.679474Z.json"
+                  "properties": {
+                    "filename": {
+                      "type": "string",
+                      "example": "unload-2021-0603T13:14:36.679474Z.json"
+                    },
+                    "deletedWorkflowRuns": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "example": "54a930f4ac05e4693e0414c5dd84eb0dd58ca4f1d4f976160b08548b34a80ae8"
+                      }
+                    }
+                  },
+                  "type": "object"
                 }
               }
             }

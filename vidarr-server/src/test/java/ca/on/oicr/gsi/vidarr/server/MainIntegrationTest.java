@@ -1074,7 +1074,7 @@ public class MainIntegrationTest {
 
   @Test
   public void whenCopyOut_thenRecordsAreCopied() {
-    ObjectNode copyOutFilter = getBcl2FastqUnloadFilter();
+    ObjectNode copyOutFilter = getUnloadWorkflowFilter("bcl2fastq");
 
     var resp =
         given()
@@ -1146,7 +1146,7 @@ public class MainIntegrationTest {
         .statusCode(200)
         .body("workflowName", equalTo("bcl2fastq"));
 
-    ObjectNode unloadFilter = getBcl2FastqUnloadFilter();
+    ObjectNode unloadFilter = getUnloadWorkflowFilter("bcl2fastq");
 
     var res =
         given()
@@ -1222,7 +1222,7 @@ public class MainIntegrationTest {
     // Confirm that the bcl2fastq workflow run exists in the database
     get("/api/run/{hash}", bcl2fastqHash).then().assertThat().statusCode(200);
 
-    ObjectNode unloadFilter = getBcl2FastqUnloadFilter();
+    ObjectNode unloadFilter = getUnloadWorkflowFilter("bcl2fastq");
 
     var res =
         given()
@@ -1278,6 +1278,44 @@ public class MainIntegrationTest {
     removeCreatedAndModifiedFieldsForBetterComparisons(unloaded);
     removeCreatedAndModifiedFieldsForBetterComparisons(reUnloaded);
     assertEquals(reUnloaded, unloaded);
+  }
+
+  @Test
+  // @Ignore
+  public void whenWorkflowsWithAccessoryFilesAreUnloaded_theWorkflowRunsCanBeReloaded()
+      throws IOException {
+    var workflowName = "standardqc";
+
+    ObjectNode unloadFilter = getUnloadWorkflowFilter(workflowName);
+
+    var res =
+        given()
+            .contentType(ContentType.JSON)
+            .body(unloadFilter)
+            .when()
+            .post("/api/unload")
+            .then()
+            .assertThat()
+            .statusCode(200)
+            .and()
+            .extract()
+            .jsonPath();
+    var unloadFileName = res.get("filename").toString();
+    var unloadedFilePath = unloadDirectory.getRoot().getAbsolutePath() + "/" + unloadFileName;
+
+    var unloadedFile = new File(unloadedFilePath);
+    var unloaded = JsonPath.from(unloadedFile);
+    assertThat(unloaded.getList("workflowRuns").size(), greaterThanOrEqualTo(1));
+
+    // now reload the data
+    given()
+        .contentType(ContentType.JSON)
+        .body(MAPPER.readTree(unloadedFile))
+        .when()
+        .post("/api/load")
+        .then()
+        .assertThat()
+        .statusCode(200);
   }
 
   @Test
@@ -1400,12 +1438,12 @@ public class MainIntegrationTest {
     return on;
   }
 
-  private ObjectNode getBcl2FastqUnloadFilter() {
+  private ObjectNode getUnloadWorkflowFilter(String workflowName) {
     ObjectNode unloadFilter = MAPPER.createObjectNode();
     unloadFilter.put("recursive", true);
     ObjectNode filterType = MAPPER.createObjectNode();
     filterType.put("type", "vidarr-workflow-name");
-    filterType.put("name", "bcl2fastq");
+    filterType.put("name", workflowName);
     unloadFilter.set("filter", filterType);
     return unloadFilter;
   }

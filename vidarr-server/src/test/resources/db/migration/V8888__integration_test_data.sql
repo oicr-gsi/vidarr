@@ -13,7 +13,8 @@ ALTER TABLE workflow_version DISABLE TRIGGER workflow_version_update;
 INSERT INTO workflow (is_active, labels, max_in_flight, modified, name) VALUES
   (false, null, 1, NOW(), 'bcl2fastq'),
   (true, null, 8, NOW(), 'import_fastq'),
-  (true, null, 8, NOW(), 'fastqc')
+  (true, null, 8, NOW(), 'fastqc'),
+  (true, null, 0, NOW(), 'standardqc')
   ON CONFLICT DO NOTHING;
 
   INSERT INTO workflow_definition (hash_id, modified, workflow_file, workflow_language) VALUES
@@ -31,7 +32,13 @@ INSERT INTO workflow (is_active, labels, max_in_flight, modified, name) VALUES
     ('5f5e1bf5e856a1c923be41e1a272a51af19168e0597cd78c433a268849b2f892',('2021-05-14 09:53:52-04'::timestamptz), 17835339, 'NIASSA'),
     ('706ca65c70cce56c9df57674e805cebeea31867e8194dc29b78fa791563b0184',('2021-05-14 09:53:52-04'::timestamptz), 12901362, 'NIASSA'),
     ('926603f4b849f9b8e772a51af19168e0597cf1e8196cb88528067dca371d6b30',('2021-05-14 09:53:52-04'::timestamptz), 29438457, 'NIASSA'),
-    ('fa270cfa270cfa270cfa270cfa270cfa270cfa270cfa270cfa270cfa270cfa270c',('2021-07-25 10:04:34-04'::timestamptz), 'version 1.0\n\nworkflow fastqc{}', 'WDL_1_0')
+    ('fa270cfa270cfa270cfa270cfa270cfa270cfa270cfa270cfa270cfa270cfa270c',('2021-07-25 10:04:34-04'::timestamptz), 'version 1.0\n\nworkflow fastqc{}', 'WDL_1_0'),
+    ('c90402b2b566409e32bb0949fe4eb2869a89ca4bd8761447e0f5714e7c86fd3f', ('2022-01-20 21:01:20-05'::timestamptz), 'version 1.0
+
+workflow standardqc{ apply qc here }', 'WDL_1_0'),
+    ('5ebf35bf52382f3e98b730ea1d99442dfe7621901e6933772c4e2d9cd25458ac', ('2022-01-20 22:19:20-05'::timestamptz), 'version 1.0
+
+workflow accessory{ sub workflow }', 'WDL_1_0')
     ON CONFLICT DO NOTHING;
 
 INSERT INTO workflow_version (hash_id, metadata, modified, name, parameters, version, workflow_definition) VALUES
@@ -49,7 +56,8 @@ INSERT INTO workflow_version (hash_id, metadata, modified, name, parameters, ver
   ('55173a6e2d94a37ef8b38349074aee7b49f0954d94d22bb9b753a0b6f63f4b79', '{"fastqs": "files"}',('2021-05-14 09:53:52-04'::timestamptz), 'bcl2fastq', '{"workflowRunSWID": "integer"}', '3.1.2.17835339', (SELECT id FROM workflow_definition WHERE hash_id = '5f5e1bf5e856a1c923be41e1a272a51af19168e0597cd78c433a268849b2f892')),
   ('7669b2774ce0502a21a6eb4937837f28ad71e4105fbd38a6e6c34eed2a3bd0c1', '{"fastqs": "files"}',('2021-05-14 09:53:52-04'::timestamptz), 'import_fastq', '{"workflowRunSWID": "integer"}', '1.0.0.12901362', (SELECT id FROM workflow_definition WHERE hash_id = '706ca65c70cce56c9df57674e805cebeea31867e8194dc29b78fa791563b0184')),
   ('b524158a9da21a6eb493ef76f528a2422aa2e05fb28370daada0ee6a47299633', '{"fastqs": "files"}',('2021-05-14 09:53:52-04'::timestamptz), 'import_fastq', '{"workflowRunSWID": "integer"}', '1.1.0', (SELECT id FROM workflow_definition WHERE hash_id = '926603f4b849f9b8e772a51af19168e0597cf1e8196cb88528067dca371d6b30')),
-  ('f92c08f4f459e132f525479fa5f78b8325b512e760095f43373b76491dae5523', '{"fastqcs": "files"}',('2021-07-25 11:04:08-04'::timestamptz), 'fastqc', '{"vidarrRunFileID": "string"}', '1.0.0', (SELECT id FROM workflow_definition WHERE hash_id = 'fa270cfa270cfa270cfa270cfa270cfa270cfa270cfa270cfa270cfa270cfa270c'))
+  ('f92c08f4f459e132f525479fa5f78b8325b512e760095f43373b76491dae5523', '{"fastqcs": "files"}',('2021-07-25 11:04:08-04'::timestamptz), 'fastqc', '{"vidarrRunFileID": "string"}', '1.0.0', (SELECT id FROM workflow_definition WHERE hash_id = 'fa270cfa270cfa270cfa270cfa270cfa270cfa270cfa270cfa270cfa270cfa270c')),
+  ('7cd331fdd6f0de39f9c19162e9311ac665385b33e267582cc89fb4b88a861591', '{"fastqc": "file"}', ('2022-01-20 21:12:47-05'::timestamptz), 'standardqc', '{"this": "string"}', '12', (SELECT id FROM workflow_definition WHERE hash_id = 'c90402b2b566409e32bb0949fe4eb2869a89ca4bd8761447e0f5714e7c86fd3f'))
   ON CONFLICT DO NOTHING;
 
 INSERT INTO workflow_run (arguments, completed, created, engine_parameters, hash_id, input_file_ids, labels, last_accessed, metadata, modified, started, workflow_version_id) VALUES
@@ -64,7 +72,8 @@ INSERT INTO workflow_run (arguments, completed, created, engine_parameters, hash
   ('{"workflowRunSWID": "15496738"}',('2019-12-09 12:29:51.791-05'::timestamptz),('2019-12-09 12:00:51.791-05'::timestamptz), '{}', '0bcb6c06a54d454fb89a99c3761e474b1fe332c5b7fd61216b76ba9c97c13cb5', '{}', '{}',('2019-12-10 12:01:51.791-05'::timestamptz), '{}',('2019-12-09 12:01:51.791-05'::timestamptz), ('2019-12-09 12:29:51.791-05'::timestamptz), (SELECT id FROM workflow_version WHERE hash_id = '46b35956f53e243b5be25f9958d2bd678c76d749f7cb8aeea56e1a0398721872')),
   ('{"workflowRunSWID": "1423144"}',('2015-02-19 03:08:48.262-05'::timestamptz),('2015-02-19 03:00:48.262-05'::timestamptz), '{}', '6a3f7102a71043c7717f9f0bdc656ef14b35c92d3cf0df9e9095afa0f9a7acab', '{}', '{}',('2015-02-20 03:01:48.262-05'::timestamptz), '{}',('2015-02-19 03:01:48.262-05'::timestamptz), ('2015-02-19 03:08:48.262-05'::timestamptz), (SELECT id FROM workflow_version WHERE hash_id = '9904ad054e4f9623f340a79347fbcd19c91a45be4b44e7e9871e611849f4e770')),
   ('{"workflowRunSWID": "4444444"}', NULL,('2015-02-19 03:00:48.262-05'::timestamptz), '{}', 'df7df7df7df7df7df7df7df7df7df70df7df7df7df7df7df7df7df7df7df7df7', '{}', '{}', ('2021-05-14 09:53:51.566519-04'::timestamptz), '{}',('2015-02-20 03:01:48.262-05'::timestamptz),('2015-02-19 03:01:48.262-05'::timestamptz), (SELECT id FROM workflow_version WHERE hash_id = '9904ad054e4f9623f340a79347fbcd19c91a45be4b44e7e9871e611849f4e770')),
-  ('{"vidarrRunFileID": "384932"}',('2021-07-25 11:09:11-04'::timestamptz), ('2021-07-25 11:10:10-04'::timestamptz), '{}', 'e268e7206776f44a1b438a650bbc4b26bfec46448c4825043b2cf15270f5fffc', '{vidarr:_/file/1f046f58235620754766dcc250a62b6ee87342f9d9b90c8f1c947e7146cc47e9,vidarr:_/file/b577844a8a0b89358edcd9af941c7195452b6d575edddf5e38930015e18b1bde}', '{}', ('2021-07-25 11:12:11-04'::timestamptz), '{}', ('2021-07-25 11:12:00-04'::timestamptz), ('2021-07-25 11:12:05'::timestamptz), (SELECT id FROM workflow_version WHERE hash_id = 'f92c08f4f459e132f525479fa5f78b8325b512e760095f43373b76491dae5523'))
+  ('{"vidarrRunFileID": "384932"}',('2021-07-25 11:09:11-04'::timestamptz), ('2021-07-25 11:10:10-04'::timestamptz), '{}', 'e268e7206776f44a1b438a650bbc4b26bfec46448c4825043b2cf15270f5fffc', '{vidarr:_/file/1f046f58235620754766dcc250a62b6ee87342f9d9b90c8f1c947e7146cc47e9,vidarr:_/file/b577844a8a0b89358edcd9af941c7195452b6d575edddf5e38930015e18b1bde}', '{}', ('2021-07-25 11:12:11-04'::timestamptz), '{}', ('2021-07-25 11:12:00-04'::timestamptz), ('2021-07-25 11:12:05'::timestamptz), (SELECT id FROM workflow_version WHERE hash_id = 'f92c08f4f459e132f525479fa5f78b8325b512e760095f43373b76491dae5523')),
+  ('{"this": "is"}', ('2022-01-20 22:19:20-05'::timestamptz), ('2022-01-20 22:19:30-05'::timestamptz), '{}', '66a6c5f02112ba6faf2f3ef8ee2a9076ae2a46b2368035fddb72202b555f1fb9', '{}', '{}', ('2022-01-20 22:19:25-05'::timestamptz), '{}', ('2022-01-20 22:19:20-05'::timestamptz), ('2022-01-20 22:19:20-05'::timestamptz), (SELECT id FROM workflow_version WHERE hash_id = '7cd331fdd6f0de39f9c19162e9311ac665385b33e267582cc89fb4b88a861591'))
   ON CONFLICT DO NOTHING;
 
 INSERT INTO analysis (analysis_type, created, file_md5sum, file_metatype, file_path, file_size, hash_id, labels, modified, workflow_run_id) VALUES
@@ -91,7 +100,12 @@ INSERT INTO analysis (analysis_type, created, file_md5sum, file_metatype, file_p
   ('file',('2015-01-01 01:00:00.001-05'::timestamptz), 'abcdefabcdefabcdefabcdefabcdefab', 'chemical/seq-na-fastq-gzip', '/analysis/archive/seqware/seqware_analysis_8/hsqwprod/results/CASAVA_2.6/85993576/SWID_1414141_AAAA_0001_nn_n_PE_316_MR_NoGroup_150213_D00355_0080_BC5UR0ANXX_ACAGTG_L001_R1_001.fastq.gz', 5199399607, '1f046f58235620754766dcc250a62b6ee87342f9d9b90c8f1c947e7146cc47e9', '{"read_number": "1", "niassa-file-accession": "1414141"}',('2021-05-14 09:53:52-04'::timestamptz), (SELECT id FROM workflow_run WHERE hash_id = '6a3f7102a71043c7717f9f0bdc656ef14b35c92d3cf0df9e9095afa0f9a7acab')),
   ('file',('2015-01-01 01:00:00.001-05'::timestamptz), 'fedcbafedcbafedcbafedcbafedcbafe', 'chemical/seq-na-fastq-gzip', '/analysis/archive/seqware/seqware_analysis_8/hsqwprod/results/CASAVA_2.6/85993576/SWID_1414141_AAAA_0001_nn_n_PE_316_MR_NoGroup_150213_D00355_0080_BC5UR0ANXX_ACAGTG_L001_R2_001.fastq.gz', 5413926184, 'b577844a8a0b89358edcd9af941c7195452b6d575edddf5e38930015e18b1bde', '{"read_number": "2", "niassa-file-accession": "1414144"}',('2021-01-01 01:00:00-04'::timestamptz), (SELECT id FROM workflow_run WHERE hash_id = '6a3f7102a71043c7717f9f0bdc656ef14b35c92d3cf0df9e9095afa0f9a7acab')),
   ('file',('2015-07-25 12:00:00.001-05'::timestamptz), 'faecfaecfaecfaecfaecfaecfaecfaec', 'chemical/seq-na-fastq-gzip', '/analysis/archive/seqware/seqware_analysis_8/hsqwprod/results/fastqc_1.0.0/85993576/SWID_1414141_AAAA_0001_nn_n_PE_316_MR_NoGroup_150213_D00355_0080_BC5UR0ANXX_ACAGTG_L001_R1_001.fastqc.gz', 4614379132, '767d00090277cb760d69352c944a30d252e7950a0e89c6ea1951121e8443389f', '{"read_number": "1"}',('2021-07-25 01:00:00-04'::timestamptz), (SELECT id FROM workflow_run WHERE hash_id = 'e268e7206776f44a1b438a650bbc4b26bfec46448c4825043b2cf15270f5fffc')),
-  ('file',('2015-07-25 12:00:00.001-05'::timestamptz), 'ceafceafceafceafceafceafceafceaf', 'chemical/seq-na-fastq-gzip', '/analysis/archive/seqware/seqware_analysis_8/hsqwprod/results/fastqc_1.0.0/85993576/SWID_1414141_AAAA_0001_nn_n_PE_316_MR_NoGroup_150213_D00355_0080_BC5UR0ANXX_ACAGTG_L001_R2_001.fastqc.gz', 6441731923, 'b3b5fad3d256d63cd81769d9c8d9fad0bdfa70f2a9f80e6c46936fab812d29e7', '{"read_number": "2"}',('2021-07-25 01:00:00-04'::timestamptz), (SELECT id FROM workflow_run WHERE hash_id = 'e268e7206776f44a1b438a650bbc4b26bfec46448c4825043b2cf15270f5fffc'))
+  ('file',('2015-07-25 12:00:00.001-05'::timestamptz), 'ceafceafceafceafceafceafceafceaf', 'chemical/seq-na-fastq-gzip', '/analysis/archive/seqware/seqware_analysis_8/hsqwprod/results/fastqc_1.0.0/85993576/SWID_1414141_AAAA_0001_nn_n_PE_316_MR_NoGroup_150213_D00355_0080_BC5UR0ANXX_ACAGTG_L001_R2_001.fastqc.gz', 6441731923, 'b3b5fad3d256d63cd81769d9c8d9fad0bdfa70f2a9f80e6c46936fab812d29e7', '{"read_number": "2"}',('2021-07-25 01:00:00-04'::timestamptz), (SELECT id FROM workflow_run WHERE hash_id = 'e268e7206776f44a1b438a650bbc4b26bfec46448c4825043b2cf15270f5fffc')),
+  ('file',('2015-07-25 12:00:00.001-05'::timestamptz), 'wev', 'text/json', '/file', 64, '1a6a4041d1cf6b5d804ee071b4f4571276f06f32861a12ef0887e73501cece60', '{}',('2021-07-25 01:00:00-04'::timestamptz), (SELECT id FROM workflow_run WHERE hash_id = '66a6c5f02112ba6faf2f3ef8ee2a9076ae2a46b2368035fddb72202b555f1fb9'))
+  ON CONFLICT DO NOTHING;
+
+  INSERT INTO workflow_version_accessory (workflow_version, workflow_definition, filename) VALUES
+    ((SELECT id FROM workflow_version WHERE hash_id = '7cd331fdd6f0de39f9c19162e9311ac665385b33e267582cc89fb4b88a861591'), (SELECT id FROM workflow_definition WHERE hash_id = '5ebf35bf52382f3e98b730ea1d99442dfe7621901e6933772c4e2d9cd25458ac'), 'accessory_file.wdl')
   ON CONFLICT DO NOTHING;
 
 -- These inserts get done separately so that the id is guaranteed,
@@ -120,6 +134,8 @@ INSERT INTO external_id (workflow_run_id, external_id, provider, created, modifi
   ((SELECT id FROM workflow_run WHERE hash_id = '6a3f7102a71043c7717f9f0bdc656ef14b35c92d3cf0df9e9095afa0f9a7acab'), '221_1_LDI9339', 'pinery-miso',('2021-05-14 09:53:52-04'::timestamptz),('2021-05-14 09:53:52-04'::timestamptz), false);
 INSERT INTO external_id (workflow_run_id, external_id, provider, created, modified, requested) VALUES
   ((SELECT id FROM workflow_run WHERE hash_id = '6a3f7102a71043c7717f9f0bdc656ef14b35c92d3cf0df9e9095afa0f9a7acab'), '4141_1_LDI41414', 'pinery-miso',('2021-01-01 01:00:00-04'::timestamptz),('2021-01-01 01:00:00-04'::timestamptz), false);
+INSERT INTO external_id (workflow_run_id, external_id, provider, created, modified, requested) VALUES
+  ((SELECT id FROM workflow_run WHERE hash_id = '66a6c5f02112ba6faf2f3ef8ee2a9076ae2a46b2368035fddb72202b555f1fb9'), '4141_1_LDI41414', 'pinery-miso',('2021-01-01 01:00:00-04'::timestamptz),('2021-01-01 01:00:00-04'::timestamptz), false);
 
 INSERT INTO external_id_version (created, external_id_id, key, requested, value) VALUES
   (('2021-05-14 09:53:52-04'::timestamptz), 1, 'pinery-hash-2',('2021-05-14 09:53:52-04'::timestamptz), 'bea8063d6c8e66e4c6faae52ddc8e5e7ab249782cb98ec7fb64261f12e82a3bf'),
@@ -137,7 +153,8 @@ INSERT INTO external_id_version (created, external_id_id, key, requested, value)
   (('2021-05-14 09:53:52-04'::timestamptz), 9, 'pinery-hash-7',('2021-05-14 09:53:52-04'::timestamptz), 'ee31b80cbb5b55c48e0af5bda82c085e99d76331f935bba9159775a24fa57c39'),
   (('2021-05-14 09:53:52-04'::timestamptz), 10, 'pinery-hash-2',('2021-05-14 09:53:52-04'::timestamptz), 'f8feea33f0ff3d72f59c238e5740abeb8de9a2f95e8893da060fbd8756b97a4f'),
   (('2021-05-14 09:53:52-04'::timestamptz), 11, 'pinery-hash-8',('2021-05-14 09:53:52-04'::timestamptz), 'c662d6f6e829e5fa182aa6d140d0db47540d8eb40fec47cbbbc297144266b6fb'),
-  (('2021-01-01 01:00:00-04'::timestamptz), 12, 'pinery-hash-8',('2021-01-01 01:00:00-04'::timestamptz), 'acabacabacabacabacabacabacabacabacabacabacabacabacabacabacabacab')
+  (('2021-01-01 01:00:00-04'::timestamptz), 12, 'pinery-hash-8',('2021-01-01 01:00:00-04'::timestamptz), 'acabacabacabacabacabacabacabacabacabacabacabacabacabacabacabacab'),
+  (('2021-01-01 01:00:00-04'::timestamptz), 13, 'pinery-hash-8',('2021-01-01 01:00:00-04'::timestamptz), 'nope')
   ON CONFLICT DO NOTHING;
 
 INSERT INTO analysis_external_id (external_id_id, analysis_id) VALUES
@@ -164,7 +181,8 @@ INSERT INTO analysis_external_id (external_id_id, analysis_id) VALUES
   (11, (SELECT id FROM analysis WHERE hash_id = 'a508bb9a7bae5562fdf20fbd222936fa77b9c1313f4e5ec507041e72fed808e1')),
   (11, (SELECT id FROM analysis WHERE hash_id = '9d25f1a647b3a1e2555fdf34f057b7334497a69b14e7bbf9f5618b875bdb32a0')),
   (12, (SELECT id FROM analysis WHERE hash_id = '1f046f58235620754766dcc250a62b6ee87342f9d9b90c8f1c947e7146cc47e9')),
-  (12, (SELECT id FROM analysis WHERE hash_id = 'b577844a8a0b89358edcd9af941c7195452b6d575edddf5e38930015e18b1bde'))
+  (12, (SELECT id FROM analysis WHERE hash_id = 'b577844a8a0b89358edcd9af941c7195452b6d575edddf5e38930015e18b1bde')),
+  (13, (SELECT id FROM analysis WHERE hash_id = '1a6a4041d1cf6b5d804ee071b4f4571276f06f32861a12ef0887e73501cece60'))
   ON CONFLICT DO NOTHING;
 
 INSERT INTO active_workflow_run (id, attempt, cleanup_state, completed, consumable_resources, created, engine_phase, extra_input_ids_handled, modified, preflight_okay, real_input, started, target, waiting_resource, workflow_run_url) VALUES

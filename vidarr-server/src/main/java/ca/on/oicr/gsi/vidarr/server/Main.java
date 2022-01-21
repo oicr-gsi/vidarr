@@ -823,8 +823,8 @@ public final class Main implements ServerConfig {
                   notFoundResponse(exchange, String.format("No workflow with name %s found", name));
                   return;
                 }
-                var matchingWorkflowVersionId =
-                    dsl.select(WORKFLOW_VERSION.ID)
+                var matchingWorkflowVersionHash =
+                    dsl.select(WORKFLOW_VERSION.HASH_ID)
                         .from(WORKFLOW_VERSION)
                         .where(
                             WORKFLOW_VERSION
@@ -832,10 +832,29 @@ public final class Main implements ServerConfig {
                                 .eq(param("workflowName", name))
                                 .and(
                                     WORKFLOW_VERSION.VERSION.eq(param("workflowVersion", version))))
-                        .fetchOptional(Record1::value1);
-                if (matchingWorkflowVersionId.isPresent()) {
-                  // Never modify an existing workflow version.
-                  conflictResponse(exchange);
+                        .fetchOptional();
+                if (matchingWorkflowVersionHash.isPresent()) {
+                  // Never modify an existing workflow version. It's ok if the submitted workflow
+                  // version matches the existing workflow version, but return an error if they
+                  // are different.
+                  final String definitionHash =
+                      generateWorkflowDefinitionHash(request.getWorkflow());
+                  final var accessoryHashes =
+                      generateAccessoryWorkflowHashes(request.getAccessoryFiles());
+                  final var versionHash =
+                      generateWorkflowVersionHash(
+                          name,
+                          version,
+                          definitionHash,
+                          request.getOutputs(),
+                          request.getParameters(),
+                          accessoryHashes);
+                  var existingWorkflowVersionHash = matchingWorkflowVersionHash.get().value1();
+                  if (existingWorkflowVersionHash.equals(versionHash)) {
+                    okEmptyResponse(exchange);
+                  } else {
+                    conflictResponse(exchange);
+                  }
                   return;
                 }
                 final String definitionHash = generateWorkflowDefinitionHash(request.getWorkflow());

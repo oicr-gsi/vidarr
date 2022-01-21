@@ -493,29 +493,6 @@ public class MainIntegrationTest {
   }
 
   @Test
-  public void whenAddExistingWorkflowVersion_thenAddIsRejected() throws JsonProcessingException {
-    var workflowName = "fastqc";
-    var workflowVersion = "1.0.0";
-    var existingFastqc =
-        get(
-                "/api/workflow/{workflow}/{version}?includeDefinitions=true",
-                workflowName,
-                workflowVersion)
-            .then()
-            .extract()
-            .body()
-            .as(new TypeRef<Map<String, Object>>() {});
-    given()
-        .contentType(ContentType.JSON)
-        .body(MAPPER.writeValueAsString(existingFastqc))
-        .when()
-        .post("/api/workflow/{workflow}/{version}", workflowName, workflowVersion)
-        .then()
-        .assertThat()
-        .statusCode(409);
-  }
-
-  @Test
   public void whenIncompleteWorkflowVersionIsAdded_thenWorkflowVersionIsNotAdded() {
     var wfName = "import_fastq";
     var wfVersion = "incompl";
@@ -576,7 +553,67 @@ public class MainIntegrationTest {
   }
 
   @Test
-  public void whenAddDuplicateWorkflowVersion_thenWorkflowVersionIsUnchanged() {
+  public void whenAddDuplicateWorkflowVersion_thenWorkflowVersionIsUnchanged()
+      throws JsonProcessingException {
+    var wfName = "import_fastq";
+    var wfVersion = "2.double";
+
+    var versionsBefore = getWorkflowVersions(wfName);
+    assertThat(versionsBefore.stream().filter(wfVersion::equals).count(), equalTo(0L));
+
+    ObjectNode wfv_import_fastq = MAPPER.createObjectNode();
+    ObjectNode parameters = MAPPER.createObjectNode();
+    parameters.put("workflowRunSWID", "integer");
+    wfv_import_fastq.set("parameters", parameters);
+    ObjectNode outputs = MAPPER.createObjectNode();
+    outputs.put("fastqs", "files");
+    wfv_import_fastq.set("outputs", outputs);
+    wfv_import_fastq.put("language", "UNIX_SHELL");
+    wfv_import_fastq.put("workflow", "#!/bin/sh\n\n\necho 'double me up'");
+
+    given()
+        .contentType(ContentType.JSON)
+        .body(wfv_import_fastq)
+        .when()
+        .post("/api/workflow/{name}/{version}", wfName, wfVersion)
+        .then()
+        .assertThat()
+        .statusCode(201);
+
+    var versionsAfterFirst = getWorkflowVersions(wfName);
+    assertThat(versionsAfterFirst.stream().filter(wfVersion::equals).count(), equalTo(1L));
+
+    // Submit the same request again:
+    given()
+        .body(wfv_import_fastq)
+        .when()
+        .post("/api/workflow/{name}/{version}", wfName, wfVersion)
+        .then()
+        .assertThat()
+        .statusCode(200);
+
+    var versionsAfterSecond = getWorkflowVersions(wfName);
+    assertThat(versionsAfterSecond.stream().filter(wfVersion::equals).count(), equalTo(1L));
+
+    // Get it again and resubmit
+    var existingVersion =
+        get("/api/workflow/{workflow}/{version}?includeDefinitions=true", wfName, wfVersion)
+            .then()
+            .extract()
+            .body()
+            .as(new TypeRef<Map<String, Object>>() {});
+    given()
+        .contentType(ContentType.JSON)
+        .body(MAPPER.writeValueAsString(existingVersion))
+        .when()
+        .post("/api/workflow/{workflow}/{version}", wfName, wfVersion)
+        .then()
+        .assertThat()
+        .statusCode(200);
+  }
+
+  @Test
+  public void whenAddModifiedWorkflowVersion_thenRequestFails() {
     var wfName = "import_fastq";
     var wfVersion = "2.double";
 
@@ -605,7 +642,9 @@ public class MainIntegrationTest {
     var versionsAfterFirst = getWorkflowVersions(wfName);
     assertThat(versionsAfterFirst.stream().filter(wfVersion::equals).count(), equalTo(1L));
 
-    // And again:
+    // Modify the request then resubmit
+    wfv_import_fastq.put("workflow", "#!/bin/sh echo 'and now for something completely different'");
+
     given()
         .body(wfv_import_fastq)
         .when()
@@ -614,8 +653,17 @@ public class MainIntegrationTest {
         .assertThat()
         .statusCode(409);
 
-    var versionsAfterSecond = getWorkflowVersions(wfName);
-    assertThat(versionsAfterSecond.stream().filter(wfVersion::equals).count(), equalTo(1L));
+    // And again
+    outputs.put("fakeqs", "files-with-labels");
+    wfv_import_fastq.set("outputs", outputs);
+
+    given()
+        .body(wfv_import_fastq)
+        .when()
+        .post("/api/workflow/{name}/{version}", wfName, wfVersion)
+        .then()
+        .assertThat()
+        .statusCode(409);
   }
 
   @Test

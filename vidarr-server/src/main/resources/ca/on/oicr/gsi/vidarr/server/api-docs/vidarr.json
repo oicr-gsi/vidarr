@@ -1786,11 +1786,17 @@
           "description": "The configuration parameters for a workflow version."
         },
         "responses": {
+          "200": {
+            "description": "The workflow version already exists."
+          },
           "201": {
             "description": "The workflow version has been created."
           },
           "404": {
             "description": "No workflow with the given name was found."
+          },
+          "409": {
+            "description": "The submitted workflow version has the same name and version as an existing workflow version, but the submitted workflow script/accessory workflow scripts/outputs/parameters do not match the existing workflow version."
           }
         },
         "summary": "Add workflow version",

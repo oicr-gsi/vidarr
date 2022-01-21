@@ -2162,17 +2162,6 @@ public final class Main implements ServerConfig {
                 configuration, id.get().value1(), accessory.getKey(), accessoryWorkflowHash);
           }
         } else {
-          var actual_wfv =
-              DSL.using(configuration)
-                  .select(WORKFLOW_VERSION.VERSION, WORKFLOW_VERSION.HASH_ID)
-                  .from(WORKFLOW_VERSION)
-                  .where(WORKFLOW_VERSION.NAME.eq(workflowName))
-                  .fetchMap(WORKFLOW_VERSION.VERSION, WORKFLOW_VERSION.HASH_ID);
-          System.out.println(
-              actual_wfv.entrySet().stream()
-                  .map(e -> e.getKey() + ": " + e.getValue())
-                  .collect(Collectors.joining(",")));
-          System.out.println("calculated version: " + workflowVersionHashId);
           workflowVersionIds.put(
               workflowVersion,
               DSL.using(configuration)

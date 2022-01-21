@@ -1281,7 +1281,6 @@ public class MainIntegrationTest {
   }
 
   @Test
-  // @Ignore
   public void whenWorkflowsWithAccessoryFilesAreUnloaded_theWorkflowRunsCanBeReloaded()
       throws IOException {
     var workflowName = "standardqc";

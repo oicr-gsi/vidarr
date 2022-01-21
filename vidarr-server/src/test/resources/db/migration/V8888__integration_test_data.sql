@@ -33,12 +33,8 @@ INSERT INTO workflow (is_active, labels, max_in_flight, modified, name) VALUES
     ('706ca65c70cce56c9df57674e805cebeea31867e8194dc29b78fa791563b0184',('2021-05-14 09:53:52-04'::timestamptz), 12901362, 'NIASSA'),
     ('926603f4b849f9b8e772a51af19168e0597cf1e8196cb88528067dca371d6b30',('2021-05-14 09:53:52-04'::timestamptz), 29438457, 'NIASSA'),
     ('fa270cfa270cfa270cfa270cfa270cfa270cfa270cfa270cfa270cfa270cfa270c',('2021-07-25 10:04:34-04'::timestamptz), 'version 1.0\n\nworkflow fastqc{}', 'WDL_1_0'),
-    ('c90402b2b566409e32bb0949fe4eb2869a89ca4bd8761447e0f5714e7c86fd3f', ('2022-01-20 21:01:20-05'::timestamptz), 'version 1.0
-
-workflow standardqc{ apply qc here }', 'WDL_1_0'),
-    ('5ebf35bf52382f3e98b730ea1d99442dfe7621901e6933772c4e2d9cd25458ac', ('2022-01-20 22:19:20-05'::timestamptz), 'version 1.0
-
-workflow accessory{ sub workflow }', 'WDL_1_0')
+    ('c90402b2b566409e32bb0949fe4eb2869a89ca4bd8761447e0f5714e7c86fd3f', ('2022-01-20 21:01:20-05'::timestamptz), E'version 1.0\n\nworkflow standardqc{ apply qc here }', 'WDL_1_0'),
+    ('5ebf35bf52382f3e98b730ea1d99442dfe7621901e6933772c4e2d9cd25458ac', ('2022-01-20 22:19:20-05'::timestamptz), E'version 1.0\n\nworkflow accessory{ sub workflow }', 'WDL_1_0')
     ON CONFLICT DO NOTHING;
 
 INSERT INTO workflow_version (hash_id, metadata, modified, name, parameters, version, workflow_definition) VALUES

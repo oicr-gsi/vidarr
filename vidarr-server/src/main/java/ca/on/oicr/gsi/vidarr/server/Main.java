@@ -66,7 +66,7 @@ import ca.on.oicr.gsi.vidarr.core.Target;
 import ca.on.oicr.gsi.vidarr.server.DatabaseBackedProcessor.DeleteResultHandler;
 import ca.on.oicr.gsi.vidarr.server.dto.ServerConfiguration;
 import ca.on.oicr.gsi.vidarr.server.jooq.tables.ExternalIdVersion;
-import ca.on.oicr.gsi.vidarr.server.jooq.tables.IsDownstreamFrom;
+import ca.on.oicr.gsi.vidarr.server.jooq.tables.GetIdsForDownstreamWorkflowRuns;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -2569,10 +2569,11 @@ public final class Main implements ServerConfig {
                                                 })))
                             .fetch(WORKFLOW_RUN.ID));
                 if (request.isRecursive()) {
-                  Collection<Long> latestIds = workflowRuns;
+                  Collection<Long> latestWorkflowRunIds = workflowRuns;
                   do {
-                    var isDownstream = isDownstreamFrom(latestIds, configuration);
-                    latestIds =
+                    var downstreamWorkflowRunIds =
+                        getIdsForWorkflowRunsDownstreamFrom(latestWorkflowRunIds, configuration);
+                    latestWorkflowRunIds =
                         DSL.using(configuration)
                             .select(WORKFLOW_RUN.ID)
                             .from(WORKFLOW_RUN)
@@ -2580,10 +2581,10 @@ public final class Main implements ServerConfig {
                                 WORKFLOW_RUN
                                     .COMPLETED
                                     .isNotNull()
-                                    .and(WORKFLOW_RUN.ID.in(isDownstream)))
+                                    .and(WORKFLOW_RUN.ID.in(downstreamWorkflowRunIds)))
                             .fetch(WORKFLOW_RUN.ID);
-                    workflowRuns.addAll(latestIds);
-                  } while (!latestIds.isEmpty());
+                    workflowRuns.addAll(latestWorkflowRunIds);
+                  } while (!latestWorkflowRunIds.isEmpty());
                 }
                 return handleWorkflowRuns.process(configuration, workflowRuns.toArray(Long[]::new));
               });
@@ -2694,14 +2695,15 @@ public final class Main implements ServerConfig {
     }
   }
 
-  private Collection<Long> isDownstreamFrom(
+  private Collection<Long> getIdsForWorkflowRunsDownstreamFrom(
       Collection<Long> workflowRunIds, Configuration configuration) {
     workflowRunIds = workflowRunIds.stream().filter(Objects::nonNull).collect(Collectors.toList());
     var wfr = workflowRunIds.toArray(new Long[workflowRunIds.size()]);
 
-    var isDownstream = new IsDownstreamFrom();
-    var records = DSL.using(configuration).select().from(isDownstream.call(wfr)).fetch();
-    return records.getValues(isDownstream.WFR_ID);
+    var getIdsForDownstreamWorkflowRuns = new GetIdsForDownstreamWorkflowRuns();
+    var records =
+        DSL.using(configuration).select().from(getIdsForDownstreamWorkflowRuns.call(wfr)).fetch();
+    return records.getValues(getIdsForDownstreamWorkflowRuns.WFR_ID);
   }
 
   private void okEmptyResponse(HttpServerExchange exchange) {

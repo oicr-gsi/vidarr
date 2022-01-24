@@ -1,7 +1,7 @@
 -- The input file ids are Vidarr IDs formatted like: vidarr:<server>/file/<hash>
 -- Unnest the array of Vidarr IDs, then split each Vidarr ID on the slash and select the third item (<hash>)
 
-    CREATE OR REPLACE FUNCTION is_downstream_from(wr_ids BIGINT[]) RETURNS table (wfr_id bigint) AS $$
+    CREATE OR REPLACE FUNCTION get_ids_for_downstream_workflow_runs(wr_ids BIGINT[]) RETURNS table (wfr_id bigint) AS $$
       BEGIN
         RETURN QUERY
         SELECT DISTINCT id FROM workflow_run

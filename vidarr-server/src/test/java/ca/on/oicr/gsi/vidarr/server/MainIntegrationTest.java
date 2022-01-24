@@ -1174,9 +1174,17 @@ public class MainIntegrationTest {
 
   @Test
   public void whenUnloadUpstreamWorkflowRun_thenDownstreamWorkflowRunsAreUnloaded() {
-    var bcl2fastqWorkflowRunId = "6a3f7102a71043c7717f9f0bdc656ef14b35c92d3cf0df9e9095afa0f9a7acab";
+    var bcl2fastqWorkflowRunId1 =
+        "6a3f7102a71043c7717f9f0bdc656ef14b35c92d3cf0df9e9095afa0f9a7acab";
+    var bcl2fastqWorkflowRunId2 =
+        "a5f036ac00769744f9349775b376bf9412a5b28191fb7dd5ca4e635338e9f2b5";
 
-    get("/api/run/{hash}", bcl2fastqWorkflowRunId)
+    get("/api/run/{hash}", bcl2fastqWorkflowRunId1)
+        .then()
+        .assertThat()
+        .statusCode(200)
+        .body("completed", not(nullValue()));
+    get("/api/run/{hash}", bcl2fastqWorkflowRunId2)
         .then()
         .assertThat()
         .statusCode(200)
@@ -1184,9 +1192,12 @@ public class MainIntegrationTest {
 
     ObjectNode unloadFilter = MAPPER.createObjectNode();
     unloadFilter.put("recursive", true);
+    ArrayNode workflowRunIds = MAPPER.createArrayNode();
+    workflowRunIds.add(bcl2fastqWorkflowRunId1);
+    workflowRunIds.add(bcl2fastqWorkflowRunId2);
     ObjectNode filterType = MAPPER.createObjectNode();
     filterType.put("type", "vidarr-workflow-run-id");
-    filterType.put("id", bcl2fastqWorkflowRunId);
+    filterType.set("id", workflowRunIds);
     unloadFilter.set("filter", filterType);
 
     var res =
@@ -1205,10 +1216,10 @@ public class MainIntegrationTest {
     var unloadedFilePath = unloadDirectory.getRoot().getAbsolutePath() + "/" + unloadFileName;
 
     var unloaded = JsonPath.from(new File(unloadedFilePath));
-    assertThat(unloaded.getList("workflowRuns").size(), equalTo(2));
+    assertThat(unloaded.getList("workflowRuns").size(), equalTo(3));
     assertThat(
         unloaded.getList("workflowRuns.findAll { it.workflowName == \"bcl2fastq\" }").size(),
-        equalTo(1));
+        equalTo(2));
     assertThat(
         unloaded.getList("workflowRuns.findAll { it.workflowName == \"fastqc\" }").size(),
         equalTo(1));

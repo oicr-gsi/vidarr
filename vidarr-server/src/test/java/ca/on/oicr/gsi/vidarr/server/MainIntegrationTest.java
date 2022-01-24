@@ -1085,10 +1085,8 @@ public class MainIntegrationTest {
             .then()
             .assertThat()
             .statusCode(200)
-            .body("workflowRuns.size()", greaterThanOrEqualTo(8))
-            .body(
-                "workflowRuns.findAll { it.workflowName == \"bcl2fastq\" }.size()",
-                greaterThanOrEqualTo(8))
+            .body("workflowRuns.size()", equalTo(9))
+            .body("workflowRuns.findAll { it.workflowName == \"bcl2fastq\" }.size()", equalTo(8))
             .and()
             .extract()
             .jsonPath();
@@ -1164,10 +1162,10 @@ public class MainIntegrationTest {
     var unloadedFilePath = unloadDirectory.getRoot().getAbsolutePath() + "/" + unloadFileName;
 
     var unloaded = JsonPath.from(new File(unloadedFilePath));
-    assertThat(unloaded.getList("workflowRuns").size(), greaterThanOrEqualTo(8));
+    assertThat(unloaded.getList("workflowRuns").size(), equalTo(9));
     assertThat(
         unloaded.getList("workflowRuns.findAll { it.workflowName == \"bcl2fastq\" }").size(),
-        greaterThanOrEqualTo(8));
+        equalTo(8));
     var firstHash = unloaded.get("workflowRuns[0].id");
 
     // Confirm that the bcl2fastq workflow run has been unloaded from the database
@@ -1304,7 +1302,7 @@ public class MainIntegrationTest {
 
     var unloadedFile = new File(unloadedFilePath);
     var unloaded = JsonPath.from(unloadedFile);
-    assertThat(unloaded.getList("workflowRuns").size(), greaterThanOrEqualTo(1));
+    assertThat(unloaded.getList("workflowRuns").size(), equalTo(1));
 
     // now reload the data
     given()

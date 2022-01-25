@@ -226,7 +226,8 @@ public class DatabaseBackedProcessorTest {
   public void testResolveInDatabase_forFileWithMultipleExternalIdVersions() {
     FileMetadata expected =
         new FileMetadata() {
-          final String fileHashId = "fa270cc072affa270cc072affa270cc072affa270cc072affa270cc072af";
+          final String fileHashId =
+              "767d00090277cb760d69352c944a30d252e7950a0e89c6ea1951121e8443389f";
 
           @Override
           public String path() {
@@ -257,7 +258,8 @@ public class DatabaseBackedProcessorTest {
           }
         };
     FileMetadata metadata =
-        sut.resolveInDatabase("fa270cc072affa270cc072affa270cc072affa270cc072affa270cc072af").get();
+        sut.resolveInDatabase("767d00090277cb760d69352c944a30d252e7950a0e89c6ea1951121e8443389f")
+            .get();
     assertEquals(expected.path(), metadata.path());
 
     assertEquals(

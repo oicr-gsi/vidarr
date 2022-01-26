@@ -610,6 +610,22 @@ public class MainIntegrationTest {
         .then()
         .assertThat()
         .statusCode(200);
+
+    var existingVersionWithoutDefinitions =
+        get("/api/workflow/{workflow}/{version}", wfName, wfVersion)
+            .then()
+            .extract()
+            .body()
+            .as(new TypeRef<Map<String, Object>>() {});
+
+    given()
+        .contentType(ContentType.JSON)
+        .body(MAPPER.writeValueAsString(existingVersionWithoutDefinitions))
+        .when()
+        .post("/api/workflow/{workflow}/{version}", wfName, wfVersion)
+        .then()
+        .assertThat()
+        .statusCode(400);
   }
 
   @Test

@@ -38,7 +38,7 @@ public class DatabaseBackedProcessorTest {
 
   @ClassRule
   public static JdbcDatabaseContainer pg =
-      new PostgreSQLContainer("postgres:12-alpine")
+      new PostgreSQLContainer("postgres:13-alpine")
           .withDatabaseName(dbName)
           .withUsername(dbUser)
           .withPassword(dbPass);

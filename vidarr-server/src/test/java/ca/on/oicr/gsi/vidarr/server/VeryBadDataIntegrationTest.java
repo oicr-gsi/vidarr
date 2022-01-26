@@ -35,7 +35,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
 public class VeryBadDataIntegrationTest {
   @ClassRule
   public static JdbcDatabaseContainer pg =
-      new PostgreSQLContainer("postgres:12-alpine")
+      new PostgreSQLContainer("postgres:13-alpine")
           .withDatabaseName("vidarr-test")
           .withUsername("vidarr-test")
           .withPassword("vidarr-test");

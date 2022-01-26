@@ -28,20 +28,12 @@ import org.junit.ClassRule;
 import org.junit.Test;
 import org.postgresql.ds.PGSimpleDataSource;
 import org.testcontainers.containers.JdbcDatabaseContainer;
-import org.testcontainers.containers.PostgreSQLContainer;
 
 public class DatabaseBackedProcessorTest {
-  private static final String vidarrTest = "vidarr-test";
-  private static final String dbName = vidarrTest;
-  private static final String dbUser = vidarrTest;
-  private static final String dbPass = vidarrTest;
 
   @ClassRule
   public static JdbcDatabaseContainer pg =
-      new PostgreSQLContainer("postgres:13-alpine")
-          .withDatabaseName(dbName)
-          .withUsername(dbUser)
-          .withPassword(dbPass);
+      DatabaseBackedTestConfiguration.getTestDatabaseContainer();
 
   private static ScheduledExecutorService executor = Executors.newScheduledThreadPool(1);
   private static HikariConfig dbConfig;
@@ -51,9 +43,11 @@ public class DatabaseBackedProcessorTest {
   public static void setup() {
     dbConfig = new HikariConfig();
     dbConfig.setJdbcUrl(
-        String.format("jdbc:postgresql://%s:%d/%s", pg.getHost(), pg.getFirstMappedPort(), dbName));
-    dbConfig.setUsername(dbUser);
-    dbConfig.setPassword(dbPass);
+        String.format(
+            "jdbc:postgresql://%s:%d/%s",
+            pg.getHost(), pg.getFirstMappedPort(), pg.getDatabaseName()));
+    dbConfig.setUsername(pg.getUsername());
+    dbConfig.setPassword(pg.getPassword());
     dbConfig.setAutoCommit(false);
     dbConfig.setTransactionIsolation("TRANSACTION_REPEATABLE_READ");
   }
@@ -63,9 +57,9 @@ public class DatabaseBackedProcessorTest {
     final var simpleConnection = new PGSimpleDataSource();
     simpleConnection.setServerNames(new String[] {pg.getHost()});
     simpleConnection.setPortNumbers(new int[] {pg.getFirstMappedPort()});
-    simpleConnection.setDatabaseName(dbName);
-    simpleConnection.setUser(dbUser);
-    simpleConnection.setPassword(dbPass);
+    simpleConnection.setDatabaseName(pg.getDatabaseName());
+    simpleConnection.setUser(pg.getUsername());
+    simpleConnection.setPassword(pg.getPassword());
     var fw = Flyway.configure().dataSource(simpleConnection);
     fw.load().clean();
     fw.locations("classpath:db/migration").load().migrate();

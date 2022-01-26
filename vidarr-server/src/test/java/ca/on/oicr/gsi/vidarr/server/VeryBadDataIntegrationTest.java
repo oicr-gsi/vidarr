@@ -4,7 +4,6 @@ import static io.restassured.RestAssured.*;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 
-import ca.on.oicr.gsi.vidarr.core.RawInputProvisioner;
 import ca.on.oicr.gsi.vidarr.server.dto.ServerConfiguration;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -15,7 +14,6 @@ import io.restassured.http.ContentType;
 import io.restassured.parsing.Parser;
 import java.net.http.HttpClient;
 import java.sql.SQLException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.TimeZone;
@@ -28,49 +26,27 @@ import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.postgresql.ds.PGSimpleDataSource;
-import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.JdbcDatabaseContainer;
-import org.testcontainers.containers.PostgreSQLContainer;
 
 public class VeryBadDataIntegrationTest {
   @ClassRule
   public static JdbcDatabaseContainer pg =
-      new PostgreSQLContainer("postgres:13-alpine")
-          .withDatabaseName("vidarr-test")
-          .withUsername("vidarr-test")
-          .withPassword("vidarr-test");
+      DatabaseBackedTestConfiguration.getTestDatabaseContainer();
 
   private static final ObjectMapper MAPPER = new ObjectMapper();
   private static ServerConfiguration config;
   private static Main main;
   private static final HttpClient CLIENT =
       HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NORMAL).build();
-  @ClassRule public static final TemporaryFolder unloadDirectory = new TemporaryFolder();
 
-  private static ServerConfiguration getTestServerConfig(GenericContainer pg) {
-    ServerConfiguration config = new ServerConfiguration();
-    config.setName("vidarr-test");
-    config.setDbHost(pg.getHost());
-    config.setDbName("vidarr-test");
-    config.setDbPass("vidarr-test");
-    config.setDbUser("vidarr-test");
-    config.setDbPort(pg.getFirstMappedPort());
-    config.setPort(8998);
-    config.setUrl("http://localhost:" + config.getPort());
-    config.setOtherServers(new HashMap<>());
-    config.setInputProvisioners(Collections.singletonMap("raw", new RawInputProvisioner()));
-    config.setWorkflowEngines(new HashMap<>());
-    config.setOutputProvisioners(new HashMap<>());
-    config.setRuntimeProvisioners(new HashMap<>());
-    config.setTargets(new HashMap<>());
-    config.setUnloadDirectory(unloadDirectory.getRoot().getAbsolutePath());
-    return config;
-  }
+  @ClassRule
+  public static final TemporaryFolder unloadDirectory =
+      DatabaseBackedTestConfiguration.getUnloadDirectory();
 
   @BeforeClass
   public static void setup() throws SQLException {
     TimeZone.setDefault(TimeZone.getTimeZone("America/Toronto"));
-    config = getTestServerConfig(pg);
+    config = DatabaseBackedTestConfiguration.getTestServerConfig(pg, unloadDirectory, 8998);
     main = new Main(config);
     main.startServer(main);
     RestAssured.baseURI = config.getUrl();

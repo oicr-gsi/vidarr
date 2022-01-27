@@ -6,7 +6,6 @@ import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.*;
 
 import ca.on.oicr.gsi.vidarr.core.Phase;
-import ca.on.oicr.gsi.vidarr.core.RawInputProvisioner;
 import ca.on.oicr.gsi.vidarr.server.dto.ServerConfiguration;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -29,7 +28,6 @@ import java.text.ParseException;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -45,49 +43,27 @@ import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.postgresql.ds.PGSimpleDataSource;
-import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.JdbcDatabaseContainer;
-import org.testcontainers.containers.PostgreSQLContainer;
 
 public class MainIntegrationTest {
   @ClassRule
   public static JdbcDatabaseContainer pg =
-      new PostgreSQLContainer("postgres:13-alpine")
-          .withDatabaseName("vidarr-test")
-          .withUsername("vidarr-test")
-          .withPassword("vidarr-test");
+      DatabaseBackedTestConfiguration.getTestDatabaseContainer();
 
   private static final ObjectMapper MAPPER = new ObjectMapper();
   private static ServerConfiguration config;
   private static Main main;
   private static final HttpClient CLIENT =
       HttpClient.newBuilder().followRedirects(Redirect.NORMAL).build();
-  @ClassRule public static final TemporaryFolder unloadDirectory = new TemporaryFolder();
 
-  private static ServerConfiguration getTestServerConfig(GenericContainer pg) {
-    ServerConfiguration config = new ServerConfiguration();
-    config.setName("vidarr-test");
-    config.setDbHost(pg.getHost());
-    config.setDbName("vidarr-test");
-    config.setDbPass("vidarr-test");
-    config.setDbUser("vidarr-test");
-    config.setDbPort(pg.getFirstMappedPort());
-    config.setPort(8999);
-    config.setUrl("http://localhost:" + config.getPort());
-    config.setOtherServers(new HashMap<>());
-    config.setInputProvisioners(Collections.singletonMap("raw", new RawInputProvisioner()));
-    config.setWorkflowEngines(new HashMap<>());
-    config.setOutputProvisioners(new HashMap<>());
-    config.setRuntimeProvisioners(new HashMap<>());
-    config.setTargets(new HashMap<>());
-    config.setUnloadDirectory(unloadDirectory.getRoot().getAbsolutePath());
-    return config;
-  }
+  @ClassRule
+  public static final TemporaryFolder unloadDirectory =
+      DatabaseBackedTestConfiguration.getUnloadDirectory();
 
   @BeforeClass
   public static void setup() throws SQLException {
     TimeZone.setDefault(TimeZone.getTimeZone("America/Toronto"));
-    config = getTestServerConfig(pg);
+    config = DatabaseBackedTestConfiguration.getTestServerConfig(pg, unloadDirectory, 8999);
     main = new Main(config);
     main.startServer(main);
     RestAssured.baseURI = config.getUrl();
@@ -493,29 +469,6 @@ public class MainIntegrationTest {
   }
 
   @Test
-  public void whenAddExistingWorkflowVersion_thenAddIsRejected() throws JsonProcessingException {
-    var workflowName = "fastqc";
-    var workflowVersion = "1.0.0";
-    var existingFastqc =
-        get(
-                "/api/workflow/{workflow}/{version}?includeDefinitions=true",
-                workflowName,
-                workflowVersion)
-            .then()
-            .extract()
-            .body()
-            .as(new TypeRef<Map<String, Object>>() {});
-    given()
-        .contentType(ContentType.JSON)
-        .body(MAPPER.writeValueAsString(existingFastqc))
-        .when()
-        .post("/api/workflow/{workflow}/{version}", workflowName, workflowVersion)
-        .then()
-        .assertThat()
-        .statusCode(409);
-  }
-
-  @Test
   public void whenIncompleteWorkflowVersionIsAdded_thenWorkflowVersionIsNotAdded() {
     var wfName = "import_fastq";
     var wfVersion = "incompl";
@@ -576,7 +529,83 @@ public class MainIntegrationTest {
   }
 
   @Test
-  public void whenAddDuplicateWorkflowVersion_thenWorkflowVersionIsUnchanged() {
+  public void whenAddDuplicateWorkflowVersion_thenWorkflowVersionIsUnchanged()
+      throws JsonProcessingException {
+    var wfName = "import_fastq";
+    var wfVersion = "2.double";
+
+    var versionsBefore = getWorkflowVersions(wfName);
+    assertThat(versionsBefore.stream().filter(wfVersion::equals).count(), equalTo(0L));
+
+    ObjectNode wfv_import_fastq = MAPPER.createObjectNode();
+    ObjectNode parameters = MAPPER.createObjectNode();
+    parameters.put("workflowRunSWID", "integer");
+    wfv_import_fastq.set("parameters", parameters);
+    ObjectNode outputs = MAPPER.createObjectNode();
+    outputs.put("fastqs", "files");
+    wfv_import_fastq.set("outputs", outputs);
+    wfv_import_fastq.put("language", "UNIX_SHELL");
+    wfv_import_fastq.put("workflow", "#!/bin/sh\n\n\necho 'double me up'");
+
+    given()
+        .contentType(ContentType.JSON)
+        .body(wfv_import_fastq)
+        .when()
+        .post("/api/workflow/{name}/{version}", wfName, wfVersion)
+        .then()
+        .assertThat()
+        .statusCode(201);
+
+    var versionsAfterFirst = getWorkflowVersions(wfName);
+    assertThat(versionsAfterFirst.stream().filter(wfVersion::equals).count(), equalTo(1L));
+
+    // Submit the same request again:
+    given()
+        .body(wfv_import_fastq)
+        .when()
+        .post("/api/workflow/{name}/{version}", wfName, wfVersion)
+        .then()
+        .assertThat()
+        .statusCode(200);
+
+    var versionsAfterSecond = getWorkflowVersions(wfName);
+    assertThat(versionsAfterSecond.stream().filter(wfVersion::equals).count(), equalTo(1L));
+
+    // Get it again and resubmit
+    var existingVersion =
+        get("/api/workflow/{workflow}/{version}?includeDefinitions=true", wfName, wfVersion)
+            .then()
+            .extract()
+            .body()
+            .as(new TypeRef<Map<String, Object>>() {});
+    given()
+        .contentType(ContentType.JSON)
+        .body(MAPPER.writeValueAsString(existingVersion))
+        .when()
+        .post("/api/workflow/{workflow}/{version}", wfName, wfVersion)
+        .then()
+        .assertThat()
+        .statusCode(200);
+
+    var existingVersionWithoutDefinitions =
+        get("/api/workflow/{workflow}/{version}", wfName, wfVersion)
+            .then()
+            .extract()
+            .body()
+            .as(new TypeRef<Map<String, Object>>() {});
+
+    given()
+        .contentType(ContentType.JSON)
+        .body(MAPPER.writeValueAsString(existingVersionWithoutDefinitions))
+        .when()
+        .post("/api/workflow/{workflow}/{version}", wfName, wfVersion)
+        .then()
+        .assertThat()
+        .statusCode(400);
+  }
+
+  @Test
+  public void whenAddModifiedWorkflowVersion_thenRequestFails() {
     var wfName = "import_fastq";
     var wfVersion = "2.double";
 
@@ -605,7 +634,9 @@ public class MainIntegrationTest {
     var versionsAfterFirst = getWorkflowVersions(wfName);
     assertThat(versionsAfterFirst.stream().filter(wfVersion::equals).count(), equalTo(1L));
 
-    // And again:
+    // Modify the request then resubmit
+    wfv_import_fastq.put("workflow", "#!/bin/sh echo 'and now for something completely different'");
+
     given()
         .body(wfv_import_fastq)
         .when()
@@ -614,8 +645,17 @@ public class MainIntegrationTest {
         .assertThat()
         .statusCode(409);
 
-    var versionsAfterSecond = getWorkflowVersions(wfName);
-    assertThat(versionsAfterSecond.stream().filter(wfVersion::equals).count(), equalTo(1L));
+    // And again
+    outputs.put("fakeqs", "files-with-labels");
+    wfv_import_fastq.set("outputs", outputs);
+
+    given()
+        .body(wfv_import_fastq)
+        .when()
+        .post("/api/workflow/{name}/{version}", wfName, wfVersion)
+        .then()
+        .assertThat()
+        .statusCode(409);
   }
 
   @Test

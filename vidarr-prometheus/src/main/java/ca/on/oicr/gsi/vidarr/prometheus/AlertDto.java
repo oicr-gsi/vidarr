@@ -63,8 +63,11 @@ public class AlertDto {
    * @return the matching labels
    */
   public Stream<String> matches(
-      String environment, Stream<String> targets, Set<String> labelsOfInterest) {
-    if (!labels.get("alertname").asText("").equals("AutoInhibit")) {
+      String alertname,
+      String environment,
+      Set<String> labelsOfInterest,
+      Stream<String> valuesOfInterest) {
+    if (!labels.get("alertname").asText("").equals(alertname)) {
       return Stream.empty();
     }
     if (labels.hasNonNull("environment")
@@ -72,7 +75,7 @@ public class AlertDto {
       return Stream.empty();
     }
 
-    Set<String> targetValues = targets.collect(Collectors.toSet());
+    Set<String> targetValues = valuesOfInterest.collect(Collectors.toSet());
 
     return labelsOfInterest.stream()
         .filter(labels::hasNonNull)

@@ -6,7 +6,6 @@ import ca.on.oicr.gsi.vidarr.ConsumableResource;
 import ca.on.oicr.gsi.vidarr.ConsumableResourceProvider;
 import ca.on.oicr.gsi.vidarr.ConsumableResourceResponse;
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -92,16 +91,6 @@ public class AlertmanagerAutoInhibitConsumableResource implements ConsumableReso
   @Override
   public void release(String workflowName, String workflowVersion, String vidarrId) {
     // Do nothing, as this doesn't actually hold onto any resources
-  }
-
-  private Set<String> attemptDeserialization(JsonNode nodeInput) {
-    try {
-      return MAPPER.readValue(nodeInput.toString(), new TypeReference<>() {}); // Jackson dark magic
-    } catch (JsonProcessingException e) {
-      e.printStackTrace();
-
-      throw new IllegalArgumentException(e);
-    }
   }
 
   @Override

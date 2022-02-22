@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.stream.Stream;
 
@@ -29,6 +30,7 @@ public class AlertCache extends ValueCache<Stream<AlertDto>> {
         HTTP_CLIENT.send(
             HttpRequest.newBuilder(URI.create(String.format("%s/api/v1/alerts", alertmanagerUrl)))
                 .GET()
+                .timeout(Duration.ofMinutes(5))
                 .build(),
             new JsonBodyHandler<>(MAPPER, AlertResultDto.class));
     final var result = response.body().get();

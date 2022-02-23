@@ -37,8 +37,8 @@ public class AlertmanagerAutoInhibitConsumableResource implements ConsumableReso
   private final String alertName = "AutoInhibit";
   private String alertmanagerUrl;
   private String autoInhibitOnEnvironment;
-  private Set<String> labelsToCheck;
-  private Set<String> inhibitOnValues;
+  private Set<String> labelsOfInterest;
+  private Set<String> valuesOfInterest;
   private Integer cacheTtl;
   private Integer cacheRequestTimeout;
   @JsonIgnore private AlertCache cache;
@@ -53,10 +53,6 @@ public class AlertmanagerAutoInhibitConsumableResource implements ConsumableReso
     return cacheRequestTimeout;
   }
 
-  public Set<String> getInhibitOnValues() {
-    return inhibitOnValues;
-  }
-
   public String getAlertmanagerUrl() {
     return alertmanagerUrl;
   }
@@ -65,8 +61,12 @@ public class AlertmanagerAutoInhibitConsumableResource implements ConsumableReso
     return autoInhibitOnEnvironment;
   }
 
-  public Set<String> getLabelsToCheck() {
-    return labelsToCheck;
+  public Set<String> getLabelsOfInterest() {
+    return labelsOfInterest;
+  }
+
+  public Set<String> getValuesOfInterest() {
+    return valuesOfInterest;
   }
 
   @Override
@@ -91,10 +91,15 @@ public class AlertmanagerAutoInhibitConsumableResource implements ConsumableReso
           "The consumableResources 'alertmanager-auto-inhibit' config is missing "
               + "'cacheTtl': integer (minutes).");
     }
-    if (labelsToCheck.isEmpty()) {
+    if (labelsOfInterest.isEmpty()) {
       throw new IllegalArgumentException(
-          "The consumableResources 'alertmanager-auto-inhibit' config is missing 'labelsToCheck': "
-              + "[string].");
+          "The consumableResources 'alertmanager-auto-inhibit' config is missing "
+              + "'labelsOfInterest': [string].");
+    }
+    if (valuesOfInterest.isEmpty()) {
+      throw new IllegalArgumentException(
+          "The consumableResources 'alertmanager-auto-inhibit' config is missing "
+              + "'valuesOfInterest': [string].");
     }
     cache = new AlertCache(name, alertmanagerUrl, cacheRequestTimeout, cacheTtl, MAPPER);
   }
@@ -126,9 +131,9 @@ public class AlertmanagerAutoInhibitConsumableResource implements ConsumableReso
                     alert.matches(
                         alertName,
                         autoInhibitOnEnvironment,
-                        labelsToCheck,
+                        labelsOfInterest,
                         Stream.of(
-                                inhibitOnValues.stream(),
+                                valuesOfInterest.stream(),
                                 Stream.of(workflowName),
                                 Stream.of(
                                     String.format(

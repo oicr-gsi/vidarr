@@ -34,13 +34,24 @@ public class AlertmanagerAutoInhibitConsumableResource implements ConsumableReso
                 "alertmanager-auto-inhibit", AlertmanagerAutoInhibitConsumableResource.class));
   }
 
+  private final String alertName = "AutoInhibit";
   private String alertmanagerUrl;
   private String autoInhibitOnEnvironment;
   private Set<String> labelsToCheck;
   private Set<String> inhibitOnValues;
+  private Integer cacheTtl;
+  private Integer cacheRequestTimeout;
   @JsonIgnore private AlertCache cache;
 
   public AlertmanagerAutoInhibitConsumableResource() {}
+
+  public Integer getCacheTtl() {
+    return cacheTtl;
+  }
+
+  public Integer getCacheRequestTimeout() {
+    return cacheRequestTimeout;
+  }
 
   public Set<String> getInhibitOnValues() {
     return inhibitOnValues;
@@ -70,12 +81,22 @@ public class AlertmanagerAutoInhibitConsumableResource implements ConsumableReso
           "The consumableResources 'alertmanager-auto-inhibit' config is missing "
               + "'autoInhibitOnEnvironment': string.");
     }
+    if (cacheRequestTimeout == null) {
+      throw new IllegalArgumentException(
+          "The consumableResources 'alertmanager-auto-inhibit' config is missing "
+              + "'cacheRequestTimeout': integer (minutes).");
+    }
+    if (cacheTtl == null) {
+      throw new IllegalArgumentException(
+          "The consumableResources 'alertmanager-auto-inhibit' config is missing "
+              + "'cacheTtl': integer (minutes).");
+    }
     if (labelsToCheck.isEmpty()) {
       throw new IllegalArgumentException(
           "The consumableResources 'alertmanager-auto-inhibit' config is missing 'labelsToCheck': "
               + "[string].");
     }
-    cache = new AlertCache(name, alertmanagerUrl, MAPPER);
+    cache = new AlertCache(name, alertmanagerUrl, cacheRequestTimeout, cacheTtl, MAPPER);
   }
 
   @Override
@@ -103,7 +124,7 @@ public class AlertmanagerAutoInhibitConsumableResource implements ConsumableReso
             .flatMap(
                 alert ->
                     alert.matches(
-                        "AutoInhibit",
+                        alertName,
                         autoInhibitOnEnvironment,
                         labelsToCheck,
                         Stream.of(
@@ -119,8 +140,8 @@ public class AlertmanagerAutoInhibitConsumableResource implements ConsumableReso
     } else {
       return ConsumableResourceResponse.error(
           String.format(
-              "Workflow %s has been throttled by AutoInhibit alert(s) for: %s",
-              workflowName, String.join(", ", isInhibited)));
+              "Workflow %s has been throttled by %s alert(s) for: %s",
+              alertName, workflowName, String.join(", ", isInhibited)));
     }
   }
 }

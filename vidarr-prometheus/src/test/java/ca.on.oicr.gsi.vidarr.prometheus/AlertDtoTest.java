@@ -11,8 +11,8 @@ import org.junit.Test;
 
 public class AlertDtoTest {
   private final ObjectMapper mapper = new ObjectMapper();
-
   private final Set<String> configLabels = Stream.of("job", "scope").collect(Collectors.toSet());
+  private final String autoInhibit = "AutoInhibit";
 
   @Test
   public void whenEnvAndJobMatch_matchesShouldMatch() {
@@ -26,7 +26,7 @@ public class AlertDtoTest {
     sut.setLabels(labels);
 
     var matches =
-        sut.matches("testing", Stream.of("vidarr-clinical", "bamqc4"), configLabels)
+        sut.matches(autoInhibit, "testing", configLabels, Stream.of("vidarr-clinical", "bamqc4"))
             .collect(Collectors.toList());
     assertEquals(1, matches.size());
   }
@@ -43,7 +43,7 @@ public class AlertDtoTest {
     sut.setLabels(labels);
 
     var matches =
-        sut.matches("testing", Stream.of("vidarr-clinical", "bamqc4"), configLabels)
+        sut.matches(autoInhibit, "testing", configLabels, Stream.of("vidarr-clinical", "bamqc4"))
             .collect(Collectors.toList());
     assertEquals(1, matches.size());
   }
@@ -60,7 +60,7 @@ public class AlertDtoTest {
     sut.setLabels(labels);
 
     var matches =
-        sut.matches("testing", Stream.of("vidarr-clinical", "bamqc4"), configLabels)
+        sut.matches(autoInhibit, "testing", configLabels, Stream.of("vidarr-clinical", "bamqc4"))
             .collect(Collectors.toList());
     assertEquals(1, matches.size());
   }
@@ -77,7 +77,7 @@ public class AlertDtoTest {
     sut.setLabels(labels);
 
     var matches =
-        sut.matches("testing", Stream.of("vidarr-clinical", "bamqc4"), configLabels)
+        sut.matches(autoInhibit, "testing", configLabels, Stream.of("vidarr-clinical", "bamqc4"))
             .collect(Collectors.toList());
     assertEquals(0, matches.size());
   }
@@ -94,7 +94,7 @@ public class AlertDtoTest {
     sut.setLabels(labels);
 
     var matches =
-        sut.matches("testing", Stream.of("vidarr-clinical", "bamqc4"), configLabels)
+        sut.matches(autoInhibit, "testing", configLabels, Stream.of("vidarr-clinical", "bamqc4"))
             .collect(Collectors.toList());
     assertEquals(0, matches.size());
   }

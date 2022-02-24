@@ -1,5 +1,5 @@
 import ca.on.oicr.gsi.vidarr.ConsumableResourceProvider;
-import ca.on.oicr.gsi.vidarr.prometheus.PrometheusAlertManagerConsumableResource;
+import ca.on.oicr.gsi.vidarr.prometheus.AlertmanagerAutoInhibitConsumableResource;
 
 module ca.on.oicr.gsi.vidarr.prometheus {
   requires ca.on.oicr.gsi.vidarr.pluginapi;
@@ -12,5 +12,5 @@ module ca.on.oicr.gsi.vidarr.prometheus {
       com.fasterxml.jackson.databind;
 
   provides ConsumableResourceProvider with
-      PrometheusAlertManagerConsumableResource;
+      AlertmanagerAutoInhibitConsumableResource;
 }

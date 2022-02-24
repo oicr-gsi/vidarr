@@ -175,6 +175,9 @@ public abstract class DatabaseBackedProcessor
 
   private static Stream<String> checkConsumableResource(
       Map<String, JsonNode> consumableResources, Pair<String, BasicType> resource) {
+    if (consumableResources == null) {
+      return Stream.of(String.format("Missing consumableResources attribute"));
+    }
     return consumableResources.containsKey(resource.first())
         ? resource
             .second()

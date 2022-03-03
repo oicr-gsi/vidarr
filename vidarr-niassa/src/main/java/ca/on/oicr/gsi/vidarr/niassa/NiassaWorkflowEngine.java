@@ -16,6 +16,8 @@ import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Stream;
@@ -267,15 +269,43 @@ public class NiassaWorkflowEngine implements WorkflowEngine {
                 context.fetch(String.format(AP_QUERY, workflowRunSWID));
 
             // Get elements from each result and put into JSON
+            Map<String, Integer> pathAndFileSwid = new HashMap<>();
             for (Record result : results) {
+              String filePath = result.get(PostgresDSL.field("filePath")).toString();
               String fileSWID = result.get(PostgresDSL.field("fileId")).toString();
+              // check if we've already seen this file path - we only want one file path, the one
+              // with the max (most recent) fileSwid
+              var currentFileSwidInt = Integer.parseInt(fileSWID);
+              var swidForPreviouslySeenFilePathInt = pathAndFileSwid.get(filePath);
+              if (swidForPreviouslySeenFilePathInt != null
+                  && currentFileSwidInt < swidForPreviouslySeenFilePathInt) {
+                // current fileSwid is older than previously-processed fileSwid, so ignore it
+                continue;
+              } else if (swidForPreviouslySeenFilePathInt != null
+                  && currentFileSwidInt > swidForPreviouslySeenFilePathInt) {
+                // current fileSwid is newer than previously-processed fileSwid, so remove the old
+                // fileSwid and all its file details
+                for (int i = 0; i < migrationArray.size(); i++) {
+                  if (migrationArray
+                      .get(i)
+                      .get("fileSWID")
+                      .textValue()
+                      .equals(String.valueOf(swidForPreviouslySeenFilePathInt))) {
+                    migrationArray.remove(i);
+                    break;
+                  }
+                }
+              }
+              // add the current fileSwid details
+              pathAndFileSwid.put(filePath, currentFileSwidInt);
+
               ObjectNode file = MAPPER.createObjectNode().put("fileSWID", fileSWID);
               ObjectNode left =
                   MAPPER
                       .createObjectNode()
                       .put("md5", result.get(PostgresDSL.field("fileMd5sum")).toString())
                       .put("fileSize", result.get(PostgresDSL.field("fileSize")).toString())
-                      .put("path", result.get(PostgresDSL.field("filePath")).toString())
+                      .put("path", filePath)
                       .put("metatype", result.get(PostgresDSL.field("fileMetaType")).toString());
               ObjectNode right = MAPPER.createObjectNode().put("niassa-file-accession", fileSWID);
               Object fileAttributesObj = result.get(PostgresDSL.field("fileAttributes"));

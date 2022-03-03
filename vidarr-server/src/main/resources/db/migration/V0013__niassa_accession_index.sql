@@ -1,0 +1,1 @@
+CREATE INDEX niassa_index ON analysis ((labels ->> 'niassa-file-accession'));

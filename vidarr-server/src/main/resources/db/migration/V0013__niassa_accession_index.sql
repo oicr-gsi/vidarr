@@ -1,1 +1,1 @@
-CREATE INDEX niassa_index ON analysis ((labels ->> 'niassa-file-accession'));
+CREATE INDEX niassa_file_swid_index ON analysis ((labels ->> 'niassa-file-accession'));

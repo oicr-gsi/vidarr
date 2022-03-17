@@ -6,6 +6,21 @@ For unreleased changes, see [changes](changes).
 
 -----------------------------------------------------------------------------
 
+## [0.6.0] - 2022-03-17
+
+### Added
+
+* Index on niassa-file-accession
+
+### Changed
+
+* Clarify design and configuration for prometheus plugin to throttle on AutoInhibit alerts
+
+### Fixed
+
+* Deduplicate migration file paths
+
+
 ## [0.5.0] 2022-01-28
 
 ### Added

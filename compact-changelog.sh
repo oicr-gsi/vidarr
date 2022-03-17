@@ -9,7 +9,7 @@ if [[ ! $# -eq 1 ]]; then
 fi
 
 CHANGE_DIR=changes
-CHANGELOG=RELEASE_NOTES.md
+CHANGELOG=CHANGELOG.md
 RELEASE_VERSION=$1
 DATE=$(date +%Y-%m-%d)
 TEMP_FILE="temp_changes.md"

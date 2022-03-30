@@ -1,3 +1,3 @@
 Jira ticket:
 
-- [] Includes a change file
+- [ ] Includes a change file

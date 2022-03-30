@@ -75,11 +75,13 @@ public class AlertDto {
       return Stream.empty();
     }
 
-    Set<String> targetValues = valuesOfInterest.collect(Collectors.toSet());
+    // Lowercase to guard against bespoke workflow names
+    Set<String> targetValues =
+        valuesOfInterest.map(v -> v.toLowerCase()).collect(Collectors.toSet());
 
     return labelsOfInterest.stream()
         .filter(labels::hasNonNull)
-        .filter(l -> targetValues.contains(labels.get(l).asText("")))
+        .filter(l -> targetValues.contains(labels.get(l).asText("").toLowerCase()))
         .map(l -> labels.get(l).asText(""));
   }
 

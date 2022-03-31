@@ -121,7 +121,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Semaphore;
@@ -479,7 +478,6 @@ public final class Main implements ServerConfig {
   private final Map<String, InputProvisioner> inputProvisioners;
   private final Semaphore loadCounter = new Semaphore(3);
   private final MaxInFlightByWorkflow maxInFlightPerWorkflow = new MaxInFlightByWorkflow();
-  private final Map<String, Optional<FileMetadata>> metadataCache = new ConcurrentHashMap<>();
   private final Map<String, String> otherServers;
   private final Map<String, OutputProvisioner> outputProvisioners;
   private final int port;
@@ -732,7 +730,7 @@ public final class Main implements ServerConfig {
 
           @Override
           public Optional<FileMetadata> pathForId(String id) {
-            return metadataCache.computeIfAbsent(id, this::fetchPathForId);
+            return this.fetchPathForId(id);
           }
 
           @Override

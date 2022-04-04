@@ -6,6 +6,21 @@ For unreleased changes, see [changes](changes).
 
 -----------------------------------------------------------------------------
 
+## [0.7.0] - 2022-04-04
+
+### Added
+
+* Add configuration for Dependabot
+
+### Changed
+
+* Do case-insensitive matching for Prometheus Alertmanager alerts
+
+### Fixed
+
+* Fix issue where unloading a file and loading in a new file with the same hash_id would cause the old file path to be used.
+
+
 ## [0.6.0] - 2022-03-17
 
 ### Added

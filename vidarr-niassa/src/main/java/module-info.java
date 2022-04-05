@@ -9,7 +9,7 @@ module ca.on.oicr.gsi.vidarr.niassa {
   requires sshj;
   requires org.jooq;
   requires java.sql;
-  requires HikariCP;
+  requires com.zaxxer.hikari;
 
   opens ca.on.oicr.gsi.vidarr.niassa to
       com.fasterxml.jackson.annotation,

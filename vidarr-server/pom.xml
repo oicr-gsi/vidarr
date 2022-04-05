@@ -10,10 +10,6 @@
     <relativePath>../pom.xml</relativePath>
   </parent>
 
-  <properties>
-    <jooq.version>3.16.5</jooq.version>
-  </properties>
-
   <dependencies>
     <dependency>
       <groupId>com.fasterxml.jackson.core</groupId>

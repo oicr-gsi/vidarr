@@ -1,0 +1,75 @@
+{
+  "workflowRuns": [
+    {
+      "analysis": [
+        {
+          "created": "2022-04-19T12:00:00Z",
+          "externalKeys": [
+            {
+              "id": "blah",
+              "provider": "quux"
+            }
+          ],
+          "id": "2d37c34650bdd32850f7512bd46f978e19862a3161f0fce9d493a9108916a8cf",
+          "labels": {},
+          "modified": "2022-04-19T12:00:00Z",
+          "type": "url",
+          "url": "http://example.com"
+        }
+      ],
+      "arguments": {
+        "hi": "world"
+      },
+      "completed": "2022-04-19T12:00:00Z",
+      "created": "2022-04-19T12:00:00Z",
+      "engineParameters": {},
+      "externalKeys": [
+        {
+          "id": "blah",
+          "provider": "quux",
+          "versions": {
+            "aaaaaaa": [
+              "12"
+            ]
+          }
+        }
+      ],
+      "id": "cbc8ad81b733696d645b42cc08760f4e7c70228a971f4ff2ec1eb0952f18e682",
+      "inputFiles": [
+        "vidarr:really_prod/file/adjlkafdslkdfasjlkdfas"
+      ],
+      "instanceName": "really_prod",
+      "labels": {},
+      "metadata": {
+        "foo": {
+          "id": "blah",
+          "provider": "quux"
+        }
+      },
+      "modified": "2022-04-19T12:00:00Z",
+      "started": "2022-04-19T12:00:00Z",
+      "workflowName": "foo",
+      "workflowVersion": "1.0"
+    }
+  ],
+  "workflowVersions": [
+    {
+      "language": "UNIX_SHELL",
+      "name": "foo",
+      "outputs": {
+        "foo": "file"
+      },
+      "parameters": {
+        "hi": "string"
+      },
+      "version": "1.0",
+      "workflow": "exit 0"
+    }
+  ],
+  "workflows": [
+    {
+      "labels": {},
+      "name": "foo"
+    }
+  ]
+}

@@ -13,6 +13,11 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
           name = "missing-key-version"),
   @JsonSubTypes.Type(value = SubmitWorkflowResponseSuccess.class, name = "success")
 })
-public abstract class SubmitWorkflowResponse {
+public abstract sealed class SubmitWorkflowResponse
+    permits SubmitWorkflowResponseConflict,
+        SubmitWorkflowResponseDryRun,
+        SubmitWorkflowResponseFailure,
+        SubmitWorkflowResponseMissingKeyVersions,
+        SubmitWorkflowResponseSuccess {
   SubmitWorkflowResponse() {}
 }

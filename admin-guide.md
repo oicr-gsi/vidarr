@@ -12,7 +12,7 @@ See [Víðarr Code Style](code-style.md) for preferred code formatting.
 ## System Operations Guide
 Running a Víðarr instance requires:
 
-- Java 14 or later
+- Java 17 or later
 - PostgreSQL 12 or later
 - Maven (for building, not required on installation machine)
 - Docker (for building, not required on installation machine)
@@ -35,7 +35,7 @@ Pull all the JARs required for Víðarr and its plugins into a directory, say `/
 It can be easiest to launch Víðarr with a shellscript as follows stored in `/srv/vidarr/run`:
 
     #!/bin/sh
-    exec /usr/lib/jvm/java-14-openjdk-amd64/bin/java -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:7000 --module-path $(ls /srv/vidarr/jars/*.jar|tr '\n' :) -m ca.on.oicr.gsi.vidarr.server/ca.on.oicr.gsi.vidarr.server.Main "$@"
+    exec /usr/lib/jvm/java-17-openjdk-amd64/bin/java -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:7000 --module-path $(ls /srv/vidarr/jars/*.jar|tr '\n' :) -m ca.on.oicr.gsi.vidarr.server/ca.on.oicr.gsi.vidarr.server.Main "$@"
 
 To start Víðarr using systemd, create a `vidarr.service` as follows:
 
@@ -159,7 +159,7 @@ service. It will automatically upgrade the database schema on start.
 For workflow developers, it is also useful to install a `/srv/vidarr/cli` script:
 
     #!/bin/sh
-    exec /usr/lib/jvm/java-14-openjdk-amd64/bin/java -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:7071 --module-path $(ls /srv/vidarr/jars/*.jar|tr '\n' :) -m ca.on.oicr.gsi.vidarr.cli/ca.on.oicr.gsi.vidarr.cli.Main "$@"
+    exec /usr/lib/jvm/java-17-openjdk-amd64/bin/java -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:7071 --module-path $(ls /srv/vidarr/jars/*.jar|tr '\n' :) -m ca.on.oicr.gsi.vidarr.cli/ca.on.oicr.gsi.vidarr.cli.Main "$@"
 
 This file does _not_ have to be on the Víðarr server and a copy of JARs and this script can be placed on another server. They will also need a configuration file to be able to run workflows in testing. It is a reduced form of the main configuration file:
 

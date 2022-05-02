@@ -44,7 +44,7 @@ interfaces should behave.
 Additionally, plugins communicate with the outside world through the types they
 expect. A description of the types is provided in
 `ca.on.oicr.gsi.vidarr.SimpleType` and the format for the values is meant to be
-compatible with Shemsu's.
+compatible with Shesmu's.
 
 Plugins are meant to run asynchronously. Most plugins are given a `WorkMonitor`
 instance which allows a plugin to communicate back to Víðarr and schedule

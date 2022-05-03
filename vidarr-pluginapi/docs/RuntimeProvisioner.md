@@ -5,9 +5,7 @@ RuntimeProvisioner is part of the Vidarr plugin API. For an overview, please ref
 
 RuntimeProvisioners are one of the three types of Provisioner service defined by the plugin API. Implementations of this
 interface are responsible for collecting metadata generated _during_ a workflow run, and storing the metadata via an 
-[OutputProvisioner](./OutputProvisioner.md). 
-<!-- TODO: is that entirely accurate? It makes heavy use of OutputProvisioner.Result but idk if it's supposed to use 
-the whole Provisioner -->
+[OutputProvisioner](./OutputProvisioner.md).Result.
 
 Plugins providing the RuntimeProvisioner service must implement 
 [RuntimeProvisioner](../src/main/java/ca/on/oicr/gsi/vidarr/RuntimeProvisioner.java) and 
@@ -54,7 +52,9 @@ status page.
 [WorkflowEngine.Result](../src/main/java/ca/on/oicr/gsi/vidarr/WorkflowEngine.java)'s `workflowRunUrl()`
   * The [WorkMonitor](./WorkMonitor.md) parameter is used for scheduling tasks and journaling the output
 of the provisioning process. <!-- TODO: right? -->
-    * The first generic type is the output type used by the WorkMonitor
+    * The first generic type is the output type used by the WorkMonitor. This means when calling `monitor.complete()`, 
+etc, use the static methods `Result.file()` or `Result.url()` to create new Result records. See
+[OutputProvisioner](./OutputProvisioner.md).Result for more information.
     * The second generic type is the format of the state records
   * The return value is used by a WrappedMonitor in
 [BaseProcessor.Phase3Run](../../vidarr-core/src/main/java/ca/on/oicr/gsi/vidarr/core/BaseProcessor.java) to serialize
@@ -63,7 +63,9 @@ the journal to the database <!-- TODO: I think? -->
 `void recover(JsonNode, WorkMonitor<OutputProvisioner.Result, JsonNode>)`: Every plugin journals its state to the
 database. In the case that the Vidarr server stops and is restarted, the `recover()` method on every plugin is called. 
 This method should be able to rebuild its full state from the `JsonNode` it receives from the database (containing the 
-journal) in the first parameter. It should then schedule the appropriate next step with the `WorkMonitor`.
+journal) in the first parameter. It should then schedule the appropriate next step with the `WorkMonitor`, calling using
+the static methods `Result.file()` or `Result.url()` to create new Result records as appropriate. See
+[OutputProvisioner](./OutputProvisioner.md).Result for more information..
 
 `void startup()`: Method called on server startup to initialize the plugin. Actual reading of configuration information
 does not need to happen due to jackson-databind. Configuration information is used here to do any setup required,

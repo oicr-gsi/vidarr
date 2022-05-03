@@ -22,6 +22,7 @@ standardized behaviour.
 ```mermaid
 classDiagram
   class RuntimeProvisioner
+  <<interface>> RuntimeProvisioner
   RuntimeProvisioner : configuration(SectionRenderer)
   RuntimeProvisioner : name() String
   RuntimeProvisioner : provision(String, WorkMonitor~OutputProvisioner.Result, JsonNode~) JsonNode

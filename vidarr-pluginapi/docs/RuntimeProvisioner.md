@@ -66,7 +66,7 @@ database. In the case that the Vidarr server stops and is restarted, the `recove
 This method should be able to rebuild its full state from the `JsonNode` it receives from the database (containing the 
 journal) in the first parameter. It should then schedule the appropriate next step with the `WorkMonitor`, calling using
 the static methods `Result.file()` or `Result.url()` to create new Result records as appropriate. See
-[OutputProvisioner](./OutputProvisioner.md).Result for more information..
+[OutputProvisioner](./OutputProvisioner.md).Result for more information.
 
 `void startup()`: Method called on server startup to initialize the plugin. Actual reading of configuration information
 does not need to happen due to jackson-databind. Configuration information is used here to do any setup required,

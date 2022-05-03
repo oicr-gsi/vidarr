@@ -19,7 +19,7 @@ The `Result` internal class stores metadata about successful provisioning.
 information that a Provisioner may provision. Therefore, this abstract class is not meant to be extended outside of
 itself - the private constructor prevents it. `new` implementations of Result are found within in the bodies of 
 `file()`, `url()`, and any other new types that may be added in future development. The only requirement for 
-these internal implementations is `visit`, which takes a `ResultVisitor` and passes parameter values to the its
+these internal implementations is `visit`, which takes a `ResultVisitor` and passes parameter values to its
 corresponding type method. 
 
 `public static Result file(String, String, long, String)` enables a `ResultVisitor` to process a file with the specified

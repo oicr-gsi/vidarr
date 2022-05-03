@@ -18,7 +18,7 @@ The `Result` internal class stores metadata about successful provisioning.
 [Visitor pattern](https://en.wikipedia.org/wiki/Visitor_pattern) to provide extensibility in the types of 
 information that a Provisioner may provision. Therefore, this abstract class is not meant to be extended outside of
 itself - the private constructor prevents it. `new` implementations of Result are found within in the bodies of 
-`file()`, `url()`, and any other new types that may be added in future development. The only requirement for 
+`file()`, `url()`, and any other new static methods that may be added in future development. The only requirement for 
 these internal implementations is `visit`, which takes a `ResultVisitor` and passes parameter values to its
 corresponding type method. 
 

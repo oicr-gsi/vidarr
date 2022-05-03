@@ -32,7 +32,7 @@ classDiagram
 ```
 [RuntimeProvisioner](../src/main/java/ca/on/oicr/gsi/vidarr/RuntimeProvisioner.java) is an interface which must be 
 implemented by the class providing the service logic. Implementation
-classes are generally named `(ExternalService)RuntimeProvisioner`. Like the other Provisioner interfaces, 
+classes are named `(ExternalService)RuntimeProvisioner`. Like the other Provisioner interfaces, 
 RuntimeProvisioner uses [jackson-databind](https://github.com/FasterXML/jackson-databind) to map information taken from
 the server's `(environment).vidarrconfig` file to member non-static fields. Use the `@JsonIgnore` annotation to prevent
 this mapping from happening, if necessary.
@@ -52,7 +52,7 @@ status page.
 `JsonNode provision(String, WorkMonitor<OutputProvisioner.Result, JsonNode>)`: Start the provisioning process. 
   * the value of the `String` parameter will be the URL provided by
 [WorkflowEngine.Result](../src/main/java/ca/on/oicr/gsi/vidarr/WorkflowEngine.java)'s `workflowRunUrl()`
-  * The [WorkMonitor](./WorkMonitor.md) parameter is used for journaling the output
+  * The [WorkMonitor](./WorkMonitor.md) parameter is used for scheduling tasks and journaling the output
 of the provisioning process. <!-- TODO: right? -->
     * The first generic type is the output type used by the WorkMonitor
     * The second generic type is the format of the state records
@@ -68,7 +68,7 @@ journal) in the first parameter. It should then schedule the appropriate next st
 `void startup()`: Method called on server startup to initialize the plugin. Actual reading of configuration information
 does not need to happen due to jackson-databind. Configuration information is used here to do any setup required,
 e.g. passing username and password from configuration information to an SSH client to initialize a connection. If any 
-configuration information is invalid, the developer mustpurposefully throw a RuntimeException to prevent server 
+configuration information is invalid, the developer must purposefully throw a RuntimeException to prevent server 
 startup.
 
 ## RuntimeProvisionerProvider

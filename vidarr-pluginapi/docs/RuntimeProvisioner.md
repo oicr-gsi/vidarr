@@ -51,8 +51,8 @@ status page.
 `JsonNode provision(String, WorkMonitor<OutputProvisioner.Result, JsonNode>)`: Start the provisioning process. 
   * the value of the `String` parameter will be the URL provided by
 [WorkflowEngine.Result](../src/main/java/ca/on/oicr/gsi/vidarr/WorkflowEngine.java)'s `workflowRunUrl()`
-  * The [WorkMonitor](./WorkMonitor.md) parameter is used for scheduling tasks and journaling the output
-of the provisioning process. <!-- TODO: right? -->
+  * The [WorkMonitor](../src/main/java/ca/on/oicr/gsi/vidarr/WorkMonitor.java) object is used for scheduling tasks 
+which will journal the output of the provisioning process. 
     * The first generic type is the output type used by the WorkMonitor. This means when calling `monitor.complete()`, 
 etc, use the static methods `Result.file()` or `Result.url()` to create new Result records. See
 [OutputProvisioner](./OutputProvisioner.md).Result for more information.

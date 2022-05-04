@@ -53,19 +53,20 @@ status page.
 [WorkflowEngine.Result](../src/main/java/ca/on/oicr/gsi/vidarr/WorkflowEngine.java)'s `workflowRunUrl()`
   * The [WorkMonitor](../src/main/java/ca/on/oicr/gsi/vidarr/WorkMonitor.java) object is used for scheduling tasks 
 which will journal the output of the provisioning process. 
-    * The first generic type is the output type used by the WorkMonitor. This means when calling `monitor.complete()`, 
+    * The first generic type is the output type used by the WorkMonitor. This means when calling 
+`monitor.scheduleTask(() -> {[...]; monitor.complete();})`, 
 etc, use the static methods `Result.file()` or `Result.url()` to create new Result records. See
 [OutputProvisioner](./OutputProvisioner.md).Result for more information.
     * The second generic type is the format of the state records
   * The return value is used by a WrappedMonitor in
 [BaseProcessor.Phase3Run](../../vidarr-core/src/main/java/ca/on/oicr/gsi/vidarr/core/BaseProcessor.java) to serialize
-the journal to the database <!-- TODO: I think? -->
+the journal to the database
 
 `void recover(JsonNode, WorkMonitor<OutputProvisioner.Result, JsonNode>)`: Every plugin journals its state to the
 database. In the case that the Vidarr server stops and is restarted, the `recover()` method on every plugin is called. 
 This method should be able to rebuild its full state from the `JsonNode` it receives from the database (containing the 
-journal) in the first parameter. It should then schedule the appropriate next step with the `WorkMonitor`, calling using
-the static methods `Result.file()` or `Result.url()` to create new Result records as appropriate. See
+journal) in the first parameter. It should then schedule the appropriate next step with `monitor.scheduleTask()`, 
+calling using the static methods `Result.file()` or `Result.url()` to create new Result records when appropriate. See
 [OutputProvisioner](./OutputProvisioner.md).Result for more information.
 
 `void startup()`: Method called on server startup to initialize the plugin. Actual reading of configuration information

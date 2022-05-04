@@ -37,6 +37,8 @@ public interface WorkMonitor<T, S> {
   /**
    * The task is complete
    *
+   * Do not call directly from plugin. Call inside the Runnable parameter of {@link #scheduleTask(Runnable)}
+   *
    * <p>This can only be called once and cannot be called if {@link #permanentFailure(String)} has
    * been called.
    *
@@ -54,6 +56,8 @@ public interface WorkMonitor<T, S> {
 
   /**
    * Indicate that the task is unrecoverably broken
+   *
+   * Do not call directly from plugin. Call inside the Runnable parameter of {@link #scheduleTask(Runnable)}
    *
    * <p>Once called, the workflow and related provisioning steps will be considered a failure.
    *

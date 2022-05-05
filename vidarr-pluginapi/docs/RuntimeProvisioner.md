@@ -79,8 +79,8 @@ startup.
 <!-- TODO: Make a Mermaid diagram for RuntimeProvisionerProvider once nested generics are supported -->
 The [RuntimeProvisionerProvider](../src/main/java/ca/on/oicr/gsi/vidarr/RuntimeProvisionerProvider.java) interface
 is used to instantiate the corresponding Provisioner. It can be implemented as a separate class or by a method with
-signature `public static OutputProvisionerProvider provider()` in the corresponding Provisioner. 
-<!-- TODO: how does that work? -->
+signature `public static OutputProvisionerProvider provider()` in the corresponding Provisioner. For more information,
+see [the ServiceLoader javadoc](https://docs.oracle.com/javase/9/docs/api/java/util/ServiceLoader.html).
 
 This class is used by the ServiceLoader to discover RuntimeProvisioners through the module system. The 
 `module-info.java` must specify which class `provides` RuntimeProvisionerProvider.

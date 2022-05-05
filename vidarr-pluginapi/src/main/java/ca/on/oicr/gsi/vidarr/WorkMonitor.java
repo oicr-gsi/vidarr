@@ -14,8 +14,10 @@ import java.util.concurrent.TimeUnit;
  * complete() and permanentFailure() are not to be called directly, but rather inside the Runnable parameter of
  * a call to scheduleTask(). This is to prevent database corruption - Vidarr needs to wait for database
  * transactions to complete before doing any scheduled tasks, including marking tasks as completed or failed.
- * Calling these methods directly would risk trying to write after that transaction rolls back in an error state.
- * See vidarr-core BaseProcessor.java's startNextPhase() and vidarr-server DatabaseWorkflow's phase()
+ * Calling these methods directly would risk trying to write during or after that transaction rolls back in an
+ * error state.
+ * See vidarr-core BaseProcessor.java's startNextPhase(), BaseProcessor's BaseOperationMonitor,
+ * and vidarr-server DatabaseWorkflow's phase()
  *
  * @param <T> the output type expected from the task
  * @param <S> the format state information is stored in

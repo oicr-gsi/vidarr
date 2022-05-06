@@ -52,7 +52,9 @@ public class CromwellOutputProvisioner
           new Pair<>(".seg", "application/seg"),
           new Pair<>(".Rdata", "application/rdata"),
           new Pair<>(".RData", "application/rdata"),
-          new Pair<>("", "application/octet-stream"));
+          new Pair<>("", "application/octet-stream"),
+          new Pair<>(".cram", "application/cram"),
+          new Pair<>(".crai", "application/cram-index"));
 
   public static OutputProvisionerProvider provider() {
     return () -> Stream.of(new Pair<>("cromwell", CromwellOutputProvisioner.class));

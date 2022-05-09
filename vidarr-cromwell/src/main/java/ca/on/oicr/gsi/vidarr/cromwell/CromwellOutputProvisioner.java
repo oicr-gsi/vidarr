@@ -55,11 +55,6 @@ public class CromwellOutputProvisioner
           new Pair<>(".cram", "application/cram"),
           new Pair<>(".crai", "application/cram-index"),
           new Pair<>("", "application/octet-stream"));
-This branch has not been deployed
-No deployments
-Changes requested
-1 review requesting changes and 1 approving review
-
 
   public static OutputProvisionerProvider provider() {
     return () -> Stream.of(new Pair<>("cromwell", CromwellOutputProvisioner.class));

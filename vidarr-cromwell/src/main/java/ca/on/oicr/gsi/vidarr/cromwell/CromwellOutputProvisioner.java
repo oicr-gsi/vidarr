@@ -52,6 +52,8 @@ public class CromwellOutputProvisioner
           new Pair<>(".seg", "application/seg"),
           new Pair<>(".Rdata", "application/rdata"),
           new Pair<>(".RData", "application/rdata"),
+          new Pair<>(".cram", "application/cram"),
+          new Pair<>(".crai", "application/cram-index"),
           new Pair<>("", "application/octet-stream"));
 
   public static OutputProvisionerProvider provider() {

@@ -81,7 +81,7 @@
       <dependency>
         <groupId>io.prometheus</groupId>
         <artifactId>simpleclient</artifactId>
-        <version>0.9.0</version>
+        <version>0.15.0</version>
       </dependency>
       <dependency>
         <groupId>io.prometheus</groupId>
@@ -91,7 +91,7 @@
       <dependency>
         <groupId>io.prometheus</groupId>
         <artifactId>simpleclient_hotspot</artifactId>
-        <version>0.9.0</version>
+        <version>0.15.0</version>
       </dependency>
       <dependency>
         <groupId>org.jooq</groupId>
@@ -111,7 +111,7 @@
       <dependency>
         <groupId>org.postgresql</groupId>
         <artifactId>postgresql</artifactId>
-        <version>42.3.3</version>
+        <version>42.3.5</version>
       </dependency>
       <dependency>
         <groupId>ca.on.oicr.gsi</groupId>

@@ -6,7 +6,7 @@
   <version>0.7.1-SNAPSHOT</version>
   <packaging>pom</packaging>
   <properties>
-    <jooq.version>3.16.5</jooq.version>
+    <jooq.version>3.16.6</jooq.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <rest-assured.version>5.0.0</rest-assured.version>
     <swagger-core-version>1.5.18</swagger-core-version>

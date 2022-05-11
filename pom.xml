@@ -6,9 +6,9 @@
   <version>0.7.1-SNAPSHOT</version>
   <packaging>pom</packaging>
   <properties>
-    <jooq.version>3.16.5</jooq.version>
+    <jooq.version>3.16.6</jooq.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <rest-assured.version>5.0.0</rest-assured.version>
+    <rest-assured.version>5.0.1</rest-assured.version>
     <swagger-core-version>1.5.18</swagger-core-version>
   </properties>
   <repositories>
@@ -213,7 +213,7 @@
       <plugin>
         <groupId>com.cosium.code</groupId>
         <artifactId>git-code-format-maven-plugin</artifactId>
-        <version>3.1</version>
+        <version>3.3</version>
         <executions>
           <execution>
             <id>install-formatter-hook</id>

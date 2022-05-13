@@ -307,7 +307,7 @@ public final class Main implements ServerConfig {
   private static Field<?> createQueryOnVersion(
       Function<ExternalIdVersion, Field<?>> fieldConstructor, Set<String> allowedTypes) {
     var condition = EXTERNAL_ID.ID.eq(EXTERNAL_ID_VERSION.EXTERNAL_ID_ID);
-    if (allowedTypes != null) {
+    if (allowedTypes != null && allowedTypes.size() != 0) {
       condition = condition.and(EXTERNAL_ID_VERSION.KEY.in(allowedTypes));
     }
     final var externalIdVersionAlias = EXTERNAL_ID_VERSION.as("externalIdVersionInner");

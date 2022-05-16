@@ -22,8 +22,10 @@ import javax.xml.stream.XMLStreamException;
  * A mechanism to collect metrics and log data from a workflow and push it into an appropriate data
  * store
  *
- * <p>It does not operate on individual output from a workflow run, but simply on the workflow run
- * itself, provided by an identifier that connects it to the workflow engine that ran it.
+ * <p>It does not operate on individual output from a workflow run, but on the workflow run
+ * itself, provided by an identifier that connects it to the workflow engine that ran it. This distinguishes the
+ * RuntimeProvisioner from the OutputProvisioner - RuntimeProvisioners run once per workflow run; OutputProvisioners
+ * run once per output file (potentially many times per workflow run). Both are called at the end of the RUNNING phase.
  *
  * RuntimeProvisioner uses jackson-databind to map information from the server's '.vidarrconfig' file to
  * member non-static fields. The @JsonIgnore annotation prevents this.

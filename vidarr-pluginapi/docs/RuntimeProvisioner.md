@@ -5,7 +5,9 @@ RuntimeProvisioner is part of the Vidarr plugin API. For an overview, please ref
 
 RuntimeProvisioners are one of the three types of Provisioner service defined by the plugin API. Implementations of this
 interface are responsible for collecting metadata generated _during_ a workflow run, and storing the metadata via an 
-[OutputProvisioner](./OutputProvisioner.md).Result.
+[OutputProvisioner](./OutputProvisioner.md).Result. RuntimeProvisioners run _once per workflow run_, which is in
+contrast to OutputProvisioners which run once per _output file_. Both are launched when the __RUNNING__ phase of 
+execution has completed.
 
 Plugins providing the RuntimeProvisioner service must implement 
 [RuntimeProvisioner](../src/main/java/ca/on/oicr/gsi/vidarr/RuntimeProvisioner.java) and 

@@ -46,6 +46,7 @@ import org.postgresql.ds.PGSimpleDataSource;
 import org.testcontainers.containers.JdbcDatabaseContainer;
 
 public class MainIntegrationTest {
+
   @ClassRule
   public static JdbcDatabaseContainer pg =
       DatabaseBackedTestConfiguration.getTestDatabaseContainer();
@@ -935,6 +936,36 @@ public class MainIntegrationTest {
   }
 
   @Test
+  public void
+      whenGetProvenanceRecordsLatestVersions_VersionTypesNotSpecified_thenReturnLatestVersion() {
+    var requestBody =
+        buildProvenanceRequestBody("LATEST", Instant.ofEpochMilli(0), Instant.ofEpochMilli(0));
+    requestBody.put("versionTypes", "");
+    var results =
+        given()
+            .contentType(ContentType.JSON)
+            .body(requestBody)
+            .when()
+            .post("/api/provenance")
+            .then()
+            .assertThat()
+            .statusCode(200)
+            .and()
+            .extract()
+            .body()
+            .as(ProvenanceResponse.class)
+            .getResults();
+    var externalKeysList =
+        results.stream().map(r -> r.get("externalKeys")).collect(Collectors.toSet());
+    externalKeysList.forEach(
+        ekl ->
+            ekl.forEach(
+                ek -> {
+                  assertTrue(ek.get("versions") != null || !ek.get("versions").isNull());
+                }));
+  }
+
+  @Test
   public void whenGetProvenanceAfterGivenTimestamp_thenRecordsAfterGivenTimestampAreReturned()
       throws ParseException {
     var requestAllRecords =
@@ -1517,6 +1548,7 @@ public class MainIntegrationTest {
   }
 
   private static class ProvenanceResponse {
+
     public ProvenanceResponse() {}
 
     long epoch;

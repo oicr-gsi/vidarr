@@ -936,11 +936,40 @@ public class MainIntegrationTest {
   }
 
   @Test
-  public void
-      whenGetProvenanceRecordsLatestVersions_VersionTypesNotSpecified_thenReturnLatestVersion() {
+  public void whenGetProvenanceRecordsLatestVersion_VersionTypesNull_thenReturnLatestVersion() {
     var requestBody =
         buildProvenanceRequestBody("LATEST", Instant.ofEpochMilli(0), Instant.ofEpochMilli(0));
-    requestBody.put("versionTypes", "");
+    requestBody.putNull("versionTypes"); // versionTypes is null
+    var results =
+        given()
+            .contentType(ContentType.JSON)
+            .body(requestBody)
+            .when()
+            .post("/api/provenance")
+            .then()
+            .assertThat()
+            .statusCode(200)
+            .and()
+            .extract()
+            .body()
+            .as(ProvenanceResponse.class)
+            .getResults();
+    var externalKeysList =
+        results.stream().map(r -> r.get("externalKeys")).collect(Collectors.toSet());
+    externalKeysList.forEach(
+        ekl ->
+            ekl.forEach(
+                ek -> {
+                  assertTrue(ek.get("versions") != null || !ek.get("versions").isNull());
+                }));
+  }
+
+  @Test
+  public void
+      whenGetProvenanceRecordsLatestVersion_VersionTypesNotSpecified_thenReturnLatestVersion() {
+    var requestBody =
+        buildProvenanceRequestBody("LATEST", Instant.ofEpochMilli(0), Instant.ofEpochMilli(0));
+    requestBody.remove("versionTypes"); // Version types is not specified
     var results =
         given()
             .contentType(ContentType.JSON)

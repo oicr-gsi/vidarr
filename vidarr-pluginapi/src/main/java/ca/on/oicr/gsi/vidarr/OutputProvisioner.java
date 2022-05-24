@@ -20,14 +20,16 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 import javax.xml.stream.XMLStreamException;
 
-/** A mechanism to collect output data from a workflow and push it into an appropriate data store
+/**
+ * A mechanism to collect output data from a workflow and push it into an appropriate data store
  *
- * OutputProvisioners run once per output file for a workflow run. This is different from the RuntimeProvisioner,
- * which executes once per workflow run. Both are called at the end of the RUNNING phase.
+ * <p>OutputProvisioners run once per output file for a workflow run. This is different from the
+ * RuntimeProvisioner, which executes once per workflow run. Both are called at the end of the
+ * RUNNING phase.
  *
- * OutputProvisioner uses jackson-databind to map information from the server's '.vidarrconfig' file to
- * member non-static fields. The @JsonIgnore annotation prevents this.
- * */
+ * <p>OutputProvisioner uses jackson-databind to map information from the server's '.vidarrconfig'
+ * file to member non-static fields. The @JsonIgnore annotation prevents this.
+ */
 @JsonTypeIdResolver(OutputProvisioner.OutputProvisionerIdResolver.class)
 @JsonTypeInfo(use = JsonTypeInfo.Id.CUSTOM, include = As.PROPERTY, property = "type")
 public interface OutputProvisioner {
@@ -77,7 +79,7 @@ public interface OutputProvisioner {
     void file(String storagePath, String md5, long size, String metatype);
 
     /**
-     * The output is a reference to another system
+     * The output is a reference to another system *
      *
      * @param url the URL that describes how to find the output in the remote system
      */

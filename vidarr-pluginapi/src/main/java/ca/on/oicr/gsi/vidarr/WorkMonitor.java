@@ -11,12 +11,13 @@ import java.util.concurrent.TimeUnit;
  * scheduling or process behaviour on plugins. Plugins may manage their tasks however they please
  * and asynchronously report their status back to Vidarr using a monitor.
  *
- * complete() and permanentFailure() are not to be called directly, but rather inside the Runnable parameter of
- * a call to scheduleTask(). This is to prevent database corruption - Vidarr needs to wait for database
- * transactions to complete before doing any scheduled tasks, including marking tasks as completed or failed.
- * Calling these methods directly would risk trying to write during or after that transaction rolls back in an
- * error state.
- * See vidarr-core BaseProcessor.java's startNextPhase(), BaseProcessor's BaseOperationMonitor,
+ * <p>complete() and permanentFailure() are not to be called directly, but rather inside the
+ * Runnable parameter of a call to scheduleTask(). This is to prevent database corruption - Vidarr
+ * needs to wait for database transactions to complete before doing any scheduled tasks, including
+ * marking tasks as completed or failed. Calling these methods directly would risk trying to write
+ * during or after that transaction rolls back in an error state.
+ *
+ * <p>See vidarr-core BaseProcessor.java's startNextPhase(), BaseProcessor's BaseOperationMonitor,
  * and vidarr-server DatabaseWorkflow's phase()
  *
  * @param <T> the output type expected from the task
@@ -45,8 +46,8 @@ public interface WorkMonitor<T, S> {
   /**
    * The task is complete
    *
-   * Do not call directly from plugin. Call inside the Runnable parameter of {@link #scheduleTask(Runnable)}
-   * This is to prevent database corruption.
+   * <p>Do not call directly from plugin. Call inside the Runnable parameter of {@link
+   * #scheduleTask(Runnable)} This is to prevent database corruption.
    *
    * <p>This can only be called once and cannot be called if {@link #permanentFailure(String)} has
    * been called.
@@ -66,8 +67,8 @@ public interface WorkMonitor<T, S> {
   /**
    * Indicate that the task is unrecoverably broken
    *
-   * Do not call directly from plugin. Call inside the Runnable parameter of {@link #scheduleTask(Runnable)}
-   * This is to prevent database corruption.
+   * <p>Do not call directly from plugin. Call inside the Runnable parameter of {@link
+   * #scheduleTask(Runnable)} This is to prevent database corruption.
    *
    * <p>Once called, the workflow and related provisioning steps will be considered a failure.
    *

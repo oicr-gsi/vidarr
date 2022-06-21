@@ -1,1 +1,0 @@
-Fix condition in createVersionQuery to return latest version when versionTypes not specified

@@ -6,6 +6,24 @@ For unreleased changes, see [changes](changes).
 
 -----------------------------------------------------------------------------
 
+## [0.8.0] - 2022-06-21
+
+### Added
+
+* Add index on Niassa's workflowRunSWID to `workflow_run` table
+* Add an index on `analysis(analysis_type)` and `analysis(hash_id)` to improve the performance of matching submitted requests to existing workflow runs
+
+### Changed
+
+* Changed the EXTENSION_TO_METADATA mapping in CromwellOutputProvisioner to include .crai and .cram extensions.
+* Bump jooq from 3.14.0 to 3.16.5
+  Bump rest-assured packages from 4.4.0 to 5.0.0
+  Bump jackson dependencies
+
+### Fixed
+
+
+
 ## [0.7.0] - 2022-04-04
 
 ### Added

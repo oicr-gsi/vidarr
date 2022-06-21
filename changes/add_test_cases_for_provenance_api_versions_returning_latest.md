@@ -1,1 +1,0 @@
-Added test cases in MainIntegrationTest.java for cases when versionTypes not specified or null and versionPolicy is LATEST to return latest version.

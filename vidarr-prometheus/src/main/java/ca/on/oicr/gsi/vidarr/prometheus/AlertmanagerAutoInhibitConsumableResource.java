@@ -146,7 +146,7 @@ public class AlertmanagerAutoInhibitConsumableResource implements ConsumableReso
       return ConsumableResourceResponse.error(
           String.format(
               "Workflow %s has been throttled by %s alert(s) for: %s",
-              alertName, workflowName, String.join(", ", isInhibited)));
+              workflowName, alertName, String.join(", ", isInhibited)));
     }
   }
 }

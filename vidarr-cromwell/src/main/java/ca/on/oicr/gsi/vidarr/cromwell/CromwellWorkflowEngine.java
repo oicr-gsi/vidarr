@@ -347,7 +347,7 @@ public final class CromwellWorkflowEngine
                 }
                 try {
                   final var result = MAPPER.readValue(r.body(), WorkflowStatusResponse.class);
-                  if (result.getId() == null) {
+                  if (result.getId() == null || result.getId().equals("null")) {
                     monitor.permanentFailure("Cromwell failed to launch workflow.");
                     return;
                   }

@@ -123,7 +123,7 @@ public class AlertmanagerAutoInhibitConsumableResource implements ConsumableReso
   public ConsumableResourceResponse request(
       String workflowName, String workflowVersion, String vidarrId, Optional<JsonNode> input) {
     String workflowVersionWithUnderscores = workflowVersion.replaceAll("\\.", "_");
-    final var isInhibited =
+    final var matchedAlertValues =
         cache
             .get()
             .flatMap(
@@ -140,13 +140,13 @@ public class AlertmanagerAutoInhibitConsumableResource implements ConsumableReso
                                         "%s_%s", workflowName, workflowVersionWithUnderscores)))
                             .flatMap(Function.identity())))
             .collect(Collectors.toSet());
-    if (isInhibited.isEmpty()) {
+    if (matchedAlertValues.isEmpty()) {
       return ConsumableResourceResponse.AVAILABLE;
     } else {
       return ConsumableResourceResponse.error(
           String.format(
               "Workflow %s has been throttled by %s alert(s) for: %s",
-              alertName, workflowName, String.join(", ", isInhibited)));
+              workflowName, alertName, String.join(", ", matchedAlertValues)));
     }
   }
 }

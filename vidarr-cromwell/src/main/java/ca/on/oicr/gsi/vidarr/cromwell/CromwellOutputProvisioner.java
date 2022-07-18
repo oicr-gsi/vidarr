@@ -94,7 +94,7 @@ public class CromwellOutputProvisioner
                   .uri(
                       URI.create(
                           String.format(
-                              "%s/api/workflows/v1/%s/metadata",
+                              "%s/api/workflows/v1/%s/metadata?excludeKey=calls&excludeKey=submittedFiles&expandSubWorkflows=false",
                               cromwellUrl, state.getCromwellId())))
                   .timeout(Duration.ofMinutes(1))
                   .GET()

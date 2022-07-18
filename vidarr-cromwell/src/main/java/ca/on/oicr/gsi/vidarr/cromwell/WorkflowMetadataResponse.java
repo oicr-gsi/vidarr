@@ -21,23 +21,25 @@ public class WorkflowMetadataResponse {
     debugInfo.put("cromwellStatus", status);
     debugInfo.put("cromwellRoot", workflowRoot);
     debugInfo.putPOJO("cromwellFailures", failures);
-    final var cromwellCalls = debugInfo.putArray("cromwellCalls");
-    calls.forEach(
-        (task, calls) ->
-            calls.forEach(
-                call -> {
-                  final var callNode = cromwellCalls.addObject();
-                  callNode.put("task", task);
-                  callNode.put("attempt", call.getAttempt());
-                  callNode.put("backend", call.getBackend());
-                  callNode.put("jobId", call.getJobId());
-                  callNode.put("returnCode", call.getReturnCode());
-                  callNode.put("shardIndex", call.getShardIndex());
-                  callNode.put("stderr", call.getStderr());
-                  callNode.put("stdout", call.getStdout());
-                  callNode.put("executionStatus", call.getExecutionStatus());
-                  callNode.putPOJO("failures", call.getFailures());
-                }));
+    if (null != calls){
+        final var cromwellCalls = debugInfo.putArray("cromwellCalls");
+        calls.forEach(
+                (task, calls) ->
+                        calls.forEach(
+                                call -> {
+                                    final var callNode = cromwellCalls.addObject();
+                                    callNode.put("task", task);
+                                    callNode.put("attempt", call.getAttempt());
+                                    callNode.put("backend", call.getBackend());
+                                    callNode.put("jobId", call.getJobId());
+                                    callNode.put("returnCode", call.getReturnCode());
+                                    callNode.put("shardIndex", call.getShardIndex());
+                                    callNode.put("stderr", call.getStderr());
+                                    callNode.put("stdout", call.getStdout());
+                                    callNode.put("executionStatus", call.getExecutionStatus());
+                                    callNode.putPOJO("failures", call.getFailures());
+                                }));
+    }
     return debugInfo;
   }
 

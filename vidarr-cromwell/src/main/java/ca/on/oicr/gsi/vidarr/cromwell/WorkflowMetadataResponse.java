@@ -21,6 +21,8 @@ public class WorkflowMetadataResponse {
     debugInfo.put("cromwellStatus", status);
     debugInfo.put("cromwellRoot", workflowRoot);
     debugInfo.putPOJO("cromwellFailures", failures);
+
+    // `calls` might be null if workflow run is not failed
     if (null != calls){
         final var cromwellCalls = debugInfo.putArray("cromwellCalls");
         calls.forEach(

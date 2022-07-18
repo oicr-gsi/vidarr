@@ -130,7 +130,8 @@ public class CromwellOutputProvisioner
                 monitor.log(
                     System.Logger.Level.WARNING,
                     String.format(
-                        "Failed to get Cromwell job %s on %s", state.getCromwellId(), cromwellUrl));
+                        "Failed to get Cromwell job %s on %s due to %s",
+                            state.getCromwellId(), cromwellUrl, t.getMessage()));
                 CROMWELL_FAILURES.labels(cromwellUrl).inc();
                 monitor.scheduleTask(CHECK_DELAY, TimeUnit.MINUTES, () -> check(state, monitor));
                 return null;
@@ -139,7 +140,8 @@ public class CromwellOutputProvisioner
       e.printStackTrace();
       monitor.log(
           System.Logger.Level.WARNING,
-          String.format("Failed to get Cromwell job %s on %s", state.getCromwellId(), cromwellUrl));
+          String.format("Failed to get Cromwell job %s on %s due to %s",
+                  state.getCromwellId(), cromwellUrl, e.getMessage()));
       CROMWELL_FAILURES.labels(cromwellUrl).inc();
       monitor.scheduleTask(CHECK_DELAY, TimeUnit.MINUTES, () -> check(state, monitor));
     }

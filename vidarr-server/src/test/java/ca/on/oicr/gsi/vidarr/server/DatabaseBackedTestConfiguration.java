@@ -17,7 +17,7 @@ public class DatabaseBackedTestConfiguration {
   private static final TemporaryFolder unloadDirectory = new TemporaryFolder();
 
   public static JdbcDatabaseContainer getTestDatabaseContainer() {
-    return new PostgreSQLContainer("postgres:13-alpine")
+    return new PostgreSQLContainer("postgres:12-alpine")
         .withDatabaseName(dbName)
         .withUsername(dbUser)
         .withPassword(dbPass);

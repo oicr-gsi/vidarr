@@ -84,14 +84,7 @@ public class MainIntegrationTest {
     simpleConnection.setPassword(config.getDbPass());
     var fw = Flyway.configure().dataSource(simpleConnection);
     fw.load().clean();
-    fw.locations("classpath:db/migration").load().migrate();
-    // we do this because Flyway on its own isn't finding the test data, and it dies when you
-    // try to give it classpath + filesystem locations in one string. We ignore the "missing"
-    // migrations (run in the migrate() call above).
-    fw.locations("filesystem:src/test/resources/db/migration/")
-        .ignoreMissingMigrations(true)
-        .load()
-        .migrate();
+    fw.locations("classpath:db/migration", "classpath:db/testdata").load().migrate();
   }
 
   @Test

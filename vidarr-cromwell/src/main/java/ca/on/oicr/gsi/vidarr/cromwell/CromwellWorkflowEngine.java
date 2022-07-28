@@ -142,7 +142,7 @@ public final class CromwellWorkflowEngine
                         .thenApply(HttpResponse::body)
                         .thenAccept(
                             s2 -> {
-                              final var fullResult = s.get();
+                              final var fullResult = s2.get();
                               monitor.log(
                                   System.Logger.Level.INFO,
                                   String.format(

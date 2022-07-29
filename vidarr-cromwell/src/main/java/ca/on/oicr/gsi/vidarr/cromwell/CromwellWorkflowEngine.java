@@ -113,7 +113,6 @@ public final class CromwellWorkflowEngine
                     String.format(
                         "Status for Cromwell workflow %s on %s is %s",
                         state.getCromwellId(), url, result.getStatus()));
-                monitor.storeDebugInfo(result.debugInfo());
                 switch (result.getStatus()) {
                     // In the case of failures ("Aborted" or "Failed"), request the full metadata
                     // from Cromwell
@@ -170,9 +169,11 @@ public final class CromwellWorkflowEngine
                     monitor.permanentFailure("Cromwell failure: " + result.getStatus());
                     break;
                   case "Succeeded":
+                    monitor.storeDebugInfo(result.debugInfo());
                     finish(state, monitor);
                     break;
                   default:
+                    monitor.storeDebugInfo(result.debugInfo());
                     monitor.updateState(statusFromCromwell(result.getStatus()));
                     monitor.scheduleTask(5, TimeUnit.MINUTES, () -> check(state, monitor));
                 }

@@ -249,6 +249,8 @@ public final class CromwellWorkflowEngine
               monitor.complete(
                   new Result<>(
                       result.getOutputs(),
+                      // Note: This instance of the cromwell URL is for use by OutputProvisioners
+                      // Unwise to bake in the no-calls functionality here, might be needed
                       String.format("%s/api/workflows/v1/%s/metadata", url, state.getCromwellId()),
                       Optional.empty()));
             })

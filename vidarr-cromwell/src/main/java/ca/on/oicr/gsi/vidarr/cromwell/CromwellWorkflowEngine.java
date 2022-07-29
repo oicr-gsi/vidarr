@@ -149,6 +149,7 @@ public final class CromwellWorkflowEngine
                                       "Successfully fetched full metadata for Cromwell job %s on %s",
                                       state.getCromwellId(), url));
                               monitor.storeDebugInfo(fullResult.debugInfo());
+                              monitor.permanentFailure("Cromwell failure: " + result.getStatus());
                             })
                         .exceptionally(
                             t2 -> {
@@ -166,8 +167,6 @@ public final class CromwellWorkflowEngine
                                   CHECK_DELAY, TimeUnit.MINUTES, () -> check(state, monitor));
                               return null;
                             });
-
-                    monitor.permanentFailure("Cromwell failure: " + result.getStatus());
                     break;
                   case "Succeeded":
                     finish(state, monitor);

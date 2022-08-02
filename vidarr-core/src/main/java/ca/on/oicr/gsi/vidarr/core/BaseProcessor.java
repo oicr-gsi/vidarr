@@ -127,7 +127,7 @@ public abstract class BaseProcessor<
     public void storeDebugInfo(JsonNode information) {
       if (finished) {
         throw new IllegalStateException(
-            "Operation is already complete. Cannot debugging information.");
+            "Operation is already complete. Cannot store debugging information.");
       }
       startTransaction(transaction -> operation.debugInfo(information, transaction));
     }

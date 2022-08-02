@@ -94,7 +94,12 @@ public final class CromwellWorkflowEngine
                   .uri(
                       URI.create(
                           String.format(
-                              "%s/api/workflows/v1/%s/metadata", url, state.getCromwellId())))
+                              // Very large workflows can slow down cromwell when calls are
+                              // requested. Limit how
+                              // often we request calls.
+                              // TODO: debug toggle to get calls for non-failed workflow runs
+                              "%s/api/workflows/v1/%s/metadata?excludeKey=calls&excludeKey=submittedFiles&expandSubWorkflows=false",
+                              url, state.getCromwellId())))
                   .timeout(Duration.ofMinutes(1))
                   .GET()
                   .build(),
@@ -110,9 +115,58 @@ public final class CromwellWorkflowEngine
                         state.getCromwellId(), url, result.getStatus()));
                 monitor.storeDebugInfo(result.debugInfo());
                 switch (result.getStatus()) {
+                    // In the case of failures ("Aborted" or "Failed"), request the full metadata
+                    // from Cromwell
+                    // so we can have call info for debugging.
                   case "Aborted":
                   case "Failed":
-                    monitor.permanentFailure("Cromwell failure: " + result.getStatus());
+                    monitor.log(
+                        System.Logger.Level.INFO,
+                        String.format(
+                            "Cromwell job %s is failed, fetching call info on %s",
+                            state.getCromwellId(), url));
+                    CROMWELL_REQUESTS.labels(url).inc();
+
+                    CLIENT
+                        .sendAsync(
+                            HttpRequest.newBuilder()
+                                .uri(
+                                    URI.create(
+                                        String.format(
+                                            "%s/api/workflows/v1/%s/metadata",
+                                            url, state.getCromwellId())))
+                                .timeout(Duration.ofMinutes(1))
+                                .GET()
+                                .build(),
+                            new JsonBodyHandler<>(MAPPER, WorkflowMetadataResponse.class))
+                        .thenApply(HttpResponse::body)
+                        .thenAccept(
+                            s2 -> {
+                              final var fullResult = s2.get();
+                              monitor.log(
+                                  System.Logger.Level.INFO,
+                                  String.format(
+                                      "Successfully fetched full metadata for Cromwell job %s on %s",
+                                      state.getCromwellId(), url));
+                              monitor.storeDebugInfo(fullResult.debugInfo());
+                              monitor.permanentFailure("Cromwell failure: " + result.getStatus());
+                            })
+                        .exceptionally(
+                            t2 -> {
+                              t2.printStackTrace();
+                              monitor.log(
+                                  System.Logger.Level.WARNING,
+                                  String.format(
+                                      "Failed to get Cromwell job %s on %s due to %s",
+                                      state.getCromwellId(), url, t2.getMessage()));
+                              CROMWELL_FAILURES.labels(url).inc();
+
+                              // TODO: this schedules 2 requests to cromwell /metadata now. Consider
+                              // a failure-unique check
+                              monitor.scheduleTask(
+                                  CHECK_DELAY, TimeUnit.MINUTES, () -> check(state, monitor));
+                              return null;
+                            });
                     break;
                   case "Succeeded":
                     finish(state, monitor);
@@ -128,8 +182,8 @@ public final class CromwellWorkflowEngine
                 monitor.log(
                     System.Logger.Level.WARNING,
                     String.format(
-                        "Failed to get status for Cromwell workflow %s on %s",
-                        state.getCromwellId(), url));
+                        "Failed to get status for Cromwell workflow %s on %s due to %s",
+                        state.getCromwellId(), url, t.getMessage()));
                 CROMWELL_FAILURES.labels(url).inc();
                 monitor.scheduleTask(5, TimeUnit.MINUTES, () -> check(state, monitor));
                 return null;
@@ -139,7 +193,8 @@ public final class CromwellWorkflowEngine
       monitor.log(
           System.Logger.Level.WARNING,
           String.format(
-              "Failed to get status for Cromwell workflow %s on %s", state.getCromwellId(), url));
+              "Failed to get status for Cromwell workflow %s on %s due to %s",
+              state.getCromwellId(), url, e.getMessage()));
       CROMWELL_FAILURES.labels(url).inc();
       monitor.scheduleTask(5, TimeUnit.MINUTES, () -> check(state, monitor));
     }
@@ -192,6 +247,8 @@ public final class CromwellWorkflowEngine
               monitor.complete(
                   new Result<>(
                       result.getOutputs(),
+                      // Note: This instance of the cromwell URL is for use by OutputProvisioners
+                      // Unwise to bake in the no-calls functionality here, might be needed
                       String.format("%s/api/workflows/v1/%s/metadata", url, state.getCromwellId()),
                       Optional.empty()));
             })

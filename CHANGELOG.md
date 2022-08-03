@@ -6,6 +6,19 @@ For unreleased changes, see [changes](changes).
 
 -----------------------------------------------------------------------------
 
+## [0.8.1] - 2022-08-03
+
+### Fixed
+
+* Bugfix for null cromwell ids getting stuck in check() loop
+* Readability of AutoInhibit alert messages
+* Exclude calls from metadata unless we know the workflow run is failed for performance reasons
+* Update integration tests:
+  * Move testdata to new resource path to prevent classpath collision
+  * Update database integration tests to use same postgresql version as other ITs and Vidarr deploys
+* Use explicit versions for Jackson dependencies instead of the version range that dependabot suggested
+
+
 ## [0.8.0] - 2022-06-21
 
 ### Added

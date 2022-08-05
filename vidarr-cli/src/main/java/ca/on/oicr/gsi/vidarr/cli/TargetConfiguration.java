@@ -3,7 +3,6 @@ package ca.on.oicr.gsi.vidarr.cli;
 import ca.on.oicr.gsi.Pair;
 import ca.on.oicr.gsi.vidarr.*;
 import ca.on.oicr.gsi.vidarr.core.Target;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -14,7 +13,7 @@ public final class TargetConfiguration {
   private WorkflowEngine engine;
   private List<InputProvisioner> inputs;
   private List<OutputProvisioner> outputs;
-  private List<RuntimeProvisioner> runtimes = Collections.emptyList();
+  private List<RuntimeProvisioner> runtimes;
 
   public WorkflowEngine getEngine() {
     return engine;
@@ -77,6 +76,9 @@ public final class TargetConfiguration {
                           .filter(p::canProvision)
                           .map(f -> new Pair<>(f, p)))
               .collect(Collectors.toMap(Pair::first, Pair::second));
+
+      final List<RuntimeProvisioner> runtimes =
+          TargetConfiguration.this.runtimes.stream().collect(Collectors.toList());
 
       @Override
       public Stream<Pair<String, ConsumableResource>> consumableResources() {

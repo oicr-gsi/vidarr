@@ -78,6 +78,9 @@ public final class CromwellWorkflowEngine
   private Map<String, BasicType> engineParameters;
   private String url;
 
+  // TODO Optimally, this would be Optional<Boolean>
+  private Boolean debugInflightRuns;
+
   public CromwellWorkflowEngine() {
     super(MAPPER, EngineState.class, String.class, Void.class);
   }
@@ -91,15 +94,7 @@ public final class CromwellWorkflowEngine
       CLIENT
           .sendAsync(
               HttpRequest.newBuilder()
-                  .uri(
-                      URI.create(
-                          String.format(
-                              // Very large workflows can slow down cromwell when calls are
-                              // requested. Limit how
-                              // often we request calls.
-                              // TODO: debug toggle to get calls for non-failed workflow runs
-                              "%s/api/workflows/v1/%s/metadata?excludeKey=calls&excludeKey=submittedFiles&expandSubWorkflows=false",
-                              url, state.getCromwellId())))
+                  .uri(CromwellMetadataURL.formatMetadataURL(url, state.getCromwellId(), debugInflightRuns))
                   .timeout(Duration.ofMinutes(1))
                   .GET()
                   .build(),
@@ -116,10 +111,17 @@ public final class CromwellWorkflowEngine
                 monitor.storeDebugInfo(result.debugInfo());
                 switch (result.getStatus()) {
                     // In the case of failures ("Aborted" or "Failed"), request the full metadata
-                    // from Cromwell
+                    // from Cromwell if we don't already have it
                     // so we can have call info for debugging.
                   case "Aborted":
                   case "Failed":
+                    if (debugInflightRuns){
+                      monitor.log(
+                              System.Logger.Level.INFO,
+                              "Cromwell WorkflowEngine already configured to fetch calls info. Skipping second request."
+                      );
+                      break;
+                    }
                     monitor.log(
                         System.Logger.Level.INFO,
                         String.format(
@@ -130,11 +132,7 @@ public final class CromwellWorkflowEngine
                     CLIENT
                         .sendAsync(
                             HttpRequest.newBuilder()
-                                .uri(
-                                    URI.create(
-                                        String.format(
-                                            "%s/api/workflows/v1/%s/metadata",
-                                            url, state.getCromwellId())))
+                                .uri(CromwellMetadataURL.formatMetadataURL(url, state.getCromwellId(), true))
                                 .timeout(Duration.ofMinutes(1))
                                 .GET()
                                 .build(),
@@ -248,8 +246,8 @@ public final class CromwellWorkflowEngine
                   new Result<>(
                       result.getOutputs(),
                       // Note: This instance of the cromwell URL is for use by OutputProvisioners
-                      // Unwise to bake in the no-calls functionality here, might be needed
-                      String.format("%s/api/workflows/v1/%s/metadata", url, state.getCromwellId()),
+                      // Don't include 'excludeKeys', includeCalls needs to be true
+                      CromwellMetadataURL.formatMetadataURL(url, state.getCromwellId(), true).toString(),
                       Optional.empty()));
             })
         .exceptionally(
@@ -447,5 +445,9 @@ public final class CromwellWorkflowEngine
   @Override
   public boolean supports(WorkflowLanguage language) {
     return language == WorkflowLanguage.WDL_1_0 || language == WorkflowLanguage.WDL_1_1;
+  }
+
+  public void setDebugInflightRuns(Boolean debugInflightRuns) {
+    this.debugInflightRuns = debugInflightRuns;
   }
 }

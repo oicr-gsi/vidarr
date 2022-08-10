@@ -126,3 +126,5 @@ This can be used to run WDL workflows using a remote Cromwell instance. The conf
 `"url"` specified the Cromwell server that should be contacted.
 `"engineParameters"` is optional and allows extra parameters to be required.
 These will be passed as Cromwell's `workflowOptions`.
+
+TODO: Update with new parameter

@@ -15,6 +15,7 @@ final class CromwellMetadataURL {
 
         // Note that the URL specifies to *exclude* keys, hence the inverted bool test
         if (!includeCalls) metadataAPIformat += "?excludeKey=calls&excludeKey=submittedFiles&expandSubWorkflows=false";
+
         return URI.create(String.format(metadataAPIformat, rootUrl, cromwellId));
     }
 }

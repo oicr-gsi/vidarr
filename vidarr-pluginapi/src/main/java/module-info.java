@@ -18,6 +18,7 @@ module ca.on.oicr.gsi.vidarr.pluginapi {
   uses InputProvisionerProvider;
   uses OutputProvisionerProvider;
   uses RuntimeProvisionerProvider;
+  uses ca.on.oicr.gsi.vidarr.LogFileStasherProvider;
 
   exports ca.on.oicr.gsi.vidarr;
   exports ca.on.oicr.gsi.vidarr.api;

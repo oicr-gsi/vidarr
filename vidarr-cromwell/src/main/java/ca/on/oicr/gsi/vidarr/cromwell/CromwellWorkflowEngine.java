@@ -2,7 +2,16 @@ package ca.on.oicr.gsi.vidarr.cromwell;
 
 import ca.on.oicr.gsi.Pair;
 import ca.on.oicr.gsi.status.SectionRenderer;
-import ca.on.oicr.gsi.vidarr.*;
+import ca.on.oicr.gsi.vidarr.BaseJsonWorkflowEngine;
+import ca.on.oicr.gsi.vidarr.BasicType;
+import ca.on.oicr.gsi.vidarr.JsonBodyHandler;
+import ca.on.oicr.gsi.vidarr.LogFileStasher;
+import ca.on.oicr.gsi.vidarr.LogFileStasher.Kind;
+import ca.on.oicr.gsi.vidarr.LogFileStasher.StashMonitor;
+import ca.on.oicr.gsi.vidarr.MultiPartBodyPublisher;
+import ca.on.oicr.gsi.vidarr.WorkMonitor;
+import ca.on.oicr.gsi.vidarr.WorkflowEngineProvider;
+import ca.on.oicr.gsi.vidarr.WorkflowLanguage;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -21,9 +30,11 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
@@ -76,6 +87,7 @@ public final class CromwellWorkflowEngine
   }
 
   private Map<String, BasicType> engineParameters;
+  private LogFileStasher stasher = LogFileStasher.DISCARD;
   private String url;
 
   public CromwellWorkflowEngine() {
@@ -146,10 +158,57 @@ public final class CromwellWorkflowEngine
                               monitor.log(
                                   System.Logger.Level.INFO,
                                   String.format(
-                                      "Successfully fetched full metadata for Cromwell job %s on %s",
+                                      "Successfully fetched full metadata for Cromwell job %s on"
+                                          + " %s",
                                       state.getCromwellId(), url));
                               monitor.storeDebugInfo(fullResult.debugInfo());
-                              monitor.permanentFailure("Cromwell failure: " + result.getStatus());
+                              if (fullResult.getCalls() != null) {
+                                state.setCallLogStates(
+                                    fullResult.getCalls().values().stream()
+                                        .flatMap(List::stream)
+                                        .<CallLogState>flatMap(
+                                            new Function<>() {
+                                              private int index;
+
+                                              @Override
+                                              public Stream<CallLogState> apply(
+                                                  CromwellCall cromwellCall) {
+                                                final var current = index++;
+                                                if (cromwellCall.getReturnCode() != null
+                                                        && cromwellCall.getReturnCode() != 0
+                                                    || cromwellCall.getFailures() != null
+                                                        && !cromwellCall.getFailures().isEmpty()) {
+                                                  return Stream.empty();
+                                                }
+                                                final var labels =
+                                                    Map.of(
+                                                        "jobId",
+                                                        cromwellCall.getJobId(),
+                                                        "attempt",
+                                                        Integer.toString(cromwellCall.getAttempt()),
+                                                        "shardIndex",
+                                                        cromwellCall.getShardIndex());
+                                                final var errCall = new CallLogState();
+                                                errCall.setIndex(index);
+                                                errCall.setKind(Kind.STDERR);
+                                                errCall.setLog(cromwellCall.getStderr());
+                                                errCall.setLabels(labels);
+                                                final var outCall = new CallLogState();
+                                                outCall.setIndex(index);
+                                                outCall.setKind(Kind.STDOUT);
+                                                outCall.setLog(cromwellCall.getStdout());
+                                                outCall.setLabels(labels);
+                                                return Stream.of(errCall, outCall);
+                                              }
+                                            })
+                                        .collect(Collectors.toList()));
+                              }
+                              monitor.storeRecoveryInformation(state);
+                              if (state.getCallLogStates().isEmpty()) {
+                                monitor.permanentFailure("Cromwell failure: " + result.getStatus());
+                              } else {
+                                processCallLogs(state, monitor);
+                              }
                             })
                         .exceptionally(
                             t2 -> {
@@ -274,9 +333,38 @@ public final class CromwellWorkflowEngine
   protected void recover(EngineState state, WorkMonitor<Result<String>, EngineState> monitor) {
     if (state.getCromwellId() == null) {
       monitor.scheduleTask(() -> startTask(state, monitor));
+    } else if (state.getCallLogStates() != null && !state.getCallLogStates().isEmpty()) {
+      processCallLogs(state, monitor);
     } else {
       check(state, monitor);
     }
+  }
+
+  private void processCallLogs(
+      EngineState state, WorkMonitor<Result<String>, EngineState> monitor) {
+    final var entry = state.getCallLogStates().get(0);
+    stasher.stash(
+        state.getVidarrId(),
+        new StashMonitor(monitor) {
+          @Override
+          public void complete(JsonNode result) {
+            final var info = monitor.debugInfo();
+            ((ObjectNode) info.get("calls").get(entry.getIndex()))
+                .set(entry.getKind().property(), result);
+            monitor.storeDebugInfo(info);
+
+            state.getCallLogStates().remove(0);
+            monitor.storeRecoveryInformation(state);
+
+            if (state.getCallLogStates().isEmpty()) {
+              monitor.permanentFailure("Cromwell failure; see logs");
+            } else {
+              processCallLogs(state, monitor);
+            }
+          }
+        },
+        entry.getLog(),
+        entry.getLabels());
   }
 
   @Override
@@ -322,6 +410,10 @@ public final class CromwellWorkflowEngine
 
   public void setEngineParameters(Map<String, BasicType> engineParameters) {
     this.engineParameters = engineParameters;
+  }
+
+  public void setStasher(LogFileStasher stasher) {
+    this.stasher = stasher;
   }
 
   public void setUrl(String url) {

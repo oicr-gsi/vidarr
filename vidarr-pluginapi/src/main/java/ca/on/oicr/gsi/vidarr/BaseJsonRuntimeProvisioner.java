@@ -24,6 +24,11 @@ public abstract class BaseJsonRuntimeProvisioner<S> implements RuntimeProvisione
     }
 
     @Override
+    public JsonNode debugInfo() {
+      return original.debugInfo();
+    }
+
+    @Override
     public void log(System.Logger.Level level, String message) {
       original.log(level, message);
     }

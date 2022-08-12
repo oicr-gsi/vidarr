@@ -57,6 +57,13 @@ public interface WorkMonitor<T, S> {
   void complete(T result);
 
   /**
+   * Get the last debug information stored.
+   *
+   * @return the debug information or null if none was written
+   */
+  JsonNode debugInfo();
+
+  /**
    * Write something interesting
    *
    * @param level how important this message is

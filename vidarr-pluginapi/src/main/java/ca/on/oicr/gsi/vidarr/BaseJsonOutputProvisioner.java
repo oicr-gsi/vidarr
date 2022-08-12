@@ -26,6 +26,11 @@ public abstract class BaseJsonOutputProvisioner<M, S, F> implements OutputProvis
     }
 
     @Override
+    public JsonNode debugInfo() {
+      return original.debugInfo();
+    }
+
+    @Override
     public void log(System.Logger.Level level, String message) {
       original.log(level, message);
     }

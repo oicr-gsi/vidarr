@@ -62,6 +62,11 @@ public abstract class BaseProcessor<
       succeeded(result);
     }
 
+    @Override
+    public final JsonNode debugInfo() {
+      return operation.debugInfo();
+    }
+
     protected abstract void failed();
 
     @Override

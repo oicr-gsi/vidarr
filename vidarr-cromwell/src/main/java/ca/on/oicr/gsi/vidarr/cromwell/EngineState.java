@@ -3,10 +3,12 @@ package ca.on.oicr.gsi.vidarr.cromwell;
 import ca.on.oicr.gsi.vidarr.WorkflowLanguage;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.util.List;
 import java.util.Map;
 
 /** The current state of a running workflow to be recorded in the database */
 public final class EngineState {
+  private List<CallLogState> callLogStates;
   private String cromwellId;
   private JsonNode engineParameters;
   private ObjectNode parameters;
@@ -14,6 +16,10 @@ public final class EngineState {
   private Map<String, String> workflowInputFiles;
   private WorkflowLanguage workflowLanguage;
   private String workflowSource;
+
+  public List<CallLogState> getCallLogStates() {
+    return callLogStates;
+  }
 
   public String getCromwellId() {
     return cromwellId;
@@ -41,6 +47,10 @@ public final class EngineState {
 
   public String getWorkflowSource() {
     return workflowSource;
+  }
+
+  public void setCallLogStates(List<CallLogState> callLogStates) {
+    this.callLogStates = callLogStates;
   }
 
   public void setCromwellId(String cromwellId) {

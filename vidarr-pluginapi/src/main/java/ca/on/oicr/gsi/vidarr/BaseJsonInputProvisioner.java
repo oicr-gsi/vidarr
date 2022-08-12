@@ -13,6 +13,7 @@ import java.util.concurrent.TimeUnit;
  */
 public abstract class BaseJsonInputProvisioner<M, S> implements InputProvisioner {
   private class JsonWorkMonitor<T> implements WorkMonitor<T, S> {
+
     private final WorkMonitor<T, JsonNode> original;
 
     private JsonWorkMonitor(WorkMonitor<T, JsonNode> original) {
@@ -22,6 +23,11 @@ public abstract class BaseJsonInputProvisioner<M, S> implements InputProvisioner
     @Override
     public void complete(T result) {
       original.complete(result);
+    }
+
+    @Override
+    public JsonNode debugInfo() {
+      return original.debugInfo();
     }
 
     @Override

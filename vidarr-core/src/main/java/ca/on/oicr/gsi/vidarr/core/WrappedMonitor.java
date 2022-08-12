@@ -81,6 +81,11 @@ abstract class WrappedMonitor<A, R, S> implements WorkMonitor<R, JsonNode> {
   }
 
   @Override
+  public final JsonNode debugInfo() {
+    return monitor.debugInfo();
+  }
+
+  @Override
   public void log(System.Logger.Level level, String message) {
     monitor.log(level, message);
   }

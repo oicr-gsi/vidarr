@@ -6,6 +6,7 @@ import ca.on.oicr.gsi.vidarr.core.ActiveOperation;
 import ca.on.oicr.gsi.vidarr.core.OperationStatus;
 import ca.on.oicr.gsi.vidarr.core.Phase;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.NullNode;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -40,6 +41,7 @@ public class DatabaseOperation implements ActiveOperation<DSLContext> {
                     recoveryState,
                     OperationStatus.INITIALIZING,
                     "",
+                    NullNode.getInstance(),
                     workflow));
   }
 
@@ -50,9 +52,11 @@ public class DatabaseOperation implements ActiveOperation<DSLContext> {
         record.get(ACTIVE_OPERATION.RECOVERY_STATE),
         record.get(ACTIVE_OPERATION.STATUS),
         record.get(ACTIVE_OPERATION.TYPE),
+        record.get(ACTIVE_OPERATION.DEBUG_INFO),
         null);
   }
 
+  private JsonNode debugInfo;
   private final long id;
   private final AtomicBoolean liveness;
   private JsonNode recoveryState;
@@ -66,7 +70,9 @@ public class DatabaseOperation implements ActiveOperation<DSLContext> {
       JsonNode recoveryState,
       OperationStatus status,
       String type,
+      JsonNode debugInfo,
       DatabaseWorkflow workflow) {
+    this.debugInfo = debugInfo;
     this.id = id;
     this.liveness = liveness;
     this.recoveryState = recoveryState;
@@ -76,7 +82,13 @@ public class DatabaseOperation implements ActiveOperation<DSLContext> {
   }
 
   @Override
+  public JsonNode debugInfo() {
+    return debugInfo;
+  }
+
+  @Override
   public void debugInfo(JsonNode info, DSLContext transaction) {
+    this.debugInfo = info;
     updateField(ACTIVE_OPERATION.DEBUG_INFO, info, transaction);
   }
 

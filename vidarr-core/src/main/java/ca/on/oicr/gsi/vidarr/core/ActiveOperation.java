@@ -9,6 +9,13 @@ import com.fasterxml.jackson.databind.JsonNode;
  */
 public interface ActiveOperation<TX> {
   /**
+   * Gets the last set debugging information for this operation
+   *
+   * @return the debugging information or a null JSON node
+   */
+  JsonNode debugInfo();
+
+  /**
    * Change the current client-visible debugging information
    *
    * @param info the debugging information to store

@@ -25,6 +25,11 @@ final class MonitorWithType<T> implements WorkMonitor<T, JsonNode> {
   }
 
   @Override
+  public JsonNode debugInfo() {
+    return monitor.debugInfo();
+  }
+
+  @Override
   public void log(System.Logger.Level level, String message) {
     monitor.log(level, message);
   }

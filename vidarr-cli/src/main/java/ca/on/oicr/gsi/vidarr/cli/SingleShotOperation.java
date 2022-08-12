@@ -3,8 +3,10 @@ package ca.on.oicr.gsi.vidarr.cli;
 import ca.on.oicr.gsi.vidarr.core.ActiveOperation;
 import ca.on.oicr.gsi.vidarr.core.OperationStatus;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.NullNode;
 
 final class SingleShotOperation implements ActiveOperation<Void> {
+  private JsonNode debugInfo = NullNode.getInstance();
   private JsonNode state;
   private final SingleShotWorkflow singleShotWorkflow;
   private OperationStatus status = OperationStatus.INITIALIZING;
@@ -16,8 +18,13 @@ final class SingleShotOperation implements ActiveOperation<Void> {
   }
 
   @Override
+  public JsonNode debugInfo() {
+    return debugInfo;
+  }
+
+  @Override
   public void debugInfo(JsonNode info, Void transaction) {
-    // Throw this information away since we don't really want to log it
+    debugInfo = info;
   }
 
   @Override

@@ -202,3 +202,19 @@ For example, if external keys are connected to Pinery, then a filter might want
 to filter on runs. A filter could query Pinery and get all the external
 identifiers associated with that run and then construct a query based on those
 to match workflow runs that use any of those identifiers.
+
+# Log File Stashers
+Log file stashers implement `ca.on.ocir.gsi.vidarr.LogFileStasherProvider` and
+`ca.on.ocir.gsi.vidarr.LogFileStasher`. These plugins are responsible for
+copying failed log files to a useful repository and proving some JSON value to
+locate it that can be included in a workflow run's debugging information.
+
+The stasher will be given the Vidarr ID of the workflow run, the path to the
+log file, a monitor to control execution, and additional labels. Unlike other
+plugins, log stashers do not get crash recovery; it is assumed that logs can be
+imported in an idempotent way, so the log stash will simply be re-issued. The
+log stashing may execute asynchronously though.
+
+The workflow engine that is stashing can provide a collection of labels that
+provide additional information about the job to the stasher. This allows a job
+that has several logs to stash to be included in a way that can be separate.

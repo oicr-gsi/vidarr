@@ -533,7 +533,7 @@ public final class CromwellWorkflowEngine
 
   @Override
   public void startup() {
-    // Always ok
+    stasher.startup();
   }
 
   @Override

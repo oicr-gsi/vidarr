@@ -144,7 +144,18 @@ public interface LogFileStasher {
 
   /** A log file stasher that discards the log file and completes with a null value. */
   LogFileStasher DISCARD =
-      (vidarrId, monitor, logFile, labels) -> monitor.complete(NullNode.getInstance());
+      new LogFileStasher() {
+        @Override
+        public void startup() {}
+
+        @Override
+        public void stash(
+            String vidarrId, StashMonitor monitor, String logFile, Map<String, String> labels) {
+          monitor.complete(NullNode.getInstance());
+        }
+      };
+
+  void startup();
 
   /**
    * Write a log file to better storage

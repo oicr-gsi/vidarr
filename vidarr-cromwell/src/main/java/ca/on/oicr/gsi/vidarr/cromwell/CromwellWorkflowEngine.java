@@ -128,8 +128,7 @@ public final class CromwellWorkflowEngine
                 monitor.storeDebugInfo(result.debugInfo());
                 switch (result.getStatus()) {
                     // In the case of failures ("Aborted" or "Failed"), request the full metadata
-                    // from Cromwell
-                    // so we can have call info for debugging.
+                    // from Cromwell so we can have call info for debugging.
                   case "Aborted":
                   case "Failed":
                     monitor.log(

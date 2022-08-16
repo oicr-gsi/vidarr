@@ -125,72 +125,63 @@ public class CromwellLogFileStasher implements LogFileStasher {
 
     // Doesn't need to be in a scheduleTask unless we actually intend to wait
     // If we want this plugin to be recovereable, THEN this would be wrapped
-    monitor.scheduleTask(
-        () -> {
-          // CHECK: I'm assuming the same error checking will be needed? (Check that the file size
-          // isn't atrociously large, etc.) --> YES
-          byte[] content = new byte[1000];
-          byte[] handle = "stderrFile".getBytes();
-          RemoteFile stderrFile = new RemoteFile(sftp.getSFTPEngine(), logFile, handle);
-          try {
-            // Read the contents from the stderrFile into content variable
-            stderrFile.new RemoteFileInputStream()
-                .read(content, ((int) stderrFile.length() - 1000), 1000);
-          } catch (IOException e) {
-            throw new RuntimeException(e);
-          }
+    // CHECK: I'm assuming the same error checking will be needed? (Check that the file size
+    // isn't atrociously large, etc.) --> YES
+    byte[] content = new byte[1000];
+    RemoteFile stderrFile = new RemoteFile(sftp.getSFTPEngine(), logFile, "stderrFile".getBytes());
+    try {
+      // Read the contents from the stderrFile into content variable
+      stderrFile.new RemoteFileInputStream()
+          .read(content, ((int) stderrFile.length() - 1000), 1000);
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
 
-          final var body = MAPPER.createObjectNode();
-          final HttpRequest post;
-          try {
-            // Writing the complete log out to Loki in JSON. Not ideal!
-            // Alternatively: Rather than loop that reads all the data, create a custom body
-            // publisher
-            /* Java HTTP library requests for more data as appropriate. Can incrementally provide that info
-             * Subscriber interface?
-             * Build one body publisher, reads out of SFTP
-             * Loops, calls method on the subscriber (HTTP interface, gets more data!) */
-            post =
-                HttpRequest.newBuilder(URI.create(lokiUrl))
-                    .POST(BodyPublishers.ofString(MAPPER.writeValueAsString(labels)))
-                    .header("Content-type", "application/json")
-                    .build();
-          } catch (JsonProcessingException e) {
-            throw new RuntimeException(e);
-          }
-          // QUESTION: The fileName variable being called here is originally from the NiassaOP and
-          // was set to the
-          writeTime.labels(fileName.toString()).setToCurrentTime();
-          try (final var timer = writeLatency.start(fileName.toString())) {
-            final var response = CLIENT.send(post, BodyHandlers.ofString());
-            final var success = response.statusCode() / 100 == 2;
-            if (success) {
+    final var body = MAPPER.createObjectNode();
+    final HttpRequest post;
+    try {
+      // Writing the complete log out to Loki in JSON. Not ideal!
+      // Alternatively: Rather than loop that reads all the data, create a custom body publisher
+      /* Java HTTP library requests for more data as appropriate. Can incrementally provide that info
+       * Subscriber interface?
+       * Build one body publisher, reads out of SFTP
+       * Loops, calls method on the subscriber (HTTP interface, gets more data!) */
+      post =
+          HttpRequest.newBuilder(URI.create(lokiUrl))
+              .POST(BodyPublishers.ofString(MAPPER.writeValueAsString(labels)))
+              .header("Content-type", "application/json")
+              .build();
+    } catch (JsonProcessingException e) {
+      throw new RuntimeException(e);
+    }
+    // QUESTION: The fileName variable being called here is originally from the NiassaOP and
+    // was set to the
+    writeTime.labels(fileName.toString()).setToCurrentTime();
+    try (final var timer = writeLatency.start(fileName.toString())) {
+      final var response = CLIENT.send(post, BodyHandlers.ofString());
+      final var success = response.statusCode() / 100 == 2;
+      if (success) {
+        buffer.clear();
+        error.labels(fileName.toString()).set(0);
+      } else {
+        try (final var sc = new Scanner(response.body())) {
+          sc.useDelimiter("\\A");
+          if (sc.hasNext()) {
+            final var message = sc.next();
+            if (message.contains("ignored")) {
               buffer.clear();
               error.labels(fileName.toString()).set(0);
-            } else {
-              try (final var sc = new Scanner(response.body())) {
-                sc.useDelimiter("\\A");
-                if (sc.hasNext()) {
-                  final var message = sc.next();
-                  if (message.contains("ignored")) {
-                    buffer.clear();
-                    // QUESTION: In the Shesmu Loki plugin file, it says "Loki complains if we send
-                    // duplicate messages, so treat that like success". Would it be safe to assume
-                    // then that Loki does not handle deduping? TODO: Does Loki handle deduping?
-                    // --> We will assume for now that Loki DOES handle dedup
-                    error.labels(fileName.toString()).set(0);
-                    return;
-                  }
-                  System.err.println(message);
-                }
-              }
-              error.labels(fileName.toString()).set(1);
+              return;
             }
-          } catch (final Exception e) {
-            e.printStackTrace();
-            error.labels(fileName.toString()).set(1);
+            System.err.println(message);
           }
-        });
+        }
+        error.labels(fileName.toString()).set(1);
+      }
+    } catch (final Exception e) {
+      e.printStackTrace();
+      error.labels(fileName.toString()).set(1);
+    }
   }
 
   public String getLokiUrl() {

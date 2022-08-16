@@ -116,7 +116,7 @@ public class CromwellOutputProvisioner
                     if (debugCalls){
                       monitor.log(
                               System.Logger.Level.INFO,
-                              "Cromwell OutputProvisioner already configured to fetch calls info. Skipping second request."
+                              "Cromwell OutputProvisioner is configured to have already fetched calls info. Skipping second request."
                       );
                       break;
                     }

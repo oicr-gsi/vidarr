@@ -118,7 +118,7 @@ public final class CromwellWorkflowEngine
                     if (debugInflightRuns){
                       monitor.log(
                               System.Logger.Level.INFO,
-                              "Cromwell WorkflowEngine already configured to fetch calls info. Skipping second request."
+                              "Cromwell WorkflowEngine is configured to have already fetched calls info. Skipping second request."
                       );
                       break;
                     }

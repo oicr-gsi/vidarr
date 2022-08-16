@@ -46,7 +46,7 @@ public class CromwellLogFileStasher implements LogFileStasher {
   static final ObjectMapper MAPPER = new ObjectMapper();
   private String lokiUrl;
   private int lines;
-  private Path fileName; // File being monitored (TODO: Needs further discovery)
+  @JsonIgnore private Path fileName; // File being monitored (TODO: Needs further discovery)
 
   // ------------------------------------------------------------------------------------------------
   /* THE FOLLOWING VAR ORIGINATE FROM THE SHESMU LOKI PLUGIN (for reference) */

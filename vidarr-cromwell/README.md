@@ -10,6 +10,7 @@ location where the file is now stored.
     {
       "cromwellUrl": "http://cromwell-output.example.com:8000",
       "chunks": [ 2, 4 ],
+      "debugCalls": false,
       "fileField": "provisionFileOut.inputFilePath",
       "fileSizeField": "provisionFileOut.fileSizeBytes",
       "md5Field": "provisionFileOut.fileMd5sum",
@@ -34,6 +35,13 @@ with two arguments, the file to copy (which will be provided as the argument
 (`"outputPrefixField"`). Once the workflow has completed, the plugin will
 collect the permanent location for the file (`"storagePathField"`), the MD5
 (`"md5Field"`), and the file size (`"fileSizeField"`).
+
+After running the specified WDL, the Cromwell OutputProvisioner needs to fetch 
+metadata from the Cromwell server. Including the `calls` block of the metadata
+in the response can have negative performance implications for sufficiently 
+large workflow runs, so by default, `calls` is only fetched if provisioning out
+has failed. Set `"debugCalls"` to true in order to retrieve `calls` information
+for running provision out tasks as well.
 
 Your file system probably will not appreciate having thousands of files dumped
 in a single output directory, so the `"chunks"` parameter will create a
@@ -116,6 +124,7 @@ Here is an example WDL script to do provisioning out that uses rsync to do the f
 This can be used to run WDL workflows using a remote Cromwell instance. The configuration is as follows:
 
     {
+      "debugInflightRuns": false,
       "engineParameters": {
          "parameter1": type...
       },
@@ -126,5 +135,9 @@ This can be used to run WDL workflows using a remote Cromwell instance. The conf
 `"url"` specified the Cromwell server that should be contacted.
 `"engineParameters"` is optional and allows extra parameters to be required.
 These will be passed as Cromwell's `workflowOptions`.
-
-TODO: Update with new parameter
+As the Cromwell WorkflowEngine accesses Cromwell to assess progress on workflow
+runs, it fetches `/metadata` from Cromwell. For sufficiently large workflow runs,
+fetching this endpoint with `calls` information included has negative performance
+implications, so by default we only fetch `calls` for failed workflow runs to use
+as debugging information. To fetch `calls` information for running workflow runs,
+set `"debugInflightRuns"` to true.

@@ -19,6 +19,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.prometheus.client.Counter;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -213,7 +214,11 @@ public final class CromwellWorkflowEngine
                               if (state.getCallLogStates().isEmpty()) {
                                 monitor.permanentFailure("Cromwell failure: " + result.getStatus());
                               } else {
-                                processCallLogs(state, monitor);
+                                try {
+                                  processCallLogs(state, monitor);
+                                } catch (IOException e) {
+                                  throw new RuntimeException(e);
+                                }
                               }
                             })
                         .exceptionally(
@@ -336,7 +341,8 @@ public final class CromwellWorkflowEngine
   }
 
   @Override
-  protected void recover(EngineState state, WorkMonitor<Result<String>, EngineState> monitor) {
+  protected void recover(EngineState state, WorkMonitor<Result<String>, EngineState> monitor)
+      throws IOException {
     if (state.getCromwellId() == null) {
       monitor.scheduleTask(() -> startTask(state, monitor));
     } else if (state.getCallLogStates() != null && !state.getCallLogStates().isEmpty()) {
@@ -353,14 +359,14 @@ public final class CromwellWorkflowEngine
   // calls and THEN get the logs if appropriate?
   // PROPOSAL?: Get all the logs as appropriate, leave it up to the stasher to determine whether or
   // not it actually runs
-  private void processCallLogs(
-      EngineState state, WorkMonitor<Result<String>, EngineState> monitor) {
+  private void processCallLogs(EngineState state, WorkMonitor<Result<String>, EngineState> monitor)
+      throws IOException {
     final var entry = state.getCallLogStates().get(0);
     stasher.stash(
         state.getVidarrId(),
         new StashMonitor(monitor) {
           @Override
-          public void complete(JsonNode result) {
+          public void complete(JsonNode result) throws IOException {
             final var info = monitor.debugInfo();
             ((ObjectNode) info.get("calls").get(entry.getIndex()))
                 .set(entry.getKind().property(), result);

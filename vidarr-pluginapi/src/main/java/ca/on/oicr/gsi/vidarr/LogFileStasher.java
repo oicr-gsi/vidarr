@@ -101,7 +101,7 @@ public interface LogFileStasher {
      * @param result the information that should be placed in the debugging information to locate
      *     the stashed log
      */
-    public abstract void complete(JsonNode result);
+    public abstract void complete(JsonNode result) throws IOException;
 
     /**
      * Write something interesting
@@ -150,7 +150,8 @@ public interface LogFileStasher {
 
         @Override
         public void stash(
-            String vidarrId, StashMonitor monitor, String logFile, Map<String, String> labels) {
+            String vidarrId, StashMonitor monitor, String logFile, Map<String, String> labels)
+            throws IOException {
           monitor.complete(NullNode.getInstance());
         }
       };

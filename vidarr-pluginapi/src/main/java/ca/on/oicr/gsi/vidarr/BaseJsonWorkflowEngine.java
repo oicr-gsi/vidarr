@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
@@ -137,7 +138,7 @@ public abstract class BaseJsonWorkflowEngine<S, C, D> implements WorkflowEngine 
    *
    * @see #recover(JsonNode, WorkMonitor)
    */
-  protected abstract void recover(S state, WorkMonitor<Result<C>, S> monitor);
+  protected abstract void recover(S state, WorkMonitor<Result<C>, S> monitor) throws IOException;
 
   @Override
   public final void recover(JsonNode state, WorkMonitor<Result<JsonNode>, JsonNode> monitor) {

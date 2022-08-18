@@ -71,6 +71,7 @@ public class CromwellOutputProvisioner
   private ObjectNode workflowOptions = MAPPER.createObjectNode();
   private String workflowSource;
   private String workflowUrl;
+  private Boolean debugCalls;
 
   public CromwellOutputProvisioner() {
     super(MAPPER, ProvisionState.class, Void.class, OutputMetadata.class);
@@ -91,15 +92,7 @@ public class CromwellOutputProvisioner
       CLIENT
           .sendAsync(
               HttpRequest.newBuilder()
-                  .uri(
-                      URI.create(
-                          String.format(
-                              // Very large workflows can slow down cromwell when calls are
-                              // requested. Limit how
-                              // often we request calls.
-                              // TODO: debug toggle to get calls for non-failed workflow runs
-                              "%s/api/workflows/v1/%s/metadata?excludeKey=calls&excludeKey=submittedFiles&expandSubWorkflows=false",
-                              cromwellUrl, state.getCromwellId())))
+                  .uri(CromwellMetadataURL.formatMetadataURL(cromwellUrl, state.getCromwellId(), debugCalls))
                   .timeout(Duration.ofMinutes(1))
                   .GET()
                   .build(),
@@ -116,10 +109,17 @@ public class CromwellOutputProvisioner
                 monitor.storeDebugInfo(result.debugInfo());
                 switch (result.getStatus()) {
                     // In the case of failures ("Aborted" or "Failed"), request the full metadata
-                    // from Cromwell
+                    // from Cromwell if we don't already have it
                     // so we can have call info for debugging.
                   case "Aborted":
                   case "Failed":
+                    if (debugCalls){
+                      monitor.log(
+                              System.Logger.Level.INFO,
+                              "Cromwell OutputProvisioner is configured to have already fetched calls info. Skipping second request."
+                      );
+                      break;
+                    }
                     monitor.log(
                         System.Logger.Level.INFO,
                         String.format(
@@ -130,11 +130,7 @@ public class CromwellOutputProvisioner
                     CLIENT
                         .sendAsync(
                             HttpRequest.newBuilder()
-                                .uri(
-                                    URI.create(
-                                        String.format(
-                                            "%s/api/workflows/v1/%s/metadata",
-                                            cromwellUrl, state.getCromwellId())))
+                                .uri(CromwellMetadataURL.formatMetadataURL(cromwellUrl, state.getCromwellId(), true))
                                 .timeout(Duration.ofMinutes(1))
                                 .GET()
                                 .build(),
@@ -161,7 +157,7 @@ public class CromwellOutputProvisioner
                                       state.getCromwellId(), cromwellUrl, t2.getMessage()));
                               CROMWELL_FAILURES.labels(cromwellUrl).inc();
 
-                              // TODO: this schedules 2 requests to cromwell /metadata now. Consider
+                              // TODO: this may schedule 2 requests to cromwell /metadata now. Consider
                               // a failure-unique check
                               monitor.scheduleTask(
                                   CHECK_DELAY, TimeUnit.MINUTES, () -> check(state, monitor));
@@ -507,5 +503,9 @@ public class CromwellOutputProvisioner
     } else {
       throw new IllegalArgumentException("Cannot provision non-file output");
     }
+  }
+
+  public void setDebugCalls(Boolean debugCalls) {
+    this.debugCalls = debugCalls;
   }
 }

@@ -8,6 +8,8 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.prometheus.client.Gauge;
+import java.io.BufferedReader;
+import java.io.FileReader;
 import java.io.IOException;
 import java.lang.module.Configuration;
 import java.net.URI;
@@ -16,7 +18,7 @@ import java.net.http.HttpClient.Redirect;
 import java.net.http.HttpClient.Version;
 import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
-import java.net.http.HttpResponse.BodyHandlers;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
@@ -24,11 +26,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Scanner;
+import java.util.concurrent.Semaphore;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import net.schmizz.sshj.SSHClient;
-import net.schmizz.sshj.sftp.RemoteFile;
 import net.schmizz.sshj.sftp.SFTPClient;
 import net.schmizz.sshj.transport.verification.PromiscuousVerifier;
 
@@ -40,13 +41,13 @@ public class CromwellLogFileStasher implements LogFileStasher {
           .connectTimeout(Duration.ofSeconds(20))
           .build();
   @JsonIgnore private SSHClient client;
+  private static Semaphore sftpSemaphore = new Semaphore(1);
   private String hostname, username;
   private short port;
   @JsonIgnore private SFTPClient sftp; // Required for symlink() method
   static final ObjectMapper MAPPER = new ObjectMapper();
   private String lokiUrl;
   private int lines;
-  @JsonIgnore private Path fileName; // File being monitored (TODO: Needs further discovery)
 
   // ------------------------------------------------------------------------------------------------
   /* THE FOLLOWING VAR ORIGINATE FROM THE SHESMU LOKI PLUGIN (for reference) */
@@ -108,10 +109,8 @@ public class CromwellLogFileStasher implements LogFileStasher {
    */
   @Override
   public void stash(
-      String vidarrId, StashMonitor monitor, String logFile, Map<String, String> labels) {
-    // CHECK: My assumption was that this stash method essentially replaces the provision method
-    // that was in the RP. --> close enough
-
+      String vidarrId, StashMonitor monitor, String logFile, Map<String, String> labels)
+      throws IOException {
     // QUESTION: Is the block below (recording the CallLogState) necessary (since we're not
     // returning a state)? --> There is no state, don't have to keep track of it
     // --> assume loki will dedup for us! :D Oterhwise, stash monitor will need redesigning
@@ -124,20 +123,56 @@ public class CromwellLogFileStasher implements LogFileStasher {
     //    state.setLabels(labels);
 
     // Doesn't need to be in a scheduleTask unless we actually intend to wait
-    // If we want this plugin to be recovereable, THEN this would be wrapped
+    // If we want this plugin to be recoverable, THEN this would be wrapped
     // CHECK: I'm assuming the same error checking will be needed? (Check that the file size
     // isn't atrociously large, etc.) --> YES
-    byte[] content = new byte[1000];
-    RemoteFile stderrFile = new RemoteFile(sftp.getSFTPEngine(), logFile, "stderrFile".getBytes());
+
+    // Use sftp client to create a symlink to the target file we wish to log.
     try {
-      // Read the contents from the stderrFile into content variable
-      stderrFile.new RemoteFileInputStream()
-          .read(content, ((int) stderrFile.length() - 1000), 1000);
-    } catch (IOException e) {
+      sftpSemaphore.acquire();
+      try {
+        sftp.mkdirs(vidarrId); // Use the vidarr ID as the target directory
+        sftp.symlink(logFile, vidarrId);
+      } catch (IOException e) {
+        throw new RuntimeException(
+            String.format("Failed to provision \"%s\" to \"%s\".", logFile, vidarrId), e);
+      } finally {
+        sftpSemaphore.release();
+      }
+    } catch (InterruptedException e) {
       throw new RuntimeException(e);
     }
 
+    if (Files.size(Path.of(vidarrId)) >= Math.pow(10, 12)) {
+      throw new RuntimeException(
+          String.format("File \"%s\" is too large to log to Loki. Size exceeds 1TB", logFile));
+    }
+
+    // In order to push to Loki, we create a JSON post body of the log entries and push the body to
+    // Loki. See http://grafana.com/docs/loki/latest/api/#push-log-entries-to-loki
     final var body = MAPPER.createObjectNode();
+    // QUESTION: The streams object we're creating has an array of entries. What are these entries
+    // and where are they coming from?
+    final var streams = body.putArray("streams");
+    final var streamsEntry = streams.addObject();
+    final var stream = streamsEntry.putObject("stream");
+    // Insert the given labels into the new JSON post body
+    for (final var labelEntry : labels.entrySet()) {
+      final var label = stream.put(labelEntry.getKey(), labelEntry.getValue());
+    }
+    // We will read the file using the created symlink line by line
+    final var values = streamsEntry.putArray("values");
+    StringBuilder sb = new StringBuilder();
+    try (BufferedReader buffer = new BufferedReader(new FileReader(vidarrId))) {
+      String line;
+      while ((line = buffer.readLine()) != null) {
+        // Each entry in the values array is another array in itself, logging 1) the unix epoch in
+        // nanoseconds, and 2) the actual line itself
+        final var valuesEntry = values.addArray();
+        valuesEntry.add(String.format("%d%09d", Instant.now().getNano(), line));
+      }
+    }
+
     final HttpRequest post;
     try {
       // Writing the complete log out to Loki in JSON. Not ideal!
@@ -147,40 +182,12 @@ public class CromwellLogFileStasher implements LogFileStasher {
        * Build one body publisher, reads out of SFTP
        * Loops, calls method on the subscriber (HTTP interface, gets more data!) */
       post =
-          HttpRequest.newBuilder(URI.create(lokiUrl))
-              .POST(BodyPublishers.ofString(MAPPER.writeValueAsString(labels)))
-              .header("Content-type", "application/json")
+          HttpRequest.newBuilder(URI.create(String.format("%s/loki/api/v1/push", lokiUrl)))
+              .POST(BodyPublishers.ofString(MAPPER.writeValueAsString(body)))
+              .header("Content-Type", "application/json")
               .build();
     } catch (JsonProcessingException e) {
       throw new RuntimeException(e);
-    }
-    // QUESTION: The fileName variable being called here is originally from the NiassaOP and
-    // was set to the
-    writeTime.labels(fileName.toString()).setToCurrentTime();
-    try (final var timer = writeLatency.start(fileName.toString())) {
-      final var response = CLIENT.send(post, BodyHandlers.ofString());
-      final var success = response.statusCode() / 100 == 2;
-      if (success) {
-        buffer.clear();
-        error.labels(fileName.toString()).set(0);
-      } else {
-        try (final var sc = new Scanner(response.body())) {
-          sc.useDelimiter("\\A");
-          if (sc.hasNext()) {
-            final var message = sc.next();
-            if (message.contains("ignored")) {
-              buffer.clear();
-              error.labels(fileName.toString()).set(0);
-              return;
-            }
-            System.err.println(message);
-          }
-        }
-        error.labels(fileName.toString()).set(1);
-      }
-    } catch (final Exception e) {
-      e.printStackTrace();
-      error.labels(fileName.toString()).set(1);
     }
   }
 

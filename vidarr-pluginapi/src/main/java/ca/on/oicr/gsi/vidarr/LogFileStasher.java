@@ -165,5 +165,6 @@ public interface LogFileStasher {
    * @param logFile the path to the log file
    * @param labels any extra labels that should be added to the log store, if applicable
    */
-  void stash(String vidarrId, StashMonitor monitor, String logFile, Map<String, String> labels);
+  void stash(String vidarrId, StashMonitor monitor, String logFile, Map<String, String> labels)
+      throws IOException;
 }

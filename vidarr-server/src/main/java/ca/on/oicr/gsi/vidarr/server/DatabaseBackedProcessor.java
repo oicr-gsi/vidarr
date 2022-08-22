@@ -725,11 +725,15 @@ public abstract class DatabaseBackedProcessor
                                         for (final var operation : activeOperations) {
                                           operation.linkTo(workflow);
                                         }
-                                        recover(
-                                            target,
-                                            buildDefinitionFromRecord(context.dsl(), record),
-                                            workflow,
-                                            activeOperations);
+                                        try {
+                                          recover(
+                                                  target,
+                                                  buildDefinitionFromRecord(context.dsl(), record),
+                                                  workflow,
+                                                  activeOperations);
+                                        } catch (Exception e){
+                                          System.err.println("That's super bad but we should probably keep going!");
+                                        }
                                       }
                                     }));
               });

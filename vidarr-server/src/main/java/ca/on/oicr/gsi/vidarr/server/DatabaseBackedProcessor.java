@@ -37,6 +37,8 @@ import java.util.regex.Matcher;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+
+import io.prometheus.client.Counter;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Record1;
@@ -46,6 +48,12 @@ import org.jooq.impl.DSL;
 
 public abstract class DatabaseBackedProcessor
     extends BaseProcessor<DatabaseWorkflow, DatabaseOperation, DSLContext> {
+
+  private static final Counter badRecoveryCount =
+          Counter.build("vidarr_db_processor_recovery_failure_count",
+                          "The number of failures in recovering database-backed operations")
+                  .labelNames("workflow").register();
+
   public interface DeleteResultHandler<T> {
 
     T deleted();
@@ -733,7 +741,11 @@ public abstract class DatabaseBackedProcessor
                                                   activeOperations);
                                       }
                                     }catch (Exception e){
-                                      System.err.println("This is really very bad!");
+                                      System.err.printf("Error recovering workflow run %s: \n",
+                                              record.get(WORKFLOW_RUN.HASH_ID));
+                                      e.printStackTrace();
+                                      badRecoveryCount.labels(record.get(WORKFLOW_RUN.HASH_ID)).inc();
+                                      System.err.println("Continuing recovery on next record in database if one exists.");
                                       }
                                     }));
 

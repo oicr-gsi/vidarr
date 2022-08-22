@@ -181,12 +181,18 @@ public final class CromwellWorkflowEngine
                                                 // removing this block entirely. Is there any way to
                                                 // check whether or not the log stasher should be
                                                 // stashing
+
+                                                // Find way to assess what the failure type is
+
+                                                /*
                                                 if (cromwellCall.getReturnCode() != null
                                                         && cromwellCall.getReturnCode() != 0
                                                     || cromwellCall.getFailures() != null
                                                         && !cromwellCall.getFailures().isEmpty()) {
                                                   return Stream.empty();
                                                 }
+                                                */
+
                                                 final var labels =
                                                     Map.of(
                                                         "jobId",

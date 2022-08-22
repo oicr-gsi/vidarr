@@ -18,6 +18,7 @@ import java.net.http.HttpClient.Redirect;
 import java.net.http.HttpClient.Version;
 import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
+import java.net.http.HttpResponse.BodyHandlers;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -26,6 +27,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Scanner;
 import java.util.concurrent.Semaphore;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -40,15 +42,7 @@ public class CromwellLogFileStasher implements LogFileStasher {
           .followRedirects(Redirect.NORMAL)
           .connectTimeout(Duration.ofSeconds(20))
           .build();
-  @JsonIgnore private SSHClient client;
-  private static Semaphore sftpSemaphore = new Semaphore(1);
-  private String hostname, username;
-  private short port;
-  @JsonIgnore private SFTPClient sftp; // Required for symlink() method
   static final ObjectMapper MAPPER = new ObjectMapper();
-  private String lokiUrl;
-  private int lines;
-
   // ------------------------------------------------------------------------------------------------
   /* THE FOLLOWING VAR ORIGINATE FROM THE SHESMU LOKI PLUGIN (for reference) */
   /* QUESTION: I assume the following error, writeLatency and writeTime have to do with metrics
@@ -60,6 +54,7 @@ public class CromwellLogFileStasher implements LogFileStasher {
               "Whether the Loki client had a push error on its last write")
           .labelNames("filename")
           .register();
+  private static final Semaphore sftpSemaphore = new Semaphore(1);
   private static final LatencyHistogram writeLatency =
       new LatencyHistogram(
           "cromwell_loki_write_latency",
@@ -70,18 +65,65 @@ public class CromwellLogFileStasher implements LogFileStasher {
               "cromwell_loki_write_time", "The last time Cromwell attempted to push data to Loki")
           .labelNames("filename")
           .register();
+
+  public static LogFileStasherProvider provider() {
+    return () -> Stream.of(new Pair<>("cromwell", CromwellLogFileStasher.class));
+  }
+
   private final Pattern INVALID_LABEL = Pattern.compile("[^a-zA-Z0-9_]");
   /* QUESTION: From what I can see, this buffer is only written to when writing out a log message
    * in the Loki plugin. Unsure how/if this is relevant to this provisioner. */
   private final Map<Map<String, String>, List<Pair<Instant, String>>> buffer = new HashMap<>();
+  @JsonIgnore private SSHClient client;
   /* QUESTION: I assume that this is the configuration required by the Loki plugin in order for Shesmu
    * to actually interact with Loki? */
-  private Optional<Configuration> configuration = Optional.empty();
+  private final Optional<Configuration> configuration = Optional.empty();
+  private String hostname, username;
+  private int lines;
+  private String lokiUrl;
+  private short port;
   /* END VAR FROM SHESMU LOKI PLUGIN */
   // ------------------------------------------------------------------------------------------------
+  @JsonIgnore private SFTPClient sftp; // Required for symlink() method
 
-  public static LogFileStasherProvider provider() {
-    return () -> Stream.of(new Pair<>("cromwell", CromwellLogFileStasher.class));
+  public String getHostname() {
+    return hostname;
+  }
+
+  public int getLines() {
+    return lines;
+  }
+
+  public String getLokiUrl() {
+    return lokiUrl;
+  }
+
+  public short getPort() {
+    return port;
+  }
+
+  public String getUsername() {
+    return username;
+  }
+
+  public void setHostname(String hostname) {
+    this.hostname = hostname;
+  }
+
+  public void setLines(int lines) {
+    this.lines = lines;
+  }
+
+  public void setLokiUrl(String lokiUrl) {
+    this.lokiUrl = lokiUrl;
+  }
+
+  public void setPort(short port) {
+    this.port = port;
+  }
+
+  public void setUsername(String username) {
+    this.username = username;
   }
 
   public void startup() {
@@ -91,7 +133,6 @@ public class CromwellLogFileStasher implements LogFileStasher {
       client.addHostKeyVerifier(new PromiscuousVerifier());
       client.connect(hostname, port);
       client.authPublickey(username);
-      sftp = client.newSFTPClient();
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
@@ -127,26 +168,10 @@ public class CromwellLogFileStasher implements LogFileStasher {
     // CHECK: I'm assuming the same error checking will be needed? (Check that the file size
     // isn't atrociously large, etc.) --> YES
 
-    // Use sftp client to create a symlink to the target file we wish to log.
-    try {
-      sftpSemaphore.acquire();
-      try {
-        sftp.mkdirs(vidarrId); // Use the vidarr ID as the target directory
-        sftp.symlink(logFile, vidarrId);
-      } catch (IOException e) {
-        throw new RuntimeException(
-            String.format("Failed to provision \"%s\" to \"%s\".", logFile, vidarrId), e);
-      } finally {
-        sftpSemaphore.release();
-      }
-    } catch (InterruptedException e) {
-      throw new RuntimeException(e);
-    }
-
-    if (Files.size(Path.of(vidarrId)) >= Math.pow(10, 12)) {
+    // Check that the file is not atrociously large
+    if (Files.size(Path.of(logFile)) >= Math.pow(10, 12))
       throw new RuntimeException(
           String.format("File \"%s\" is too large to log to Loki. Size exceeds 1TB", logFile));
-    }
 
     // In order to push to Loki, we create a JSON post body of the log entries and push the body to
     // Loki. See http://grafana.com/docs/loki/latest/api/#push-log-entries-to-loki
@@ -154,80 +179,63 @@ public class CromwellLogFileStasher implements LogFileStasher {
     // QUESTION: The streams object we're creating has an array of entries. What are these entries
     // and where are they coming from?
     final var streams = body.putArray("streams");
-    final var streamsEntry = streams.addObject();
-    final var stream = streamsEntry.putObject("stream");
     // Insert the given labels into the new JSON post body
     for (final var labelEntry : labels.entrySet()) {
+      final var streamsEntry = streams.addObject();
+      final var stream = streamsEntry.putObject("stream");
       final var label = stream.put(labelEntry.getKey(), labelEntry.getValue());
-    }
-    // We will read the file using the created symlink line by line
-    final var values = streamsEntry.putArray("values");
-    StringBuilder sb = new StringBuilder();
-    try (BufferedReader buffer = new BufferedReader(new FileReader(vidarrId))) {
-      String line;
-      while ((line = buffer.readLine()) != null) {
-        // Each entry in the values array is another array in itself, logging 1) the unix epoch in
-        // nanoseconds, and 2) the actual line itself
-        final var valuesEntry = values.addArray();
-        valuesEntry.add(String.format("%d%09d", Instant.now().getNano(), line));
+      final var values = streamsEntry.putArray("values");
+      try (BufferedReader buffer = new BufferedReader(new FileReader(logFile))) {
+        String line;
+        while ((line = buffer.readLine()) != null) {
+          final var valuesEntry = values.addArray();
+          valuesEntry.add(
+              String.format("%d%09d", Instant.now().getEpochSecond(), Instant.now().getNano()));
+          valuesEntry.add(line.replace('\n', ' '));
+        }
       }
     }
-
-    final HttpRequest post;
+    // Create post request to log the lines to Loki
     try {
       // Writing the complete log out to Loki in JSON. Not ideal!
       // Alternatively: Rather than loop that reads all the data, create a custom body publisher
-      /* Java HTTP library requests for more data as appropriate. Can incrementally provide that info
+      /* Java HTTP library requests for more data as appropriate. Can incrementally provide that
+      info
        * Subscriber interface?
        * Build one body publisher, reads out of SFTP
        * Loops, calls method on the subscriber (HTTP interface, gets more data!) */
-      post =
+      final HttpRequest post =
           HttpRequest.newBuilder(URI.create(String.format("%s/loki/api/v1/push", lokiUrl)))
               .POST(BodyPublishers.ofString(MAPPER.writeValueAsString(body)))
               .header("Content-Type", "application/json")
               .build();
+      final var response = CLIENT.send(post, BodyHandlers.ofString());
+      final var success = response.statusCode() / 100 == 2;
+      if (success) {
+        buffer.clear();
+        error.labels();
+      } else {
+        try (final var sc = new Scanner(response.body())) {
+          sc.useDelimiter("\\A");
+          if (sc.hasNext()) {
+            final var message = sc.next();
+            if (message.contains("ignored")) {
+              buffer.clear();
+              // Loki complains if we send duplicate message. Treat like success
+              error.labels().set(0);
+              return;
+            }
+            System.err.println(message);
+          }
+        }
+        error.labels().set(1);
+      }
     } catch (JsonProcessingException e) {
+      e.printStackTrace();
+      throw new RuntimeException(e);
+    } catch (InterruptedException e) {
+      e.printStackTrace();
       throw new RuntimeException(e);
     }
-  }
-
-  public String getLokiUrl() {
-    return lokiUrl;
-  }
-
-  public void setLokiUrl(String lokiUrl) {
-    this.lokiUrl = lokiUrl;
-  }
-
-  public int getLines() {
-    return lines;
-  }
-
-  public void setLines(int lines) {
-    this.lines = lines;
-  }
-
-  public String getHostname() {
-    return hostname;
-  }
-
-  public void setHostname(String hostname) {
-    this.hostname = hostname;
-  }
-
-  public String getUsername() {
-    return username;
-  }
-
-  public void setUsername(String username) {
-    this.username = username;
-  }
-
-  public short getPort() {
-    return port;
-  }
-
-  public void setPort(short port) {
-    this.port = port;
   }
 }

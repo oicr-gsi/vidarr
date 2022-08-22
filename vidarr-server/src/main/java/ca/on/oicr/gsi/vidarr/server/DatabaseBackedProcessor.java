@@ -18,6 +18,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.zaxxer.hikari.HikariDataSource;
+import io.prometheus.client.Counter;
 import java.io.IOError;
 import java.lang.ref.SoftReference;
 import java.nio.charset.StandardCharsets;
@@ -37,8 +38,6 @@ import java.util.regex.Matcher;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
-
-import io.prometheus.client.Counter;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Record1;
@@ -50,9 +49,11 @@ public abstract class DatabaseBackedProcessor
     extends BaseProcessor<DatabaseWorkflow, DatabaseOperation, DSLContext> {
 
   private static final Counter badRecoveryCount =
-          Counter.build("vidarr_db_processor_recovery_failure_count",
-                          "The number of failures in recovering database-backed operations")
-                  .labelNames("workflow").register();
+      Counter.build(
+              "vidarr_db_processor_recovery_failure_count",
+              "The number of failures in recovering database-backed operations")
+          .labelNames("workflow")
+          .register();
 
   public interface DeleteResultHandler<T> {
 
@@ -670,85 +671,88 @@ public abstract class DatabaseBackedProcessor
                             targetByName(record.get(ACTIVE_WORKFLOW_RUN.TARGET))
                                 .ifPresent(
                                     target -> {
-                                      try{
-                                      if (record.get(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE)
-                                          == Phase.WAITING_FOR_RESOURCES) {
-                                        final var definition =
-                                            buildDefinitionFromRecord(context.dsl(), record);
-                                        final var workflow =
-                                            DatabaseWorkflow.recover(
-                                                target,
-                                                record,
-                                                liveness(record.get(ACTIVE_WORKFLOW_RUN.ID)),
-                                                dsl);
-                                        final var activeOperations =
-                                            operations.getOrDefault(
-                                                record.get(ACTIVE_WORKFLOW_RUN.ID), List.of());
-                                        for (final var operation : activeOperations) {
-                                          operation.linkTo(workflow);
-                                        }
-                                        final var consumableResources =
-                                            MAPPER.convertValue(
-                                                record.get(
-                                                    ACTIVE_WORKFLOW_RUN.CONSUMABLE_RESOURCES),
-                                                new TypeReference<Map<String, JsonNode>>() {});
-                                        startRaw.accept(
-                                            new ConsumableResourceChecker(
-                                                target,
-                                                dataSource,
-                                                executor(),
-                                                record.get(ACTIVE_WORKFLOW_RUN.ID),
-                                                liveness(record.get(ACTIVE_WORKFLOW_RUN.ID)),
-                                                record.get(WORKFLOW.NAME),
-                                                record.get(WORKFLOW_VERSION.VERSION),
-                                                record.get(WORKFLOW_RUN.HASH_ID),
-                                                consumableResources,
-                                                () ->
-                                                    recover(
-                                                        target,
-                                                        definition,
-                                                        workflow,
-                                                        activeOperations)));
-                                      } else {
-                                        System.err.printf(
-                                            "Recovering workflow %s...\n",
-                                            record.get(WORKFLOW_RUN.HASH_ID));
-                                        target
-                                            .consumableResources()
-                                            .forEach(
-                                                cr ->
-                                                    cr.second()
-                                                        .recover(
-                                                            record.get(WORKFLOW_VERSION.NAME),
-                                                            record.get(WORKFLOW_VERSION.VERSION),
-                                                            record.get(WORKFLOW_RUN.HASH_ID)));
-                                        final var workflow =
-                                            DatabaseWorkflow.recover(
-                                                target,
-                                                record,
-                                                liveness(record.get(ACTIVE_WORKFLOW_RUN.ID)),
-                                                dsl);
-                                        final var activeOperations =
-                                            operations.getOrDefault(
-                                                record.get(ACTIVE_WORKFLOW_RUN.ID), List.of());
-                                        for (final var operation : activeOperations) {
-                                          operation.linkTo(workflow);
-                                        }
-                                          recover(
+                                      try {
+                                        if (record.get(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE)
+                                            == Phase.WAITING_FOR_RESOURCES) {
+                                          final var definition =
+                                              buildDefinitionFromRecord(context.dsl(), record);
+                                          final var workflow =
+                                              DatabaseWorkflow.recover(
                                                   target,
-                                                  buildDefinitionFromRecord(context.dsl(), record),
-                                                  workflow,
-                                                  activeOperations);
-                                      }
-                                    }catch (Exception e){
-                                      System.err.printf("Error recovering workflow run %s: \n",
+                                                  record,
+                                                  liveness(record.get(ACTIVE_WORKFLOW_RUN.ID)),
+                                                  dsl);
+                                          final var activeOperations =
+                                              operations.getOrDefault(
+                                                  record.get(ACTIVE_WORKFLOW_RUN.ID), List.of());
+                                          for (final var operation : activeOperations) {
+                                            operation.linkTo(workflow);
+                                          }
+                                          final var consumableResources =
+                                              MAPPER.convertValue(
+                                                  record.get(
+                                                      ACTIVE_WORKFLOW_RUN.CONSUMABLE_RESOURCES),
+                                                  new TypeReference<Map<String, JsonNode>>() {});
+                                          startRaw.accept(
+                                              new ConsumableResourceChecker(
+                                                  target,
+                                                  dataSource,
+                                                  executor(),
+                                                  record.get(ACTIVE_WORKFLOW_RUN.ID),
+                                                  liveness(record.get(ACTIVE_WORKFLOW_RUN.ID)),
+                                                  record.get(WORKFLOW.NAME),
+                                                  record.get(WORKFLOW_VERSION.VERSION),
+                                                  record.get(WORKFLOW_RUN.HASH_ID),
+                                                  consumableResources,
+                                                  () ->
+                                                      recover(
+                                                          target,
+                                                          definition,
+                                                          workflow,
+                                                          activeOperations)));
+                                        } else {
+                                          System.err.printf(
+                                              "Recovering workflow %s...\n",
                                               record.get(WORKFLOW_RUN.HASH_ID));
-                                      e.printStackTrace();
-                                      badRecoveryCount.labels(record.get(WORKFLOW_RUN.HASH_ID)).inc();
-                                      System.err.println("Continuing recovery on next record in database if one exists.");
+                                          target
+                                              .consumableResources()
+                                              .forEach(
+                                                  cr ->
+                                                      cr.second()
+                                                          .recover(
+                                                              record.get(WORKFLOW_VERSION.NAME),
+                                                              record.get(WORKFLOW_VERSION.VERSION),
+                                                              record.get(WORKFLOW_RUN.HASH_ID)));
+                                          final var workflow =
+                                              DatabaseWorkflow.recover(
+                                                  target,
+                                                  record,
+                                                  liveness(record.get(ACTIVE_WORKFLOW_RUN.ID)),
+                                                  dsl);
+                                          final var activeOperations =
+                                              operations.getOrDefault(
+                                                  record.get(ACTIVE_WORKFLOW_RUN.ID), List.of());
+                                          for (final var operation : activeOperations) {
+                                            operation.linkTo(workflow);
+                                          }
+                                          recover(
+                                              target,
+                                              buildDefinitionFromRecord(context.dsl(), record),
+                                              workflow,
+                                              activeOperations);
+                                        }
+                                      } catch (Exception e) {
+                                        System.err.printf(
+                                            "Error recovering workflow run %s: \n",
+                                            record.get(WORKFLOW_RUN.HASH_ID));
+                                        e.printStackTrace();
+                                        badRecoveryCount
+                                            .labels(record.get(WORKFLOW_RUN.HASH_ID))
+                                            .inc();
+                                        System.err.println(
+                                            "Continuing recovery on next record in database if one exists.");
                                       }
                                     }));
-
               });
       connection.commit();
     }

@@ -662,6 +662,7 @@ public abstract class DatabaseBackedProcessor
                             targetByName(record.get(ACTIVE_WORKFLOW_RUN.TARGET))
                                 .ifPresent(
                                     target -> {
+                                      try{
                                       if (record.get(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE)
                                           == Phase.WAITING_FOR_RESOURCES) {
                                         final var definition =
@@ -725,17 +726,17 @@ public abstract class DatabaseBackedProcessor
                                         for (final var operation : activeOperations) {
                                           operation.linkTo(workflow);
                                         }
-                                        try {
                                           recover(
                                                   target,
                                                   buildDefinitionFromRecord(context.dsl(), record),
                                                   workflow,
                                                   activeOperations);
-                                        } catch (Exception e){
-                                          System.err.println("That's super bad but we should probably keep going!");
-                                        }
+                                      }
+                                    }catch (Exception e){
+                                      System.err.println("This is really very bad!");
                                       }
                                     }));
+
               });
       connection.commit();
     }

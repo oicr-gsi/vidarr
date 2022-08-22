@@ -5,7 +5,6 @@ import ca.on.oicr.gsi.prometheus.LatencyHistogram;
 import ca.on.oicr.gsi.vidarr.LogFileStasher;
 import ca.on.oicr.gsi.vidarr.LogFileStasherProvider;
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.prometheus.client.Gauge;
 import java.io.BufferedReader;
@@ -44,10 +43,6 @@ public class CromwellLogFileStasher implements LogFileStasher {
           .build();
   static final ObjectMapper MAPPER = new ObjectMapper();
   // ------------------------------------------------------------------------------------------------
-  /* THE FOLLOWING VAR ORIGINATE FROM THE SHESMU LOKI PLUGIN (for reference) */
-  /* QUESTION: I assume the following error, writeLatency and writeTime have to do with metrics
-   * of pushing data to Loki. Unsure if these are necessary for this plugin. */
-  // --> DON'T WORRY ABOUT IT FOR NOW
   private static final Gauge error =
       Gauge.build(
               "cromwell_loki_push_error",
@@ -183,7 +178,7 @@ public class CromwellLogFileStasher implements LogFileStasher {
     for (final var labelEntry : labels.entrySet()) {
       final var streamsEntry = streams.addObject();
       final var stream = streamsEntry.putObject("stream");
-      final var label = stream.put(labelEntry.getKey(), labelEntry.getValue());
+      stream.put(labelEntry.getKey(), labelEntry.getValue());
       final var values = streamsEntry.putArray("values");
       try (BufferedReader buffer = new BufferedReader(new FileReader(logFile))) {
         String line;
@@ -196,24 +191,33 @@ public class CromwellLogFileStasher implements LogFileStasher {
       }
     }
     // Create post request to log the lines to Loki
+
+    // Writing the complete log out to Loki in JSON. Not ideal!
+    // Alternatively: Rather than loop that reads all the data, create a custom body publisher
+    /* Java HTTP library requests for more data as appropriate. Can incrementally provide that
+    info
+     * Subscriber interface?
+     * Build one body publisher, reads out of SFTP
+     * Loops, calls method on the subscriber (HTTP interface, gets more data!) */
+    final HttpRequest post;
     try {
-      // Writing the complete log out to Loki in JSON. Not ideal!
-      // Alternatively: Rather than loop that reads all the data, create a custom body publisher
-      /* Java HTTP library requests for more data as appropriate. Can incrementally provide that
-      info
-       * Subscriber interface?
-       * Build one body publisher, reads out of SFTP
-       * Loops, calls method on the subscriber (HTTP interface, gets more data!) */
-      final HttpRequest post =
+      post =
           HttpRequest.newBuilder(URI.create(String.format("%s/loki/api/v1/push", lokiUrl)))
               .POST(BodyPublishers.ofString(MAPPER.writeValueAsString(body)))
               .header("Content-Type", "application/json")
               .build();
+    } catch (final Exception e) {
+      e.printStackTrace();
+      error.labels(vidarrId).set(1);
+      return;
+    }
+    writeTime.labels(vidarrId).set(1);
+    try (final var timer = writeLatency.start(vidarrId)) {
       final var response = CLIENT.send(post, BodyHandlers.ofString());
       final var success = response.statusCode() / 100 == 2;
       if (success) {
         buffer.clear();
-        error.labels();
+        error.labels(vidarrId).set(0);
       } else {
         try (final var sc = new Scanner(response.body())) {
           sc.useDelimiter("\\A");
@@ -221,21 +225,17 @@ public class CromwellLogFileStasher implements LogFileStasher {
             final var message = sc.next();
             if (message.contains("ignored")) {
               buffer.clear();
-              // Loki complains if we send duplicate message. Treat like success
-              error.labels().set(0);
+              error.labels(vidarrId).set(0);
               return;
             }
             System.err.println(message);
           }
         }
-        error.labels().set(1);
+        error.labels(vidarrId).set(1);
       }
-    } catch (JsonProcessingException e) {
+    } catch (Exception e) {
       e.printStackTrace();
-      throw new RuntimeException(e);
-    } catch (InterruptedException e) {
-      e.printStackTrace();
-      throw new RuntimeException(e);
+      error.labels(vidarrId).set(1);
     }
   }
 }

@@ -52,7 +52,6 @@ public abstract class DatabaseBackedProcessor
       Counter.build(
               "vidarr_db_processor_recovery_failure_count",
               "The number of failures in recovering database-backed operations")
-          .labelNames("workflow")
           .register();
 
   public interface DeleteResultHandler<T> {
@@ -746,9 +745,7 @@ public abstract class DatabaseBackedProcessor
                                             "Error recovering workflow run %s: \n",
                                             record.get(WORKFLOW_RUN.HASH_ID));
                                         e.printStackTrace();
-                                        badRecoveryCount
-                                            .labels(record.get(WORKFLOW_RUN.HASH_ID))
-                                            .inc();
+                                        badRecoveryCount.inc();
                                         System.err.println(
                                             "Continuing recovery on next record in database if one exists.");
                                       }

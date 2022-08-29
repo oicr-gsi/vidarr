@@ -204,37 +204,37 @@ public class CromwellLogFileStasher implements LogFileStasher {
       post =
           HttpRequest.newBuilder(URI.create(String.format("%s/loki/api/v1/push", lokiUrl)))
               .POST(BodyPublishers.ofString(MAPPER.writeValueAsString(body)))
-              .header("Content-Type", "application/json")
+              .header("Content-type", "application/json")
               .build();
     } catch (final Exception e) {
       e.printStackTrace();
-      error.labels(vidarrId).set(1);
+      error.labels().set(1);
       return;
     }
-    writeTime.labels(vidarrId).set(1);
-    try (final var timer = writeLatency.start(vidarrId)) {
+    writeTime.labels("config-crom-test").set(1);
+    try (final var timer = writeLatency.start("config-crom-test")) {
       final var response = CLIENT.send(post, BodyHandlers.ofString());
       final var success = response.statusCode() / 100 == 2;
       if (success) {
-        error.labels(vidarrId).set(0);
+        error.labels("config-crom-test").set(0);
       } else {
         try (final var sc = new Scanner(response.body())) {
           sc.useDelimiter("\\A");
           if (sc.hasNext()) {
             final var message = sc.next();
             if (message.contains("ignored")) {
-              error.labels(vidarrId).set(0);
+              error.labels("config-crom-test").set(0);
               return;
             }
             System.err.println(message);
           }
         }
-        error.labels(vidarrId).set(1);
+        error.labels("config-crom-test").set(1);
       }
     } catch (Exception e) {
       int x = 1;
       e.printStackTrace();
-      error.labels(vidarrId).set(1);
+      error.labels("config-crom-test").set(1);
     }
   }
 }

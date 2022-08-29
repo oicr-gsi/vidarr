@@ -216,7 +216,6 @@ public class CromwellLogFileStasher implements LogFileStasher {
       final var response = CLIENT.send(post, BodyHandlers.ofString());
       final var success = response.statusCode() / 100 == 2;
       if (success) {
-        buffer.clear();
         error.labels(vidarrId).set(0);
       } else {
         try (final var sc = new Scanner(response.body())) {
@@ -224,7 +223,6 @@ public class CromwellLogFileStasher implements LogFileStasher {
           if (sc.hasNext()) {
             final var message = sc.next();
             if (message.contains("ignored")) {
-              buffer.clear();
               error.labels(vidarrId).set(0);
               return;
             }
@@ -234,6 +232,7 @@ public class CromwellLogFileStasher implements LogFileStasher {
         error.labels(vidarrId).set(1);
       }
     } catch (Exception e) {
+      int x = 1;
       e.printStackTrace();
       error.labels(vidarrId).set(1);
     }

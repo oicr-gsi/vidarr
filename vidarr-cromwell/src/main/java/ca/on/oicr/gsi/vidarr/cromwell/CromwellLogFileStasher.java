@@ -149,7 +149,7 @@ public class CromwellLogFileStasher implements LogFileStasher {
       throws IOException {
     // QUESTION: Is the block below (recording the CallLogState) necessary (since we're not
     // returning a state)? --> There is no state, don't have to keep track of it
-    // --> assume loki will dedup for us! :D Oterhwise, stash monitor will need redesigning
+    // --> assume loki will dedup for us! :D Otherwise, stash monitor will need redesigning
     //    final var state = new CallLogState();
     //    state.setLog(logFile);
     //    // QUESTION: Unsure as to what index is responsible for --> tracks our place in logging
@@ -178,7 +178,7 @@ public class CromwellLogFileStasher implements LogFileStasher {
     for (final var labelEntry : labels.entrySet()) {
       final var streamsEntry = streams.addObject();
       final var stream = streamsEntry.putObject("stream");
-      stream.put(labelEntry.getKey(), labelEntry.getValue());
+      stream.put(INVALID_LABEL.matcher(labelEntry.getKey()).replaceAll("_"), labelEntry.getValue());
       final var values = streamsEntry.putArray("values");
       try (BufferedReader buffer = new BufferedReader(new FileReader(logFile))) {
         String line;
@@ -232,7 +232,6 @@ public class CromwellLogFileStasher implements LogFileStasher {
         error.labels("config-crom-test").set(1);
       }
     } catch (Exception e) {
-      int x = 1;
       e.printStackTrace();
       error.labels("config-crom-test").set(1);
     }

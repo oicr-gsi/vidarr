@@ -160,37 +160,30 @@ public class CromwellLogFileStasher implements LogFileStasher {
 
     // Doesn't need to be in a scheduleTask unless we actually intend to wait
     // If we want this plugin to be recoverable, THEN this would be wrapped
-    // CHECK: I'm assuming the same error checking will be needed? (Check that the file size
-    // isn't atrociously large, etc.) --> YES
 
     // Check that the file is not atrociously large
     if (Files.size(Path.of(logFile)) >= Math.pow(10, 12))
       throw new RuntimeException(
           String.format("File \"%s\" is too large to log to Loki. Size exceeds 1TB", logFile));
-
     // In order to push to Loki, we create a JSON post body of the log entries and push the body to
     // Loki. See http://grafana.com/docs/loki/latest/api/#push-log-entries-to-loki
     final var body = MAPPER.createObjectNode();
-    // QUESTION: The streams object we're creating has an array of entries. What are these entries
-    // and where are they coming from?
     final var streams = body.putArray("streams");
-    // Insert the given labels into the new JSON post body
-    for (final var labelEntry : labels.entrySet()) {
-      final var streamsEntry = streams.addObject();
-      final var stream = streamsEntry.putObject("stream");
-      stream.put(INVALID_LABEL.matcher(labelEntry.getKey()).replaceAll("_"), labelEntry.getValue());
-      final var values = streamsEntry.putArray("values");
-      try (BufferedReader buffer = new BufferedReader(new FileReader(logFile))) {
-        String line;
-        while ((line = buffer.readLine()) != null) {
-          final var valuesEntry = values.addArray();
-          valuesEntry.add(
-              String.format("%d%09d", Instant.now().getEpochSecond(), Instant.now().getNano()));
-          valuesEntry.add(line.replace('\n', ' '));
-        }
+    final var streamsEntry = streams.addObject();
+    final var stream = streamsEntry.putObject("stream");
+    for (final var label : labels.entrySet()) {
+      stream.put(INVALID_LABEL.matcher(label.getKey()).replaceAll("_"), label.getValue());
+    }
+    final var values = streamsEntry.putArray("values");
+    try (BufferedReader buffer = new BufferedReader(new FileReader(logFile))) {
+      String line;
+      while ((line = buffer.readLine()) != null) {
+        final var valuesEntry = values.addArray();
+        valuesEntry.add(
+            String.format("%d%09d", Instant.now().getEpochSecond(), Instant.now().getNano()));
+        valuesEntry.add(line.replace('\n', ' '));
       }
     }
-    // Create post request to log the lines to Loki
 
     // Writing the complete log out to Loki in JSON. Not ideal!
     // Alternatively: Rather than loop that reads all the data, create a custom body publisher
@@ -199,6 +192,8 @@ public class CromwellLogFileStasher implements LogFileStasher {
      * Subscriber interface?
      * Build one body publisher, reads out of SFTP
      * Loops, calls method on the subscriber (HTTP interface, gets more data!) */
+
+    // Create post request to log the lines to Loki
     final HttpRequest post;
     try {
       post =

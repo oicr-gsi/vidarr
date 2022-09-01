@@ -171,6 +171,7 @@ public class CromwellLogFileStasher implements LogFileStasher {
     final var streams = body.putArray("streams");
     final var streamsEntry = streams.addObject();
     final var stream = streamsEntry.putObject("stream");
+    stream.put("stream", "stderr");
     for (final var label : labels.entrySet()) {
       stream.put(INVALID_LABEL.matcher(label.getKey()).replaceAll("_"), label.getValue());
     }
@@ -179,8 +180,8 @@ public class CromwellLogFileStasher implements LogFileStasher {
       String line;
       while ((line = buffer.readLine()) != null) {
         final var valuesEntry = values.addArray();
-        valuesEntry.add(
-            String.format("%d%09d", Instant.now().getEpochSecond(), Instant.now().getNano()));
+        final var now = Instant.now();
+        valuesEntry.add(String.format("%d%09d", now.getEpochSecond(), now.getNano()));
         valuesEntry.add(line.replace('\n', ' '));
       }
     }
@@ -199,7 +200,7 @@ public class CromwellLogFileStasher implements LogFileStasher {
       post =
           HttpRequest.newBuilder(URI.create(String.format("%s/loki/api/v1/push", lokiUrl)))
               .POST(BodyPublishers.ofString(MAPPER.writeValueAsString(body)))
-              .header("Content-type", "application/json")
+              .header("Content-Type", "application/json")
               .build();
     } catch (final Exception e) {
       e.printStackTrace();

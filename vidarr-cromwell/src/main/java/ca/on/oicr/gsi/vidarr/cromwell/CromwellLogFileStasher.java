@@ -27,7 +27,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Scanner;
-import java.util.concurrent.Semaphore;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import net.schmizz.sshj.SSHClient;
@@ -49,7 +48,6 @@ public class CromwellLogFileStasher implements LogFileStasher {
               "Whether the Loki client had a push error on its last write")
           .labelNames("filename")
           .register();
-  private static final Semaphore sftpSemaphore = new Semaphore(1);
   private static final LatencyHistogram writeLatency =
       new LatencyHistogram(
           "cromwell_loki_write_latency",
@@ -207,7 +205,7 @@ public class CromwellLogFileStasher implements LogFileStasher {
       error.labels().set(1);
       return;
     }
-    writeTime.labels("config-crom-test").set(1);
+    writeTime.labels("config-crom-test").setToCurrentTime();
     try (final var timer = writeLatency.start("config-crom-test")) {
       final var response = CLIENT.send(post, BodyHandlers.ofString());
       final var success = response.statusCode() / 100 == 2;

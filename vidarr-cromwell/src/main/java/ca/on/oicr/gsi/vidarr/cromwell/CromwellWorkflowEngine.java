@@ -174,25 +174,6 @@ public final class CromwellWorkflowEngine
                                               public Stream<CallLogState> apply(
                                                   CromwellCall cromwellCall) {
                                                 final var current = index++;
-                                                // QUESTION: This block is problematic as if our
-                                                // log stasher is looking at FAILED workflow runs,
-                                                // this block will prevent stashing those calls
-                                                // (will return empty). Currently circumvented by
-                                                // removing this block entirely. Is there any way to
-                                                // check whether or not the log stasher should be
-                                                // stashing
-
-                                                // Find way to assess what the failure type is
-
-                                                /*
-                                                if (cromwellCall.getReturnCode() != null
-                                                        && cromwellCall.getReturnCode() != 0
-                                                    || cromwellCall.getFailures() != null
-                                                        && !cromwellCall.getFailures().isEmpty()) {
-                                                  return Stream.empty();
-                                                }
-                                                */
-
                                                 final var labels =
                                                     Map.of(
                                                         "jobId",
@@ -358,13 +339,6 @@ public final class CromwellWorkflowEngine
     }
   }
 
-  // QUESTION: Where are we checking that the log stasher should be running on a specific workflow
-  // run? When a workflow run FAILS, we can get its calls (though there is a blockage there). Here
-  // we simply process the call logs, but there doesn't seem to be any logic yet as to where we
-  // determine if it runs. Should that happen in the log stasher itself? Meaning we do all these
-  // calls and THEN get the logs if appropriate?
-  // PROPOSAL?: Get all the logs as appropriate, leave it up to the stasher to determine whether or
-  // not it actually runs
   private void processCallLogs(EngineState state, WorkMonitor<Result<String>, EngineState> monitor)
       throws IOException {
     final var entry = state.getCallLogStates().get(0);

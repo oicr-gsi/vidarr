@@ -22,6 +22,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -41,6 +42,9 @@ public class CromwellLogFileStasher implements LogFileStasher {
           .connectTimeout(Duration.ofSeconds(20))
           .build();
   static final ObjectMapper MAPPER = new ObjectMapper();
+  static final List<Kind> kind =
+      Arrays.asList(
+          Kind.STDERR); // Set this stasher to be one of failed workflow run logs harvesting
   // ------------------------------------------------------------------------------------------------
   private static final Gauge error =
       Gauge.build(

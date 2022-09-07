@@ -94,7 +94,9 @@ public final class CromwellWorkflowEngine
       CLIENT
           .sendAsync(
               HttpRequest.newBuilder()
-                  .uri(CromwellMetadataURL.formatMetadataURL(url, state.getCromwellId(), debugInflightRuns))
+                  .uri(
+                      CromwellMetadataURL.formatMetadataURL(
+                          url, state.getCromwellId(), debugInflightRuns))
                   .timeout(Duration.ofMinutes(1))
                   .GET()
                   .build(),
@@ -115,11 +117,10 @@ public final class CromwellWorkflowEngine
                     // so we can have call info for debugging.
                   case "Aborted":
                   case "Failed":
-                    if (debugInflightRuns){
+                    if (debugInflightRuns) {
                       monitor.log(
-                              System.Logger.Level.INFO,
-                              "Cromwell WorkflowEngine is configured to have already fetched calls info. Skipping second request."
-                      );
+                          System.Logger.Level.INFO,
+                          "Cromwell WorkflowEngine is configured to have already fetched calls info. Skipping second request.");
                       break;
                     }
                     monitor.log(
@@ -132,7 +133,9 @@ public final class CromwellWorkflowEngine
                     CLIENT
                         .sendAsync(
                             HttpRequest.newBuilder()
-                                .uri(CromwellMetadataURL.formatMetadataURL(url, state.getCromwellId(), true))
+                                .uri(
+                                    CromwellMetadataURL.formatMetadataURL(
+                                        url, state.getCromwellId(), true))
                                 .timeout(Duration.ofMinutes(1))
                                 .GET()
                                 .build(),
@@ -247,7 +250,8 @@ public final class CromwellWorkflowEngine
                       result.getOutputs(),
                       // Note: This instance of the cromwell URL is for use by OutputProvisioners
                       // Don't include 'excludeKeys', includeCalls needs to be true
-                      CromwellMetadataURL.formatMetadataURL(url, state.getCromwellId(), true).toString(),
+                      CromwellMetadataURL.formatMetadataURL(url, state.getCromwellId(), true)
+                          .toString(),
                       Optional.empty()));
             })
         .exceptionally(

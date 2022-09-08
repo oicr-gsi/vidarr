@@ -6,6 +6,20 @@ For unreleased changes, see [changes](changes).
 
 -----------------------------------------------------------------------------
 
+## [0.9.0] - 2022-09-08
+
+### Added
+
+* Adds debug calls to cromwell workflow engine and output provisioner config
+* * Adds a new `retry` type that allows a workflows that fail to be retried with different arguments
+
+### Fixed
+
+* ### Fixed
+* Fixes Provision In phase not logging recovery information in a useable format.
+* Fixes uncaught exceptions interrupting db-backed recovery.
+
+
 ## [0.8.1] - 2022-08-03
 
 ### Fixed

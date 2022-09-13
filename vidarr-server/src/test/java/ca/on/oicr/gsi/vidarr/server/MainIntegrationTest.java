@@ -441,6 +441,7 @@ public class MainIntegrationTest {
         .body(
             containsString("name"),
             containsString("version"),
+            containsString("id"),
             containsString("outputs"),
             containsString("language"),
             not(containsString("workflow")));
@@ -456,6 +457,7 @@ public class MainIntegrationTest {
         .body(
             containsString("name"),
             containsString("version"),
+            containsString("id"),
             containsString("outputs"),
             containsString("language"),
             containsString("workflow"),

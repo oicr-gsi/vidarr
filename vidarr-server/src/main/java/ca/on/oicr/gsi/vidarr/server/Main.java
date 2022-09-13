@@ -1616,6 +1616,7 @@ public final class Main implements ServerConfig {
     return DSL.jsonObject(
         literalJsonEntry("name", WORKFLOW_VERSION.NAME),
         literalJsonEntry("version", WORKFLOW_VERSION.VERSION),
+        literalJsonEntry("id", WORKFLOW_VERSION.HASH_ID),
         literalJsonEntry("metadata", WORKFLOW_VERSION.METADATA),
         literalJsonEntry("parameters", WORKFLOW_VERSION.PARAMETERS),
         literalJsonEntry(
@@ -1633,6 +1634,7 @@ public final class Main implements ServerConfig {
     return DSL.jsonObject(
         literalJsonEntry("name", WORKFLOW_VERSION.NAME),
         literalJsonEntry("version", WORKFLOW_VERSION.VERSION),
+        literalJsonEntry("id", WORKFLOW_VERSION.HASH_ID),
         literalJsonEntry("metadata", WORKFLOW_VERSION.METADATA),
         literalJsonEntry("parameters", WORKFLOW_VERSION.PARAMETERS),
         literalJsonEntry(

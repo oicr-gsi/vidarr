@@ -120,7 +120,11 @@ public final class CromwellWorkflowEngine
                     if (debugInflightRuns) {
                       monitor.log(
                           System.Logger.Level.INFO,
-                          "Cromwell WorkflowEngine is configured to have already fetched calls info. Skipping second request.");
+                          String.format("Cromwell job %s is failed. Cromwell WorkflowEngine is "
+                              + "configured to have already fetched calls info. Skipping second "
+                              + "request.", state.getCromwellId())
+                      );
+                      monitor.permanentFailure("Cromwell failure: " + result.getStatus());
                       break;
                     }
                     monitor.log(

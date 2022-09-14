@@ -116,8 +116,11 @@ public class CromwellOutputProvisioner
                     if (debugCalls){
                       monitor.log(
                               System.Logger.Level.INFO,
-                              "Cromwell OutputProvisioner is configured to have already fetched calls info. Skipping second request."
+                              String.format("Cromwell job %s is failed. Cromwell OutputProvisioner "
+                                  + "is configured to have already fetched calls info. Skipping "
+                                  + "second request.", state.getCromwellId())
                       );
+                      monitor.permanentFailure("Cromwell failure: " + result.getStatus());
                       break;
                     }
                     monitor.log(

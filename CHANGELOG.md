@@ -6,6 +6,13 @@ For unreleased changes, see [changes](changes).
 
 -----------------------------------------------------------------------------
 
+## [0.9.1] - 2022-09-14
+
+### Fixed
+
+* Fix bug where Vidarr workflow runs were not recorded as FAILED if the Cromwell workflow run failed and debugging workflows was turned on
+
+
 ## [0.9.0] - 2022-09-08
 
 ### Added

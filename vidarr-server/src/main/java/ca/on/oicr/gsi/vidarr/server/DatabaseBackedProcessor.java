@@ -18,6 +18,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.zaxxer.hikari.HikariDataSource;
+import io.prometheus.client.Counter;
 import io.prometheus.client.Gauge;
 import java.io.IOError;
 import java.lang.ref.SoftReference;
@@ -52,13 +53,20 @@ public abstract class DatabaseBackedProcessor
     private static final Set badRecoveryIds = new HashSet<String>();
     private static final Gauge badRecoveryCount =
         Gauge.build(
-                "vidarr_db_processor_recovery_failure_count",
-                "The number of failures in recovering database-backed operations")
+                "vidarr_db_processor_recovery_current_failures",
+                "The number of failures in recovering database-backed operations that have not been deleted")
+            .register();
+
+    private static final Counter badRecoveryTotal =
+        Counter.build(
+                "vidarr_db_processor_recovery_total_failures",
+                "The total number of failures in recovering database-backed operations this boot")
             .register();
 
     public static void add(String id) {
       badRecoveryIds.add(id);
       badRecoveryCount.set(badRecoveryIds.size());
+      badRecoveryTotal.inc();
     }
 
     public static void remove(String id) {

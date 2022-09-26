@@ -50,7 +50,7 @@ public abstract class DatabaseBackedProcessor
     extends BaseProcessor<DatabaseWorkflow, DatabaseOperation, DSLContext> {
 
   private static class BadRecoveryTracker {
-    private static final Set badRecoveryIds = new HashSet<String>();
+    private static final Set<String> badRecoveryIds = new HashSet<>();
     private static final Gauge badRecoveryCount =
         Gauge.build(
                 "vidarr_db_processor_recovery_current_failures",
@@ -775,6 +775,10 @@ public abstract class DatabaseBackedProcessor
               });
       connection.commit();
     }
+  }
+
+  protected final Set<String> recoveryFailures() {
+    return BadRecoveryTracker.badRecoveryIds;
   }
 
   protected final Optional<FileMetadata> resolveInDatabase(String inputId) {

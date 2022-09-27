@@ -19,6 +19,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.zaxxer.hikari.HikariDataSource;
 import io.prometheus.client.Counter;
+import io.prometheus.client.Gauge;
 import java.io.IOError;
 import java.lang.ref.SoftReference;
 import java.nio.charset.StandardCharsets;
@@ -48,11 +49,31 @@ import org.jooq.impl.DSL;
 public abstract class DatabaseBackedProcessor
     extends BaseProcessor<DatabaseWorkflow, DatabaseOperation, DSLContext> {
 
-  private static final Counter badRecoveryCount =
-      Counter.build(
-              "vidarr_db_processor_recovery_failure_count",
-              "The number of failures in recovering database-backed operations")
-          .register();
+  private static class BadRecoveryTracker {
+    private static final Set<String> badRecoveryIds = new HashSet<>();
+    private static final Gauge badRecoveryCount =
+        Gauge.build(
+                "vidarr_db_processor_recovery_current_failures",
+                "The number of failures in recovering database-backed operations that have not been deleted")
+            .register();
+
+    private static final Counter badRecoveryTotal =
+        Counter.build(
+                "vidarr_db_processor_recovery_total_failures",
+                "The total number of failures in recovering database-backed operations this boot")
+            .register();
+
+    public static void add(String id) {
+      badRecoveryIds.add(id);
+      badRecoveryCount.set(badRecoveryIds.size());
+      badRecoveryTotal.inc();
+    }
+
+    public static void remove(String id) {
+      badRecoveryIds.remove(id); // does nothing if id is not in HashSet
+      badRecoveryCount.set(badRecoveryIds.size()); // no change if remove did nothing
+    }
+  }
 
   public interface DeleteResultHandler<T> {
 
@@ -406,6 +427,7 @@ public abstract class DatabaseBackedProcessor
                                 .delete(WORKFLOW_RUN)
                                 .where(WORKFLOW_RUN.ID.eq(id_and_dead.component1()))
                                 .execute();
+                            BadRecoveryTracker.remove(workflowRunId);
                             return handler.deleted();
                           } else {
                             return handler.stillActive();
@@ -741,11 +763,11 @@ public abstract class DatabaseBackedProcessor
                                               activeOperations);
                                         }
                                       } catch (Exception e) {
+                                        String erroneousHash = record.get(WORKFLOW_RUN.HASH_ID);
                                         System.err.printf(
-                                            "Error recovering workflow run %s: \n",
-                                            record.get(WORKFLOW_RUN.HASH_ID));
+                                            "Error recovering workflow run %s: \n", erroneousHash);
                                         e.printStackTrace();
-                                        badRecoveryCount.inc();
+                                        BadRecoveryTracker.add(erroneousHash);
                                         System.err.println(
                                             "Continuing recovery on next record in database if one exists.");
                                       }
@@ -753,6 +775,10 @@ public abstract class DatabaseBackedProcessor
               });
       connection.commit();
     }
+  }
+
+  protected final Set<String> recoveryFailures() {
+    return BadRecoveryTracker.badRecoveryIds;
   }
 
   protected final Optional<FileMetadata> resolveInDatabase(String inputId) {

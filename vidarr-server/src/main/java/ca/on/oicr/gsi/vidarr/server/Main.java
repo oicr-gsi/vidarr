@@ -73,6 +73,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.zaxxer.hikari.HikariConfig;
@@ -370,6 +371,7 @@ public final class Main implements ServerConfig {
                             .get("/", monitor(new BlockingHandler(server::status)))
                             .get("/api/file/{hash}", monitor(server::fetchFile))
                             .get("/api/run/{hash}", monitor(new BlockingHandler(server::fetchRun)))
+                            .get("/api/recovery-failures", monitor(server::fetchRecoveryFailures))
                             .get(
                                 "/api/status", monitor(new BlockingHandler(server::fetchAllActive)))
                             .get("/api/status/{hash}", monitor(server::fetchStatus))
@@ -1402,6 +1404,17 @@ public final class Main implements ServerConfig {
       internalServerErrorResponse(exchange, e);
     } finally {
       epochLock.readLock().unlock();
+    }
+  }
+
+  private void fetchRecoveryFailures(HttpServerExchange exchange) {
+    final Set<String> failureIds = processor.recoveryFailures();
+    ArrayNode failureIdsResult = MAPPER.createArrayNode();
+    failureIds.forEach(failureIdsResult::add);
+    try {
+      okJsonResponse(exchange, MAPPER.writeValueAsString(failureIdsResult));
+    } catch (JsonProcessingException e) {
+      throw new RuntimeException(e);
     }
   }
 

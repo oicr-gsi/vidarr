@@ -1542,6 +1542,17 @@
         "summary": "Update external versions"
       }
     },
+    "/api/recovery-failures": {
+      "get": {
+        "summary": "Get boot recovery failures",
+        "description": "Get the list of recovery failures from the most recent boot of Vidarr that have not yet been deleted, i.e. outstanding failures.",
+        "responses": {
+          "200": {
+            "description": "List of outstanding recovery failures."
+	  }
+        }
+      }
+    },
     "/api/workflow/{name}": {
       "delete": {
         "description": "Deactivate a workflow. This does not stop inflight actions from using this workflow. It merely stops it from being available in the workflow catalogue.",

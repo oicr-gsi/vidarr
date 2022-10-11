@@ -1548,7 +1548,17 @@
         "description": "Get the list of recovery failures from the most recent boot of Vidarr that have not yet been deleted, i.e. outstanding failures.",
         "responses": {
           "200": {
-            "description": "List of outstanding recovery failures."
+            "description": "List of outstanding recovery failures.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
 	  }
         }
       }

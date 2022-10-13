@@ -427,8 +427,14 @@ public class CromwellOutputProvisioner
                                 cromwellUrl, state.getFileName()));
                         t.printStackTrace();
                         CROMWELL_FAILURES.labels(cromwellUrl).inc();
+
+                        // Call recover() rather than check(): recover() starts with a check for
+                        // a null cromwell ID. There's a chance Exception t is 'header parser
+                        // received no bytes', or another case where we don't have a cromwell id.
+                        // Prevents looping 'Checking Cromwell job null'. recover() calls check()
+                        // if a cromwell id is present.
                         monitor.scheduleTask(
-                            CHECK_DELAY, TimeUnit.MINUTES, () -> check(state, monitor));
+                            CHECK_DELAY, TimeUnit.MINUTES, () -> recover(state, monitor));
                         return null;
                       });
             } catch (Exception e) {

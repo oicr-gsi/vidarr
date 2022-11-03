@@ -6,6 +6,22 @@ For unreleased changes, see [changes](changes).
 
 -----------------------------------------------------------------------------
 
+## [0.10.0] - 2022-11-03
+
+### Added
+
+* Add workflow ID to GET `/api/workflow/{name}/{version}` API endpoint. This can be used for deleting workflow runs by `vidarr-workflow-id`.
+* Adds recovery-failures API endpoint which returns workflow run ids of any runs which failed to recover from the database on restart.
+
+### Changed
+
+* Wraps a significant chunk of DatabaseBackedProcessor.recover() in try-catch Exception block. This changes the error handling of SQLException on startup for now. Intend to fix this in a later release.
+
+### Fixed
+
+* Fixes Cromwell provision-out retry behaviour to account for situation where cromwell does not return an ID.
+
+
 ## [0.9.1] - 2022-09-14
 
 ### Fixed

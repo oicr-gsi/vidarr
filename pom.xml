@@ -8,7 +8,7 @@
   <properties>
     <jooq.version>3.16.6</jooq.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <rest-assured.version>5.1.1</rest-assured.version>
+    <rest-assured.version>5.2.0</rest-assured.version>
     <swagger-core-version>1.5.18</swagger-core-version>
   </properties>
   <repositories>

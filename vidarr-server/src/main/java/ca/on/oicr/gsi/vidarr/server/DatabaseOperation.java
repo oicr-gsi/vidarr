@@ -2,8 +2,8 @@ package ca.on.oicr.gsi.vidarr.server;
 
 import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.*;
 
-import ca.on.oicr.gsi.vidarr.core.ActiveOperation;
-import ca.on.oicr.gsi.vidarr.core.OperationStatus;
+import ca.on.oicr.gsi.vidarr.ActiveOperation;
+import ca.on.oicr.gsi.vidarr.OperationStatus;
 import ca.on.oicr.gsi.vidarr.core.Phase;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.List;

@@ -16,6 +16,7 @@ import static org.jooq.impl.DSL.trueCondition;
 import ca.on.oicr.gsi.Pair;
 import ca.on.oicr.gsi.vidarr.BasicType;
 import ca.on.oicr.gsi.vidarr.InputType;
+import ca.on.oicr.gsi.vidarr.OperationStatus;
 import ca.on.oicr.gsi.vidarr.OutputType;
 import ca.on.oicr.gsi.vidarr.WorkflowDefinition;
 import ca.on.oicr.gsi.vidarr.api.BulkVersionRequest;
@@ -29,7 +30,6 @@ import ca.on.oicr.gsi.vidarr.core.ExtractInputVidarrIds;
 import ca.on.oicr.gsi.vidarr.core.ExtractOutputKeys;
 import ca.on.oicr.gsi.vidarr.core.ExtractRetryValues;
 import ca.on.oicr.gsi.vidarr.core.FileMetadata;
-import ca.on.oicr.gsi.vidarr.core.OperationStatus;
 import ca.on.oicr.gsi.vidarr.core.OutputCompatibility;
 import ca.on.oicr.gsi.vidarr.core.Phase;
 import ca.on.oicr.gsi.vidarr.core.RecoveryType;
@@ -242,7 +242,7 @@ public abstract class DatabaseBackedProcessor
   private static Stream<String> checkConsumableResource(
       Map<String, JsonNode> consumableResources, Pair<String, BasicType> resource) {
     if (consumableResources == null) {
-      return Stream.of(String.format("Missing consumableResources attribute"));
+      return Stream.of("Missing consumableResources attribute");
     }
     return consumableResources.containsKey(resource.first())
         ? resource

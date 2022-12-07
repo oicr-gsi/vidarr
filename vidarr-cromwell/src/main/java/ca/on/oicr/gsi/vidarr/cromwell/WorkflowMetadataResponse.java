@@ -1,5 +1,8 @@
 package ca.on.oicr.gsi.vidarr.cromwell;
 
+import static ca.on.oicr.gsi.vidarr.cromwell.CromwellWorkflowEngine.statusFromCromwell;
+
+import ca.on.oicr.gsi.vidarr.PollResult;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.List;
@@ -9,10 +12,10 @@ import java.util.Map;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class WorkflowMetadataResponse {
   private Map<String, List<CromwellCall>> calls;
+  private List<CromwellFailure> failures = List.of();
   private String id;
   private String status;
   private String workflowRoot;
-  private List<CromwellFailure> failures = List.of();
 
   public JsonNode debugInfo() {
     final var debugInfo = CromwellWorkflowEngine.MAPPER.createObjectNode();
@@ -23,7 +26,7 @@ public class WorkflowMetadataResponse {
     debugInfo.putPOJO("cromwellFailures", failures);
 
     // `calls` might be empty if workflow run is not failed
-    if (null != calls && calls.size() != 0) {
+    if (null != calls && !calls.isEmpty()) {
       final var cromwellCalls = debugInfo.putArray("cromwellCalls");
       calls.forEach(
           (task, calls) ->
@@ -63,6 +66,14 @@ public class WorkflowMetadataResponse {
 
   public String getWorkflowRoot() {
     return workflowRoot;
+  }
+
+  public PollResult pollStatus() {
+    return switch (status) {
+      case "Aborted", "Failed" -> PollResult.failed("Cromwell state is: " + status);
+      case "Succeeded" -> PollResult.finished();
+      default -> PollResult.active(statusFromCromwell(status));
+    };
   }
 
   public void setCalls(Map<String, List<CromwellCall>> calls) {

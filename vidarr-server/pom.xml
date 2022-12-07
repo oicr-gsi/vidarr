@@ -219,7 +219,7 @@
                       <includeTypes>.*</includeTypes>
                     </forcedType>
                     <forcedType>
-                      <userType>ca.on.oicr.gsi.vidarr.core.OperationStatus</userType>
+                      <userType>ca.on.oicr.gsi.vidarr.OperationStatus</userType>
                       <lambdaConverter>
                         <from>OperationStatus::valueOf</from>
                         <to>OperationStatus::name</to>

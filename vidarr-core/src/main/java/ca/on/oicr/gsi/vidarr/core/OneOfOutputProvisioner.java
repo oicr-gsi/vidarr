@@ -3,25 +3,28 @@ package ca.on.oicr.gsi.vidarr.core;
 import ca.on.oicr.gsi.Pair;
 import ca.on.oicr.gsi.status.SectionRenderer;
 import ca.on.oicr.gsi.vidarr.BasicType;
+import ca.on.oicr.gsi.vidarr.OperationAction;
+import ca.on.oicr.gsi.vidarr.OperationAction.BranchState;
 import ca.on.oicr.gsi.vidarr.OutputProvisionFormat;
 import ca.on.oicr.gsi.vidarr.OutputProvisioner;
 import ca.on.oicr.gsi.vidarr.OutputProvisionerProvider;
-import ca.on.oicr.gsi.vidarr.WorkMonitor;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.xml.stream.XMLStreamException;
 
 /** An output provisioner that combines multiple other plugins using a tagged union */
-public final class OneOfOutputProvisioner implements OutputProvisioner {
+public final class OneOfOutputProvisioner implements OutputProvisioner<BranchState, BranchState> {
 
   public static OutputProvisionerProvider provider() {
     return () -> Stream.of(new Pair<>("oneOf", OneOfOutputProvisioner.class));
   }
 
-  private final Map<String, OutputProvisioner> provisioners;
+  private final Map<String, OutputProvisioner<?, ?>> provisioners;
 
-  public OneOfOutputProvisioner(Map<String, OutputProvisioner> provisioners) {
+  public OneOfOutputProvisioner(Map<String, OutputProvisioner<?, ?>> provisioners) {
     this.provisioners = provisioners;
   }
 
@@ -39,39 +42,43 @@ public final class OneOfOutputProvisioner implements OutputProvisioner {
   }
 
   @Override
-  public JsonNode preflightCheck(JsonNode metadata, WorkMonitor<Boolean, JsonNode> monitor) {
+  public BranchState preflightCheck(JsonNode metadata) {
     final var type = metadata.get("type").asText();
-    return provisioners
-        .get(type)
-        .preflightCheck(metadata.get("contents"), new MonitorWithType<>(monitor, type));
+    return preflightCheck(type, provisioners.get(type), metadata.get("contents"));
+  }
+
+  private <PreflightState extends Record> BranchState preflightCheck(
+      String type, OutputProvisioner<PreflightState, ?> provisioner, JsonNode metadata) {
+    return provisioner.runPreflight().intoBranch(type, provisioner.preflightCheck(metadata));
   }
 
   @Override
-  public void preflightRecover(JsonNode state, WorkMonitor<Boolean, JsonNode> monitor) {
-    final var type = state.get(0).asText();
-    provisioners.get(type).preflightRecover(state.get(1), new MonitorWithType<>(monitor, type));
-  }
-
-  @Override
-  public JsonNode provision(
-      String workflowRunId, String data, JsonNode metadata, WorkMonitor<Result, JsonNode> monitor) {
+  public BranchState provision(String workflowRunId, String data, JsonNode metadata) {
     final var type = metadata.get("type").asText();
-    return provisioners
-        .get(type)
-        .provision(
-            workflowRunId, data, metadata.get("contents"), new MonitorWithType<>(monitor, type));
+    return provision(type, provisioners.get(type), workflowRunId, data, metadata.get("contents"));
+  }
+
+  private <State extends Record> BranchState provision(
+      String type,
+      OutputProvisioner<?, State> provisioner,
+      String workflowRunId,
+      String data,
+      JsonNode metadata) {
+    return provisioner.run().intoBranch(type, provisioner.provision(workflowRunId, data, metadata));
   }
 
   @Override
-  public void recover(JsonNode state, WorkMonitor<Result, JsonNode> monitor) {
-    final var type = state.get(0).asText();
-    provisioners.get(type).recover(state.get(1), new MonitorWithType<>(monitor, type));
+  public OperationAction<?, BranchState, Result> run() {
+    return OperationAction.branch(
+        provisioners.entrySet().stream()
+            .collect(Collectors.toMap(Entry::getKey, e -> e.getValue().run())));
   }
 
   @Override
-  public void retry(JsonNode state, WorkMonitor<Result, JsonNode> monitor) {
-    final var type = state.get(0).asText();
-    provisioners.get(type).retry(state.get(1), new MonitorWithType<>(monitor, type));
+  public OperationAction<?, BranchState, Boolean> runPreflight() {
+    return OperationAction.branch(
+        provisioners.entrySet().stream()
+            .collect(Collectors.toMap(Entry::getKey, e -> e.getValue().runPreflight())));
   }
 
   @Override

@@ -377,7 +377,6 @@ public final class Main implements ServerConfig {
                             .get("/api/status/{hash}", monitor(server::fetchStatus))
                             .get("/api/targets", monitor(server::fetchTargets))
                             .get("/api/url/{hash}", monitor(server::fetchUrl))
-                            .get("/api/waiting", monitor(server::fetchWaiting))
                             .get("/api/workflows", monitor(server::fetchWorkflows))
                             .get(
                                 "/api/max-in-flight",
@@ -1523,45 +1522,6 @@ public final class Main implements ServerConfig {
 
   private void fetchUrl(HttpServerExchange exchange) {
     fetchAnalysis(exchange, "url");
-  }
-
-  private void fetchWaiting(HttpServerExchange exchange) {
-    try (final var connection = dataSource.getConnection()) {
-      var result =
-          DSL.using(connection, SQLDialect.POSTGRES)
-              .select(
-                  DSL.jsonArrayAgg(
-                      DSL.jsonObject(
-                          literalJsonEntry("workflow", WORKFLOW_VERSION.NAME),
-                          literalJsonEntry(
-                              "oldest",
-                              DSL.field(
-                                  DSL.select(DSL.min(WORKFLOW_RUN.CREATED))
-                                      .from(WORKFLOW_RUN)
-                                      .where(
-                                          WORKFLOW_RUN.WORKFLOW_VERSION_ID.eq(
-                                              WORKFLOW_VERSION.ID)))),
-                          literalJsonEntry(
-                              "workflowRuns",
-                              DSL.field(
-                                  DSL.select(DSL.jsonArrayAgg(WORKFLOW_RUN.HASH_ID))
-                                      .from(WORKFLOW_RUN)
-                                      .where(
-                                          WORKFLOW_RUN.WORKFLOW_VERSION_ID.eq(
-                                              WORKFLOW_VERSION.ID)))))))
-              .from(
-                  WORKFLOW_RUN
-                      .join(WORKFLOW_VERSION)
-                      .on(WORKFLOW_RUN.WORKFLOW_VERSION_ID.eq(WORKFLOW_VERSION.ID))
-                      .join(ACTIVE_WORKFLOW_RUN)
-                      .on(WORKFLOW_RUN.ID.eq(ACTIVE_WORKFLOW_RUN.ID)))
-              .where(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE.eq(Phase.WAITING_FOR_RESOURCES))
-              .groupBy(WORKFLOW_VERSION.NAME)
-              .fetchOptional(Record1::value1);
-      okJsonResponse(exchange, result.isPresent() ? result.get().data() : "[]");
-    } catch (SQLException e) {
-      internalServerErrorResponse(exchange, e);
-    }
   }
 
   private void fetchWorkflows(HttpServerExchange exchange) {

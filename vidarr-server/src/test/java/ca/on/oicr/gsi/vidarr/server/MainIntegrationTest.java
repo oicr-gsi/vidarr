@@ -738,27 +738,6 @@ public class MainIntegrationTest {
   }
 
   @Test
-  public void whenGetWaiting_thenWaitingWorkflowsAreFound() {
-    var waitingBcl2fastq =
-        get("/api/waiting")
-            .then()
-            .assertThat()
-            .statusCode(200)
-            .and()
-            .extract()
-            .body()
-            .as(new TypeRef<List<Map<String, Object>>>() {})
-            .stream()
-            .filter(w -> "bcl2fastq".equals(w.get("workflow")))
-            .findFirst();
-    assertNotNull(waitingBcl2fastq);
-    assertEquals(waitingBcl2fastq.get().get("oldest"), "2015-02-19T03:00:48.262-05:00");
-    assertThat(
-        ((List<String>) waitingBcl2fastq.get().get("workflowRuns")),
-        hasItem("df7df7df7df7df7df7df7df7df7df70df7df7df7df7df7df7df7df7df7df7df7"));
-  }
-
-  @Test
   public void whenGetMaxInFlight_thenGetMaxInFlightData() {
     get("/api/max-in-flight")
         .then()

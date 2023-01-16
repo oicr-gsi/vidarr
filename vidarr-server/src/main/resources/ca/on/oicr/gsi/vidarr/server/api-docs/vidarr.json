@@ -23,14 +23,6 @@
           }
         }
       },
-      "CopyUnloadFilter": {
-        "properties": {
-          "type": {
-            "description": "flavour of filter to be applied",
-            "type": "string"
-          }
-        }
-      },
       "CopyUnloadOutput": {
         "properties": {
           "workflowRuns": {
@@ -109,7 +101,7 @@
         "properties": {
           "filter": {
             "items": {
-              "$ref": "#/components/schemas/CopyUnloadFilter"
+              "$ref": "#/components/schemas/UnloadFilter"
             },
             "type": "object"
           },
@@ -719,6 +711,188 @@
         ],
         "type": "object"
       },
+      "UnloadFilter": {
+        "oneOf": [
+          {
+            "enum": [
+              "and",
+              "not",
+              "or",
+              "vidarr-analysis-id",
+              "vidarr-completed-after",
+              "vidarr-external-id",
+              "vidarr-external-provider",
+              "vidarr-last-submitted-after",
+              "vidarr-workflow-id",
+              "vidarr-workflow-name",
+              "vidarr-workflow-run-id"
+            ],
+            "type": "string"
+          },
+          {
+            "discriminator": {
+              "mapping": {
+                "and": "#/components/schemas/UnloadFilterAnd",
+                "not": "#/components/schemas/UnloadFilterNot",
+                "or": "#/components/schemas/UnloadFilterOr",
+                "vidarr-analysis-id": "#/components/schemas/UnloadFilterAnalysisId",
+                "vidarr-completed-after": "#/components/schemas/UnloadFilterCompletedAfter",
+                "vidarr-external-id": "#/components/schemas/UnloadFilterExternalId",
+                "vidarr-external-provider": "#/components/schemas/UnloadFilterExternalProvider",
+                "vidarr-last-submitted-after": "#/components/schemas/UnloadFilterLastSubmittedAfter",
+                "vidarr-workflow-id": "#/components/schemas/UnloadFilterWorkflowId",
+                "vidarr-workflow-name": "#/components/schemas/UnloadFilterWorkflowName",
+                "vidarr-workflow-run-id": "#/components/schemas/UnloadFilterWorkflowRunId"
+              },
+              "propertyName": "type"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/UnloadFilterAnd"
+              },
+              {
+                "$ref": "#/components/schemas/UnloadFilterNot"
+              },
+              {
+                "$ref": "#/components/schemas/UnloadFilterOr"
+              },
+              {
+                "$ref": "#/components/schemas/UnloadFilterAnalysisId"
+              },
+              {
+                "$ref": "#/components/schemas/UnloadFilterCompletedAfter"
+              },
+              {
+                "$ref": "#/components/schemas/UnloadFilterExternalId"
+              },
+              {
+                "$ref": "#/components/schemas/UnloadFilterExternalProvider"
+              },
+              {
+                "$ref": "#/components/schemas/UnloadFilterLastSubmittedAfter"
+              },
+              {
+                "$ref": "#/components/schemas/UnloadFilterWorkflowId"
+              },
+              {
+                "$ref": "#/components/schemas/UnloadFilterWorkflowName"
+              },
+              {
+                "$ref": "#/components/schemas/UnloadFilterWorkflowRunId"
+              }
+            ]
+          }
+        ]
+      },
+      "UnloadFilterAnalysisId": {
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/UnloadTextSelector"
+          }
+        },
+        "type": "object"
+      },
+      "UnloadFilterAnd": {
+        "properties": {
+          "filters": {
+            "items": {
+              "$ref": "#/components/schemas/UnloadFilter"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "UnloadFilterCompletedAfter": {
+        "properties": {
+          "time": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "UnloadFilterExternalId": {
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/UnloadTextSelector"
+          }
+        },
+        "type": "object"
+      },
+      "UnloadFilterExternalProvider": {
+        "properties": {
+          "providers": {
+            "$ref": "#/components/schemas/UnloadTextSelector"
+          }
+        },
+        "type": "object"
+      },
+      "UnloadFilterLastSubmittedAfter": {
+        "properties": {
+          "time": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "UnloadFilterNot": {
+        "properties": {
+          "filter": {
+            "$ref": "#/components/schemas/UnloadFilter"
+          }
+        },
+        "type": "object"
+      },
+      "UnloadFilterOr": {
+        "properties": {
+          "filters": {
+            "items": {
+              "$ref": "#/components/schemas/UnloadFilter"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "UnloadFilterWorkflowId": {
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/UnloadTextSelector"
+          }
+        },
+        "type": "object"
+      },
+      "UnloadFilterWorkflowName": {
+        "properties": {
+          "name": {
+            "$ref": "#/components/schemas/UnloadTextSelector"
+          }
+        },
+        "type": "object"
+      },
+      "UnloadFilterWorkflowRunId": {
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/UnloadTextSelector"
+          }
+        },
+        "type": "object"
+      },
+      "UnloadTextSelector": {
+        "oneOf": [
+          {
+            "type": "string"
+          },
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        ]
+      },
       "UrlMetadata": {
         "allOf": [
           {
@@ -903,8 +1077,7 @@
                 "$ref": "#/components/schemas/CopyUnloadRequest"
               }
             }
-          },
-          "description": "Available filters are: [\"and\", \"not\", \"or\", \"vidarr-analysis-id\", \"vidarr-completed-after\", \"vidarr-external-id\", \"vidarr-external-provider\", \"vidarr-last-submitted-after\", \"vidarr-workflow-id\", \"vidarr-workflow-name\", \"vidarr-workflow-run-id\"]. Filters can be combined."
+          }
         },
         "responses": {
           "200": {

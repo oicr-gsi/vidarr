@@ -82,7 +82,7 @@ public class MainIntegrationTest {
     simpleConnection.setDatabaseName(config.getDbName());
     simpleConnection.setUser(config.getDbUser());
     simpleConnection.setPassword(config.getDbPass());
-    var fw = Flyway.configure().dataSource(simpleConnection);
+    var fw = Flyway.configure().dataSource(simpleConnection).cleanDisabled(false);
     fw.load().clean();
     fw.locations("classpath:db/migration", "classpath:db/testdata").load().migrate();
   }

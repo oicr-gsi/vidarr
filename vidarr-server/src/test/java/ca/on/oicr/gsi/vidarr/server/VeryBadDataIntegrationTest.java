@@ -64,14 +64,12 @@ public class VeryBadDataIntegrationTest {
     simpleConnection.setDatabaseName(config.getDbName());
     simpleConnection.setUser(config.getDbUser());
     simpleConnection.setPassword(config.getDbPass());
-    var fw = Flyway.configure().dataSource(simpleConnection);
+    var fw = Flyway.configure().dataSource(simpleConnection).cleanDisabled(false);
     fw.load().clean();
     fw.locations("classpath:db/migration").load().migrate();
-    // we do this because Flyway on its own isn't finding the test data, and it dies when you
-    // try to give it classpath + filesystem locations in one string. We ignore the "missing"
-    // migrations (run in the migrate() call above).
+    // we do this in a separate step because Flyway on its own isn't finding the test data, and it dies when you
+    // try to give it classpath + filesystem locations in one string.
     fw.locations("filesystem:src/test/resources/db/migration/")
-        .ignoreMissingMigrations(true)
         .load()
         .migrate();
   }

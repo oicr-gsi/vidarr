@@ -60,7 +60,7 @@ public class DatabaseBackedProcessorTest {
     simpleConnection.setDatabaseName(pg.getDatabaseName());
     simpleConnection.setUser(pg.getUsername());
     simpleConnection.setPassword(pg.getPassword());
-    var fw = Flyway.configure().dataSource(simpleConnection);
+    var fw = Flyway.configure().dataSource(simpleConnection).cleanDisabled(false);
     fw.load().clean();
     fw.locations("classpath:db/migration", "classpath:db/testdata").load().migrate();
 

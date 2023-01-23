@@ -1077,6 +1077,8 @@
                 "$ref": "#/components/schemas/CopyUnloadRequest"
               }
             }
+          },
+          "description": "Available filters are: [\"and\", \"not\", \"or\", \"vidarr-analysis-id\", \"vidarr-completed-after\", \"vidarr-external-id\", \"vidarr-external-provider\", \"vidarr-last-submitted-after\", \"vidarr-workflow-id\", \"vidarr-workflow-name\", \"vidarr-workflow-run-id\"]. Filters can be combined."
           }
         },
         "responses": {

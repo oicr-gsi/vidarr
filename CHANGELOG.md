@@ -6,6 +6,22 @@ For unreleased changes, see [changes](changes).
 
 -----------------------------------------------------------------------------
 
+## [0.11.0] - 2023-01-26
+
+### Added
+
+* Provide a loadable file with sample provenance data
+
+### Changed
+
+* Removed `/waiting` endpoint, as it isn't useful to our users, and errors in dev and production
+* Remove Niassa plugin
+
+### Upgrade Notes
+
+* Update code to use Java 17 features
+
+
 ## [0.10.0] - 2022-11-03
 
 ### Added

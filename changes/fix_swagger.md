@@ -1,0 +1,1 @@
+Fix OpenAPI syntax error

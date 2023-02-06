@@ -6,6 +6,13 @@ For unreleased changes, see [changes](changes).
 
 -----------------------------------------------------------------------------
 
+## [0.11.1] - 2023-02-06
+
+### Fixed
+
+* Fix OpenAPI syntax error
+
+
 ## [0.11.0] - 2023-01-26
 
 ### Added

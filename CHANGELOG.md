@@ -6,6 +6,13 @@ For unreleased changes, see [changes](changes).
 
 -----------------------------------------------------------------------------
 
+## [0.12.0] - 2023-03-07
+
+### Fixed
+
+* Patch security vulnerability and upgrade other dependencies
+
+
 ## [0.11.1] - 2023-02-06
 
 ### Fixed

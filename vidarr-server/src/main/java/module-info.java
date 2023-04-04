@@ -37,6 +37,8 @@ module ca.on.oicr.gsi.vidarr.server {
       com.fasterxml.jackson.databind;
   opens ca.on.oicr.gsi.vidarr.server.jooq.tables.records to
       org.jooq;
+  opens ca.on.oicr.gsi.vidarr.server to
+      com.fasterxml.jackson.databind;
   opens db.migration;
 
   uses ConsumableResourceProvider;

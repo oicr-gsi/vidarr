@@ -104,7 +104,7 @@ final class ConsumableResourceChecker implements Runnable {
         while (--i >= 0) {
           resourceBrokers.get(i).second().release(workflow, workflowVersion, vidarrId);
         }
-        executor.schedule(this, 5, TimeUnit.MINUTES);
+        executor.schedule(this, 2, TimeUnit.MINUTES);
         return;
       }
     }

@@ -298,7 +298,7 @@ public final class Main implements ServerConfig {
             externalVersionId ->
                 DSL.lastValue(externalVersionId.VALUE)
                     .over()
-                    .orderBy(externalVersionId.CREATED.desc()),
+                    .orderBy(externalVersionId.REQUESTED.desc()),
             allowedTypes);
       default:
         return DSL.inline(null, SQLDataType.JSON);

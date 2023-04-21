@@ -21,7 +21,7 @@ final class MaxInFlightByWorkflow implements ConsumableResource {
   private static final Gauge currentInFlightCount =
       Gauge.build(
               "vidarr_in_flight_per_workflow_current",
-              "The current number of workflows are running.")
+              "The current number of workflows that are running.")
           .labelNames("workflow")
           .register();
   private static final Gauge maxInFlightCount =

@@ -32,20 +32,18 @@ final class PriorityByWorkflow implements ConsumableResource {
     public int compare(SimpleEntry<String, Integer> o1, SimpleEntry<String, Integer> o2) {
       return o1.getValue() - o2.getValue();
     }
+
   }
 
   private static final Gauge currentInWaitingCount =
       Gauge.build(
               "vidarr_in_waiting_per_workflow_current",
-              "The current number of workflows are waiting to run.")
+              "The current number of workflows that are waiting to run.")
           .labelNames("workflow")
           .register();
 
   private final Map<String, WaitingState> workflows = new ConcurrentHashMap<>();
 
-  /**
-   * Get summary information for each workflow: workflowName -> (currentInFlight, maxInFlight)
-   */
 
   @Override
   public Optional<Pair<String, BasicType>> inputFromSubmitter() {
@@ -64,7 +62,7 @@ final class PriorityByWorkflow implements ConsumableResource {
   public void release(String workflowName, String workflowVersion, String vidarrId) {
     final var state = workflows.get(workflowName);
     if (state != null) {
-      state.waiting.remove(vidarrId);
+      state.waiting.remove(new SimpleEntry(vidarrId, this.priority));
       currentInWaitingCount.labels(workflowName).set(state.waiting.size());
     }
   }
@@ -76,12 +74,12 @@ final class PriorityByWorkflow implements ConsumableResource {
       this.priority = 4;
     } else if (!Arrays.asList(-1, 1, 2, 3, 4).contains(this.priority)){
       return ConsumableResourceResponse.error(
-          "Internal Vidarr error: the workflow run priority must be a value between 1 and 4.");
+          String.format("The workflow %s run priority must be a value between 1 and 4.", workflowName));
     }
     final var state = workflows.get(workflowName);
     if (state == null) {
       return ConsumableResourceResponse.error(
-          "Internal Vidarr error: the workflow run priority must be a value between 1 and 4.");
+          String.format("Internal Vidarr error: the %s workflow run priority has not been configured properly.", workflowName));
     } else {
       SimpleEntry thisworkflowrun = new SimpleEntry(vidarrId, this.priority);
       if (this.priority >= state.waiting.last().getValue()) {
@@ -92,7 +90,7 @@ final class PriorityByWorkflow implements ConsumableResource {
         state.waiting.add(thisworkflowrun);
         currentInWaitingCount.labels(workflowName).set(state.waiting.size());
         return ConsumableResourceResponse.error(
-            String.format("There are workflows currently running with higher prioirity.", workflowName));
+            String.format("There are %s workflows currently running with higher priority.", workflowName));
       }
     }
   }

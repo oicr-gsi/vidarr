@@ -69,8 +69,7 @@ final class ConsumableResourceChecker implements Runnable {
     if (!isLive.get()) {
       return;
     }
-    var i = 0;
-    final var resourceBrokers = target.consumableResources().collect(Collectors.toList());
+    var i = 0;    final var resourceBrokers = target.consumableResources().collect(Collectors.toList());
     for (i = 0; i < resourceBrokers.size(); i++) {
       final var name = resourceBrokers.get(i).first();
       final var broker = resourceBrokers.get(i).second();
@@ -104,7 +103,13 @@ final class ConsumableResourceChecker implements Runnable {
         while (--i >= 0) {
           resourceBrokers.get(i).second().release(workflow, workflowVersion, vidarrId);
         }
-        executor.schedule(this, 2, TimeUnit.MINUTES);
+        //If the delay is caused by priority try again in a shorter time frame
+        //Must balance hammering vidarr with requests and adding significant delay to workflow runtime
+        if (error.get().contains("higher priority")){
+          executor.schedule(this, 4, TimeUnit.MINUTES);
+        } else {
+          executor.schedule(this, 5, TimeUnit.MINUTES);
+        }
         return;
       }
     }

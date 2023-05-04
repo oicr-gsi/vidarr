@@ -9,6 +9,7 @@ import io.prometheus.client.Gauge;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.SortedSet;
@@ -19,6 +20,8 @@ import java.util.concurrent.ConcurrentHashMap;
 final class PriorityByWorkflow implements ConsumableResource {
 
   private Integer priority;
+
+  private List acceptedPriorities = Arrays.asList(1, 2, 3, 4);
 
   private static final class WaitingState {
 
@@ -50,10 +53,11 @@ final class PriorityByWorkflow implements ConsumableResource {
 
   }
 
+  //remove?
   private static final Gauge currentInWaitingCount =
       Gauge.build(
               "vidarr_in_waiting_per_workflow_current",
-              "The current number of workflows that are waiting to run.")
+              "The current number of workflows that are on priority waiting to run.")
           .labelNames("workflow")
           .register();
 
@@ -61,7 +65,7 @@ final class PriorityByWorkflow implements ConsumableResource {
 
   @Override
   public Optional<Pair<String, BasicType>> inputFromSubmitter() {
-    return Optional.empty();
+    return Optional.of(new Pair<String, BasicType>("Priority", BasicType.INTEGER));
   }
 
   @Override
@@ -84,9 +88,15 @@ final class PriorityByWorkflow implements ConsumableResource {
   @Override
   public synchronized ConsumableResourceResponse request(
       String workflowName, String workflowVersion, String vidarrId, Optional<JsonNode> input) {
-    if (this.priority == null) {
+
+    if (input.isEmpty()) {
       this.priority = 1;
-    } else if (!Arrays.asList(-1, 1, 2, 3, 4).contains(this.priority)){
+    } else {
+      JsonNode nodeInput = input.get();
+      this.priority = nodeInput.get("Priority").asInt();
+    }
+
+    if (!acceptedPriorities.contains(this.priority)){
       return ConsumableResourceResponse.error(
           String.format("Vidarr error: The workflow %s run priority must be a value between 1 and 4.", workflowName));
     }
@@ -116,6 +126,5 @@ final class PriorityByWorkflow implements ConsumableResource {
   public void set(String workflowName, String vidarrId, int priority) {
     this.priority = priority;
   }
-
 
 }

@@ -91,6 +91,10 @@ public interface ConsumableResource {
   ConsumableResourceResponse request(
       String workflowName, String workflowVersion, String vidarrId, Optional<JsonNode> input);
 
+  //ConsumableResourceResponse request(
+  //    String workflowName, String workflowVersion, String vidarrId, Integer priority, Optional<JsonNode> input);
+
+
   /**
    * Called to initialise this consumable resource.
    *

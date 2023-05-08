@@ -4,6 +4,7 @@ import ca.on.oicr.gsi.Pair;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonTypeInfo.As;
 import com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DatabindContext;
 import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -68,7 +69,9 @@ public interface ConsumableResource {
    * @param workflowVersion the version of the workflow
    * @param vidarrId the identifier of the workflow run
    */
-  void recover(String workflowName, String workflowVersion, String vidarrId);
+  //default void recover(String workflowName, String workflowVersion, String vidarrId);
+
+  void recover(String workflowName, String workflowVersion, String vidarrId, Optional<Map<String, JsonNode>> resourceJson);
 
   /**
    * Indicate that the workflow is done with this resource

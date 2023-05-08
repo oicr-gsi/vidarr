@@ -743,7 +743,8 @@ public abstract class DatabaseBackedProcessor
                                                           .recover(
                                                               record.get(WORKFLOW_VERSION.NAME),
                                                               record.get(WORKFLOW_VERSION.VERSION),
-                                                              record.get(WORKFLOW_RUN.HASH_ID)));
+                                                              record.get(WORKFLOW_RUN.HASH_ID),
+                                                              null));
                                           final var workflow =
                                               DatabaseWorkflow.recover(
                                                   target,

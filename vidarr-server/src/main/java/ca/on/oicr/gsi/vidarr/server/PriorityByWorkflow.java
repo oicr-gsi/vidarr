@@ -1,5 +1,7 @@
 package ca.on.oicr.gsi.vidarr.server;
 
+import static java.util.Map.Entry.comparingByValue;
+
 import ca.on.oicr.gsi.Pair;
 import ca.on.oicr.gsi.vidarr.BasicType;
 import ca.on.oicr.gsi.vidarr.ConsumableResource;
@@ -8,55 +10,52 @@ import com.fasterxml.jackson.databind.JsonNode;
 import io.prometheus.client.Gauge;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.SortedSet;
-import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentSkipListSet;
 
 
 final class PriorityByWorkflow implements ConsumableResource {
-
-  private Integer priority;
 
   private List acceptedPriorities = Arrays.asList(1, 2, 3, 4);
 
   private static final class WaitingState {
 
-    private final SortedSet<SimpleEntry<String, Integer>> waiting = new TreeSet<SimpleEntry<String, Integer>>(
-        new PairComparator()){
+    private final SortedSet<SimpleEntry<String, Integer>> waiting = new ConcurrentSkipListSet<SimpleEntry<String, Integer>>(comparingByValue()){
 
       @Override
       public boolean add(SimpleEntry<String, Integer> simpleEntry) {
-        super.remove(this.containsKey(simpleEntry));
+        super.remove(this.getByKey(simpleEntry.getKey()));
         return super.add(simpleEntry);
       }
 
-      public SimpleEntry containsKey(SimpleEntry simpleEntry){
-        String entryKey = (String) simpleEntry.getKey();
+      public boolean removeByKey(String simpleEntryKey) {
+        for (SimpleEntry entry : this) {
+          if (entry.getKey().equals(simpleEntryKey)) {
+            super.remove(this.getByKey(entry.getKey().toString()));
+            return true;
+          }
+        }
+        return false;
+      }
+
+      public SimpleEntry getByKey(String simpleEntryKey){
         for (SimpleEntry entry : this){
-          if (entry.getKey().equals(entryKey)) {return(entry);}
+          if (entry.getKey().equals(simpleEntryKey)) {return(entry);}
         }
         return null;
       }
     };
   }
 
-  static class PairComparator implements Comparator<SimpleEntry<String, Integer>> {
-
-    @Override
-    public int compare(SimpleEntry<String, Integer> entry1, SimpleEntry<String, Integer> entry2) {
-      return entry1.getValue() - entry2.getValue();
-    }
-
-  }
 
   //remove?
-  private static final Gauge currentInWaitingCount =
+  private static final Gauge currentInPriorityWaitingCount =
       Gauge.build(
-              "vidarr_in_waiting_per_workflow_current",
+              "vidarr_in_priority_waiting_per_workflow_current",
               "The current number of workflows that are on priority waiting to run.")
           .labelNames("workflow")
           .register();
@@ -69,19 +68,22 @@ final class PriorityByWorkflow implements ConsumableResource {
   }
 
   @Override
-  public void recover(String workflowName, String workflowVersion, String vidarrId) {
+  public void recover(String workflowName, String workflowVersion, String vidarrId, Optional<Map<String, JsonNode>> resourceJson) {
     final var stateWaiting = workflows.computeIfAbsent(workflowName, k -> new WaitingState()).waiting;
     // since we just created it if it doesn't exist, no need for null check here
-    stateWaiting.add(new SimpleEntry(vidarrId, this.priority));
-    currentInWaitingCount.labels(workflowName).set(stateWaiting.size());
+
+    //how to address this
+    //stateWaiting.add(new SimpleEntry(vidarrId, this.priority));
+    currentInPriorityWaitingCount.labels(workflowName).set(stateWaiting.size());
   }
 
   @Override
   public void release(String workflowName, String workflowVersion, String vidarrId) {
     final var state = workflows.get(workflowName);
     if (state != null) {
-      state.waiting.remove(new SimpleEntry(vidarrId, this.priority));
-      currentInWaitingCount.labels(workflowName).set(state.waiting.size());
+      //replace with removeByKey
+      state.waiting.remove(vidarrId);
+      currentInPriorityWaitingCount.labels(workflowName).set(state.waiting.size());
     }
   }
 
@@ -89,14 +91,15 @@ final class PriorityByWorkflow implements ConsumableResource {
   public synchronized ConsumableResourceResponse request(
       String workflowName, String workflowVersion, String vidarrId, Optional<JsonNode> input) {
 
+    int workflowPriority;
     if (input.isEmpty()) {
-      this.priority = 1;
+      workflowPriority = 1;
     } else {
       JsonNode nodeInput = input.get();
-      this.priority = nodeInput.get("Priority").asInt();
+      workflowPriority = nodeInput.get("Priority").asInt();
     }
 
-    if (!acceptedPriorities.contains(this.priority)){
+    if (!acceptedPriorities.contains(workflowPriority)){
       return ConsumableResourceResponse.error(
           String.format("Vidarr error: The workflow %s run priority must be a value between 1 and 4.", workflowName));
     }
@@ -105,13 +108,13 @@ final class PriorityByWorkflow implements ConsumableResource {
       return ConsumableResourceResponse.error(
           String.format("Internal Vidarr error: The %s workflow run priority has not been configured properly.", workflowName));
     } else {
-      if (this.priority >= state.waiting.last().getValue()) {
-        state.waiting.remove(new SimpleEntry(vidarrId, this.priority));
-        currentInWaitingCount.labels(workflowName).set(state.waiting.size());
+      if (workflowPriority >= state.waiting.last().getValue()) {
+        state.waiting.remove(new SimpleEntry(vidarrId, workflowPriority));
+        currentInPriorityWaitingCount.labels(workflowName).set(state.waiting.size());
         return ConsumableResourceResponse.AVAILABLE;
       } else {
-        state.waiting.add(new SimpleEntry(vidarrId, this.priority));
-        currentInWaitingCount.labels(workflowName).set(state.waiting.size());
+        state.waiting.add(new SimpleEntry(vidarrId, workflowPriority));
+        currentInPriorityWaitingCount.labels(workflowName).set(state.waiting.size());
         return ConsumableResourceResponse.error(
             String.format("There are %s workflows currently queued up with higher priority.", workflowName));
       }
@@ -123,8 +126,6 @@ final class PriorityByWorkflow implements ConsumableResource {
     // Always ok.
   }
 
-  public void set(String workflowName, String vidarrId, int priority) {
-    this.priority = priority;
-  }
+  public void set(String workflowName, String vidarrId, int priority) {}
 
 }

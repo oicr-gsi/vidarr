@@ -11,6 +11,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
@@ -110,7 +111,7 @@ public class AlertmanagerAutoInhibitConsumableResource implements ConsumableReso
   }
 
   @Override
-  public void recover(String workflowName, String workflowVersion, String vidarrId) {
+  public void recover(String workflowName, String workflowVersion, String vidarrId, Optional<Map<String, JsonNode>> resourceJson) {
     // Do nothing, as there's no intermediate state that needs to be tracked
   }
 

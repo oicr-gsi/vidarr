@@ -68,10 +68,9 @@ public interface ConsumableResource {
    * @param workflowName the name of the workflow
    * @param workflowVersion the version of the workflow
    * @param vidarrId the identifier of the workflow run
+   * @param resourceJson the consumable resource information stored in db, if applicable and provided.
    */
-  //default void recover(String workflowName, String workflowVersion, String vidarrId);
-
-  void recover(String workflowName, String workflowVersion, String vidarrId, Optional<Map<String, JsonNode>> resourceJson);
+  void recover(String workflowName, String workflowVersion, String vidarrId, Optional<JsonNode> resourceJson);
 
   /**
    * Indicate that the workflow is done with this resource

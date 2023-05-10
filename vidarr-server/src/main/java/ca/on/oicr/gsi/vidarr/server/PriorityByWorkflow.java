@@ -32,14 +32,17 @@ final class PriorityByWorkflow implements ConsumableResource {
         return super.add(simpleEntry);
       }
 
-      public boolean removeByKey(String simpleEntryKey) {
-        for (SimpleEntry entry : this) {
-          if (entry.getKey().equals(simpleEntryKey)) {
-            super.remove(this.getByKey(entry.getKey().toString()));
-            return true;
+      @Override
+      public boolean remove(Object o) {
+        try {
+          String oEntry = (String) o;
+          for (SimpleEntry entry : this){
+            if (entry.getKey().equals(oEntry)) {super.remove(entry);}
           }
+        } catch (Exception e){
+          return false;
         }
-        return false;
+        return true;
       }
 
       public SimpleEntry getByKey(String simpleEntryKey){
@@ -68,12 +71,14 @@ final class PriorityByWorkflow implements ConsumableResource {
   }
 
   @Override
-  public void recover(String workflowName, String workflowVersion, String vidarrId, Optional<Map<String, JsonNode>> resourceJson) {
+  public void recover(String workflowName, String workflowVersion, String vidarrId, Optional<JsonNode> resourceJson) {
     final var stateWaiting = workflows.computeIfAbsent(workflowName, k -> new WaitingState()).waiting;
     // since we just created it if it doesn't exist, no need for null check here
 
-    //how to address this
-    //stateWaiting.add(new SimpleEntry(vidarrId, this.priority));
+    //
+    JsonNode nodeInput = resourceJson.get();
+    stateWaiting.add(new SimpleEntry(vidarrId, nodeInput.get("Priority").asInt()));
+
     currentInPriorityWaitingCount.labels(workflowName).set(stateWaiting.size());
   }
 
@@ -83,6 +88,7 @@ final class PriorityByWorkflow implements ConsumableResource {
     if (state != null) {
       //replace with removeByKey
       state.waiting.remove(vidarrId);
+
       currentInPriorityWaitingCount.labels(workflowName).set(state.waiting.size());
     }
   }
@@ -101,7 +107,7 @@ final class PriorityByWorkflow implements ConsumableResource {
 
     if (!acceptedPriorities.contains(workflowPriority)){
       return ConsumableResourceResponse.error(
-          String.format("Vidarr error: The workflow %s run priority must be a value between 1 and 4.", workflowName));
+          String.format("Vidarr error: The workflow %s run priority is invalid.", workflowName));
     }
     final var state = workflows.get(workflowName);
     if (state == null) {

@@ -1099,18 +1099,22 @@ public final class Main implements ServerConfig {
                                                   case URL -> "url";
                                                 })
                                         .collect(Collectors.toList())))))));
-    context
-        .select(DSL.jsonObject(fields))
-        .from(WORKFLOW_RUN)
-        .where(condition)
-        .forEach(
-            result -> {
-              try {
-                jsonGenerator.writeRawValue(result.value1().data());
-              } catch (IOException e) {
-                throw new RuntimeException(e);
-              }
-            });
+    try {
+      context
+          .select(DSL.jsonObject(fields))
+          .from(WORKFLOW_RUN)
+          .where(condition)
+          .forEach(
+              result -> {
+                try {
+                  jsonGenerator.writeRawValue(result.value1().data());
+                } catch (IOException e) {
+                  throw new RuntimeException(e);
+                }
+              });
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
   }
 
   private void deleteWorkflowRun(HttpServerExchange exchange) {

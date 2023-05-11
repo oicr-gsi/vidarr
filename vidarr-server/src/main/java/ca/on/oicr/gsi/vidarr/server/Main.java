@@ -1099,7 +1099,7 @@ public final class Main implements ServerConfig {
                                                   case URL -> "url";
                                                 })
                                         .collect(Collectors.toList())))))));
-    try {
+
       context
           .select(DSL.jsonObject(fields))
           .from(WORKFLOW_RUN)
@@ -1112,9 +1112,6 @@ public final class Main implements ServerConfig {
                   throw new RuntimeException(e);
                 }
               });
-    } catch (Exception e) {
-      throw new RuntimeException(e);
-    }
   }
 
   private void deleteWorkflowRun(HttpServerExchange exchange) {

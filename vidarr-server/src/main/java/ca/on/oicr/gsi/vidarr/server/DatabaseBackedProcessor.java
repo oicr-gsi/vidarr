@@ -41,7 +41,6 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
-import org.jooq.Field;
 import org.jooq.Record1;
 import org.jooq.Record2;
 import org.jooq.SQLDialect;
@@ -745,8 +744,7 @@ public abstract class DatabaseBackedProcessor
                                                               record.get(WORKFLOW_VERSION.NAME),
                                                               record.get(WORKFLOW_VERSION.VERSION),
                                                               record.get(WORKFLOW_RUN.HASH_ID),
-                                                              Optional.ofNullable(record.get(
-                                                                  (Field<JsonNode>) ACTIVE_WORKFLOW_RUN.CONSUMABLE_RESOURCES))));
+                                                              Optional.ofNullable(record.get(ACTIVE_WORKFLOW_RUN.CONSUMABLE_RESOURCES))));
                                           final var workflow =
                                               DatabaseWorkflow.recover(
                                                   target,

@@ -75,10 +75,16 @@ final class PriorityByWorkflow implements ConsumableResource {
     final var stateWaiting = workflows.computeIfAbsent(workflowName, k -> new WaitingState()).waiting;
     // since we just created it if it doesn't exist, no need for null check here
 
-    //
-    JsonNode nodeInput = resourceJson.get();
-    stateWaiting.add(new SimpleEntry(vidarrId, nodeInput.get("Priority").asInt()));
+    int workflowPriority;
 
+    if (resourceJson.isPresent()) {
+      JsonNode nodeInput = resourceJson.get();
+      workflowPriority = nodeInput.get("Priority").asInt();
+    } else {
+      workflowPriority = 1;
+    }
+
+    stateWaiting.add(new SimpleEntry(vidarrId, workflowPriority));
     currentInPriorityWaitingCount.labels(workflowName).set(stateWaiting.size());
   }
 
@@ -86,9 +92,8 @@ final class PriorityByWorkflow implements ConsumableResource {
   public void release(String workflowName, String workflowVersion, String vidarrId) {
     final var state = workflows.get(workflowName);
     if (state != null) {
-      //replace with removeByKey
-      state.waiting.remove(vidarrId);
 
+      state.waiting.remove(vidarrId);
       currentInPriorityWaitingCount.labels(workflowName).set(state.waiting.size());
     }
   }
@@ -131,7 +136,5 @@ final class PriorityByWorkflow implements ConsumableResource {
   public void startup(String name) {
     // Always ok.
   }
-
-  public void set(String workflowName, String vidarrId, int priority) {}
 
 }

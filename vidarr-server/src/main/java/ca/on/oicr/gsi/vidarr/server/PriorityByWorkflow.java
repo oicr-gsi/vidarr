@@ -75,13 +75,10 @@ final class PriorityByWorkflow implements ConsumableResource {
     final var stateWaiting = workflows.computeIfAbsent(workflowName, k -> new WaitingState()).waiting;
     // since we just created it if it doesn't exist, no need for null check here
 
-    int workflowPriority;
+    int workflowPriority = 1;
 
     if (resourceJson.isPresent()) {
-      JsonNode nodeInput = resourceJson.get();
-      workflowPriority = nodeInput.get("Priority").asInt();
-    } else {
-      workflowPriority = 1;
+      workflowPriority = resourceJson.get().asInt();
     }
 
     stateWaiting.add(new SimpleEntry(vidarrId, workflowPriority));
@@ -92,7 +89,6 @@ final class PriorityByWorkflow implements ConsumableResource {
   public void release(String workflowName, String workflowVersion, String vidarrId) {
     final var state = workflows.get(workflowName);
     if (state != null) {
-
       state.waiting.remove(vidarrId);
       currentInPriorityWaitingCount.labels(workflowName).set(state.waiting.size());
     }
@@ -102,12 +98,9 @@ final class PriorityByWorkflow implements ConsumableResource {
   public synchronized ConsumableResourceResponse request(
       String workflowName, String workflowVersion, String vidarrId, Optional<JsonNode> input) {
 
-    int workflowPriority;
-    if (input.isEmpty()) {
-      workflowPriority = 1;
-    } else {
-      JsonNode nodeInput = input.get();
-      workflowPriority = nodeInput.get("Priority").asInt();
+    int workflowPriority = 1;
+    if (!input.isEmpty()) {
+      workflowPriority = input.get().asInt();
     }
 
     if (!acceptedPriorities.contains(workflowPriority)){
@@ -132,9 +125,23 @@ final class PriorityByWorkflow implements ConsumableResource {
     }
   }
 
+  public void set(String workflowName, String vidarrId, JsonNode input) {
+
+    int workflowPriority = 1;
+    if (!input.isEmpty() && !input.get("Priority").isEmpty()) {
+      workflowPriority = input.get("Priority").asInt();
+    }
+
+    final var stateWaiting = workflows.computeIfAbsent(workflowName, k -> new WaitingState()).waiting;
+    stateWaiting.add(new SimpleEntry(vidarrId, workflowPriority));
+    currentInPriorityWaitingCount.labels(workflowName).set(stateWaiting.size());
+
+  }
+
   @Override
   public void startup(String name) {
     // Always ok.
   }
 
 }
+

@@ -245,6 +245,7 @@ public final class Main implements ServerConfig {
     STATUS_FIELDS.add(literalJsonEntry("arguments", WORKFLOW_RUN.ARGUMENTS));
     STATUS_FIELDS.add(literalJsonEntry("engineParameters", WORKFLOW_RUN.ENGINE_PARAMETERS));
     STATUS_FIELDS.add(literalJsonEntry("metadata", WORKFLOW_RUN.METADATA));
+    STATUS_FIELDS.add(literalJsonEntry("consumable_resources", WORKFLOW_RUN.CONSUMABLE_RESOURCES));
     STATUS_FIELDS.add(literalJsonEntry("waiting_resource", ACTIVE_WORKFLOW_RUN.WAITING_RESOURCE));
     STATUS_FIELDS.add(
         literalJsonEntry(
@@ -479,6 +480,7 @@ public final class Main implements ServerConfig {
   private final Map<String, InputProvisioner> inputProvisioners;
   private final Semaphore loadCounter = new Semaphore(3);
   private final MaxInFlightByWorkflow maxInFlightPerWorkflow = new MaxInFlightByWorkflow();
+  private final PriorityByWorkflow priorityPerWorkflow = new PriorityByWorkflow();
   private final Map<String, String> otherServers;
   private final Map<String, OutputProvisioner> outputProvisioners;
   private final int port;
@@ -745,7 +747,20 @@ public final class Main implements ServerConfig {
           .select(WORKFLOW.NAME, WORKFLOW.MAX_IN_FLIGHT)
           .from(WORKFLOW)
           .forEach(record -> maxInFlightPerWorkflow.set(record.value1(), record.value2()));
+
+      DSL.using(connection, SQLDialect.POSTGRES)
+          .select(WORKFLOW.NAME)
+          .from(WORKFLOW)
+          .forEach(
+              record -> DSL.select(WORKFLOW_RUN.HASH_ID,WORKFLOW_RUN.CONSUMABLE_RESOURCES)
+                  .from(
+                      WORKFLOW_RUN
+                          .join(WORKFLOW_VERSION)
+                          .on(WORKFLOW_RUN.WORKFLOW_VERSION_ID.eq(WORKFLOW_VERSION.ID)))
+                  .where(WORKFLOW_VERSION.NAME.eq(record.value1()))
+                  .forEach(record1 -> priorityPerWorkflow.set(record.value1(), record1.value1(), record1.value2())));
     }
+
     unloadDirectory = Path.of(configuration.getUnloadDirectory());
   }
 
@@ -1030,6 +1045,7 @@ public final class Main implements ServerConfig {
       fields.add(literalJsonEntry("arguments", WORKFLOW_RUN.ARGUMENTS));
       fields.add(literalJsonEntry("engineParameters", WORKFLOW_RUN.ENGINE_PARAMETERS));
       fields.add(literalJsonEntry("metadata", WORKFLOW_RUN.METADATA));
+      fields.add(literalJsonEntry("consumableResources", WORKFLOW_RUN.CONSUMABLE_RESOURCES));
     }
     fields.add(
         literalJsonEntry(
@@ -1811,6 +1827,7 @@ public final class Main implements ServerConfig {
             run.getEngineParameters()) // JsonNode and ObjectNode are not accepted by param
         .set(WORKFLOW_RUN.ARGUMENTS, run.getArguments())
         .set(WORKFLOW_RUN.METADATA, run.getMetadata())
+        .set(WORKFLOW_RUN.CONSUMABLE_RESOURCES, run.getConsumableResources())
         .set(WORKFLOW_RUN.LABELS, param("labels", DatabaseWorkflow.labelsToJson(run.getLabels())))
         .set(
             WORKFLOW_RUN.INPUT_FILE_IDS,

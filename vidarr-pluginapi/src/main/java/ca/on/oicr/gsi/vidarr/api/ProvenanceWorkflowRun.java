@@ -22,6 +22,7 @@ public final class ProvenanceWorkflowRun<K extends ExternalId> {
   private String instanceName;
   private ObjectNode labels;
   private ObjectNode metadata;
+  private ObjectNode consumableResources;
   private ZonedDateTime modified;
   private ZonedDateTime started;
   private String workflowName;
@@ -70,6 +71,10 @@ public final class ProvenanceWorkflowRun<K extends ExternalId> {
 
   public ObjectNode getMetadata() {
     return metadata;
+  }
+
+  public ObjectNode getConsumableResources(){
+    return consumableResources;
   }
 
   public ZonedDateTime getModified() {
@@ -134,6 +139,10 @@ public final class ProvenanceWorkflowRun<K extends ExternalId> {
 
   public void setMetadata(ObjectNode metadata) {
     this.metadata = metadata;
+  }
+
+  public void setConsumableResources(ObjectNode consumableResources) {
+    this.consumableResources = consumableResources;
   }
 
   public void setModified(ZonedDateTime modified) {

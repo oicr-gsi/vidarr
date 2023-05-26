@@ -104,7 +104,7 @@ final class ConsumableResourceChecker implements Runnable {
         while (--i >= 0) {
           resourceBrokers.get(i).second().release(workflow, workflowVersion, vidarrId);
         }
-        //If the delay is caused by priority try again in a shorter time frame
+
         //Must balance hammering vidarr with requests and adding significant delay to workflow runtime
         executor.schedule(this, 5, TimeUnit.MINUTES);
         return;

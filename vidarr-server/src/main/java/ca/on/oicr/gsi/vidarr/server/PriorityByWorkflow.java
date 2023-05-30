@@ -67,7 +67,7 @@ final class PriorityByWorkflow implements ConsumableResource {
 
   @Override
   public Optional<Pair<String, BasicType>> inputFromSubmitter() {
-    return Optional.of(new Pair<String, BasicType>("Priority", BasicType.INTEGER));
+    return Optional.of(new Pair<String, BasicType>("priority", BasicType.INTEGER));
   }
 
   @Override
@@ -128,8 +128,8 @@ final class PriorityByWorkflow implements ConsumableResource {
   public void set(String workflowName, String vidarrId, JsonNode input) {
 
     int workflowPriority = 1;
-    if (!input.isEmpty() && !input.get("Priority").isEmpty()) {
-      workflowPriority = input.get("Priority").asInt();
+    if (input != null && !input.isEmpty() && input.get("priority") != null && !input.get("priority").isEmpty()) {
+      workflowPriority = input.get("priority").asInt();
     }
 
     final var stateWaiting = workflows.computeIfAbsent(workflowName, k -> new WaitingState()).waiting;

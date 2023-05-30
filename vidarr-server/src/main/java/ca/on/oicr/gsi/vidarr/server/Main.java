@@ -245,7 +245,6 @@ public final class Main implements ServerConfig {
     STATUS_FIELDS.add(literalJsonEntry("arguments", WORKFLOW_RUN.ARGUMENTS));
     STATUS_FIELDS.add(literalJsonEntry("engineParameters", WORKFLOW_RUN.ENGINE_PARAMETERS));
     STATUS_FIELDS.add(literalJsonEntry("metadata", WORKFLOW_RUN.METADATA));
-    STATUS_FIELDS.add(literalJsonEntry("consumable_resources", WORKFLOW_RUN.CONSUMABLE_RESOURCES));
     STATUS_FIELDS.add(literalJsonEntry("waiting_resource", ACTIVE_WORKFLOW_RUN.WAITING_RESOURCE));
     STATUS_FIELDS.add(
         literalJsonEntry(
@@ -748,17 +747,32 @@ public final class Main implements ServerConfig {
           .from(WORKFLOW)
           .forEach(record -> maxInFlightPerWorkflow.set(record.value1(), record.value2()));
 
-      DSL.using(connection, SQLDialect.POSTGRES)
-          .select(WORKFLOW.NAME)
+      DSL.using(connection)
+          .select(WORKFLOW.NAME, WORKFLOW_RUN.HASH_ID,
+              DSL.jsonObject(ACTIVE_WORKFLOW_RUN.CONSUMABLE_RESOURCES))
           .from(WORKFLOW)
-          .forEach(
-              record -> DSL.select(WORKFLOW_RUN.HASH_ID,WORKFLOW_RUN.CONSUMABLE_RESOURCES)
-                  .from(
-                      WORKFLOW_RUN
-                          .join(WORKFLOW_VERSION)
-                          .on(WORKFLOW_RUN.WORKFLOW_VERSION_ID.eq(WORKFLOW_VERSION.ID)))
-                  .where(WORKFLOW_VERSION.NAME.eq(record.value1()))
-                  .forEach(record1 -> priorityPerWorkflow.set(record.value1(), record1.value1(), record1.value2())));
+          .join(WORKFLOW_VERSION)
+          .on(WORKFLOW.NAME.eq(WORKFLOW_VERSION.NAME))
+          .join(WORKFLOW_RUN)
+          .on(WORKFLOW_RUN.WORKFLOW_VERSION_ID.eq(WORKFLOW_VERSION.ID))
+          .join(ACTIVE_WORKFLOW_RUN)
+          .on(WORKFLOW_RUN.ID.eq(ACTIVE_WORKFLOW_RUN.ID))
+          .where(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE.eq(Phase.WAITING_FOR_RESOURCES))
+          .forEach(record -> {
+            try {
+              priorityPerWorkflow.set(record.value1(),
+                  record.value2(),
+                  MAPPER.readTree((record.value3() == null || record.value3().data() == null) ?
+                      "{}" :
+                      record.value3().data()));
+            } catch (JsonProcessingException e) {
+              // not a disaster; we might just get some things running out of priority
+              // until max-in-flight gets saturated
+              System.out.println("Uh oh, failed to serialize the consumable resources "
+                  + "field on active workflow run for priority by workflow on startup:");
+              System.out.println(e.getMessage());
+            }
+          });
     }
 
     unloadDirectory = Path.of(configuration.getUnloadDirectory());
@@ -1045,7 +1059,6 @@ public final class Main implements ServerConfig {
       fields.add(literalJsonEntry("arguments", WORKFLOW_RUN.ARGUMENTS));
       fields.add(literalJsonEntry("engineParameters", WORKFLOW_RUN.ENGINE_PARAMETERS));
       fields.add(literalJsonEntry("metadata", WORKFLOW_RUN.METADATA));
-      fields.add(literalJsonEntry("consumableResources", WORKFLOW_RUN.CONSUMABLE_RESOURCES));
     }
     fields.add(
         literalJsonEntry(
@@ -1827,7 +1840,6 @@ public final class Main implements ServerConfig {
             run.getEngineParameters()) // JsonNode and ObjectNode are not accepted by param
         .set(WORKFLOW_RUN.ARGUMENTS, run.getArguments())
         .set(WORKFLOW_RUN.METADATA, run.getMetadata())
-        .set(WORKFLOW_RUN.CONSUMABLE_RESOURCES, run.getConsumableResources())
         .set(WORKFLOW_RUN.LABELS, param("labels", DatabaseWorkflow.labelsToJson(run.getLabels())))
         .set(
             WORKFLOW_RUN.INPUT_FILE_IDS,

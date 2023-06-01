@@ -768,8 +768,9 @@ public final class Main implements ServerConfig {
             } catch (JsonProcessingException e) {
               // not a disaster; we might just get some things running out of priority
               // until max-in-flight gets saturated
-              System.out.println("Uh oh, failed to serialize the consumable resources "
-                  + "field on active workflow run for priority by workflow on startup:");
+              System.out.println("Failed to serialize the consumable resources field"
+                  + " on active workflow run for priority by workflow on startup:"
+                  + " some actions may temporarily be run out of priority.");
               System.out.println(e.getMessage());
             }
           });

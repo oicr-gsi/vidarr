@@ -28,7 +28,8 @@ final class PriorityByWorkflow implements ConsumableResource {
 
       @Override
       public boolean add(SimpleEntry<String, Integer> simpleEntry) {
-        super.remove(this.getByKey(simpleEntry.getKey()));
+        SimpleEntry entry = this.getByKey(simpleEntry.getKey());
+        if(entry != null){super.remove(entry);}
         return super.add(simpleEntry);
       }
 

@@ -143,7 +143,7 @@ names will be visible to clients.
           "outputProvisioners": [
             "cromwell-output"
           ],
-          "consumableResources": [],
+          "consumableResources": ["priority": 1],
           "runtimeProvisioners": [],
           "workflowEngine": "local-cromwell"
         }

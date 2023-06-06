@@ -75,10 +75,11 @@ resources must be available at the start of its run and it holds the resource
 until the workflow completes (successfully or not), at which point the resource
 may be reused by another workflow run. Within quota-type, some require
 information (_e.g._, the amount of RAM), while others are based purely on the
-existence of the workflow run (_e.g._, max-in-flight). Other resource are more
-"throttling"-type. These include maintenance schedules and Prometheus alerts
-which block workflow runs from starting but don't track anything once the
-workflow run is underway.
+existence of the workflow run (_e.g._, max-in-flight). The priority consumable 
+resources operates within the restrictions imposed from quota resources. Other 
+resource are more "throttling"-type. These include maintenance schedules and 
+Prometheus alertsvwhich block workflow runs from starting but don't track 
+anything once the workflow run is underway. 
 
 Consumable resources are long-running. Whenever Vidarr attempts to run a
 workflow, it will consult the consumable resources to see if there is capacity
@@ -88,7 +89,7 @@ workflow has finished running (successfully or not), Vidarr will `release` the
 resource so that it can be used again. When Vidarr restarts, any running
 workflows will be called with `recover` to indicate that the resource is being
 used and the resource cannot stop the workflow even if the resource is
-over-capacity.
+over-capacity. 
 
 Consumable resources can request data from the user, if desired. The
 `inputFromSubmitter` can return an empty optional to indicate that no

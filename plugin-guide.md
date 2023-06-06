@@ -76,7 +76,8 @@ until the workflow completes (successfully or not), at which point the resource
 may be reused by another workflow run. Within quota-type, some require
 information (_e.g._, the amount of RAM), while others are based purely on the
 existence of the workflow run (_e.g._, max-in-flight). The priority consumable 
-resources operates within the restrictions imposed from quota resources. Other 
+resources operates within the restrictions imposed from quota resources and allows
+users to manually set the order in which workflow runs will launch. Other 
 resource are more "throttling"-type. These include maintenance schedules and 
 Prometheus alertsvwhich block workflow runs from starting but don't track 
 anything once the workflow run is underway. 

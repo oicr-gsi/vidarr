@@ -33,7 +33,7 @@ public final class MaxInFlightConsumableResource implements ConsumableResource {
   }
 
   @Override
-  public void recover(String workflowName, String workflowVersion, String vidarrId) {
+  public void recover(String workflowName, String workflowVersion, String vidarrId, Optional<JsonNode> resourceJson) {
     inFlight.add(vidarrId);
   }
 

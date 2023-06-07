@@ -110,7 +110,7 @@ public class AlertmanagerAutoInhibitConsumableResource implements ConsumableReso
   }
 
   @Override
-  public void recover(String workflowName, String workflowVersion, String vidarrId) {
+  public void recover(String workflowName, String workflowVersion, String vidarrId, Optional<JsonNode> resourceJson) {
     // Do nothing, as there's no intermediate state that needs to be tracked
   }
 

@@ -479,6 +479,7 @@ public final class Main implements ServerConfig {
   private final Map<String, InputProvisioner> inputProvisioners;
   private final Semaphore loadCounter = new Semaphore(3);
   private final MaxInFlightByWorkflow maxInFlightPerWorkflow = new MaxInFlightByWorkflow();
+  private final PriorityByWorkflow priorityPerWorkflow = new PriorityByWorkflow();
   private final Map<String, String> otherServers;
   private final Map<String, OutputProvisioner> outputProvisioners;
   private final int port;
@@ -745,7 +746,36 @@ public final class Main implements ServerConfig {
           .select(WORKFLOW.NAME, WORKFLOW.MAX_IN_FLIGHT)
           .from(WORKFLOW)
           .forEach(record -> maxInFlightPerWorkflow.set(record.value1(), record.value2()));
+
+      DSL.using(connection)
+          .select(WORKFLOW.NAME, WORKFLOW_RUN.HASH_ID,
+              DSL.jsonObject(ACTIVE_WORKFLOW_RUN.CONSUMABLE_RESOURCES))
+          .from(WORKFLOW)
+          .join(WORKFLOW_VERSION)
+          .on(WORKFLOW.NAME.eq(WORKFLOW_VERSION.NAME))
+          .join(WORKFLOW_RUN)
+          .on(WORKFLOW_RUN.WORKFLOW_VERSION_ID.eq(WORKFLOW_VERSION.ID))
+          .join(ACTIVE_WORKFLOW_RUN)
+          .on(WORKFLOW_RUN.ID.eq(ACTIVE_WORKFLOW_RUN.ID))
+          .where(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE.eq(Phase.WAITING_FOR_RESOURCES))
+          .forEach(record -> {
+            try {
+              priorityPerWorkflow.set(record.value1(),
+                  record.value2(),
+                  MAPPER.readTree((record.value3() == null || record.value3().data() == null) ?
+                      "{}" :
+                      record.value3().data()));
+            } catch (JsonProcessingException e) {
+              // not a disaster; we might just get some things running out of priority
+              // until max-in-flight gets saturated
+              System.out.println("Failed to serialize the consumable resources field"
+                  + " on active workflow run for priority by workflow on startup:"
+                  + " some actions may temporarily be run out of priority.");
+              System.out.println(e.getMessage());
+            }
+          });
     }
+
     unloadDirectory = Path.of(configuration.getUnloadDirectory());
   }
 
@@ -1099,18 +1129,19 @@ public final class Main implements ServerConfig {
                                                   case URL -> "url";
                                                 })
                                         .collect(Collectors.toList())))))));
-    context
-        .select(DSL.jsonObject(fields))
-        .from(WORKFLOW_RUN)
-        .where(condition)
-        .forEach(
-            result -> {
-              try {
-                jsonGenerator.writeRawValue(result.value1().data());
-              } catch (IOException e) {
-                throw new RuntimeException(e);
-              }
-            });
+
+      context
+          .select(DSL.jsonObject(fields))
+          .from(WORKFLOW_RUN)
+          .where(condition)
+          .forEach(
+              result -> {
+                try {
+                  jsonGenerator.writeRawValue(result.value1().data());
+                } catch (IOException e) {
+                  throw new RuntimeException(e);
+                }
+              });
   }
 
   private void deleteWorkflowRun(HttpServerExchange exchange) {

@@ -47,7 +47,9 @@ what is in the request.
     "bcl2fastq.timeout": 20
   },
   "attempt": 0,
-  "consumableResources": {},
+  "consumableResources": {
+      "priority": 1
+    },
   "engineParameters": {
     "final_call_logs_dir": "/scratch2/groups/gsi/production/cromwell/cromwell-prod.hpc.oicr.on.ca_call_logs",
     "final_workflow_log_dir": "/scratch2/groups/gsi/production/cromwell/cromwell-prod.hpc.oicr.on.ca_workflow_logs"

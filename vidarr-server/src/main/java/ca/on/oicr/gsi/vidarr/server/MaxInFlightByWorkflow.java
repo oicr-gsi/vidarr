@@ -21,7 +21,7 @@ final class MaxInFlightByWorkflow implements ConsumableResource {
   private static final Gauge currentInFlightCount =
       Gauge.build(
               "vidarr_in_flight_per_workflow_current",
-              "The current number of workflows are running.")
+              "The current number of workflows that are running.")
           .labelNames("workflow")
           .register();
   private static final Gauge maxInFlightCount =
@@ -48,7 +48,7 @@ final class MaxInFlightByWorkflow implements ConsumableResource {
   }
 
   @Override
-  public void recover(String workflowName, String workflowVersion, String vidarrId) {
+  public void recover(String workflowName, String workflowVersion, String vidarrId, Optional<JsonNode> resourceJson) {
     final var stateRunning = workflows.computeIfAbsent(workflowName, k -> new MaxState()).running;
     // since we just created it if it doesn't exist, no need for null check here
     stateRunning.add(vidarrId);

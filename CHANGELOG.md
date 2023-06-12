@@ -6,6 +6,13 @@ For unreleased changes, see [changes](changes).
 
 -----------------------------------------------------------------------------
 
+## [0.13.0] - 2023-06-12
+
+### Changed
+
+* Provenance requests for LATEST version now return the version with the most recent `requested` date, not the most recent `created` date.
+
+
 ## [0.12.0] - 2023-03-07
 
 ### Fixed

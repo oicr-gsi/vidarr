@@ -8,6 +8,10 @@ For unreleased changes, see [changes](changes).
 
 ## [0.13.0] - 2023-06-12
 
+### Added
+
+* Added optional consumable resource "priority" which can be used to specify the order in which workflow runs are allocated resources
+
 ### Changed
 
 * Provenance requests for LATEST version now return the version with the most recent `requested` date, not the most recent `created` date.

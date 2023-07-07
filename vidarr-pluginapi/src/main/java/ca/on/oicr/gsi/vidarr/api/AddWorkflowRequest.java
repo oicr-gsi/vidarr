@@ -10,12 +10,18 @@ public class AddWorkflowRequest {
   private Map<String, BasicType> labels = Collections.emptyMap();
   private int maxInFlight;
 
+  private int priority;
+
   public Map<String, BasicType> getLabels() {
     return labels;
   }
 
   public int getMaxInFlight() {
     return maxInFlight;
+  }
+
+  public int getPriority() {
+    return priority;
   }
 
   public void setLabels(Map<String, BasicType> labels) {
@@ -25,4 +31,9 @@ public class AddWorkflowRequest {
   public void setMaxInFlight(int maxInFlight) {
     this.maxInFlight = maxInFlight;
   }
+
+  public void setPriority(int priority) {
+    this.priority = priority;
+  }
+
 }

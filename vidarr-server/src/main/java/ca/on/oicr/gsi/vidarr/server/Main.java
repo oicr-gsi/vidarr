@@ -1241,20 +1241,22 @@ public final class Main implements ServerConfig {
             DSL.jsonObject(
                 literalJsonEntry(
                     "accessoryFiles",
-                    DSL.field(
-                        DSL.select(
-                                DSL.jsonObjectAgg(
-                                    WORKFLOW_VERSION_ACCESSORY.FILENAME,
-                                    accessoryDefinition.WORKFLOW_FILE))
-                            .from(
-                                WORKFLOW_VERSION_ACCESSORY
-                                    .join(accessoryDefinition)
-                                    .on(
-                                        accessoryDefinition.ID.eq(
-                                            WORKFLOW_VERSION_ACCESSORY.WORKFLOW_DEFINITION))
-                                    .where(
-                                        WORKFLOW_VERSION_ACCESSORY.WORKFLOW_VERSION.eq(
-                                            WORKFLOW_VERSION.ID))))),
+                    DSL.coalesce(
+                        DSL.field(
+                            DSL.select(
+                                    DSL.jsonObjectAgg(
+                                        WORKFLOW_VERSION_ACCESSORY.FILENAME,
+                                        accessoryDefinition.WORKFLOW_FILE))
+                                .from(
+                                    WORKFLOW_VERSION_ACCESSORY
+                                        .join(accessoryDefinition)
+                                        .on(
+                                            accessoryDefinition.ID.eq(
+                                                WORKFLOW_VERSION_ACCESSORY.WORKFLOW_DEFINITION))
+                                        .where(
+                                            WORKFLOW_VERSION_ACCESSORY.WORKFLOW_VERSION.eq(
+                                                WORKFLOW_VERSION.ID)))),
+                            JSON.json("{}"))),
                 literalJsonEntry("language", WORKFLOW_DEFINITION.WORKFLOW_LANGUAGE),
                 literalJsonEntry("name", WORKFLOW_VERSION.NAME),
                 literalJsonEntry("outputs", WORKFLOW_VERSION.METADATA),

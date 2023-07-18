@@ -2589,7 +2589,9 @@ public final class Main implements ServerConfig {
                                                   @Override
                                                   public Condition workflowRunId(
                                                       Stream<String> ids) {
-                                                    return match(WORKFLOW_RUN.HASH_ID, ids);
+                                                    var hashIds =
+                                                        ids.map(id -> processor.extractHashIfIsFullWorkflowRunId(id));
+                                                    return match(WORKFLOW_RUN.HASH_ID, hashIds);
                                                   }
                                                 })))
                             .fetch(WORKFLOW_RUN.ID));

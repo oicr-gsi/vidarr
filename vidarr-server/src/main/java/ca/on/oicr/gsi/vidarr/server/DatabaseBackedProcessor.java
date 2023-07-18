@@ -1310,4 +1310,12 @@ public abstract class DatabaseBackedProcessor
           String.format("'%s' is a malformed Vidarr file identifier", id));
     return matcher.group("hash");
   }
+
+  public static String extractHashIfIsFullWorkflowRunId(String id) {
+    Matcher matcher = BaseProcessor.WORKFLOW_RUN_ID.matcher(id);
+    if (!matcher.matches())
+      // assume it's already a hash
+      return id;
+    return matcher.group("hash");
+  }
 }

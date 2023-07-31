@@ -127,7 +127,7 @@ public class VeryBadDataIntegrationTest {
               .post("/api/workflow/{name}", naughtyString)
               .then()
               .assertThat()
-              .statusCode(201);
+              .statusCode(200);
 
           get("/api/workflow/{name}", naughtyString)
               .then()

@@ -137,7 +137,7 @@ public class MainIntegrationTest {
         .post("/api/workflow/{name}", "novel")
         .then()
         .assertThat()
-        .statusCode(201);
+        .statusCode(200);
 
     get("/api/workflow/{name}", "novel")
         .then()
@@ -163,7 +163,7 @@ public class MainIntegrationTest {
         .post("/api/workflow/{name}", "bcl2fastq")
         .then()
         .assertThat()
-        .statusCode(201);
+        .statusCode(200);
 
     var newBcl2fastq = get("/api/workflow/{name}", "bcl2fastq").then().extract().jsonPath();
 
@@ -197,7 +197,7 @@ public class MainIntegrationTest {
         .post("/api/workflow/{name}", "import_fastq")
         .then()
         .assertThat()
-        .statusCode(201);
+        .statusCode(200);
 
     var newImportFastq = get("/api/workflow/{name}", "import_fastq").then().extract().jsonPath();
     var updatedWorkflowCount =
@@ -247,7 +247,7 @@ public class MainIntegrationTest {
         .post("/api/workflow/{name}", "import_fastq")
         .then()
         .assertThat()
-        .statusCode(201);
+        .statusCode(200);
     var mifImportFastq = get("/api/workflow/{name}", "import_fastq").then().extract().jsonPath();
     assertTrue(newMaxInFlight == ((Integer) mifImportFastq.get("maxInFlight")));
 
@@ -261,7 +261,7 @@ public class MainIntegrationTest {
         .post("/api/workflow/{name}", "import_fastq")
         .then()
         .assertThat()
-        .statusCode(201);
+        .statusCode(200);
     var labelsImportFastq = get("/api/workflow/{name}", "import_fastq").then().extract().jsonPath();
     assertNull(labelsImportFastq.get("labels"));
 
@@ -275,7 +275,7 @@ public class MainIntegrationTest {
         .post("/api/workflow/{name}", "import_fastq")
         .then()
         .assertThat()
-        .statusCode(201);
+        .statusCode(200);
     var isActiveImportFastq =
         get("/api/workflow/{name}", "import_fastq").then().extract().jsonPath();
     assertNotEquals(newIsActive, isActiveImportFastq.get("isActive"));
@@ -319,7 +319,7 @@ public class MainIntegrationTest {
         .post("/api/workflow/{name}", "novel")
         .then()
         .assertThat()
-        .statusCode(201);
+        .statusCode(200);
 
     var newSize =
         get("/api/workflows")

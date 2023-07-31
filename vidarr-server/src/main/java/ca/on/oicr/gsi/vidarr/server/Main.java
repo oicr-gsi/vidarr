@@ -805,7 +805,7 @@ public final class Main implements ServerConfig {
                               .or(WORKFLOW.MAX_IN_FLIGHT.ne(request.getMaxInFlight())))
                       .execute());
       maxInFlightPerWorkflow.set(name, request.getMaxInFlight());
-      createdResponse(exchange);
+      okEmptyResponse(exchange);
     } catch (SQLException | JsonProcessingException e) {
       internalServerErrorResponse(exchange, e);
     }

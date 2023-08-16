@@ -1,1 +1,1 @@
-priority by default to the consumableResource shesmu targets
+ priority as a consumable resource on all Vidarr targets

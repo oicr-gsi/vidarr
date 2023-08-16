@@ -808,7 +808,7 @@ public final class Main implements ServerConfig {
                               .or(WORKFLOW.MAX_IN_FLIGHT.ne(request.getMaxInFlight())))
                       .execute());
       maxInFlightPerWorkflow.set(name, request.getMaxInFlight());
-      createdResponse(exchange);
+      okEmptyResponse(exchange);
     } catch (SQLException | JsonProcessingException e) {
       internalServerErrorResponse(exchange, e);
     }
@@ -1244,20 +1244,22 @@ public final class Main implements ServerConfig {
             DSL.jsonObject(
                 literalJsonEntry(
                     "accessoryFiles",
-                    DSL.field(
-                        DSL.select(
-                                DSL.jsonObjectAgg(
-                                    WORKFLOW_VERSION_ACCESSORY.FILENAME,
-                                    accessoryDefinition.WORKFLOW_FILE))
-                            .from(
-                                WORKFLOW_VERSION_ACCESSORY
-                                    .join(accessoryDefinition)
-                                    .on(
-                                        accessoryDefinition.ID.eq(
-                                            WORKFLOW_VERSION_ACCESSORY.WORKFLOW_DEFINITION))
-                                    .where(
-                                        WORKFLOW_VERSION_ACCESSORY.WORKFLOW_VERSION.eq(
-                                            WORKFLOW_VERSION.ID))))),
+                    DSL.coalesce(
+                        DSL.field(
+                            DSL.select(
+                                    DSL.jsonObjectAgg(
+                                        WORKFLOW_VERSION_ACCESSORY.FILENAME,
+                                        accessoryDefinition.WORKFLOW_FILE))
+                                .from(
+                                    WORKFLOW_VERSION_ACCESSORY
+                                        .join(accessoryDefinition)
+                                        .on(
+                                            accessoryDefinition.ID.eq(
+                                                WORKFLOW_VERSION_ACCESSORY.WORKFLOW_DEFINITION))
+                                        .where(
+                                            WORKFLOW_VERSION_ACCESSORY.WORKFLOW_VERSION.eq(
+                                                WORKFLOW_VERSION.ID)))),
+                            JSON.json("{}"))),
                 literalJsonEntry("language", WORKFLOW_DEFINITION.WORKFLOW_LANGUAGE),
                 literalJsonEntry("name", WORKFLOW_VERSION.NAME),
                 literalJsonEntry("outputs", WORKFLOW_VERSION.METADATA),
@@ -2590,7 +2592,9 @@ public final class Main implements ServerConfig {
                                                   @Override
                                                   public Condition workflowRunId(
                                                       Stream<String> ids) {
-                                                    return match(WORKFLOW_RUN.HASH_ID, ids);
+                                                    var hashIds =
+                                                        ids.map(id -> processor.extractHashIfIsFullWorkflowRunId(id));
+                                                    return match(WORKFLOW_RUN.HASH_ID, hashIds);
                                                   }
                                                 })))
                             .fetch(WORKFLOW_RUN.ID));

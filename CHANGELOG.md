@@ -6,6 +6,20 @@ For unreleased changes, see [changes](changes).
 
 -----------------------------------------------------------------------------
 
+## [0.14.0] - 2023-08-04
+
+### Added
+
+* Parsing for full Vidarr workflow run IDs in the vidarr-workflow-run-id unload filter
+
+### Fixed
+
+* Copy-out & unload correctly format empty accessoryFiles as `{}` rather than
+  null, allowing load to accept the output
+  
+* Return correct status code for workflow creation/update
+
+
 ## [0.13.0] - 2023-06-12
 
 ### Added

@@ -581,17 +581,16 @@ public final class Main implements ServerConfig {
                     e ->
                         new Target() {
                           private final List<Pair<String, ConsumableResource>> consumables =
-                              Stream.concat(Stream.concat(
+                              Stream.concat(
                                       e.getValue().getConsumableResources().stream()
                                           .map(
                                               name ->
                                                   new Pair<>(name, consumableResources.get(name))),
                                       Stream.of(
                                           new Pair<String, ConsumableResource>(
-                                              "", maxInFlightPerWorkflow))),
-                                    Stream.of(
-                                            new Pair<String, ConsumableResource>(
-                                                "priority", priorityPerWorkflow)))
+                                              "", maxInFlightPerWorkflow),
+                                          new Pair<String, ConsumableResource>(
+                                              "priority", priorityPerWorkflow)))
                                   .collect(Collectors.toList());
                           private final WorkflowEngine engine =
                               workflowEngines.get(e.getValue().getWorkflowEngine());

@@ -5,6 +5,7 @@ import static java.util.Map.Entry.comparingByValue;
 import ca.on.oicr.gsi.Pair;
 import ca.on.oicr.gsi.vidarr.BasicType;
 import ca.on.oicr.gsi.vidarr.ConsumableResource;
+import ca.on.oicr.gsi.vidarr.ConsumableResourceProvider;
 import ca.on.oicr.gsi.vidarr.ConsumableResourceResponse;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.prometheus.client.Gauge;
@@ -16,11 +17,16 @@ import java.util.Optional;
 import java.util.SortedSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.stream.Stream;
 
 
-final class PriorityByWorkflow implements ConsumableResource {
+public final class PriorityByWorkflow implements ConsumableResource {
 
   private List acceptedPriorities = Arrays.asList(1, 2, 3, 4);
+
+  public static ConsumableResourceProvider provider() {
+    return () -> Stream.of(new Pair<>("priority", PriorityByWorkflow.class));
+  }
 
   private static final class WaitingState {
 

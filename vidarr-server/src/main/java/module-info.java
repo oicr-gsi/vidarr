@@ -4,6 +4,7 @@ import ca.on.oicr.gsi.vidarr.OutputProvisionerProvider;
 import ca.on.oicr.gsi.vidarr.RuntimeProvisionerProvider;
 import ca.on.oicr.gsi.vidarr.UnloadFilterProvider;
 import ca.on.oicr.gsi.vidarr.WorkflowEngineProvider;
+import ca.on.oicr.gsi.vidarr.server.PriorityByWorkflow;
 
 module ca.on.oicr.gsi.vidarr.server {
   exports ca.on.oicr.gsi.vidarr.server;
@@ -40,6 +41,9 @@ module ca.on.oicr.gsi.vidarr.server {
   opens ca.on.oicr.gsi.vidarr.server to
       com.fasterxml.jackson.databind;
   opens db.migration;
+
+  provides ConsumableResourceProvider with
+      PriorityByWorkflow;
 
   uses ConsumableResourceProvider;
   uses InputProvisionerProvider;

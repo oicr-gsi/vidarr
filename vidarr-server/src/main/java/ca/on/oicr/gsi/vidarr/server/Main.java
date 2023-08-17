@@ -588,7 +588,9 @@ public final class Main implements ServerConfig {
                                                   new Pair<>(name, consumableResources.get(name))),
                                       Stream.of(
                                           new Pair<String, ConsumableResource>(
-                                              "", maxInFlightPerWorkflow)))
+                                              "", maxInFlightPerWorkflow),
+                                          new Pair<String, ConsumableResource>(
+                                              "priority", priorityPerWorkflow)))
                                   .collect(Collectors.toList());
                           private final WorkflowEngine engine =
                               workflowEngines.get(e.getValue().getWorkflowEngine());

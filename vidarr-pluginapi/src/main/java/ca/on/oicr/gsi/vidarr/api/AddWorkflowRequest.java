@@ -9,7 +9,6 @@ import java.util.Map;
 public class AddWorkflowRequest {
   private Map<String, BasicType> labels = Collections.emptyMap();
   private int maxInFlight;
-
   public Map<String, BasicType> getLabels() {
     return labels;
   }

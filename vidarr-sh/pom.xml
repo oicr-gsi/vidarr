@@ -6,7 +6,7 @@
   <parent>
     <groupId>ca.on.oicr.gsi.vidarr</groupId>
     <artifactId>vidarr</artifactId>
-    <version>0.14.1-SNAPSHOT</version>
+    <version>0.15.0</version>
     <relativePath>../pom.xml</relativePath>
   </parent>
   <dependencies>

@@ -6,6 +6,13 @@ For unreleased changes, see [changes](changes).
 
 -----------------------------------------------------------------------------
 
+## [0.15.0] - 2023-08-17
+
+### Added
+
+* priority as a consumable resource on all Vidarr targets
+
+
 ## [0.14.0] - 2023-08-04
 
 ### Added

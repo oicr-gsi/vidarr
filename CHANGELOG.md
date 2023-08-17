@@ -6,6 +6,13 @@ For unreleased changes, see [changes](changes).
 
 -----------------------------------------------------------------------------
 
+## [0.15.1] - 2023-08-17
+
+### Fixed
+
+* issue with deploying updated verison of flyway-core by reverting it to known good version
+
+
 ## [0.15.0] - 2023-08-17
 
 ### Added

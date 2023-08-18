@@ -17,6 +17,7 @@ import java.util.Optional;
 import java.util.SortedSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 
@@ -112,7 +113,9 @@ public final class PriorityByWorkflow implements ConsumableResource {
 
     if (!acceptedPriorities.contains(workflowPriority)){
       return ConsumableResourceResponse.error(
-          String.format("Vidarr error: The workflow %s run priority is invalid.", workflowName));
+          String.format("Vidarr error: The workflow '%s' run's priority (%d) is invalid. Priority "
+              + "values should be one of the following: %s", workflowName, workflowPriority,
+              acceptedPriorities.stream().map(String::valueOf).collect(Collectors.joining(", "))));
     }
     final var state = workflows.get(workflowName);
     if (state == null) {

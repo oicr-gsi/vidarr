@@ -82,7 +82,7 @@ public final class PriorityByWorkflow implements ConsumableResource {
     final var stateWaiting = workflows.computeIfAbsent(workflowName, k -> new WaitingState()).waiting;
     // since we just created it if it doesn't exist, no need for null check here
 
-    int workflowPriority = 1;
+    int workflowPriority = 4;
 
     if (resourceJson.isPresent()) {
       workflowPriority = resourceJson.get().asInt();
@@ -105,7 +105,7 @@ public final class PriorityByWorkflow implements ConsumableResource {
   public synchronized ConsumableResourceResponse request(
       String workflowName, String workflowVersion, String vidarrId, Optional<JsonNode> input) {
 
-    int workflowPriority = 1;
+    int workflowPriority = 4;
     if (!input.isEmpty()) {
       workflowPriority = input.get().asInt();
     }
@@ -119,7 +119,7 @@ public final class PriorityByWorkflow implements ConsumableResource {
       return ConsumableResourceResponse.error(
           String.format("Internal Vidarr error: The %s workflow run priority has not been configured properly.", workflowName));
     } else {
-      if (workflowPriority >= state.waiting.last().getValue()) {
+      if (workflowPriority <= state.waiting.last().getValue()) {
         state.waiting.remove(new SimpleEntry(vidarrId, workflowPriority));
         currentInPriorityWaitingCount.labels(workflowName).set(state.waiting.size());
         return ConsumableResourceResponse.AVAILABLE;
@@ -134,7 +134,7 @@ public final class PriorityByWorkflow implements ConsumableResource {
 
   public void set(String workflowName, String vidarrId, JsonNode input) {
 
-    int workflowPriority = 1;
+    int workflowPriority = 4;
     if (input != null && !input.isEmpty() && input.get("priority") != null && !input.get("priority").isEmpty()) {
       workflowPriority = input.get("priority").asInt();
     }

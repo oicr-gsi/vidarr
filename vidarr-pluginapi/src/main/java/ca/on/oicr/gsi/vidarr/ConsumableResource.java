@@ -102,5 +102,9 @@ public interface ConsumableResource {
    */
   void startup(String name);
 
+  /**
+   * Called to determine if this consumable resource must be provided as part of the input.
+   *.
+   */
   boolean isInputFromSubmitterRequired();
 }

@@ -65,5 +65,7 @@ public final class MaxInFlightConsumableResource implements ConsumableResource {
   }
 
   @Override
-  public boolean isRequired() {return false;}
+  public boolean isInputFromSubmitterRequired() {
+    return false;
+  }
 }

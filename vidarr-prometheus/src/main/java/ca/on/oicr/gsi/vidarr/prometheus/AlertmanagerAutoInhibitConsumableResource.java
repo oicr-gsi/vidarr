@@ -151,7 +151,7 @@ public class AlertmanagerAutoInhibitConsumableResource implements ConsumableReso
   }
 
   @Override
-  public boolean isRequired() {
+  public boolean isInputFromSubmitterRequired() {
     return false;
   }
 }

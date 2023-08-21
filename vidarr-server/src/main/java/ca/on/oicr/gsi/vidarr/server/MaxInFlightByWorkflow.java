@@ -95,7 +95,7 @@ final class MaxInFlightByWorkflow implements ConsumableResource {
   }
 
   @Override
-  public boolean isRequired() {
+  public boolean isInputFromSubmitterRequired() {
     return false;
   }
 }

@@ -150,9 +150,9 @@ public final class PriorityByWorkflow implements ConsumableResource {
     // Always ok.
   }
 
-  public boolean isRequired(){
+  @Override
+  public boolean isInputFromSubmitterRequired() {
     return false;
   }
-
 }
 

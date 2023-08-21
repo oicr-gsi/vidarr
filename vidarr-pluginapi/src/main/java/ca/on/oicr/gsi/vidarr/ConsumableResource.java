@@ -102,5 +102,5 @@ public interface ConsumableResource {
    */
   void startup(String name);
 
-  boolean isRequired();
+  boolean isInputFromSubmitterRequired();
 }

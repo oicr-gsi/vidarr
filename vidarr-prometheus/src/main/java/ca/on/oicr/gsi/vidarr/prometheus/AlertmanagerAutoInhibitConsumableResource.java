@@ -149,4 +149,9 @@ public class AlertmanagerAutoInhibitConsumableResource implements ConsumableReso
               workflowName, alertName, String.join(", ", matchedAlertValues)));
     }
   }
+
+  @Override
+  public boolean isRequired() {
+    return false;
+  }
 }

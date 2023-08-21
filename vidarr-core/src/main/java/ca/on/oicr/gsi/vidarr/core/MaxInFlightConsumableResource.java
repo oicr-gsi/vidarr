@@ -63,4 +63,7 @@ public final class MaxInFlightConsumableResource implements ConsumableResource {
   public void setMaximum(int maximum) {
     this.maximum = maximum;
   }
+
+  @Override
+  public boolean isRequired() {return false;}
 }

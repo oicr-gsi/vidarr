@@ -101,4 +101,6 @@ public interface ConsumableResource {
    * @param name
    */
   void startup(String name);
+
+  boolean isRequired();
 }

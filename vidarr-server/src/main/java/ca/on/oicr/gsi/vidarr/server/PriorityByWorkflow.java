@@ -119,7 +119,7 @@ public final class PriorityByWorkflow implements ConsumableResource {
       return ConsumableResourceResponse.error(
           String.format("Internal Vidarr error: The %s workflow run priority has not been configured properly.", workflowName));
     } else {
-      if (workflowPriority <= state.waiting.last().getValue()) {
+      if (workflowPriority >= state.waiting.last().getValue()) {
         state.waiting.remove(new SimpleEntry(vidarrId, workflowPriority));
         currentInPriorityWaitingCount.labels(workflowName).set(state.waiting.size());
         return ConsumableResourceResponse.AVAILABLE;

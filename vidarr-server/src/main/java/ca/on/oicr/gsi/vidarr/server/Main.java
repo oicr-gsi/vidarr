@@ -764,9 +764,10 @@ public final class Main implements ServerConfig {
             try {
               priorityPerWorkflow.set(record.value1(),
                   record.value2(),
-                  MAPPER.readTree((record.value3() == null || record.value3().data() == null) ?
-                      "{}" :
-                      record.value3().data()));
+                  Optional.ofNullable(
+                      MAPPER.readTree((record.value3() == null || record.value3().data() == null) ?
+                          "{}" :
+                          record.value3().data())));
             } catch (JsonProcessingException e) {
               // not a disaster; we might just get some things running out of priority
               // until max-in-flight gets saturated

@@ -117,22 +117,22 @@ public final class PriorityByWorkflow implements ConsumableResource {
               + "values should be one of the following: %s", workflowName, workflowPriority,
               acceptedPriorities.stream().map(String::valueOf).collect(Collectors.joining(", "))));
     }
-    final var state = workflows.get(workflowName);
-    if (state == null) {
-      return ConsumableResourceResponse.error(
-          String.format("Internal Vidarr error: The %s workflow run priority has not been configured properly.", workflowName));
-    } else {
-      if (workflowPriority >= state.waiting.last().getValue()) {
-        state.waiting.remove(new SimpleEntry(vidarrId, workflowPriority));
-        currentInPriorityWaitingCount.labels(workflowName).set(state.waiting.size());
-        return ConsumableResourceResponse.AVAILABLE;
-      } else {
-        state.waiting.add(new SimpleEntry(vidarrId, workflowPriority));
-        currentInPriorityWaitingCount.labels(workflowName).set(state.waiting.size());
-        return ConsumableResourceResponse.error(
-            String.format("There are %s workflows currently queued up with higher priority.", workflowName));
-      }
+    if (workflows.get(workflowName) == null) {
+      set(workflowName, vidarrId, input.get());
     }
+
+    final var state = workflows.get(workflowName);
+    if (workflowPriority >= state.waiting.last().getValue()) {
+      state.waiting.remove(new SimpleEntry(vidarrId, workflowPriority));
+      currentInPriorityWaitingCount.labels(workflowName).set(state.waiting.size());
+      return ConsumableResourceResponse.AVAILABLE;
+    } else {
+      state.waiting.add(new SimpleEntry(vidarrId, workflowPriority));
+      currentInPriorityWaitingCount.labels(workflowName).set(state.waiting.size());
+      return ConsumableResourceResponse.error(
+          String.format("There are %s workflows currently queued up with higher priority.", workflowName));
+    }
+
   }
 
   public void set(String workflowName, String vidarrId, JsonNode input) {

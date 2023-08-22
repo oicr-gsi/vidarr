@@ -6,6 +6,14 @@ For unreleased changes, see [changes](changes).
 
 -----------------------------------------------------------------------------
 
+## [0.16.0] - 2023-08-22
+
+### Changed
+
+* error message for invalid consumable resource priority value, to clarify valid priority values
+* Check whether each consumable resource is required as input from the submitter
+
+
 ## [0.15.1] - 2023-08-17
 
 ### Fixed

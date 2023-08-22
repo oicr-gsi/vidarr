@@ -93,4 +93,9 @@ final class MaxInFlightByWorkflow implements ConsumableResource {
     maxInFlightCount.labels(workflowName).set(maxInFlight);
     workflows.computeIfAbsent(workflowName, k -> new MaxState()).maximum = maxInFlight;
   }
+
+  @Override
+  public boolean isInputFromSubmitterRequired() {
+    return false;
+  }
 }

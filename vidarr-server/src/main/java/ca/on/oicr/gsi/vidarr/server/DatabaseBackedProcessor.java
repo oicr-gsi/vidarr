@@ -1253,7 +1253,7 @@ public abstract class DatabaseBackedProcessor
                 MAPPER, target, workflow.definition(), arguments, metadata, engineParameters),
             workflow.validateLabels(labels),
             target
-                .consumableResources()
+                .consumableResources().filter(r -> r.second().isInputFromSubmitterRequired())
                 .flatMap(r -> r.second().inputFromSubmitter().stream())
                 .flatMap(cr -> checkConsumableResource(consumableResources, cr)))
         .flatMap(Function.identity())

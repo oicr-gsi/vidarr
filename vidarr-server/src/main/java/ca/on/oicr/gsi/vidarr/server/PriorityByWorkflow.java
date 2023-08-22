@@ -118,7 +118,7 @@ public final class PriorityByWorkflow implements ConsumableResource {
               acceptedPriorities.stream().map(String::valueOf).collect(Collectors.joining(", "))));
     }
     if (workflows.get(workflowName) == null) {
-      set(workflowName, vidarrId, input.get());
+      set(workflowName, vidarrId, input);
     }
 
     final var state = workflows.get(workflowName);
@@ -135,11 +135,13 @@ public final class PriorityByWorkflow implements ConsumableResource {
 
   }
 
-  public void set(String workflowName, String vidarrId, JsonNode input) {
+  public void set(String workflowName, String vidarrId, Optional<JsonNode> input) {
 
     int workflowPriority = 1;
-    if (input != null && !input.isEmpty() && input.get("priority") != null && !input.get("priority").isEmpty()) {
-      workflowPriority = input.get("priority").asInt();
+    if (input != null && !input.isEmpty()) {
+      if(input.get().get("priority") != null && !input.get().get("priority").isEmpty()) {
+        workflowPriority = input.get().get("priority").asInt();
+      }
     }
 
     final var stateWaiting = workflows.computeIfAbsent(workflowName, k -> new WaitingState()).waiting;

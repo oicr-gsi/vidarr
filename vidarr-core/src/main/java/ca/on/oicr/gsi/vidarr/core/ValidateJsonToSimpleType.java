@@ -74,7 +74,7 @@ public final class ValidateJsonToSimpleType implements BasicType.Visitor<Stream<
 
   @Override
   public Stream<String> floating() {
-    return input.isFloatingPointNumber()
+    return input.isNumber()
         ? Stream.empty()
         : Stream.of(
             String.format("%s: Expected float but got %s.", context, input.toPrettyString()));

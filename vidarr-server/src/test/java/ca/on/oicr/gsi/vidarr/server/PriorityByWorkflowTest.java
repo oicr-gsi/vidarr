@@ -1,0 +1,86 @@
+package ca.on.oicr.gsi.vidarr.server;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
+import ca.on.oicr.gsi.vidarr.ConsumableResourceResponse;
+import ca.on.oicr.gsi.vidarr.ConsumableResourceResponse.Visitor;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.Optional;
+import org.junit.Before;
+import org.junit.Test;
+
+public class PriorityByWorkflowTest {
+
+  private PriorityByWorkflow sut;
+  private ObjectMapper mapper = new ObjectMapper();
+
+  String workflow = "test";
+  String version = "1.0";
+  ConsumableResourceResponse.Visitor consumableResourceCheckerVisitor = new Visitor<Optional<String>>() {
+    @Override
+    public Optional<String> available() {
+      return Optional.empty();
+    }
+
+    @Override
+    public Optional<String> error(String message) {
+      return Optional.of(message);
+    }
+
+    @Override
+    public Optional<String> unavailable() {
+      return Optional.of(String.format("Resource is not available"));
+    }
+  };
+
+  @Before
+  public void instantiate() {
+    sut = new PriorityByWorkflow();
+  }
+
+  @Test
+  public void testRequest_invalidPriorityReturnsError() {
+    JsonNode invalidJson = mapper.valueToTree(5);
+
+    Optional<String> requestError = (Optional<String>) sut.request(workflow, version, "abcdef",
+        Optional.of(invalidJson)).apply(consumableResourceCheckerVisitor);
+    assertTrue(requestError.isPresent());
+    assertEquals(requestError.get(), "Vidarr error: The workflow 'test' run's priority (5) is "
+        + "invalid. Priority values should be one of the following: 1, 2, 3, 4");
+  }
+
+  @Test
+  public void testRequest_emptyInputAndEmptyWaitingIsOk() {
+    Optional<String> requestError = (Optional<String>) sut.request(workflow, version, "abcdef",
+        Optional.empty()).apply(consumableResourceCheckerVisitor);
+
+    assertTrue(requestError.isEmpty());
+  }
+
+  @Test
+  public void testRequest_validInputAndEmptyWaitingIsOk() {
+    JsonNode validJson = mapper.valueToTree(2);
+    Optional<String> requestError = (Optional<String>) sut.request(workflow, version, "abcdef",
+        Optional.of(validJson)).apply(consumableResourceCheckerVisitor);
+
+    assertTrue(requestError.isEmpty());
+  }
+
+  @Test
+  public void testIfWorkflowRunWithHigherPriorityExists_thenWorkflowRunDoesNotLaunch() {
+    JsonNode higherPriority = mapper.valueToTree(4);
+    JsonNode lowerPriority = mapper.valueToTree(2);
+
+    sut.set(workflow, "qwerty", Optional.of(higherPriority));
+
+    Optional<String> requestError = (Optional<String>) sut.request(workflow, version, "abcdef",
+        Optional.of(lowerPriority)).apply(consumableResourceCheckerVisitor);
+
+    assertTrue(requestError.isPresent());
+    assertEquals(requestError.get(), "There are test workflows currently queued up with higher "
+        + "priority.");
+  }
+
+}

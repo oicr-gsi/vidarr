@@ -172,7 +172,7 @@ public final class CheckInputType implements InputType.Visitor<Stream<String>> {
 
   @Override
   public Stream<String> floating() {
-    return input.isFloatingPointNumber()
+    return input.isNumber()
         ? Stream.empty()
         : Stream.of(
             String.format("%s: Expected float but got %s.", context, input.toPrettyString()));

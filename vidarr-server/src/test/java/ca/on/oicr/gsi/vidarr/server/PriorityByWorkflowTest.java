@@ -83,4 +83,46 @@ public class PriorityByWorkflowTest {
         + "priority.");
   }
 
+  @Test
+  public void testIfWorkflowRunWithLowerPriorityExists_thenWorkflowRunLaunches() {
+    JsonNode higherPriority = mapper.valueToTree(4);
+    JsonNode lowerPriority = mapper.valueToTree(2);
+
+    sut.set(workflow, "qwerty", Optional.of(lowerPriority));
+
+    Optional<String> requestError = (Optional<String>) sut.request(workflow, version, "abcdef",
+        Optional.of(higherPriority)).apply(consumableResourceCheckerVisitor);
+
+    assertTrue(requestError.isEmpty());
+  }
+
+  @Test
+  public void testIfWorkflowRunWithSamePriorityExists_thenWorkflowRunLaunches() {
+    JsonNode twoPriority = mapper.valueToTree(2);
+    JsonNode twoPriorityAlso = mapper.valueToTree(2);
+
+    sut.set(workflow, "qwerty", Optional.of(twoPriority));
+
+    Optional<String> requestError = (Optional<String>) sut.request(workflow, version, "abcdef",
+        Optional.of(twoPriorityAlso)).apply(consumableResourceCheckerVisitor);
+
+    assertTrue(requestError.isEmpty());
+  }
+
+  @Test
+  public void testIfWorkflowRunWIthEmptyPriorityIsSet_thenWorkflowRunIsAddedWithLowestPriority() {
+    JsonNode lowestPriority = mapper.valueToTree(1);
+
+    Optional<String> requestErrorForEmpty = (Optional<String>) sut.request(workflow, version, "abcdef",
+        Optional.empty()).apply(consumableResourceCheckerVisitor);
+
+    Optional<String> requestErrorForLowest = (Optional<String>) sut.request(workflow, version, "abcdef",
+        Optional.of(lowestPriority)).apply(consumableResourceCheckerVisitor);
+
+    assertTrue(requestErrorForEmpty.isEmpty());
+    assertTrue(requestErrorForLowest.isEmpty());
+
+  }
+
+
 }

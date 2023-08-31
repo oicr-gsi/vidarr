@@ -138,10 +138,8 @@ public final class PriorityByWorkflow implements ConsumableResource {
   public void set(String workflowName, String vidarrId, Optional<JsonNode> input) {
 
     int workflowPriority = 1;
-    if (input != null && !input.isEmpty()) {
-      if(input.get().get("priority") != null && !input.get().get("priority").isEmpty()) {
-        workflowPriority = input.get().get("priority").asInt();
-      }
+    if (!input.isEmpty()) {
+      workflowPriority = input.get().asInt();
     }
 
     final var stateWaiting = workflows.computeIfAbsent(workflowName, k -> new WaitingState()).waiting;

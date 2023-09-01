@@ -23,7 +23,7 @@ import java.util.stream.Stream;
 
 public final class PriorityByWorkflow implements ConsumableResource {
 
-  private List acceptedPriorities = Arrays.asList(1, 2, 3, 4);
+  private List<Integer> acceptedPriorities = Arrays.asList(1, 2, 3, 4);
 
   public static ConsumableResourceProvider provider() {
     return () -> Stream.of(new Pair<>("priority", PriorityByWorkflow.class));
@@ -70,7 +70,7 @@ public final class PriorityByWorkflow implements ConsumableResource {
     final var stateWaiting = workflows.computeIfAbsent(workflowName, k -> new WaitingState()).waiting;
     // since we just created it if it doesn't exist, no need for null check here
 
-    int workflowPriority = (int) acceptedPriorities.get(0);
+    int workflowPriority = acceptedPriorities.get(0);
 
     if (resourceJson.isPresent()) {
       workflowPriority = resourceJson.get().asInt();
@@ -83,7 +83,7 @@ public final class PriorityByWorkflow implements ConsumableResource {
   @Override
   public void release(String workflowName, String workflowVersion, String vidarrId, Optional<JsonNode> input) {
 
-    int workflowPriority = (int) acceptedPriorities.get(0);
+    int workflowPriority = acceptedPriorities.get(0);
     if (!input.isEmpty()) {
       workflowPriority = input.get().asInt();
     }
@@ -106,7 +106,7 @@ public final class PriorityByWorkflow implements ConsumableResource {
   public synchronized ConsumableResourceResponse request(
       String workflowName, String workflowVersion, String vidarrId, Optional<JsonNode> input) {
 
-    int workflowPriority = (int) acceptedPriorities.get(0);
+    int workflowPriority = acceptedPriorities.get(0);
     if (!input.isEmpty()) {
       workflowPriority = input.get().asInt();
     }
@@ -144,7 +144,7 @@ public final class PriorityByWorkflow implements ConsumableResource {
 
   public void set(String workflowName, String vidarrId, Optional<JsonNode> input) {
 
-    int workflowPriority = (int) acceptedPriorities.get(0);
+    int workflowPriority = acceptedPriorities.get(0);
     if (!input.isEmpty()) {
       workflowPriority = input.get().asInt();
     }

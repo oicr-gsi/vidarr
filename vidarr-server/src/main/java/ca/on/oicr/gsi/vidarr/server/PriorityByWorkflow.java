@@ -11,6 +11,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import io.prometheus.client.Gauge;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -70,7 +71,7 @@ public final class PriorityByWorkflow implements ConsumableResource {
     final var stateWaiting = workflows.computeIfAbsent(workflowName, k -> new WaitingState()).waiting;
     // since we just created it if it doesn't exist, no need for null check here
 
-    int workflowPriority = acceptedPriorities.get(0);
+    int workflowPriority = Collections.min(acceptedPriorities);
 
     if (resourceJson.isPresent()) {
       workflowPriority = resourceJson.get().asInt();
@@ -82,24 +83,7 @@ public final class PriorityByWorkflow implements ConsumableResource {
 
   @Override
   public void release(String workflowName, String workflowVersion, String vidarrId, Optional<JsonNode> input) {
-
-    int workflowPriority = acceptedPriorities.get(0);
-    if (!input.isEmpty()) {
-      workflowPriority = input.get().asInt();
-    }
-
-    SimpleEntry waiter = new SimpleEntry(vidarrId, workflowPriority);
-
-    if (workflows.get(workflowName) == null) {
-      set(workflowName, vidarrId, input);
-    }
-
-    final var state = workflows.get(workflowName);
-
-    if (!state.waiting.contains(waiter)){
-      state.waiting.add(waiter);
-
-    }
+    set(workflowName, vidarrId, input);
   }
 
   @Override
@@ -122,29 +106,24 @@ public final class PriorityByWorkflow implements ConsumableResource {
     }
 
     final var state = workflows.get(workflowName);
-    SimpleEntry resourcePair = new SimpleEntry(vidarrId, workflowPriority);
 
-    if (!state.waiting.isEmpty()) {
-      if (workflowPriority >= state.waiting.last().getValue()) {
-        state.waiting.remove(resourcePair);
-        currentInPriorityWaitingCount.labels(workflowName).set(state.waiting.size());
-        return ConsumableResourceResponse.AVAILABLE;
-      } else {
-        state.waiting.add(resourcePair);
-        currentInPriorityWaitingCount.labels(workflowName).set(state.waiting.size());
-        return ConsumableResourceResponse.error(
-            String.format("There are %s workflows currently queued up with higher priority.",
-                workflowName));
-      }
+    if (state == null || state.waiting.isEmpty()) {
+      return ConsumableResourceResponse.AVAILABLE;
+    }
+    if (workflowPriority >= state.waiting.last().getValue()) {
+      return ConsumableResourceResponse.AVAILABLE;
     } else {
-        return ConsumableResourceResponse.AVAILABLE;
+      set(workflowName, vidarrId, input);
+      return ConsumableResourceResponse.error(
+          String.format("There are %s workflows currently queued up with higher priority.",
+              workflowName));
     }
 
   }
 
   public void set(String workflowName, String vidarrId, Optional<JsonNode> input) {
 
-    int workflowPriority = acceptedPriorities.get(0);
+    int workflowPriority = Collections.min(acceptedPriorities);
     if (!input.isEmpty()) {
       workflowPriority = input.get().asInt();
     }

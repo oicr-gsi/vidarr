@@ -40,19 +40,6 @@ public final class PriorityByWorkflow implements ConsumableResource {
         return super.add(simpleEntry);
       }
 
-      @Override
-      public boolean remove(Object o) {
-        try {
-          String oEntry = (String) o;
-          for (SimpleEntry entry : this){
-            if (entry.getKey().equals(oEntry)) {super.remove(entry);}
-          }
-        } catch (Exception e){
-          return false;
-        }
-        return true;
-      }
-
       public SimpleEntry getByKey(String simpleEntryKey){
         for (SimpleEntry entry : this){
           if (entry.getKey().equals(simpleEntryKey)) {return(entry);}
@@ -83,7 +70,7 @@ public final class PriorityByWorkflow implements ConsumableResource {
     final var stateWaiting = workflows.computeIfAbsent(workflowName, k -> new WaitingState()).waiting;
     // since we just created it if it doesn't exist, no need for null check here
 
-    int workflowPriority = 1;
+    int workflowPriority = (int) acceptedPriorities.get(0);
 
     if (resourceJson.isPresent()) {
       workflowPriority = resourceJson.get().asInt();
@@ -94,11 +81,24 @@ public final class PriorityByWorkflow implements ConsumableResource {
   }
 
   @Override
-  public void release(String workflowName, String workflowVersion, String vidarrId) {
+  public void release(String workflowName, String workflowVersion, String vidarrId, Optional<JsonNode> input) {
+
+    int workflowPriority = (int) acceptedPriorities.get(0);
+    if (!input.isEmpty()) {
+      workflowPriority = input.get().asInt();
+    }
+
+    SimpleEntry waiter = new SimpleEntry(vidarrId, workflowPriority);
+
+    if (workflows.get(workflowName) == null) {
+      set(workflowName, vidarrId, input);
+    }
+
     final var state = workflows.get(workflowName);
-    if (state != null) {
-      state.waiting.remove(vidarrId);
-      currentInPriorityWaitingCount.labels(workflowName).set(state.waiting.size());
+
+    if (!state.waiting.contains(waiter)){
+      state.waiting.add(waiter);
+
     }
   }
 
@@ -106,7 +106,7 @@ public final class PriorityByWorkflow implements ConsumableResource {
   public synchronized ConsumableResourceResponse request(
       String workflowName, String workflowVersion, String vidarrId, Optional<JsonNode> input) {
 
-    int workflowPriority = 1;
+    int workflowPriority = (int) acceptedPriorities.get(0);
     if (!input.isEmpty()) {
       workflowPriority = input.get().asInt();
     }
@@ -122,22 +122,29 @@ public final class PriorityByWorkflow implements ConsumableResource {
     }
 
     final var state = workflows.get(workflowName);
-    if (workflowPriority >= state.waiting.last().getValue()) {
-      state.waiting.remove(new SimpleEntry(vidarrId, workflowPriority));
-      currentInPriorityWaitingCount.labels(workflowName).set(state.waiting.size());
-      return ConsumableResourceResponse.AVAILABLE;
+    SimpleEntry resourcePair = new SimpleEntry(vidarrId, workflowPriority);
+
+    if (!state.waiting.isEmpty()) {
+      if (workflowPriority >= state.waiting.last().getValue()) {
+        state.waiting.remove(resourcePair);
+        currentInPriorityWaitingCount.labels(workflowName).set(state.waiting.size());
+        return ConsumableResourceResponse.AVAILABLE;
+      } else {
+        state.waiting.add(resourcePair);
+        currentInPriorityWaitingCount.labels(workflowName).set(state.waiting.size());
+        return ConsumableResourceResponse.error(
+            String.format("There are %s workflows currently queued up with higher priority.",
+                workflowName));
+      }
     } else {
-      state.waiting.add(new SimpleEntry(vidarrId, workflowPriority));
-      currentInPriorityWaitingCount.labels(workflowName).set(state.waiting.size());
-      return ConsumableResourceResponse.error(
-          String.format("There are %s workflows currently queued up with higher priority.", workflowName));
+        return ConsumableResourceResponse.AVAILABLE;
     }
 
   }
 
   public void set(String workflowName, String vidarrId, Optional<JsonNode> input) {
 
-    int workflowPriority = 1;
+    int workflowPriority = (int) acceptedPriorities.get(0);
     if (!input.isEmpty()) {
       workflowPriority = input.get().asInt();
     }

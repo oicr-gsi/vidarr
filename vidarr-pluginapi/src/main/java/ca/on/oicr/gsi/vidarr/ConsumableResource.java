@@ -78,7 +78,7 @@ public interface ConsumableResource {
    * @param workflowVersion the version of the workflow
    * @param vidarrId the identifier of the workflow run
    */
-  void release(String workflowName, String workflowVersion, String vidarrId);
+  void release(String workflowName, String workflowVersion, String vidarrId, Optional<JsonNode> resourceJson);
 
   /**
    * Request the resource

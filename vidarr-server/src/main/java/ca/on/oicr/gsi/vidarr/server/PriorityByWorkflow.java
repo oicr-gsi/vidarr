@@ -100,6 +100,8 @@ public final class PriorityByWorkflow implements ConsumableResource {
       return ConsumableResourceResponse.AVAILABLE;
     }
     if (workflowPriority >= state.waiting.last().getValue()) {
+      //removal will return false but not error if not already in waiting, which is fine
+      state.waiting.remove(new SimpleEntry(vidarrId, workflowPriority));
       return ConsumableResourceResponse.AVAILABLE;
     } else {
       set(workflowName, vidarrId, input);

@@ -145,5 +145,36 @@ public class PriorityByWorkflowTest {
 
   }
 
+  @Test
+  public void testIfResourcePassesRequest_thenWorkflowRunIsRemovedFromWaiting() {
+
+    JsonNode validJson = mapper.valueToTree(2);
+
+    sut.request(workflow, version, "qwerty",
+        Optional.of(validJson)).apply(consumableResourceCheckerVisitor);
+
+    Optional<String> requestErrorLower = sut.request(workflow, version, "abcdef",
+        Optional.of(validJson)).apply(consumableResourceCheckerVisitor);
+
+    assertTrue(requestErrorLower.isEmpty());
+
+  }
+
+  @Test
+  public void testIfWorkflowLowersPriority_WorkflowIsNotBlockedBySelf() {
+
+    JsonNode higherPriority = mapper.valueToTree(4);
+    JsonNode lowerPriority = mapper.valueToTree(2);
+
+    sut.set(workflow, "qwerty", Optional.of(higherPriority));
+
+
+    Optional<String> requestErrorLower = sut.request(workflow, version, "qwerty",
+        Optional.of(lowerPriority)).apply(consumableResourceCheckerVisitor);
+
+    assertTrue(requestErrorLower.isEmpty());
+
+  }
+
 
 }

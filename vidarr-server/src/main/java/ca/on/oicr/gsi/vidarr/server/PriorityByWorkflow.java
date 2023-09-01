@@ -94,21 +94,29 @@ public final class PriorityByWorkflow implements ConsumableResource {
               acceptedPriorities.stream().map(String::valueOf).collect(Collectors.joining(", "))));
     }
 
-    final var state = workflows.get(workflowName);
 
+    final var state = workflows.get(workflowName);
     if (state == null || state.waiting.isEmpty()) {
       return ConsumableResourceResponse.AVAILABLE;
     }
+
+    // If this workflow has already been seen
+    // Add the current run to the waitlist
+    // ensuring it replaces previous runs with the same ID, accounting for if the priority has changed
+    set(workflowName, vidarrId, input);
+    SimpleEntry resourcePair = new SimpleEntry(vidarrId, workflowPriority);
+
     if (workflowPriority >= state.waiting.last().getValue()) {
-      //removal will return false but not error if not already in waiting, which is fine
-      state.waiting.remove(new SimpleEntry(vidarrId, workflowPriority));
+      state.waiting.remove(resourcePair);
+      currentInPriorityWaitingCount.labels(workflowName).set(state.waiting.size());
       return ConsumableResourceResponse.AVAILABLE;
     } else {
-      set(workflowName, vidarrId, input);
+      currentInPriorityWaitingCount.labels(workflowName).set(state.waiting.size());
       return ConsumableResourceResponse.error(
           String.format("There are %s workflows currently queued up with higher priority.",
               workflowName));
     }
+
 
   }
 

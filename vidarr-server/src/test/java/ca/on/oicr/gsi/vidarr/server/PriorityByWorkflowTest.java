@@ -130,7 +130,7 @@ public class PriorityByWorkflowTest {
     JsonNode higherPriority = mapper.valueToTree(4);
     JsonNode lowerPriority = mapper.valueToTree(2);
 
-    Optional<String> requestErrorHigher = sut.request(workflow, version, "qwert",
+    Optional<String> requestErrorHigher = sut.request(workflow, version, "qwerty",
         Optional.of(higherPriority)).apply(consumableResourceCheckerVisitor);
 
     sut.release(workflow, version, "qwerty", Optional.of(higherPriority));

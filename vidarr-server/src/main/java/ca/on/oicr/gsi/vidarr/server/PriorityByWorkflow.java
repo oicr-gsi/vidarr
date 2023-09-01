@@ -91,7 +91,7 @@ public final class PriorityByWorkflow implements ConsumableResource {
       String workflowName, String workflowVersion, String vidarrId, Optional<JsonNode> input) {
 
     int workflowPriority = acceptedPriorities.get(0);
-    if (!input.isEmpty()) {
+    if (input.isPresent()) {
       workflowPriority = input.get().asInt();
     }
 
@@ -124,7 +124,7 @@ public final class PriorityByWorkflow implements ConsumableResource {
   public void set(String workflowName, String vidarrId, Optional<JsonNode> input) {
 
     int workflowPriority = Collections.min(acceptedPriorities);
-    if (!input.isEmpty()) {
+    if (input.isPresent()) {
       workflowPriority = input.get().asInt();
     }
 

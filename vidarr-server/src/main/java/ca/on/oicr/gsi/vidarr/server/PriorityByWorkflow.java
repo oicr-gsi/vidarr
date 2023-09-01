@@ -24,6 +24,8 @@ import java.util.stream.Stream;
 
 public final class PriorityByWorkflow implements ConsumableResource {
 
+  //1 is lowest priority
+  //4 is highest priority (will be given access to resources first)
   private List<Integer> acceptedPriorities = Arrays.asList(1, 2, 3, 4);
 
   public static ConsumableResourceProvider provider() {
@@ -68,17 +70,7 @@ public final class PriorityByWorkflow implements ConsumableResource {
 
   @Override
   public void recover(String workflowName, String workflowVersion, String vidarrId, Optional<JsonNode> resourceJson) {
-    final var stateWaiting = workflows.computeIfAbsent(workflowName, k -> new WaitingState()).waiting;
-    // since we just created it if it doesn't exist, no need for null check here
-
-    int workflowPriority = Collections.min(acceptedPriorities);
-
-    if (resourceJson.isPresent()) {
-      workflowPriority = resourceJson.get().asInt();
-    }
-
-    stateWaiting.add(new SimpleEntry(vidarrId, workflowPriority));
-    currentInPriorityWaitingCount.labels(workflowName).set(stateWaiting.size());
+    // Do nothing, as once the workflow run launches, it is no longer tracked in PriorityByWorkflow
   }
 
   @Override
@@ -100,9 +92,6 @@ public final class PriorityByWorkflow implements ConsumableResource {
           String.format("Vidarr error: The workflow '%s' run's priority (%d) is invalid. Priority "
               + "values should be one of the following: %s", workflowName, workflowPriority,
               acceptedPriorities.stream().map(String::valueOf).collect(Collectors.joining(", "))));
-    }
-    if (workflows.get(workflowName) == null) {
-      set(workflowName, vidarrId, input);
     }
 
     final var state = workflows.get(workflowName);

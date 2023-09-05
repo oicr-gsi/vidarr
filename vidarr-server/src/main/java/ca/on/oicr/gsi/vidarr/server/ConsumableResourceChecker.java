@@ -102,7 +102,7 @@ final class ConsumableResourceChecker implements Runnable {
         updateBlockedResource(error.get());
         // Skip the last one, because it already failed, so we don't have to release any resources.
         while (--i >= 0) {
-          resourceBrokers.get(i).second().release(workflow, workflowVersion, vidarrId, broker.inputFromSubmitter().map(def -> consumableResources.get(def.first())));
+          resourceBrokers.get(i).second().release(workflow, workflowVersion, vidarrId);
         }
         //Must balance hammering vidarr with requests and adding significant delay to workflow runtime
         executor.schedule(this, 5, TimeUnit.MINUTES);

@@ -53,7 +53,7 @@ public final class PriorityByWorkflow implements ConsumableResource {
   }
 
 
-  //remove?
+  //not currently monitored by anything - potentially remove?
   private static final Gauge currentInPriorityWaitingCount =
       Gauge.build(
               "vidarr_in_priority_waiting_per_workflow_current",
@@ -74,8 +74,8 @@ public final class PriorityByWorkflow implements ConsumableResource {
   }
 
   @Override
-  public void release(String workflowName, String workflowVersion, String vidarrId, Optional<JsonNode> input) {
-    set(workflowName, vidarrId, input);
+  public void release(String workflowName, String workflowVersion, String vidarrId) {
+    // Do nothing
   }
 
   @Override

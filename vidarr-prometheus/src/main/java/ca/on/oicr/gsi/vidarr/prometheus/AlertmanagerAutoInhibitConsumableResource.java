@@ -115,7 +115,7 @@ public class AlertmanagerAutoInhibitConsumableResource implements ConsumableReso
   }
 
   @Override
-  public void release(String workflowName, String workflowVersion, String vidarrId) {
+  public void release(String workflowName, String workflowVersion, String vidarrId, boolean isLaunched) {
     // Do nothing, as this doesn't actually hold onto any resources
   }
 

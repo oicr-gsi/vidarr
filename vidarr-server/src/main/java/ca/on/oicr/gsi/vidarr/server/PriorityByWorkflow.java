@@ -75,7 +75,7 @@ public final class PriorityByWorkflow implements ConsumableResource {
 
   @Override
   public void release(String workflowName, String workflowVersion, String vidarrId, boolean isLaunched) {
-    //If workflow is being throttled by a different consumable resource add to waiting list
+    //If workflow run did not launch, re-add to waiting list
     if (!isLaunched){
       set(workflowName, vidarrId, Optional.empty());
     }

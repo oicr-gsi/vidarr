@@ -38,7 +38,7 @@ public final class MaxInFlightConsumableResource implements ConsumableResource {
   }
 
   @Override
-  public void release(String workflowName, String workflowVersion, String vidarrId, boolean isLaunched) {
+  public void release(String workflowName, String workflowVersion, String vidarrId, boolean isLaunched, Optional<JsonNode> input) {
     inFlight.remove(vidarrId);
   }
 

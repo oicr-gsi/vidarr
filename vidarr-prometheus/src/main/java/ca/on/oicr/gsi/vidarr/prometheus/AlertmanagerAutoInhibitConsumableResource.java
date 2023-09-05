@@ -115,7 +115,7 @@ public class AlertmanagerAutoInhibitConsumableResource implements ConsumableReso
   }
 
   @Override
-  public void release(String workflowName, String workflowVersion, String vidarrId, boolean isLaunched) {
+  public void release(String workflowName, String workflowVersion, String vidarrId, boolean isLaunched, Optional<JsonNode> input) {
     // Do nothing, as this doesn't actually hold onto any resources
   }
 

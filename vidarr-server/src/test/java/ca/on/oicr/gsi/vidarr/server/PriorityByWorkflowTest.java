@@ -125,6 +125,46 @@ public class PriorityByWorkflowTest {
   }
 
   @Test
+  public void testIfResourceIsReleasedButNotLaunched_thenWorkflowRunIsAddedBackToWaiting() {
+
+    JsonNode higherPriority = mapper.valueToTree(4);
+    JsonNode lowerPriority = mapper.valueToTree(1);
+
+    Optional<String> requestErrorHigher = sut.request(workflow, version, "qwerty",
+        Optional.of(higherPriority)).apply(consumableResourceCheckerVisitor);
+
+    sut.release(workflow, version, "qwerty", false, Optional.of(higherPriority));
+
+    Optional<String> requestErrorLower = sut.request(workflow, version, "abcdef",
+        Optional.of(lowerPriority)).apply(consumableResourceCheckerVisitor);
+
+    assertTrue(requestErrorHigher.isEmpty());
+    assertTrue(requestErrorLower.isPresent());
+    assertEquals(requestErrorLower.get(), "There are test workflows currently queued up with higher "
+        + "priority.");
+
+  }
+
+  @Test
+  public void testIfResourceIsReleasedAndLaunched_thenWorkflowRunIsNotAddedBackToWaiting() {
+
+    JsonNode higherPriority = mapper.valueToTree(4);
+    JsonNode lowerPriority = mapper.valueToTree(1);
+
+    Optional<String> requestErrorHigher = sut.request(workflow, version, "qwerty",
+        Optional.of(higherPriority)).apply(consumableResourceCheckerVisitor);
+
+    sut.release(workflow, version, "qwerty", true, Optional.empty());
+
+    Optional<String> requestErrorLower = sut.request(workflow, version, "abcdef",
+        Optional.of(lowerPriority)).apply(consumableResourceCheckerVisitor);
+
+    assertTrue(requestErrorHigher.isEmpty());
+    assertTrue(requestErrorLower.isEmpty());
+
+  }
+
+  @Test
   public void testIfResourcePassesRequest_thenWorkflowRunIsRemovedFromWaiting() {
 
     JsonNode validJson = mapper.valueToTree(2);

@@ -79,7 +79,7 @@ existence of the workflow run (_e.g._, max-in-flight). The priority consumable
 resources operates within the restrictions imposed from quota resources and allows
 users to manually set the order in which workflow runs will launch. Other 
 resource are more "throttling"-type. These include maintenance schedules and 
-Prometheus alertsvwhich block workflow runs from starting but don't track 
+Prometheus alerts which block workflow runs from starting but don't track 
 anything once the workflow run is underway. 
 
 Consumable resources are long-running. Whenever Vidarr attempts to run a
@@ -95,7 +95,7 @@ over-capacity.
 Consumable resources can request data from the user, if desired. The
 `inputFromSubmitter` can return an empty optional to indicate that no
 information is required or can indicate the name and type of information that
-is required. The `request` method will contain a copy of this information,
+is required. The `request` and `release` methods will contain a copy of this information,
 encoded as JSON, if the submitter provided it. The JSON data has been
 type-checked by Vidarr, so it should be safe to convert to the expected type
 using Jackson.

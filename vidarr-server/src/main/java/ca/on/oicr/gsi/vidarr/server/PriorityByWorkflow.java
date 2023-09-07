@@ -26,7 +26,7 @@ public final class PriorityByWorkflow implements ConsumableResource {
 
   //1 is lowest priority
   //4 is highest priority (will be given access to resources first)
-  private List<Integer> acceptedPriorities = Arrays.asList(1, 2, 3, 4);
+  private final List<Integer> acceptedPriorities = Arrays.asList(1, 2, 3, 4);
 
   public static ConsumableResourceProvider provider() {
     return () -> Stream.of(new Pair<>("priority", PriorityByWorkflow.class));
@@ -36,19 +36,35 @@ public final class PriorityByWorkflow implements ConsumableResource {
 
     private final SortedSet<SimpleEntry<String, Integer>> waiting = new ConcurrentSkipListSet<SimpleEntry<String, Integer>>(comparingByValue()){
 
+      //Replace if key matches, even if entire pair doesn't
       @Override
       public boolean add(SimpleEntry<String, Integer> simpleEntry) {
-        SimpleEntry entry = this.getByKey(simpleEntry.getKey());
+        SimpleEntry<String, Integer> entry = this.getByKey(simpleEntry.getKey());
         if(entry != null){super.remove(entry);}
         return super.add(simpleEntry);
       }
 
-      public SimpleEntry getByKey(String simpleEntryKey){
-        for (SimpleEntry entry : this){
+      public SimpleEntry<String, Integer> getByKey(String simpleEntryKey){
+        for (SimpleEntry<String, Integer> entry : this){
           if (entry.getKey().equals(simpleEntryKey)) {return(entry);}
         }
         return null;
       }
+
+      //Override to remove by key instead of pair
+      @Override
+      public boolean remove(Object o) {
+        try {
+          String oEntry = (String) o;
+          for (SimpleEntry<String, Integer> entry : this){
+            if (entry.getKey().equals(oEntry)) {super.remove(entry);}
+          }
+        } catch (Exception e){
+          return false;
+        }
+        return true;
+      }
+
     };
   }
 
@@ -74,9 +90,9 @@ public final class PriorityByWorkflow implements ConsumableResource {
   }
 
   @Override
-  public void release(String workflowName, String workflowVersion, String vidarrId, boolean isLaunched, Optional<JsonNode> input) {
+  public void release(String workflowName, String workflowVersion, String vidarrId, boolean isComplete, Optional<JsonNode> input) {
     //If workflow run did not launch, re-add to waiting list
-    if (!isLaunched){
+    if (!isComplete){
       set(workflowName, vidarrId, input);
     }
     // Otherwise do nothing
@@ -108,10 +124,9 @@ public final class PriorityByWorkflow implements ConsumableResource {
     // Add the current run to the waitlist
     // ensuring it replaces previous runs with the same ID, accounting for if the priority has changed
     set(workflowName, vidarrId, input);
-    SimpleEntry resourcePair = new SimpleEntry(vidarrId, workflowPriority);
 
     if (workflowPriority >= state.waiting.last().getValue()) {
-      state.waiting.remove(resourcePair);
+      state.waiting.remove(vidarrId);
       currentInPriorityWaitingCount.labels(workflowName).set(state.waiting.size());
       return ConsumableResourceResponse.AVAILABLE;
     } else {
@@ -132,7 +147,7 @@ public final class PriorityByWorkflow implements ConsumableResource {
     }
 
     final var stateWaiting = workflows.computeIfAbsent(workflowName, k -> new WaitingState()).waiting;
-    stateWaiting.add(new SimpleEntry(vidarrId, workflowPriority));
+    stateWaiting.add(new SimpleEntry<String, Integer>(vidarrId, workflowPriority));
     currentInPriorityWaitingCount.labels(workflowName).set(stateWaiting.size());
 
   }

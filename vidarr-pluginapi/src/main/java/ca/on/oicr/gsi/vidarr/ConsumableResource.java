@@ -77,7 +77,7 @@ public interface ConsumableResource {
    * @param workflowName the name of the workflow
    * @param workflowVersion the version of the workflow
    * @param vidarrId the identifier of the workflow run
-   * @param isComplete a boolean flag specifying whether run is launched
+   * @param isComplete a boolean flag specifying whether the run has completed
    * @param input the input requested from the submitter, if applicable and provided.
    */
   void release(String workflowName, String workflowVersion, String vidarrId, boolean isComplete, Optional<JsonNode> input);

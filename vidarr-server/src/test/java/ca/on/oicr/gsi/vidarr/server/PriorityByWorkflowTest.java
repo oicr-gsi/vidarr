@@ -133,7 +133,7 @@ public class PriorityByWorkflowTest {
     Optional<String> requestErrorHigher = sut.request(workflow, version, "qwerty",
         Optional.of(higherPriority)).apply(consumableResourceCheckerVisitor);
 
-    sut.release(workflow, version, "qwerty", false, Optional.of(higherPriority));
+    sut.release(workflow, version, "qwerty", Optional.of(higherPriority));
 
     Optional<String> requestErrorLower = sut.request(workflow, version, "abcdef",
         Optional.of(lowerPriority)).apply(consumableResourceCheckerVisitor);
@@ -154,7 +154,7 @@ public class PriorityByWorkflowTest {
     Optional<String> requestErrorHigher = sut.request(workflow, version, "qwerty",
         Optional.of(higherPriority)).apply(consumableResourceCheckerVisitor);
 
-    sut.release(workflow, version, "qwerty", true, Optional.empty());
+    sut.release(workflow, version, "qwerty", Optional.empty());
 
     Optional<String> requestErrorLower = sut.request(workflow, version, "abcdef",
         Optional.of(lowerPriority)).apply(consumableResourceCheckerVisitor);

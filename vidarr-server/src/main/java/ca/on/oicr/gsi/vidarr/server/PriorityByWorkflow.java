@@ -90,9 +90,9 @@ public final class PriorityByWorkflow implements ConsumableResource {
   }
 
   @Override
-  public void release(String workflowName, String workflowVersion, String vidarrId, boolean isComplete, Optional<JsonNode> input) {
+  public void release(String workflowName, String workflowVersion, String vidarrId, Optional<JsonNode> input) {
     //If workflow run did not launch, re-add to waiting list
-    if (!isComplete){
+    if (input.isPresent()){
       set(workflowName, vidarrId, input);
     }
     // Otherwise do nothing

@@ -102,7 +102,7 @@ public final class PriorityByWorkflow implements ConsumableResource {
   public synchronized ConsumableResourceResponse request(
       String workflowName, String workflowVersion, String vidarrId, Optional<JsonNode> input) {
 
-    int workflowPriority = acceptedPriorities.get(0);
+    int workflowPriority = Collections.min(acceptedPriorities);
     if (input.isPresent()) {
       workflowPriority = input.get().asInt();
     }

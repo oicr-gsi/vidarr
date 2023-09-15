@@ -52,11 +52,20 @@ public class PriorityByWorkflowTest {
   }
 
   @Test
-  public void testRequest_emptyInputAndEmptyWaitingIsOk() {
+  public void testRequest_emptyInputAndEmptyWaitingNoError() {
     Optional<String> requestError = sut.request(workflow, version, "abcdef",
         Optional.empty()).apply(consumableResourceCheckerVisitor);
 
     assertTrue(requestError.isEmpty());
+  }
+
+  @Test
+  public void testRequest_emptyInputAndEmptyWaitingIsAvailable() {
+
+    var response = sut.request(workflow, version, "abcdef", Optional.empty());
+
+    assertEquals(response, ConsumableResourceResponse.AVAILABLE);
+
   }
 
   @Test
@@ -137,7 +146,7 @@ public class PriorityByWorkflowTest {
 
     Optional<String> requestErrorLower = sut.request(workflow, version, "abcdef",
         Optional.of(lowerPriority)).apply(consumableResourceCheckerVisitor);
-
+    
     assertTrue(requestErrorHigher.isEmpty());
     assertTrue(requestErrorLower.isPresent());
     assertEquals(requestErrorLower.get(), "There are test workflows currently queued up with higher "

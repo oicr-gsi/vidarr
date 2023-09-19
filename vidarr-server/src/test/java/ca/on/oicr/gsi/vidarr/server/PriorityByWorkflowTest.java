@@ -93,7 +93,7 @@ public class PriorityByWorkflowTest {
   }
 
   @Test
-  public void testIfWorkflowRunWithLowerPriorityExists_thenWorkflowRunLaunches() {
+  public void testIfWorkflowRunWithLowerPriorityExists_thenWorkflowRunDoesNotError() {
     JsonNode higherPriority = mapper.valueToTree(4);
     JsonNode lowerPriority = mapper.valueToTree(2);
 
@@ -106,16 +106,41 @@ public class PriorityByWorkflowTest {
   }
 
   @Test
-  public void testIfWorkflowRunWithSamePriorityExists_thenWorkflowRunLaunches() {
+  public void testIfWorkflowRunWithLowerPriorityExists_thenWorkflowRunLaunches() {
+    JsonNode higherPriority = mapper.valueToTree(4);
+    JsonNode lowerPriority = mapper.valueToTree(2);
+
+    sut.set(workflow, "qwerty", Optional.of(lowerPriority));
+
+    var response = sut.request(workflow, version, "abcdef", Optional.of(higherPriority));
+
+    assertEquals(response, ConsumableResourceResponse.AVAILABLE);
+  }
+
+  @Test
+  public void testIfWorkflowRunWithSamePriorityExists_thenWorkflowDoesNotError() {
     JsonNode twoPriority = mapper.valueToTree(2);
     JsonNode twoPriorityAlso = mapper.valueToTree(2);
 
     sut.set(workflow, "qwerty", Optional.of(twoPriority));
 
     Optional<String> requestError = sut.request(workflow, version, "abcdef",
-        Optional.of(twoPriorityAlso)).apply(consumableResourceCheckerVisitor);
+            Optional.of(twoPriorityAlso)).apply(consumableResourceCheckerVisitor);
 
     assertTrue(requestError.isEmpty());
+  }
+
+  @Test
+  public void testIfWorkflowRunWithSamePriorityExists_thenWorkflowRunLaunches() {
+    JsonNode twoPriority = mapper.valueToTree(2);
+    JsonNode twoPriorityAlso = mapper.valueToTree(2);
+
+    sut.set(workflow, "qwerty", Optional.of(twoPriority));
+
+    var response = sut.request(workflow, version, "abcdef", Optional.of(twoPriorityAlso));
+
+    assertEquals(response, ConsumableResourceResponse.AVAILABLE);
+
   }
 
   @Test
@@ -134,7 +159,7 @@ public class PriorityByWorkflowTest {
   }
 
   @Test
-  public void testIfResourceIsReleasedButNotLaunched_thenWorkflowRunIsAddedBackToWaiting() {
+  public void testIfResourceIsReleasedButNotLaunched_thenLowerPriorityCannotLaunch() {
 
     JsonNode higherPriority = mapper.valueToTree(4);
     JsonNode lowerPriority = mapper.valueToTree(1);
@@ -146,7 +171,7 @@ public class PriorityByWorkflowTest {
 
     Optional<String> requestErrorLower = sut.request(workflow, version, "abcdef",
         Optional.of(lowerPriority)).apply(consumableResourceCheckerVisitor);
-    
+
     assertTrue(requestErrorHigher.isEmpty());
     assertTrue(requestErrorLower.isPresent());
     assertEquals(requestErrorLower.get(), "There are test workflows currently queued up with higher "
@@ -155,7 +180,7 @@ public class PriorityByWorkflowTest {
   }
 
   @Test
-  public void testIfResourceIsReleasedAndLaunched_thenWorkflowRunIsNotAddedBackToWaiting() {
+  public void testIfResourceIsReleasedAndLaunched_thenLowerPriorityCanLaunch() {
 
     JsonNode higherPriority = mapper.valueToTree(4);
     JsonNode lowerPriority = mapper.valueToTree(1);
@@ -174,17 +199,17 @@ public class PriorityByWorkflowTest {
   }
 
   @Test
-  public void testIfResourcePassesRequest_thenWorkflowRunIsRemovedFromWaiting() {
+  public void testIfResourcePassesRequest_thenSamePriorityCanLaunch() {
 
     JsonNode validJson = mapper.valueToTree(2);
 
     sut.request(workflow, version, "qwerty",
         Optional.of(validJson)).apply(consumableResourceCheckerVisitor);
 
-    Optional<String> requestErrorLower = sut.request(workflow, version, "abcdef",
+    Optional<String> requestError = sut.request(workflow, version, "abcdef",
         Optional.of(validJson)).apply(consumableResourceCheckerVisitor);
 
-    assertTrue(requestErrorLower.isEmpty());
+    assertTrue(requestError.isEmpty());
 
   }
 

@@ -6,6 +6,14 @@ For unreleased changes, see [changes](changes).
 
 -----------------------------------------------------------------------------
 
+## [0.17.1] - 2023-10-03
+
+### Fixed
+
+* Ensure that all workflow runs can optionally be submitted with priority
+  * determines the order in which runs are allocated resources
+
+
 ## [0.17.0] - 2023-10-03
 
 ### Changed

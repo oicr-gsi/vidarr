@@ -11,6 +11,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import io.prometheus.client.Gauge;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -23,7 +24,9 @@ import java.util.stream.Stream;
 
 public final class PriorityByWorkflow implements ConsumableResource {
 
-  private List acceptedPriorities = Arrays.asList(1, 2, 3, 4);
+  //1 is lowest priority
+  //4 is highest priority (will be given access to resources first)
+  private final List<Integer> acceptedPriorities = Arrays.asList(1, 2, 3, 4);
 
   public static ConsumableResourceProvider provider() {
     return () -> Stream.of(new Pair<>("priority", PriorityByWorkflow.class));
@@ -33,18 +36,27 @@ public final class PriorityByWorkflow implements ConsumableResource {
 
     private final SortedSet<SimpleEntry<String, Integer>> waiting = new ConcurrentSkipListSet<SimpleEntry<String, Integer>>(comparingByValue()){
 
+      //Replace if key matches, even if entire pair doesn't
       @Override
       public boolean add(SimpleEntry<String, Integer> simpleEntry) {
-        SimpleEntry entry = this.getByKey(simpleEntry.getKey());
+        SimpleEntry<String, Integer> entry = this.getByKey(simpleEntry.getKey());
         if(entry != null){super.remove(entry);}
         return super.add(simpleEntry);
       }
 
+      public SimpleEntry<String, Integer> getByKey(String simpleEntryKey){
+        for (SimpleEntry<String, Integer> entry : this){
+          if (entry.getKey().equals(simpleEntryKey)) {return(entry);}
+        }
+        return null;
+      }
+
+      //Override to remove by key instead of pair
       @Override
       public boolean remove(Object o) {
         try {
           String oEntry = (String) o;
-          for (SimpleEntry entry : this){
+          for (SimpleEntry<String, Integer> entry : this){
             if (entry.getKey().equals(oEntry)) {super.remove(entry);}
           }
         } catch (Exception e){
@@ -53,17 +65,11 @@ public final class PriorityByWorkflow implements ConsumableResource {
         return true;
       }
 
-      public SimpleEntry getByKey(String simpleEntryKey){
-        for (SimpleEntry entry : this){
-          if (entry.getKey().equals(simpleEntryKey)) {return(entry);}
-        }
-        return null;
-      }
     };
   }
 
 
-  //remove?
+  //not currently monitored by anything - potentially remove?
   private static final Gauge currentInPriorityWaitingCount =
       Gauge.build(
               "vidarr_in_priority_waiting_per_workflow_current",
@@ -80,34 +86,24 @@ public final class PriorityByWorkflow implements ConsumableResource {
 
   @Override
   public void recover(String workflowName, String workflowVersion, String vidarrId, Optional<JsonNode> resourceJson) {
-    final var stateWaiting = workflows.computeIfAbsent(workflowName, k -> new WaitingState()).waiting;
-    // since we just created it if it doesn't exist, no need for null check here
-
-    int workflowPriority = 1;
-
-    if (resourceJson.isPresent()) {
-      workflowPriority = resourceJson.get().asInt();
-    }
-
-    stateWaiting.add(new SimpleEntry(vidarrId, workflowPriority));
-    currentInPriorityWaitingCount.labels(workflowName).set(stateWaiting.size());
+    // Do nothing, as once the workflow run launches, it is no longer tracked in PriorityByWorkflow
   }
 
   @Override
-  public void release(String workflowName, String workflowVersion, String vidarrId) {
-    final var state = workflows.get(workflowName);
-    if (state != null) {
-      state.waiting.remove(vidarrId);
-      currentInPriorityWaitingCount.labels(workflowName).set(state.waiting.size());
+  public void release(String workflowName, String workflowVersion, String vidarrId, Optional<JsonNode> input) {
+    //If workflow run did not launch, re-add to waiting list
+    if (input.isPresent()){
+      set(workflowName, vidarrId, input);
     }
+    // Otherwise do nothing
   }
 
   @Override
   public synchronized ConsumableResourceResponse request(
       String workflowName, String workflowVersion, String vidarrId, Optional<JsonNode> input) {
 
-    int workflowPriority = 1;
-    if (!input.isEmpty()) {
+    int workflowPriority = Collections.min(acceptedPriorities);
+    if (input.isPresent()) {
       workflowPriority = input.get().asInt();
     }
 
@@ -117,33 +113,41 @@ public final class PriorityByWorkflow implements ConsumableResource {
               + "values should be one of the following: %s", workflowName, workflowPriority,
               acceptedPriorities.stream().map(String::valueOf).collect(Collectors.joining(", "))));
     }
+
+
     final var state = workflows.get(workflowName);
-    if (state == null) {
-      return ConsumableResourceResponse.error(
-          String.format("Internal Vidarr error: The %s workflow run priority has not been configured properly.", workflowName));
-    } else {
-      if (workflowPriority >= state.waiting.last().getValue()) {
-        state.waiting.remove(new SimpleEntry(vidarrId, workflowPriority));
-        currentInPriorityWaitingCount.labels(workflowName).set(state.waiting.size());
-        return ConsumableResourceResponse.AVAILABLE;
-      } else {
-        state.waiting.add(new SimpleEntry(vidarrId, workflowPriority));
-        currentInPriorityWaitingCount.labels(workflowName).set(state.waiting.size());
-        return ConsumableResourceResponse.error(
-            String.format("There are %s workflows currently queued up with higher priority.", workflowName));
-      }
+    if (state == null || state.waiting.isEmpty()) {
+      return ConsumableResourceResponse.AVAILABLE;
     }
+
+    // If this workflow has already been seen
+    // Add the current run to the waitlist
+    // ensuring it replaces previous runs with the same ID, accounting for if the priority has changed
+    set(workflowName, vidarrId, input);
+
+    if (workflowPriority >= state.waiting.last().getValue()) {
+      state.waiting.remove(vidarrId);
+      currentInPriorityWaitingCount.labels(workflowName).set(state.waiting.size());
+      return ConsumableResourceResponse.AVAILABLE;
+    } else {
+      currentInPriorityWaitingCount.labels(workflowName).set(state.waiting.size());
+      return ConsumableResourceResponse.error(
+          String.format("There are %s workflows currently queued up with higher priority.",
+              workflowName));
+    }
+
+
   }
 
-  public void set(String workflowName, String vidarrId, JsonNode input) {
+  public void set(String workflowName, String vidarrId, Optional<JsonNode> input) {
 
-    int workflowPriority = 1;
-    if (input != null && !input.isEmpty() && input.get("priority") != null && !input.get("priority").isEmpty()) {
-      workflowPriority = input.get("priority").asInt();
+    int workflowPriority = Collections.min(acceptedPriorities);
+    if (input.isPresent()) {
+      workflowPriority = input.get().asInt();
     }
 
     final var stateWaiting = workflows.computeIfAbsent(workflowName, k -> new WaitingState()).waiting;
-    stateWaiting.add(new SimpleEntry(vidarrId, workflowPriority));
+    stateWaiting.add(new SimpleEntry<String, Integer>(vidarrId, workflowPriority));
     currentInPriorityWaitingCount.labels(workflowName).set(stateWaiting.size());
 
   }

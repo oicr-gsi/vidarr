@@ -1,1 +1,0 @@
-Clarify admin guide

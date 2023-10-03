@@ -6,6 +6,18 @@ For unreleased changes, see [changes](changes).
 
 -----------------------------------------------------------------------------
 
+## [0.17.0] - 2023-10-03
+
+### Changed
+
+* Accept hashes in vidarr instance name portion of Vidarr hash IDs
+
+### Fixed
+
+* Correct type checking of floating point JSON values
+* Clarify admin guide
+
+
 ## [0.16.0] - 2023-08-22
 
 ### Changed

@@ -35,28 +35,7 @@ import ca.on.oicr.gsi.vidarr.RuntimeProvisioner;
 import ca.on.oicr.gsi.vidarr.UnloadFilter;
 import ca.on.oicr.gsi.vidarr.WorkflowEngine;
 import ca.on.oicr.gsi.vidarr.WorkflowLanguage;
-import ca.on.oicr.gsi.vidarr.api.AddWorkflowRequest;
-import ca.on.oicr.gsi.vidarr.api.AddWorkflowVersionRequest;
-import ca.on.oicr.gsi.vidarr.api.AnalysisOutputType;
-import ca.on.oicr.gsi.vidarr.api.AnalysisProvenanceRequest;
-import ca.on.oicr.gsi.vidarr.api.BulkVersionRequest;
-import ca.on.oicr.gsi.vidarr.api.ExternalKey;
-import ca.on.oicr.gsi.vidarr.api.ExternalMultiVersionKey;
-import ca.on.oicr.gsi.vidarr.api.InFlightCountsByWorkflow;
-import ca.on.oicr.gsi.vidarr.api.ProvenanceAnalysisRecord;
-import ca.on.oicr.gsi.vidarr.api.SubmitMode;
-import ca.on.oicr.gsi.vidarr.api.SubmitWorkflowRequest;
-import ca.on.oicr.gsi.vidarr.api.SubmitWorkflowResponse;
-import ca.on.oicr.gsi.vidarr.api.SubmitWorkflowResponseConflict;
-import ca.on.oicr.gsi.vidarr.api.SubmitWorkflowResponseDryRun;
-import ca.on.oicr.gsi.vidarr.api.SubmitWorkflowResponseFailure;
-import ca.on.oicr.gsi.vidarr.api.SubmitWorkflowResponseMissingKeyVersions;
-import ca.on.oicr.gsi.vidarr.api.SubmitWorkflowResponseSuccess;
-import ca.on.oicr.gsi.vidarr.api.UnloadRequest;
-import ca.on.oicr.gsi.vidarr.api.UnloadedData;
-import ca.on.oicr.gsi.vidarr.api.UnloadedWorkflow;
-import ca.on.oicr.gsi.vidarr.api.UnloadedWorkflowVersion;
-import ca.on.oicr.gsi.vidarr.api.VersionPolicy;
+import ca.on.oicr.gsi.vidarr.api.*;
 import ca.on.oicr.gsi.vidarr.core.BaseProcessor;
 import ca.on.oicr.gsi.vidarr.core.ExtractInputVidarrIds;
 import ca.on.oicr.gsi.vidarr.core.FileMetadata;
@@ -2434,13 +2413,9 @@ public final class Main implements ServerConfig {
                         .returningResult(DSL.field(WORKFLOW_RUN.HASH_ID))
                         .fetch()
                         .map(h -> h.value1());
-
-                var res = MAPPER.createObjectNode();
-                res.put("filename", filename);
-                var an = res.putArray("deletedWorkflowRuns");
-                for (String h : hashes) {
-                  an.add(h);
-                }
+                UnloadResponse res = new UnloadResponse();
+                res.setFilename(filename);
+                res.setDeletedWorkflowRuns(hashes);
                 epoch = time.toEpochMilli();
                 return res;
               });

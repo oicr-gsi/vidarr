@@ -6,6 +6,13 @@ For unreleased changes, see [changes](changes).
 
 -----------------------------------------------------------------------------
 
+## [0.17.2] - 2023-10-25
+
+### Fixed
+
+* UnloadResponse in pluginapi reflects current usage
+
+
 ## [0.17.1] - 2023-10-03
 
 ### Fixed

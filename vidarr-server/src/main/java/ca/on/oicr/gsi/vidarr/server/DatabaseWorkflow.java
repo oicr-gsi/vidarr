@@ -192,11 +192,12 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
       AtomicBoolean liveness,
       Set<ExternalKey> keys,
       Map<String, JsonNode> consumableResources,
-      DSLContext dsl)
+      DSLContext dsl,
+      int attempt)
       throws SQLException {
-    final var attempt =
-        dsl.update(ACTIVE_WORKFLOW_RUN)
-            .set(ACTIVE_WORKFLOW_RUN.ATTEMPT, ACTIVE_WORKFLOW_RUN.ATTEMPT.plus(1))
+
+    dsl.update(ACTIVE_WORKFLOW_RUN)
+            .set(ACTIVE_WORKFLOW_RUN.ATTEMPT, attempt)
             .set(
                 ACTIVE_WORKFLOW_RUN.CONSUMABLE_RESOURCES,
                 Main.MAPPER.<JsonNode>valueToTree(consumableResources))
@@ -205,9 +206,7 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
             .set(ACTIVE_WORKFLOW_RUN.PREFLIGHT_OKAY, true)
             .set(ACTIVE_WORKFLOW_RUN.REAL_INPUT_INDEX, 0)
             .where(ACTIVE_WORKFLOW_RUN.ID.eq(dbId))
-            .returningResult(ACTIVE_WORKFLOW_RUN.ATTEMPT)
-            .fetchOne()
-            .value1();
+            .execute();
     dsl.update(WORKFLOW_RUN)
         .set(WORKFLOW_RUN.ARGUMENTS, arguments)
         .set(WORKFLOW_RUN.ENGINE_PARAMETERS, engineParameters)

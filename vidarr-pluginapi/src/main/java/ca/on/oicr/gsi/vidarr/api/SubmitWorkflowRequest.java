@@ -92,21 +92,20 @@ public final class SubmitWorkflowRequest {
 
   @Override
   public int hashCode() {
-    return hashCodeIgnoreAttempt() * 31 + Integer.hashCode(attempt);
+    return hashCodeIgnoreAttemptAndConsumableResources() * 31 + Integer.hashCode(attempt);
   }
 
-  public int hashCodeIgnoreAttempt() {
+  public int hashCodeIgnoreAttemptAndConsumableResources() {
     return Objects.hash(
-        arguments,
-        consumableResources,
-        engineParameters,
-        externalKeys,
-        labels,
-        metadata,
-        mode,
-        target,
-        workflow,
-        workflowVersion);
+            arguments,
+            engineParameters,
+            externalKeys,
+            labels,
+            metadata,
+            mode,
+            target,
+            workflow,
+            workflowVersion);
   }
 
   public void setArguments(ObjectNode arguments) {

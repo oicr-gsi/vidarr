@@ -1128,6 +1128,7 @@ public abstract class DatabaseBackedProcessor
                                                                 .ID
                                                                 .eq(workflowRunId)
                                                                 .and(IS_WAITING)
+                                                                .and(ACTIVE_WORKFLOW_RUN.ATTEMPT.eq(attempt))
                                                                 .and(
                                                                     ACTIVE_WORKFLOW_RUN
                                                                       .CONSUMABLE_RESOURCES

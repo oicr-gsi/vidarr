@@ -30,12 +30,11 @@ public final class SubmitWorkflowRequest {
       return false;
     }
     SubmitWorkflowRequest that = (SubmitWorkflowRequest) o;
-    return attempt == that.attempt && equalsIgnoreAttempt(that);
+    return attempt == that.attempt && Objects.equals(consumableResources, that.consumableResources) && equalsIgnoreAttemptAndConsumableResources(that);
   }
 
-  public boolean equalsIgnoreAttempt(SubmitWorkflowRequest that) {
+  public boolean equalsIgnoreAttemptAndConsumableResources(SubmitWorkflowRequest that) {
     return Objects.equals(arguments, that.arguments)
-        && Objects.equals(consumableResources, that.consumableResources)
         && Objects.equals(engineParameters, that.engineParameters)
         && Objects.equals(externalKeys, that.externalKeys)
         && Objects.equals(labels, that.labels)

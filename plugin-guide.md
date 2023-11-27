@@ -204,3 +204,108 @@ For example, if external keys are connected to Pinery, then a filter might want
 to filter on runs. A filter could query Pinery and get all the external
 identifiers associated with that run and then construct a query based on those
 to match workflow runs that use any of those identifiers.
+
+# Provided Implementations
+This core implementation provides several plugins independent of external
+systems.
+
+## Consumable Resources
+Consumable resources provided in Víðarr core.
+
+### Manual Override
+Allows overriding a consumable resource to permit workflow runs to run even if they
+would hit a limit.
+
+The manual override wraps another consumable resource to allow by-passing its
+logic. The `"inner"` property is the configuration for the consumable resource
+to wrap. It maintains an allow-list of workflow run IDs that can run even if
+the resource would deny them access. The list of allowed IDs is lost on server
+shutdown.
+
+```
+{
+  "inner": { "type": ...},
+  "type": "manual-override"
+}
+```
+
+All the configuration parameters for the inner consumable resource are
+unmodified, so this is not a workflow-run visible change. To add or remove
+workflow run IDs to the allow list, send an HTTP `POST` or `DELETE` request to
+`/consumable-resources/`_name_`/allowed/`_run_ where _name_ is the consumable
+resource name and _run_ is the workflow run ID. The current list can be
+retrieved by making a `GET` request to
+`/consumable-resources/`_name_`/allowed`.
+
+As an example, suppose you wish to have a max-in-flight, but want to run
+something urgent. The configuration would look like:
+
+```
+"global-max": {
+  "inner": {
+    "type": "max-in-flight",
+    "maximum": 500
+  },
+  "type": "manual-override"
+}
+```
+
+And when that urgent deadline happens for a special workflow run:
+
+```
+curl -X POST http://vidarr.example.com/api/consumable-resource/global-max/allowed/cbc8ad81b733696d645b42cc08760f4e7c70228a971f4ff2ec1eb0952f18e682
+```
+
+### Max-in-Flight
+Set a global maximum number of workflow runs that can be simultaneously
+active.
+
+```
+{
+  "maximum": 500,
+  "type": "max-in-flight"
+}
+```
+
+## Input Provisioners
+Input provisioners provided in Víðarr core.
+
+### One-Of
+Allows selecting multiple different input provisioners depending on a `"type"`
+provided in the metadata.
+```
+{
+  "type": "oneOf",
+  "provisioners": {
+    "name1": {...},
+    "name2": {...},
+  }
+}
+```
+
+### Raw
+Allows input to be provided as a string that is assumed to be a path.
+```
+{
+  "type": "raw",
+  "format": [ "FILE", "DIRECTORY" ]
+}
+```
+This can be limited to a particular input type format.
+
+## Output Provisioner
+Output provisioners provided in Víðarr core.
+
+### One-Of
+Allows selecting multiple different output provisioners depending on a `"type"`
+provided in the metadata.
+```
+{
+  "type": "oneOf",
+  "provisioners": {
+    "name1": {...},
+    "name2": {...},
+  }
+}
+```
+

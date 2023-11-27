@@ -339,90 +339,79 @@ public final class Main implements ServerConfig {
     startServer(main);
   }
 
-  protected static void startServer(Main server) throws SQLException {
+  static void startServer(Main server) throws SQLException {
+    final var routes =
+        Handlers.path(
+            Handlers.routing()
+                .get("/", monitor(new BlockingHandler(server::status)))
+                .get("/api/file/{hash}", monitor(server::fetchFile))
+                .get("/api/run/{hash}", monitor(new BlockingHandler(server::fetchRun)))
+                .get("/api/recovery-failures", monitor(server::fetchRecoveryFailures))
+                .get("/api/status", monitor(new BlockingHandler(server::fetchAllActive)))
+                .get("/api/status/{hash}", monitor(server::fetchStatus))
+                .get("/api/targets", monitor(server::fetchTargets))
+                .get("/api/url/{hash}", monitor(server::fetchUrl))
+                .get("/api/workflows", monitor(server::fetchWorkflows))
+                .get("/api/max-in-flight", monitor(new BlockingHandler(server::fetchMaxInFlight)))
+                .get("/metrics", monitor(new BlockingHandler(Main::metrics)))
+                .post(
+                    "/api/provenance",
+                    monitor(
+                        new BlockingHandler(
+                            JsonPost.parse(
+                                AnalysisProvenanceRequest.class, server::fetchProvenance))))
+                .post(
+                    "/api/copy-out",
+                    monitor(
+                        new BlockingHandler(JsonPost.parse(UnloadRequest.class, server::copyOut))))
+                .post(
+                    "/api/unload",
+                    monitor(
+                        new BlockingHandler(JsonPost.parse(UnloadRequest.class, server::unload))))
+                .post(
+                    "/api/load",
+                    monitor(new BlockingHandler(JsonPost.parse(UnloadedData.class, server::load))))
+                .delete(
+                    "/api/status/{hash}", monitor(new BlockingHandler(server::deleteWorkflowRun)))
+                .post(
+                    "/api/submit",
+                    monitor(JsonPost.parse(SubmitWorkflowRequest.class, server::submit)))
+                .get("/api/workflow/{name}", monitor(new BlockingHandler(server::fetchWorkflow)))
+                .post(
+                    "/api/workflow/{name}",
+                    monitor(
+                        new BlockingHandler(
+                            JsonPost.parse(AddWorkflowRequest.class, server::upsertWorkflow))))
+                .delete(
+                    "/api/workflow/{name}", monitor(new BlockingHandler(server::disableWorkflow)))
+                .get(
+                    "/api/workflow/{name}/{version}",
+                    monitor(new BlockingHandler(server::fetchWorkflowVersion)))
+                .post(
+                    "/api/workflow/{name}/{version}",
+                    monitor(
+                        new BlockingHandler(
+                            JsonPost.parse(
+                                AddWorkflowVersionRequest.class, server::addWorkflowVersion))))
+                .post(
+                    "/api/versions",
+                    monitor(
+                        new BlockingHandler(
+                            JsonPost.parse(BulkVersionRequest.class, server::updateVersions))))
+                .setFallbackHandler(
+                    new ResourceHandler(
+                        new ClassPathResourceManager(
+                            server.getClass().getClassLoader(), server.getClass().getPackage()))));
+    for (final var consumableResource : server.consumableResources.entrySet()) {
+      routes.addPrefixPath(
+          "/consumable-resource/" + consumableResource.getKey(), consumableResource.getValue());
+    }
     final var undertow =
         Undertow.builder()
             .addHttpListener(server.port, "0.0.0.0")
             .setWorkerThreads(server.dataSource.getMaximumPoolSize())
             .setHandler(
-                Handlers.exceptionHandler(
-                        Handlers.routing()
-                            .get("/", monitor(new BlockingHandler(server::status)))
-                            .get("/api/file/{hash}", monitor(server::fetchFile))
-                            .get("/api/run/{hash}", monitor(new BlockingHandler(server::fetchRun)))
-                            .get("/api/recovery-failures", monitor(server::fetchRecoveryFailures))
-                            .get(
-                                "/api/status", monitor(new BlockingHandler(server::fetchAllActive)))
-                            .get("/api/status/{hash}", monitor(server::fetchStatus))
-                            .get("/api/targets", monitor(server::fetchTargets))
-                            .get("/api/url/{hash}", monitor(server::fetchUrl))
-                            .get("/api/workflows", monitor(server::fetchWorkflows))
-                            .get(
-                                "/api/max-in-flight",
-                                monitor(new BlockingHandler(server::fetchMaxInFlight)))
-                            .get("/metrics", monitor(new BlockingHandler(Main::metrics)))
-                            .post(
-                                "/api/provenance",
-                                monitor(
-                                    new BlockingHandler(
-                                        JsonPost.parse(
-                                            AnalysisProvenanceRequest.class,
-                                            server::fetchProvenance))))
-                            .post(
-                                "/api/copy-out",
-                                monitor(
-                                    new BlockingHandler(
-                                        JsonPost.parse(UnloadRequest.class, server::copyOut))))
-                            .post(
-                                "/api/unload",
-                                monitor(
-                                    new BlockingHandler(
-                                        JsonPost.parse(UnloadRequest.class, server::unload))))
-                            .post(
-                                "/api/load",
-                                monitor(
-                                    new BlockingHandler(
-                                        JsonPost.parse(UnloadedData.class, server::load))))
-                            .delete(
-                                "/api/status/{hash}",
-                                monitor(new BlockingHandler(server::deleteWorkflowRun)))
-                            .post(
-                                "/api/submit",
-                                monitor(
-                                    JsonPost.parse(SubmitWorkflowRequest.class, server::submit)))
-                            .get(
-                                "/api/workflow/{name}",
-                                monitor(new BlockingHandler(server::fetchWorkflow)))
-                            .post(
-                                "/api/workflow/{name}",
-                                monitor(
-                                    new BlockingHandler(
-                                        JsonPost.parse(
-                                            AddWorkflowRequest.class, server::upsertWorkflow))))
-                            .delete(
-                                "/api/workflow/{name}",
-                                monitor(new BlockingHandler(server::disableWorkflow)))
-                            .get(
-                                "/api/workflow/{name}/{version}",
-                                monitor(new BlockingHandler(server::fetchWorkflowVersion)))
-                            .post(
-                                "/api/workflow/{name}/{version}",
-                                monitor(
-                                    new BlockingHandler(
-                                        JsonPost.parse(
-                                            AddWorkflowVersionRequest.class,
-                                            server::addWorkflowVersion))))
-                            .post(
-                                "/api/versions",
-                                monitor(
-                                    new BlockingHandler(
-                                        JsonPost.parse(
-                                            BulkVersionRequest.class, server::updateVersions))))
-                            .setFallbackHandler(
-                                new ResourceHandler(
-                                    new ClassPathResourceManager(
-                                        server.getClass().getClassLoader(),
-                                        server.getClass().getPackage()))))
+                Handlers.exceptionHandler(routes)
                     .addExceptionHandler(Exception.class, Main::handleException))
             .build();
     undertow.start();
@@ -450,6 +439,7 @@ public final class Main implements ServerConfig {
     };
   }
 
+  private final Map<String, HttpHandler> consumableResources = new TreeMap<>();
   private final HikariDataSource dataSource;
   private long epoch = ManagementFactory.getRuntimeMXBean().getStartTime();
   private final ReentrantReadWriteLock epochLock = new ReentrantReadWriteLock();
@@ -551,6 +541,10 @@ public final class Main implements ServerConfig {
     final var consumableResources = configuration.getConsumableResources();
     for (final var resource : consumableResources.entrySet()) {
       resource.getValue().startup(resource.getKey());
+      resource
+          .getValue()
+          .httpHandler()
+          .ifPresent(handler -> this.consumableResources.put(resource.getKey(), handler));
     }
     targets =
         configuration.getTargets().entrySet().stream()

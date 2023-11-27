@@ -9,6 +9,7 @@ import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.annotation.JsonTypeIdResolver;
 import com.fasterxml.jackson.databind.jsontype.impl.TypeIdResolverBase;
+import io.undertow.server.HttpHandler;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -53,6 +54,19 @@ public interface ConsumableResource {
       return clazz == null ? null : context.constructType(clazz);
     }
   }
+
+  /**
+   * Consumable resource may provide an optional HTTP API to extend their functionality.
+   *
+   * <p>Paths will be automatically prefixed with the instance's name, so the HTTP handler can
+   * assume it is at the root URL (<i>i.e.,</i> <code>/</code>).
+   *
+   * @return the HTTP handler to use
+   */
+  default Optional<HttpHandler> httpHandler() {
+    return Optional.empty();
+  }
+
   /**
    * To operate, this resource requires the submission request to include a parameter.
    *
@@ -67,9 +81,14 @@ public interface ConsumableResource {
    * @param workflowName the name of the workflow
    * @param workflowVersion the version of the workflow
    * @param vidarrId the identifier of the workflow run
-   * @param resourceJson the consumable resource information stored in db, if applicable and provided.
+   * @param resourceJson the consumable resource information stored in db, if applicable and
+   *     provided.
    */
-  void recover(String workflowName, String workflowVersion, String vidarrId, Optional<JsonNode> resourceJson);
+  void recover(
+      String workflowName,
+      String workflowVersion,
+      String vidarrId,
+      Optional<JsonNode> resourceJson);
 
   /**
    * Indicate that the workflow is done with this resource
@@ -77,10 +96,11 @@ public interface ConsumableResource {
    * @param workflowName the name of the workflow
    * @param workflowVersion the version of the workflow
    * @param vidarrId the identifier of the workflow run
-   * @param input the consumable resource information requested from the submitter, if applicable and provided
-   *        input will only be provided if the workflow run has not completed
+   * @param input the consumable resource information requested from the submitter, if applicable
+   *     and provided input will only be provided if the workflow run has not completed
    */
-  void release(String workflowName, String workflowVersion, String vidarrId, Optional<JsonNode> input);
+  void release(
+      String workflowName, String workflowVersion, String vidarrId, Optional<JsonNode> input);
 
   /**
    * Request the resource
@@ -88,12 +108,12 @@ public interface ConsumableResource {
    * @param workflowName the name of the workflow
    * @param workflowVersion the version of the workflow
    * @param vidarrId the identifier of the workflow run
-   * @param input the consumable resource information requested from the submitter, if applicable and provided.
+   * @param input the consumable resource information requested from the submitter, if applicable
+   *     and provided.
    * @return whether this resource is available
    */
   ConsumableResourceResponse request(
       String workflowName, String workflowVersion, String vidarrId, Optional<JsonNode> input);
-
 
   /**
    * Called to initialise this consumable resource.
@@ -104,9 +124,6 @@ public interface ConsumableResource {
    */
   void startup(String name);
 
-  /**
-   * Called to determine if this consumable resource must be provided as part of the input.
-   *.
-   */
+  /** Called to determine if this consumable resource must be provided as part of the input. . */
   boolean isInputFromSubmitterRequired();
 }

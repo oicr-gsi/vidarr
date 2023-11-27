@@ -1,8 +1,6 @@
 import ca.on.oicr.gsi.vidarr.ConsumableResourceProvider;
 import ca.on.oicr.gsi.vidarr.InputProvisionerProvider;
 import ca.on.oicr.gsi.vidarr.OutputProvisionerProvider;
-import ca.on.oicr.gsi.vidarr.UnloadFilterProvider;
-import ca.on.oicr.gsi.vidarr.WorkflowEngineProvider;
 import ca.on.oicr.gsi.vidarr.core.MaxInFlightConsumableResource;
 import ca.on.oicr.gsi.vidarr.core.OneOfInputProvisioner;
 import ca.on.oicr.gsi.vidarr.core.OneOfOutputProvisioner;
@@ -25,11 +23,6 @@ module ca.on.oicr.gsi.vidarr.core {
   requires java.sql;
   requires java.xml;
   requires simpleclient;
-
-  uses InputProvisionerProvider;
-  uses OutputProvisionerProvider;
-  uses UnloadFilterProvider;
-  uses WorkflowEngineProvider;
 
   provides ConsumableResourceProvider with
       MaxInFlightConsumableResource;

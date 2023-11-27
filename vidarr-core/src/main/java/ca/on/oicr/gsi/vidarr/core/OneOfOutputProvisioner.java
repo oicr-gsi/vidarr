@@ -2,10 +2,13 @@ package ca.on.oicr.gsi.vidarr.core;
 
 import ca.on.oicr.gsi.Pair;
 import ca.on.oicr.gsi.status.SectionRenderer;
-import ca.on.oicr.gsi.vidarr.*;
+import ca.on.oicr.gsi.vidarr.BasicType;
+import ca.on.oicr.gsi.vidarr.OutputProvisionFormat;
+import ca.on.oicr.gsi.vidarr.OutputProvisioner;
+import ca.on.oicr.gsi.vidarr.OutputProvisionerProvider;
+import ca.on.oicr.gsi.vidarr.WorkMonitor;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.Map;
-import java.util.ServiceLoader;
 import java.util.stream.Stream;
 import javax.xml.stream.XMLStreamException;
 
@@ -16,8 +19,6 @@ public final class OneOfOutputProvisioner implements OutputProvisioner {
     return () -> Stream.of(new Pair<>("oneOf", OneOfOutputProvisioner.class));
   }
 
-  private static final ServiceLoader<OutputProvisionerProvider> PROVIDERS =
-      ServiceLoader.load(OutputProvisionerProvider.class);
   private final Map<String, OutputProvisioner> provisioners;
 
   public OneOfOutputProvisioner(Map<String, OutputProvisioner> provisioners) {

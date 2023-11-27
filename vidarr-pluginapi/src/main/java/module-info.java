@@ -34,4 +34,5 @@ module ca.on.oicr.gsi.vidarr.pluginapi {
   requires transitive com.fasterxml.jackson.datatype.jsr310;
   requires java.xml;
   requires java.net.http;
+  requires transitive undertow.core;
 }

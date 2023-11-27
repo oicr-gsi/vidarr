@@ -30,19 +30,20 @@ public final class SubmitWorkflowRequest {
       return false;
     }
     SubmitWorkflowRequest that = (SubmitWorkflowRequest) o;
-    return attempt == that.attempt && Objects.equals(consumableResources, that.consumableResources) && equalsIgnoreAttemptAndConsumableResources(that);
+    return attempt == that.attempt && equalsIgnoreAttempt(that);
   }
 
-  public boolean equalsIgnoreAttemptAndConsumableResources(SubmitWorkflowRequest that) {
+  public boolean equalsIgnoreAttempt(SubmitWorkflowRequest that) {
     return Objects.equals(arguments, that.arguments)
-        && Objects.equals(engineParameters, that.engineParameters)
-        && Objects.equals(externalKeys, that.externalKeys)
-        && Objects.equals(labels, that.labels)
-        && Objects.equals(metadata, that.metadata)
-        && mode == that.mode
-        && Objects.equals(target, that.target)
-        && Objects.equals(workflow, that.workflow)
-        && Objects.equals(workflowVersion, that.workflowVersion);
+            && Objects.equals(consumableResources, that.consumableResources)
+            && Objects.equals(engineParameters, that.engineParameters)
+            && Objects.equals(externalKeys, that.externalKeys)
+            && Objects.equals(labels, that.labels)
+            && Objects.equals(metadata, that.metadata)
+            && mode == that.mode
+            && Objects.equals(target, that.target)
+            && Objects.equals(workflow, that.workflow)
+            && Objects.equals(workflowVersion, that.workflowVersion);
   }
 
   public ObjectNode getArguments() {
@@ -91,12 +92,13 @@ public final class SubmitWorkflowRequest {
 
   @Override
   public int hashCode() {
-    return hashCodeIgnoreAttemptAndConsumableResources() * 31 + Integer.hashCode(attempt) + Objects.hashCode(consumableResources);
+    return hashCodeIgnoreAttempt() * 31 + Integer.hashCode(attempt);
   }
 
-  public int hashCodeIgnoreAttemptAndConsumableResources() {
+  public int hashCodeIgnoreAttempt() {
     return Objects.hash(
             arguments,
+            consumableResources,
             engineParameters,
             externalKeys,
             labels,

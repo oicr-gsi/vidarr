@@ -1,6 +1,7 @@
 import ca.on.oicr.gsi.vidarr.ConsumableResourceProvider;
 import ca.on.oicr.gsi.vidarr.InputProvisionerProvider;
 import ca.on.oicr.gsi.vidarr.OutputProvisionerProvider;
+import ca.on.oicr.gsi.vidarr.core.ManualOverrideConsumableResource;
 import ca.on.oicr.gsi.vidarr.core.MaxInFlightConsumableResource;
 import ca.on.oicr.gsi.vidarr.core.OneOfInputProvisioner;
 import ca.on.oicr.gsi.vidarr.core.OneOfOutputProvisioner;
@@ -25,6 +26,7 @@ module ca.on.oicr.gsi.vidarr.core {
   requires simpleclient;
 
   provides ConsumableResourceProvider with
+      ManualOverrideConsumableResource,
       MaxInFlightConsumableResource;
   provides InputProvisionerProvider with
       OneOfInputProvisioner,

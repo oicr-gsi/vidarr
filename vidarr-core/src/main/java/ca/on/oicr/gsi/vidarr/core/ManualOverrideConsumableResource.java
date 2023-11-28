@@ -3,7 +3,6 @@ package ca.on.oicr.gsi.vidarr.core;
 import ca.on.oicr.gsi.Pair;
 import ca.on.oicr.gsi.vidarr.BasicType;
 import ca.on.oicr.gsi.vidarr.ConsumableResource;
-import ca.on.oicr.gsi.vidarr.ConsumableResourceProvider;
 import ca.on.oicr.gsi.vidarr.ConsumableResourceResponse;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -20,12 +19,8 @@ import java.util.OptionalInt;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.BiPredicate;
-import java.util.stream.Stream;
 
 public final class ManualOverrideConsumableResource implements ConsumableResource {
-  public static ConsumableResourceProvider provider() {
-    return () -> Stream.of(new Pair<>("manual-override", ManualOverrideConsumableResource.class));
-  }
 
   private static final ObjectMapper MAPPER = new ObjectMapper();
   private final Set<String> allowList = new TreeSet<>();

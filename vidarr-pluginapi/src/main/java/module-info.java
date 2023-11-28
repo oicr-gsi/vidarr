@@ -1,6 +1,9 @@
 import ca.on.oicr.gsi.vidarr.ConsumableResourceProvider;
 import ca.on.oicr.gsi.vidarr.InputProvisionerProvider;
 import ca.on.oicr.gsi.vidarr.OutputProvisionerProvider;
+import ca.on.oicr.gsi.vidarr.PriorityFormulaProvider;
+import ca.on.oicr.gsi.vidarr.PriorityInputProvider;
+import ca.on.oicr.gsi.vidarr.PriorityScorerProvider;
 import ca.on.oicr.gsi.vidarr.RuntimeProvisionerProvider;
 import ca.on.oicr.gsi.vidarr.UnloadFilterProvider;
 import ca.on.oicr.gsi.vidarr.WorkflowEngineProvider;
@@ -12,12 +15,15 @@ import ca.on.oicr.gsi.vidarr.WorkflowEngineProvider;
  * plugins are expected to provide as well as accessory data required or provided.
  */
 module ca.on.oicr.gsi.vidarr.pluginapi {
-  uses UnloadFilterProvider;
-  uses WorkflowEngineProvider;
   uses ConsumableResourceProvider;
   uses InputProvisionerProvider;
   uses OutputProvisionerProvider;
+  uses PriorityFormulaProvider;
+  uses PriorityInputProvider;
+  uses PriorityScorerProvider;
   uses RuntimeProvisionerProvider;
+  uses UnloadFilterProvider;
+  uses WorkflowEngineProvider;
 
   exports ca.on.oicr.gsi.vidarr;
   exports ca.on.oicr.gsi.vidarr.api;

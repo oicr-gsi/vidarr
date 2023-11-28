@@ -28,6 +28,7 @@ import ca.on.oicr.gsi.vidarr.InputProvisionFormat;
 import ca.on.oicr.gsi.vidarr.InputProvisioner;
 import ca.on.oicr.gsi.vidarr.InputType;
 import ca.on.oicr.gsi.vidarr.JsonBodyHandler;
+import ca.on.oicr.gsi.vidarr.JsonPost;
 import ca.on.oicr.gsi.vidarr.OutputProvisionFormat;
 import ca.on.oicr.gsi.vidarr.OutputProvisioner;
 import ca.on.oicr.gsi.vidarr.OutputType;
@@ -126,27 +127,6 @@ import org.jooq.impl.SQLDataType;
 import org.postgresql.ds.PGSimpleDataSource;
 
 public final class Main implements ServerConfig {
-
-  private interface JsonPost<T> {
-    static <T> HttpHandler parse(Class<T> clazz, JsonPost<T> handler) {
-      return exchange ->
-          exchange
-              .getRequestReceiver()
-              .receiveFullBytes(
-                  (e, data) -> {
-                    try {
-                      handler.handleRequest(exchange, MAPPER.readValue(data, clazz));
-                    } catch (IOException exception) {
-                      exception.printStackTrace();
-                      e.setStatusCode(StatusCodes.BAD_REQUEST);
-                      e.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
-                      e.getResponseSender().send(exception.getMessage());
-                    }
-                  });
-    }
-
-    void handleRequest(HttpServerExchange exchange, T body);
-  }
 
   private interface UnloadProcessor<T> {
     T process(Configuration configuration, Long[] workflowRuns) throws IOException, SQLException;
@@ -361,35 +341,42 @@ public final class Main implements ServerConfig {
                     monitor(
                         new BlockingHandler(
                             JsonPost.parse(
-                                AnalysisProvenanceRequest.class, server::fetchProvenance))))
+                                MAPPER, AnalysisProvenanceRequest.class, server::fetchProvenance))))
                 .post(
                     "/api/copy-out",
                     monitor(
-                        new BlockingHandler(JsonPost.parse(UnloadRequest.class, server::copyOut))))
+                        new BlockingHandler(
+                            JsonPost.parse(MAPPER, UnloadRequest.class, server::copyOut))))
                 .post(
                     "/api/unload",
                     monitor(
-                        new BlockingHandler(JsonPost.parse(UnloadRequest.class, server::unload))))
+                        new BlockingHandler(
+                            JsonPost.parse(MAPPER, UnloadRequest.class, server::unload))))
                 .post(
                     "/api/load",
-                    monitor(new BlockingHandler(JsonPost.parse(UnloadedData.class, server::load))))
+                    monitor(
+                        new BlockingHandler(
+                            JsonPost.parse(MAPPER, UnloadedData.class, server::load))))
                 .post(
                     "/api/retry-provision-out",
                     monitor(
                         new BlockingHandler(
                             JsonPost.parse(
-                                RetryProvisionOutRequest.class, server::retryProvisionOut))))
+                                MAPPER,
+                                RetryProvisionOutRequest.class,
+                                server::retryProvisionOut))))
                 .delete(
                     "/api/status/{hash}", monitor(new BlockingHandler(server::deleteWorkflowRun)))
                 .post(
                     "/api/submit",
-                    monitor(JsonPost.parse(SubmitWorkflowRequest.class, server::submit)))
+                    monitor(JsonPost.parse(MAPPER, SubmitWorkflowRequest.class, server::submit)))
                 .get("/api/workflow/{name}", monitor(new BlockingHandler(server::fetchWorkflow)))
                 .post(
                     "/api/workflow/{name}",
                     monitor(
                         new BlockingHandler(
-                            JsonPost.parse(AddWorkflowRequest.class, server::upsertWorkflow))))
+                            JsonPost.parse(
+                                MAPPER, AddWorkflowRequest.class, server::upsertWorkflow))))
                 .delete(
                     "/api/workflow/{name}", monitor(new BlockingHandler(server::disableWorkflow)))
                 .get(
@@ -400,12 +387,15 @@ public final class Main implements ServerConfig {
                     monitor(
                         new BlockingHandler(
                             JsonPost.parse(
-                                AddWorkflowVersionRequest.class, server::addWorkflowVersion))))
+                                MAPPER,
+                                AddWorkflowVersionRequest.class,
+                                server::addWorkflowVersion))))
                 .post(
                     "/api/versions",
                     monitor(
                         new BlockingHandler(
-                            JsonPost.parse(BulkVersionRequest.class, server::updateVersions))))
+                            JsonPost.parse(
+                                MAPPER, BulkVersionRequest.class, server::updateVersions))))
                 .setFallbackHandler(
                     new ResourceHandler(
                         new ClassPathResourceManager(

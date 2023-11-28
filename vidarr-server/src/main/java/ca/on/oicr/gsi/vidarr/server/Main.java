@@ -729,8 +729,10 @@ public final class Main implements ServerConfig {
           .forEach(record -> maxInFlightPerWorkflow.set(record.value1(), record.value2()));
 
       DSL.using(connection)
-          .select(WORKFLOW.NAME, WORKFLOW_RUN.HASH_ID,
-              DSL.jsonObject(ACTIVE_WORKFLOW_RUN.CONSUMABLE_RESOURCES))
+          .select(
+              WORKFLOW.NAME,
+              WORKFLOW_RUN.HASH_ID,
+              ACTIVE_WORKFLOW_RUN.CONSUMABLE_RESOURCES.cast(String.class))
           .from(WORKFLOW)
           .join(WORKFLOW_VERSION)
           .on(WORKFLOW.NAME.eq(WORKFLOW_VERSION.NAME))
@@ -739,23 +741,27 @@ public final class Main implements ServerConfig {
           .join(ACTIVE_WORKFLOW_RUN)
           .on(WORKFLOW_RUN.ID.eq(ACTIVE_WORKFLOW_RUN.ID))
           .where(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE.eq(Phase.WAITING_FOR_RESOURCES))
-          .forEach(record -> {
-            try {
-              priorityPerWorkflow.set(record.value1(),
-                  record.value2(),
-                  Optional.ofNullable(
-                      MAPPER.readTree((record.value3() == null || record.value3().data() == null) ?
-                          "{}" :
-                          record.value3().data())));
-            } catch (JsonProcessingException e) {
-              // not a disaster; we might just get some things running out of priority
-              // until max-in-flight gets saturated
-              System.out.println("Failed to serialize the consumable resources field"
-                  + " on active workflow run for priority by workflow on startup:"
-                  + " some actions may temporarily be run out of priority.");
-              System.out.println(e.getMessage());
-            }
-          });
+          .forEach(
+              record -> {
+                try {
+                  priorityPerWorkflow.set(
+                      record.value1(),
+                      record.value2(),
+                      Optional.ofNullable(
+                          MAPPER.readTree(
+                              (record.value3() == null || record.value3() == null)
+                                  ? "{}"
+                                  : record.value3())));
+                } catch (JsonProcessingException e) {
+                  // not a disaster; we might just get some things running out of priority
+                  // until max-in-flight gets saturated
+                  System.out.println(
+                      "Failed to serialize the consumable resources field"
+                          + " on active workflow run for priority by workflow on startup:"
+                          + " some actions may temporarily be run out of priority.");
+                  System.out.println(e.getMessage());
+                }
+              });
     }
 
     unloadDirectory = Path.of(configuration.getUnloadDirectory());
@@ -1112,18 +1118,18 @@ public final class Main implements ServerConfig {
                                                 })
                                         .collect(Collectors.toList())))))));
 
-      context
-          .select(DSL.jsonObject(fields))
-          .from(WORKFLOW_RUN)
-          .where(condition)
-          .forEach(
-              result -> {
-                try {
-                  jsonGenerator.writeRawValue(result.value1().data());
-                } catch (IOException e) {
-                  throw new RuntimeException(e);
-                }
-              });
+    context
+        .select(DSL.jsonObject(fields))
+        .from(WORKFLOW_RUN)
+        .where(condition)
+        .forEach(
+            result -> {
+              try {
+                jsonGenerator.writeRawValue(result.value1().data());
+              } catch (IOException e) {
+                throw new RuntimeException(e);
+              }
+            });
   }
 
   private void deleteWorkflowRun(HttpServerExchange exchange) {
@@ -1238,7 +1244,7 @@ public final class Main implements ServerConfig {
                                         .where(
                                             WORKFLOW_VERSION_ACCESSORY.WORKFLOW_VERSION.eq(
                                                 WORKFLOW_VERSION.ID)))),
-                            JSON.json("{}"))),
+                        JSON.json("{}"))),
                 literalJsonEntry("language", WORKFLOW_DEFINITION.WORKFLOW_LANGUAGE),
                 literalJsonEntry("name", WORKFLOW_VERSION.NAME),
                 literalJsonEntry("outputs", WORKFLOW_VERSION.METADATA),
@@ -2568,7 +2574,11 @@ public final class Main implements ServerConfig {
                                                   public Condition workflowRunId(
                                                       Stream<String> ids) {
                                                     var hashIds =
-                                                        ids.map(id -> processor.extractHashIfIsFullWorkflowRunId(id));
+                                                        ids.map(
+                                                            id ->
+                                                                processor
+                                                                    .extractHashIfIsFullWorkflowRunId(
+                                                                        id));
                                                     return match(WORKFLOW_RUN.HASH_ID, hashIds);
                                                   }
                                                 })))

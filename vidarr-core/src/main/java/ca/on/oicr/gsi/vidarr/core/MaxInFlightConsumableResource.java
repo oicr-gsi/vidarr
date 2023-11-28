@@ -3,7 +3,6 @@ package ca.on.oicr.gsi.vidarr.core;
 import ca.on.oicr.gsi.Pair;
 import ca.on.oicr.gsi.vidarr.BasicType;
 import ca.on.oicr.gsi.vidarr.ConsumableResource;
-import ca.on.oicr.gsi.vidarr.ConsumableResourceProvider;
 import ca.on.oicr.gsi.vidarr.ConsumableResourceResponse;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -12,13 +11,9 @@ import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Stream;
 
 // This is the global one. Per-Workflow is MaxInFlightByWorkflow
 public final class MaxInFlightConsumableResource implements ConsumableResource {
-  public static ConsumableResourceProvider provider() {
-    return () -> Stream.of(new Pair<>("max-in-flight", MaxInFlightConsumableResource.class));
-  }
 
   @JsonIgnore private final Set<String> inFlight = ConcurrentHashMap.newKeySet();
   private int maximum;

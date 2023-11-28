@@ -1,8 +1,13 @@
 import ca.on.oicr.gsi.vidarr.ConsumableResourceProvider;
 import ca.on.oicr.gsi.vidarr.InputProvisionerProvider;
 import ca.on.oicr.gsi.vidarr.OutputProvisionerProvider;
-import ca.on.oicr.gsi.vidarr.core.ManualOverrideConsumableResource;
-import ca.on.oicr.gsi.vidarr.core.MaxInFlightConsumableResource;
+import ca.on.oicr.gsi.vidarr.PriorityFormulaProvider;
+import ca.on.oicr.gsi.vidarr.PriorityInputProvider;
+import ca.on.oicr.gsi.vidarr.PriorityScorerProvider;
+import ca.on.oicr.gsi.vidarr.core.CoreConsumableResourceProvider;
+import ca.on.oicr.gsi.vidarr.core.CorePriorityFormulaProvider;
+import ca.on.oicr.gsi.vidarr.core.CorePriorityInputProvider;
+import ca.on.oicr.gsi.vidarr.core.CorePriorityScorerProvider;
 import ca.on.oicr.gsi.vidarr.core.OneOfInputProvisioner;
 import ca.on.oicr.gsi.vidarr.core.OneOfOutputProvisioner;
 import ca.on.oicr.gsi.vidarr.core.RawInputProvisioner;
@@ -23,14 +28,20 @@ module ca.on.oicr.gsi.vidarr.core {
   requires java.naming;
   requires java.sql;
   requires java.xml;
+  requires java.net.http;
   requires simpleclient;
 
   provides ConsumableResourceProvider with
-      ManualOverrideConsumableResource,
-      MaxInFlightConsumableResource;
+      CoreConsumableResourceProvider;
   provides InputProvisionerProvider with
       OneOfInputProvisioner,
       RawInputProvisioner;
   provides OutputProvisionerProvider with
       OneOfOutputProvisioner;
+  provides PriorityInputProvider with
+      CorePriorityInputProvider;
+  provides PriorityFormulaProvider with
+      CorePriorityFormulaProvider;
+  provides PriorityScorerProvider with
+      CorePriorityScorerProvider;
 }

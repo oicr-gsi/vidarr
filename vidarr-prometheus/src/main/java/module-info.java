@@ -1,5 +1,7 @@
 import ca.on.oicr.gsi.vidarr.ConsumableResourceProvider;
+import ca.on.oicr.gsi.vidarr.PriorityInputProvider;
 import ca.on.oicr.gsi.vidarr.prometheus.AlertmanagerAutoInhibitConsumableResource;
+import ca.on.oicr.gsi.vidarr.prometheus.PrometheusPriorityInput;
 
 module ca.on.oicr.gsi.vidarr.prometheus {
   requires ca.on.oicr.gsi.vidarr.pluginapi;
@@ -13,4 +15,6 @@ module ca.on.oicr.gsi.vidarr.prometheus {
 
   provides ConsumableResourceProvider with
       AlertmanagerAutoInhibitConsumableResource;
+  provides PriorityInputProvider with
+      PrometheusPriorityInput;
 }

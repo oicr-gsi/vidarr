@@ -24,7 +24,7 @@ import java.util.stream.Stream;
  * name, workflow name & version (as workflowName_version), or a fixed set of global inhibit values.
  */
 public class AlertmanagerAutoInhibitConsumableResource implements ConsumableResource {
-  private static final ObjectMapper MAPPER = new ObjectMapper();
+  static final ObjectMapper MAPPER = new ObjectMapper();
   private static final ObjectReader READER = MAPPER.readerFor(new TypeReference<List<String>>() {});
 
   public static ConsumableResourceProvider provider() {
@@ -101,7 +101,7 @@ public class AlertmanagerAutoInhibitConsumableResource implements ConsumableReso
           "The consumableResources 'alertmanager-auto-inhibit' config is missing "
               + "'valuesOfInterest': [string].");
     }
-    cache = new AlertCache(name, alertmanagerUrl, cacheRequestTimeout, cacheTtl, MAPPER);
+    cache = new AlertCache(name, alertmanagerUrl, cacheRequestTimeout, cacheTtl);
   }
 
   @Override

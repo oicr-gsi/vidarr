@@ -31,12 +31,13 @@ final class ConsumableResourceChecker implements Runnable {
           .register();
 
   private final Map<String, JsonNode> consumableResources;
+  private final Instant createdTime;
   private final HikariDataSource dataSource;
   private final long dbId;
   private final ScheduledExecutorService executor;
   private final AtomicBoolean isLive;
+  private final MaxInFlightByWorkflow maxInFlightByWorkflow;
   private final Runnable next;
-  private final Instant startTime = Instant.now();
   private final Target target;
   private final ObjectNode tracing = Main.MAPPER.createObjectNode();
   private final String vidarrId;
@@ -49,10 +50,12 @@ final class ConsumableResourceChecker implements Runnable {
       ScheduledExecutorService executor,
       long dbId,
       AtomicBoolean isLive,
+      MaxInFlightByWorkflow maxInFlightByWorkflow,
       String workflow,
       String workflowVersion,
       String vidarrId,
       Map<String, JsonNode> consumableResources,
+      Instant createdTime,
       Runnable next) {
     this.target = target;
     this.dataSource = dataSource;
@@ -63,7 +66,9 @@ final class ConsumableResourceChecker implements Runnable {
     this.workflowVersion = workflowVersion;
     this.vidarrId = vidarrId;
     this.consumableResources = consumableResources;
+    this.createdTime = createdTime;
     this.next = next;
+    this.maxInFlightByWorkflow = maxInFlightByWorkflow;
   }
 
   @Override
@@ -82,6 +87,8 @@ final class ConsumableResourceChecker implements Runnable {
                   workflow,
                   workflowVersion,
                   vidarrId,
+                  createdTime,
+                  maxInFlightByWorkflow.getMaximumFor(workflow),
                   broker.inputFromSubmitter().map(def -> consumableResources.get(def.first())))
               .apply(
                   new Visitor<Optional<String>>() {
@@ -133,7 +140,7 @@ final class ConsumableResourceChecker implements Runnable {
         return;
       }
     }
-    final var waiting = Duration.between(startTime, Instant.now()).toSeconds();
+    final var waiting = Duration.between(createdTime, Instant.now()).toSeconds();
     tracing.put("vidarr-waiting", waiting);
     updateBlockedResource(null);
     waitTime.labels(workflow).observe(waiting);

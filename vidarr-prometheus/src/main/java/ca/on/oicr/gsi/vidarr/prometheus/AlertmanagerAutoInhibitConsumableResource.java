@@ -10,8 +10,10 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -110,18 +112,28 @@ public class AlertmanagerAutoInhibitConsumableResource implements ConsumableReso
   }
 
   @Override
-  public void recover(String workflowName, String workflowVersion, String vidarrId, Optional<JsonNode> resourceJson) {
+  public void recover(
+      String workflowName,
+      String workflowVersion,
+      String vidarrId,
+      Optional<JsonNode> resourceJson) {
     // Do nothing, as there's no intermediate state that needs to be tracked
   }
 
   @Override
-  public void release(String workflowName, String workflowVersion, String vidarrId, Optional<JsonNode> input) {
+  public void release(
+      String workflowName, String workflowVersion, String vidarrId, Optional<JsonNode> input) {
     // Do nothing, as this doesn't actually hold onto any resources
   }
 
   @Override
   public ConsumableResourceResponse request(
-      String workflowName, String workflowVersion, String vidarrId, Optional<JsonNode> input) {
+      String workflowName,
+      String workflowVersion,
+      String vidarrId,
+      Instant createdTime,
+      OptionalInt workflowMaxInFlight,
+      Optional<JsonNode> input) {
     String workflowVersionWithUnderscores = workflowVersion.replaceAll("\\.", "_");
     final var matchedAlertValues =
         cache

@@ -4,7 +4,7 @@ import ca.on.oicr.gsi.vidarr.UnloadFilter;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class UnloadRequest {
+public final class UnloadRequest {
   private UnloadFilter filter;
   private boolean recursive;
 

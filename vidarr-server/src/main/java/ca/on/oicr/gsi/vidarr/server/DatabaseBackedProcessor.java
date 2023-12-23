@@ -1,6 +1,7 @@
 package ca.on.oicr.gsi.vidarr.server;
 
 import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.*;
+import static org.jooq.impl.DSL.trueCondition;
 
 import ca.on.oicr.gsi.Pair;
 import ca.on.oicr.gsi.vidarr.BasicType;
@@ -730,7 +731,8 @@ public abstract class DatabaseBackedProcessor
                                                           target,
                                                           definition,
                                                           workflow,
-                                                          activeOperations)));
+                                                          activeOperations,
+                                                          RecoveryType.RECOVER)));
                                         } else {
                                           System.err.printf(
                                               "Recovering workflow %s...\n",
@@ -744,7 +746,10 @@ public abstract class DatabaseBackedProcessor
                                                               record.get(WORKFLOW_VERSION.NAME),
                                                               record.get(WORKFLOW_VERSION.VERSION),
                                                               record.get(WORKFLOW_RUN.HASH_ID),
-                                                              Optional.ofNullable(record.get(ACTIVE_WORKFLOW_RUN.CONSUMABLE_RESOURCES))));
+                                                              Optional.ofNullable(
+                                                                  record.get(
+                                                                      ACTIVE_WORKFLOW_RUN
+                                                                          .CONSUMABLE_RESOURCES))));
                                           final var workflow =
                                               DatabaseWorkflow.recover(
                                                   target,
@@ -761,7 +766,8 @@ public abstract class DatabaseBackedProcessor
                                               target,
                                               buildDefinitionFromRecord(context.dsl(), record),
                                               workflow,
-                                              activeOperations);
+                                              activeOperations,
+                                              RecoveryType.RECOVER);
                                         }
                                       } catch (Exception e) {
                                         String erroneousHash = record.get(WORKFLOW_RUN.HASH_ID);
@@ -775,6 +781,112 @@ public abstract class DatabaseBackedProcessor
                                     }));
               });
       connection.commit();
+    }
+  }
+
+  public final List<String> retry(Optional<List<String>> workflowRunIds) throws SQLException {
+    try (final var connection = dataSource.getConnection()) {
+      final var ids = new ArrayList<String>();
+      DSL.using(connection, SQLDialect.POSTGRES)
+          .transaction(
+              context -> {
+                var dsl = DSL.using(context);
+                var operations =
+                    dsl
+                        .select(ACTIVE_OPERATION.asterisk())
+                        .from(
+                            ACTIVE_OPERATION
+                                .join(ACTIVE_WORKFLOW_RUN)
+                                .on(ACTIVE_OPERATION.WORKFLOW_RUN_ID.eq(ACTIVE_WORKFLOW_RUN.ID))
+                                .join(WORKFLOW_RUN)
+                                .on(WORKFLOW_RUN.ID.eq(ACTIVE_WORKFLOW_RUN.ID)))
+                        .where(
+                            ACTIVE_OPERATION
+                                .STATUS
+                                .eq(OperationStatus.FAILED)
+                                .and(ACTIVE_OPERATION.ENGINE_PHASE.eq(Phase.PROVISION_OUT))
+                                .and(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE.eq(Phase.FAILED))
+                                .and(ACTIVE_OPERATION.ATTEMPT.eq(ACTIVE_WORKFLOW_RUN.ATTEMPT))
+                                .and(
+                                    workflowRunIds
+                                        .map(WORKFLOW_RUN.HASH_ID::in)
+                                        .orElse(trueCondition())))
+                        .stream()
+                        .collect(
+                            Collectors.groupingBy(
+                                r -> r.get(ACTIVE_OPERATION.WORKFLOW_RUN_ID),
+                                Collectors.mapping(
+                                    r ->
+                                        DatabaseOperation.recover(
+                                            r, liveness(r.get(ACTIVE_OPERATION.WORKFLOW_RUN_ID))),
+                                    Collectors.toList())));
+                dsl.update(ACTIVE_WORKFLOW_RUN)
+                    .set(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE, Phase.PROVISION_OUT)
+                    .where(ACTIVE_WORKFLOW_RUN.ID.in(operations.keySet()))
+                    .execute();
+                dsl.select()
+                    .from(
+                        ACTIVE_WORKFLOW_RUN
+                            .join(WORKFLOW_RUN)
+                            .on(ACTIVE_WORKFLOW_RUN.ID.eq(WORKFLOW_RUN.ID))
+                            .join(WORKFLOW_VERSION)
+                            .on(WORKFLOW_RUN.WORKFLOW_VERSION_ID.eq(WORKFLOW_VERSION.ID))
+                            .join(WORKFLOW_DEFINITION)
+                            .on(WORKFLOW_VERSION.WORKFLOW_DEFINITION.eq(WORKFLOW_DEFINITION.ID)))
+                    .where(ACTIVE_WORKFLOW_RUN.ID.in(operations.keySet()))
+                    .forEach(
+                        record ->
+                            targetByName(record.get(ACTIVE_WORKFLOW_RUN.TARGET))
+                                .ifPresent(
+                                    target -> {
+                                      try {
+                                        ids.add(record.get(WORKFLOW_RUN.HASH_ID));
+                                        System.err.printf(
+                                            "Retrying workflow %s...\n",
+                                            record.get(WORKFLOW_RUN.HASH_ID));
+                                        target
+                                            .consumableResources()
+                                            .forEach(
+                                                cr ->
+                                                    cr.second()
+                                                        .recover(
+                                                            record.get(WORKFLOW_VERSION.NAME),
+                                                            record.get(WORKFLOW_VERSION.VERSION),
+                                                            record.get(WORKFLOW_RUN.HASH_ID),
+                                                            Optional.ofNullable(
+                                                                record.get(
+                                                                    ACTIVE_WORKFLOW_RUN
+                                                                        .CONSUMABLE_RESOURCES))));
+                                        final var workflow =
+                                            DatabaseWorkflow.recover(
+                                                target,
+                                                record,
+                                                liveness(record.get(ACTIVE_WORKFLOW_RUN.ID)),
+                                                dsl);
+                                        final var activeOperations =
+                                            operations.get(record.get(ACTIVE_WORKFLOW_RUN.ID));
+                                        for (final var operation : activeOperations) {
+                                          operation.linkTo(workflow);
+                                        }
+                                        recover(
+                                            target,
+                                            buildDefinitionFromRecord(context.dsl(), record),
+                                            workflow,
+                                            activeOperations,
+                                            RecoveryType.RETRY);
+                                      } catch (Exception e) {
+                                        String erroneousHash = record.get(WORKFLOW_RUN.HASH_ID);
+                                        System.err.printf(
+                                            "Error retrying workflow run %s: \n", erroneousHash);
+                                        e.printStackTrace();
+                                        BadRecoveryTracker.add(erroneousHash);
+                                        System.err.println(
+                                            "Continuing recovery on next record in database if one exists.");
+                                      }
+                                    }));
+              });
+      connection.commit();
+      return ids;
     }
   }
 
@@ -1253,7 +1365,8 @@ public abstract class DatabaseBackedProcessor
                 MAPPER, target, workflow.definition(), arguments, metadata, engineParameters),
             workflow.validateLabels(labels),
             target
-                .consumableResources().filter(r -> r.second().isInputFromSubmitterRequired())
+                .consumableResources()
+                .filter(r -> r.second().isInputFromSubmitterRequired())
                 .flatMap(r -> r.second().inputFromSubmitter().stream())
                 .flatMap(cr -> checkConsumableResource(consumableResources, cr)))
         .flatMap(Function.identity())

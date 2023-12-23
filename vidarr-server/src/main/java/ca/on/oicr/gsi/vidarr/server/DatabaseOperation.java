@@ -81,6 +81,11 @@ public class DatabaseOperation implements ActiveOperation<DSLContext> {
   }
 
   @Override
+  public void error(String reason, DSLContext transaction) {
+    updateField(ACTIVE_OPERATION.ERROR, reason, transaction);
+  }
+
+  @Override
   public boolean isLive() {
     return liveness.get();
   }

@@ -92,7 +92,9 @@ public class CromwellOutputProvisioner
       CLIENT
           .sendAsync(
               HttpRequest.newBuilder()
-                  .uri(CromwellMetadataURL.formatMetadataURL(cromwellUrl, state.getCromwellId(), debugCalls))
+                  .uri(
+                      CromwellMetadataURL.formatMetadataURL(
+                          cromwellUrl, state.getCromwellId(), debugCalls))
                   .timeout(Duration.ofMinutes(1))
                   .GET()
                   .build(),
@@ -113,13 +115,14 @@ public class CromwellOutputProvisioner
                     // so we can have call info for debugging.
                   case "Aborted":
                   case "Failed":
-                    if (debugCalls){
+                    if (debugCalls) {
                       monitor.log(
-                              System.Logger.Level.INFO,
-                              String.format("Cromwell job %s is failed. Cromwell OutputProvisioner "
+                          System.Logger.Level.INFO,
+                          String.format(
+                              "Cromwell job %s is failed. Cromwell OutputProvisioner "
                                   + "is configured to have already fetched calls info. Skipping "
-                                  + "second request.", state.getCromwellId())
-                      );
+                                  + "second request.",
+                              state.getCromwellId()));
                       monitor.permanentFailure("Cromwell failure: " + result.getStatus());
                       break;
                     }
@@ -133,7 +136,9 @@ public class CromwellOutputProvisioner
                     CLIENT
                         .sendAsync(
                             HttpRequest.newBuilder()
-                                .uri(CromwellMetadataURL.formatMetadataURL(cromwellUrl, state.getCromwellId(), true))
+                                .uri(
+                                    CromwellMetadataURL.formatMetadataURL(
+                                        cromwellUrl, state.getCromwellId(), true))
                                 .timeout(Duration.ofMinutes(1))
                                 .GET()
                                 .build(),
@@ -160,7 +165,8 @@ public class CromwellOutputProvisioner
                                       state.getCromwellId(), cromwellUrl, t2.getMessage()));
                               CROMWELL_FAILURES.labels(cromwellUrl).inc();
 
-                              // TODO: this may schedule 2 requests to cromwell /metadata now. Consider
+                              // TODO: this may schedule 2 requests to cromwell /metadata now.
+                              // Consider
                               // a failure-unique check
                               monitor.scheduleTask(
                                   CHECK_DELAY, TimeUnit.MINUTES, () -> check(state, monitor));
@@ -445,6 +451,12 @@ public class CromwellOutputProvisioner
     } else {
       check(state, monitor);
     }
+  }
+
+  @Override
+  protected void retry(ProvisionState state, WorkMonitor<Result, ProvisionState> monitor) {
+    state.setCromwellId(null);
+    recover(state, monitor);
   }
 
   public void setChunks(int[] chunks) {

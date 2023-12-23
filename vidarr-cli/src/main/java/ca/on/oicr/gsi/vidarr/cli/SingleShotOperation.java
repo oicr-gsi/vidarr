@@ -3,6 +3,7 @@ package ca.on.oicr.gsi.vidarr.cli;
 import ca.on.oicr.gsi.vidarr.core.ActiveOperation;
 import ca.on.oicr.gsi.vidarr.core.OperationStatus;
 import com.fasterxml.jackson.databind.JsonNode;
+import java.lang.System.Logger.Level;
 
 final class SingleShotOperation implements ActiveOperation<Void> {
   private JsonNode state;
@@ -18,6 +19,11 @@ final class SingleShotOperation implements ActiveOperation<Void> {
   @Override
   public void debugInfo(JsonNode info, Void transaction) {
     // Throw this information away since we don't really want to log it
+  }
+
+  @Override
+  public void error(String reason, Void transaction) {
+    singleShotWorkflow.log(Level.ERROR, reason);
   }
 
   @Override

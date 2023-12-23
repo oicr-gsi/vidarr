@@ -259,6 +259,7 @@ public final class Main implements ServerConfig {
                                                 .collect(
                                                     Collectors.toMap(
                                                         DSL::inline, p -> DSL.inline(p.name()))))),
+                                literalJsonEntry("error", ACTIVE_OPERATION.ERROR),
                                 literalJsonEntry("recoveryState", ACTIVE_OPERATION.RECOVERY_STATE),
                                 literalJsonEntry("debugInformation", ACTIVE_OPERATION.DEBUG_INFO),
                                 literalJsonEntry("status", ACTIVE_OPERATION.STATUS),
@@ -371,6 +372,12 @@ public final class Main implements ServerConfig {
                 .post(
                     "/api/load",
                     monitor(new BlockingHandler(JsonPost.parse(UnloadedData.class, server::load))))
+                .post(
+                    "/api/retry-provision-out",
+                    monitor(
+                        new BlockingHandler(
+                            JsonPost.parse(
+                                RetryProvisionOutRequest.class, server::retryProvisionOut))))
                 .delete(
                     "/api/status/{hash}", monitor(new BlockingHandler(server::deleteWorkflowRun)))
                 .post(
@@ -2221,6 +2228,16 @@ public final class Main implements ServerConfig {
       System.err.printf(
           "Recovering %d unstarted workflows fom the database.", recoveredWorkflows.size());
       recoveredWorkflows.forEach(Runnable::run);
+    }
+  }
+
+  private void retryProvisionOut(HttpServerExchange exchange, RetryProvisionOutRequest request) {
+    try {
+      final var ids = processor.retry(Optional.ofNullable(request.getWorkflowRunIds()));
+      exchange.setStatusCode(StatusCodes.OK);
+      exchange.getResponseSender().send(MAPPER.writeValueAsString(ids));
+    } catch (Exception e) {
+      internalServerErrorResponse(exchange, e);
     }
   }
 

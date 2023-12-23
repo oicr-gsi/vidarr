@@ -106,4 +106,20 @@ public abstract class BaseJsonRuntimeProvisioner<S> implements RuntimeProvisione
       monitor.permanentFailure(e.toString());
     }
   }
+
+  /**
+   * Restart a failed provisioning process from state saved in the database
+   *
+   * @see #recover(JsonNode, WorkMonitor)
+   */
+  protected abstract void retry(S state, WorkMonitor<OutputProvisioner.Result, S> monitor);
+
+  @Override
+  public final void retry(JsonNode state, WorkMonitor<OutputProvisioner.Result, JsonNode> monitor) {
+    try {
+      retry(mapper.treeToValue(state, stateClass), new JsonWorkMonitor<>(monitor));
+    } catch (Exception e) {
+      monitor.permanentFailure(e.toString());
+    }
+  }
 }

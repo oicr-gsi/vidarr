@@ -84,7 +84,7 @@ public abstract class BaseProcessor<
       startTransaction(
           transaction -> {
             operation.status(OperationStatus.FAILED, transaction);
-            operation.recoveryState(JsonNodeFactory.instance.textNode(reason), transaction);
+            operation.error(reason, transaction);
             operation.log(Level.ERROR, reason);
           });
       failed();
@@ -867,7 +867,11 @@ public abstract class BaseProcessor<
   protected abstract ObjectMapper mapper();
 
   protected void recover(
-      Target target, WorkflowDefinition definition, W workflow, List<PO> activeOperations) {
+      Target target,
+      WorkflowDefinition definition,
+      W workflow,
+      List<PO> activeOperations,
+      RecoveryType recoverType) {
     switch (workflow.phase()) {
       case WAITING_FOR_RESOURCES:
       case INITIALIZING:
@@ -921,12 +925,12 @@ public abstract class BaseProcessor<
                   }
                 },
                 ProvisioningOutWorkMonitor::new,
-                target
+                recoverType.runtime(
+                    target
                         .runtimeProvisioners()
                         .filter(p -> p.name().equals(operation.type().substring(1)))
                         .findAny()
-                        .orElseThrow()
-                    ::recover,
+                        .orElseThrow()),
                 p4.createMonitor(operation));
           } else {
             WrappedMonitor.recover(
@@ -939,7 +943,8 @@ public abstract class BaseProcessor<
                   }
                 },
                 ProvisioningOutWorkMonitor::new,
-                target.provisionerFor(OutputProvisionFormat.valueOf(operation.type()))::recover,
+                recoverType.provisionOut(
+                    target.provisionerFor(OutputProvisionFormat.valueOf(operation.type()))),
                 p4.createMonitor(operation));
           }
         }

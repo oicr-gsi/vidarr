@@ -69,6 +69,12 @@ public final class OneOfOutputProvisioner implements OutputProvisioner {
   }
 
   @Override
+  public void retry(JsonNode state, WorkMonitor<Result, JsonNode> monitor) {
+    final var type = state.get(0).asText();
+    provisioners.get(type).retry(state.get(1), new MonitorWithType<>(monitor, type));
+  }
+
+  @Override
   public void startup() {
     for (final var provisioner : provisioners.values()) {
       provisioner.startup();

@@ -185,6 +185,21 @@ public interface OutputProvisioner {
   void recover(JsonNode state, WorkMonitor<Result, JsonNode> monitor);
 
   /**
+   * Restart a provisioning process from state saved in the database from a failed task.
+   *
+   * <p>This method should not do any externally-visible work. Anything it needs should be done in a
+   * {@link WorkMonitor#scheduleTask(Runnable)} callback so that Vidarr can execute it once the
+   * database is in a healthy state.
+   *
+   * <p>This is meant to allow retrying the provision out process after a failure such as out of
+   * disk that doesn't require reprocessing the data.
+   *
+   * @param state the frozen database state
+   * @param monitor the monitor structure for writing the output of the provisioning process
+   */
+  void retry(JsonNode state, WorkMonitor<Result, JsonNode> monitor);
+
+  /**
    * Called to initialise this output provisioner.
    *
    * <p>If the configuration is invalid, this should throw a runtime exception.

@@ -17,6 +17,14 @@ public interface ActiveOperation<TX> {
   void debugInfo(JsonNode info, TX transaction);
 
   /**
+   * Set the failure message
+   *
+   * @param reason the failure reason
+   * @param transaction the transaction to perform the update in
+   */
+  void error(String reason, TX transaction);
+
+  /**
    * Check if the operation is still live
    *
    * @return if false, no callbacks will be scheduled.

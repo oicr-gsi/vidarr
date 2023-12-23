@@ -101,6 +101,18 @@ public interface RuntimeProvisioner {
   void recover(JsonNode state, WorkMonitor<OutputProvisioner.Result, JsonNode> monitor);
 
   /**
+   * Restart a provisioning process from state saved in the database that previously failed
+   *
+   * <p>Rebuild state from `state` object then schedule appropriate next step with
+   * `monitor.scheduleTask()`. This is meant to allow retrying the provision out process after a
+   * failure such as out of disk that doesn't require reprocessing the data.
+   *
+   * @param state the frozen database state
+   * @param monitor the monitor structure for writing the output of the provisioning process
+   */
+  void retry(JsonNode state, WorkMonitor<OutputProvisioner.Result, JsonNode> monitor);
+
+  /**
    * Called to initialise this runtime provisioner.
    *
    * <p>Actual reading of configuration files does not need to be done, due to jackson-databind

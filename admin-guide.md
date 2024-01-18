@@ -21,6 +21,7 @@ Running a Víðarr instance requires:
 Build your own copy of Víðarr using Maven:
 
     mvn install
+    mvn dependency:copy-dependencies
 
 Pull all the JARs required for Víðarr and its plugins into a directory, say `/srv/vidarr/jars`:
 

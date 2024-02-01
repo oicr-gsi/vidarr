@@ -12,6 +12,9 @@ module ca.on.oicr.gsi.vidarr.sh {
   requires com.fasterxml.jackson.databind;
   requires java.xml;
 
+  opens ca.on.oicr.gsi.vidarr.sh to
+      com.fasterxml.jackson.databind;
+
   provides WorkflowEngineProvider with
       UnixShellWorkflowEngine;
 }

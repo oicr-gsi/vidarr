@@ -5,12 +5,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0).
 For unreleased changes, see [changes](changes).
 
 -----------------------------------------------------------------------------
-## [0.17.3] - 2024-02-02
-
-### Fixed
-
-* Improved logging of required config file properties
-
 ## [0.17.2] - 2023-10-25
 
 ### Fixed

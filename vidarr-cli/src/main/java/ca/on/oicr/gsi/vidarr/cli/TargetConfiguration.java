@@ -3,8 +3,12 @@ package ca.on.oicr.gsi.vidarr.cli;
 import ca.on.oicr.gsi.Pair;
 import ca.on.oicr.gsi.vidarr.*;
 import ca.on.oicr.gsi.vidarr.core.Target;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -14,6 +18,17 @@ public final class TargetConfiguration {
   private List<InputProvisioner> inputs;
   private List<OutputProvisioner> outputs;
   private List<RuntimeProvisioner> runtimes;
+
+  @JsonCreator
+  public TargetConfiguration(@JsonProperty("engine") WorkflowEngine engine,
+                             @JsonProperty("inputs") List<InputProvisioner> inputs,
+                             @JsonProperty("outputs") List<OutputProvisioner> outputs,
+                             @JsonProperty("runtimes") List<RuntimeProvisioner> runtimes) {
+    this.engine = Objects.requireNonNull(engine, "Engine must not be null");
+    this.inputs = Objects.requireNonNull(inputs, "Inputs must not be null");
+    this.outputs = Objects.requireNonNull(outputs, "Outputs must not be null");
+    this.runtimes = Objects.requireNonNull(runtimes, "Runtimes must not be null");
+  }
 
   public WorkflowEngine getEngine() {
     return engine;

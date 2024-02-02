@@ -24,10 +24,10 @@ public final class TargetConfiguration {
                              @JsonProperty("inputs") List<InputProvisioner> inputs,
                              @JsonProperty("outputs") List<OutputProvisioner> outputs,
                              @JsonProperty("runtimes") List<RuntimeProvisioner> runtimes) {
-    this.engine = Objects.requireNonNull(engine, "Engine must not be null");
-    this.inputs = Objects.requireNonNull(inputs, "Inputs must not be null");
-    this.outputs = Objects.requireNonNull(outputs, "Outputs must not be null");
-    this.runtimes = Objects.requireNonNull(runtimes, "Runtimes must not be null");
+    this.engine = Objects.requireNonNull(engine, "Engine object missing from config");
+    this.inputs = Objects.requireNonNull(inputs, "Inputs object missing from config");
+    this.outputs = Objects.requireNonNull(outputs, "Outputs object missing from config");
+    this.runtimes = Objects.requireNonNull(runtimes, "Runtimes object missing from config");
   }
 
   public WorkflowEngine getEngine() {

@@ -1053,6 +1053,12 @@
           "target": {
             "type": "string"
           },
+          "tracing": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object"
+          },
           "workflowRunUrl": {
             "type": "string"
           }

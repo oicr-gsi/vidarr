@@ -100,6 +100,12 @@ encoded as JSON, if the submitter provided it. The JSON data has been
 type-checked by Vidarr, so it should be safe to convert to the expected type
 using Jackson.
 
+Sometimes, consumable resources are doing scoring that would be helpful to know
+for debugging purposes. In that case, the resource can return a custom
+`ConsumableResourceResponse` that uses the `Visitor.set` method to export
+numeric statistics that will be available in the `"tracing"` property. Víðarr
+will prefix these variables with the consumable resource's name.
+
 # Input Provisioners
 Input provisioners implement `ca.on.oicr.gsi.vidarr.InputProvisionerProvider`
 and `ca.on.oicr.gsi.vidarr.InputProvisioner`. These plugins are responsible for

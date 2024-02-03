@@ -242,6 +242,7 @@ public final class Main implements ServerConfig {
 
     STATUS_FIELDS.add(literalJsonEntry("preflightOk", ACTIVE_WORKFLOW_RUN.PREFLIGHT_OKAY));
     STATUS_FIELDS.add(literalJsonEntry("target", ACTIVE_WORKFLOW_RUN.TARGET));
+    STATUS_FIELDS.add(literalJsonEntry("tracing", ACTIVE_WORKFLOW_RUN.TRACING));
     STATUS_FIELDS.add(literalJsonEntry("workflowRunUrl", ACTIVE_WORKFLOW_RUN.WORKFLOW_RUN_URL));
     STATUS_FIELDS.add(
         literalJsonEntry(

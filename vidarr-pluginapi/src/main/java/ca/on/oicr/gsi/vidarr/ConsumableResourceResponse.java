@@ -18,12 +18,31 @@ public abstract class ConsumableResourceResponse {
     T available();
 
     /**
+     * Clear removes a tracing number from this resource
+     *
+     * @param name the identifier for the number
+     * @see #set(String, long)
+     */
+    void clear(String name);
+
+    /**
      * Convert an unsuccessful response
      *
      * @param message the error message for why the resource could not be allocated
      * @return the transformed object
      */
     T error(String message);
+
+    /**
+     * Sets a tracing number on this consumable resource.
+     *
+     * <p>Consumable resources are constantly measuring things for decision-making and this allows
+     * that information to be observed.
+     *
+     * @param name the identifier of the number
+     * @param value the current value
+     */
+    void set(String name, long value);
 
     /**
      * Convert an unsuccessful but empty response
@@ -70,7 +89,7 @@ public abstract class ConsumableResourceResponse {
     };
   }
 
-  private ConsumableResourceResponse() {}
+  public ConsumableResourceResponse() {}
 
   /**
    * Convert this response into another value

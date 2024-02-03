@@ -10,12 +10,12 @@ import io.prometheus.client.Histogram;
 import java.sql.SQLException;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
 import org.jooq.SQLDialect;
 import org.jooq.impl.DSL;
 
@@ -70,7 +70,11 @@ final class ConsumableResourceChecker implements Runnable {
       return;
     }
     var i = 0;
-    final var resourceBrokers = target.consumableResources().collect(Collectors.toList());
+    final var resourceBrokers =
+        target
+            .consumableResources()
+            .sorted(Comparator.comparing(cr -> cr.second().priority()))
+            .toList();
     for (i = 0; i < resourceBrokers.size(); i++) {
       final var name = resourceBrokers.get(i).first();
       final var broker = resourceBrokers.get(i).second();
@@ -101,11 +105,16 @@ final class ConsumableResourceChecker implements Runnable {
       if (error.isPresent()) {
         updateBlockedResource(error.get());
         // Each resource performs a check and only releases resources if they've been acquired
-        for (int ix=0; ix < resourceBrokers.size(); ix++){
-          final var tempbroker = resourceBrokers.get(ix).second();
-          tempbroker.release(workflow, workflowVersion, vidarrId, tempbroker.inputFromSubmitter().map(def -> consumableResources.get(def.first())));
+        for (final var b : resourceBrokers.subList(0, i)) {
+          b.second()
+              .release(
+                  workflow,
+                  workflowVersion,
+                  vidarrId,
+                  b.second().inputFromSubmitter().map(def -> consumableResources.get(def.first())));
         }
-        //Must balance hammering vidarr with requests and adding significant delay to workflow runtime
+        // Must balance hammering vidarr with requests and adding significant delay to workflow
+        // runtime
         executor.schedule(this, 5, TimeUnit.MINUTES);
         return;
       }

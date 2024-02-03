@@ -76,6 +76,19 @@ public interface ConsumableResource {
   Optional<Pair<String, BasicType>> inputFromSubmitter();
 
   /**
+   * The order in which this resource should be checked.
+   *
+   * <p>Some consumable resources might want to be checked first, especially ones that intend to
+   * track information. This causes Vidarr to check consumable resources in an order that makes
+   * sense for those resources.
+   *
+   * @return the priority; larger is earlier
+   */
+  default int priority() {
+    return 0;
+  }
+
+  /**
    * Indicate that Vidarr has restarted and it is reasserting an old claim.
    *
    * @param workflowName the name of the workflow

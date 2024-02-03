@@ -27,6 +27,7 @@ public class WorkflowRunStatusResponse {
   protected boolean running;
   private ZonedDateTime started;
   private String target;
+  private Map<String, Long> tracing;
   private String workflowRunUrl;
 
   public ObjectNode getArguments() {
@@ -91,6 +92,10 @@ public class WorkflowRunStatusResponse {
 
   public String getTarget() {
     return target;
+  }
+
+  public Map<String, Long> getTracing() {
+    return tracing;
   }
 
   public String getWorkflowRunUrl() {
@@ -167,6 +172,10 @@ public class WorkflowRunStatusResponse {
 
   public void setTarget(String target) {
     this.target = target;
+  }
+
+  public void setTracing(Map<String, Long> tracing) {
+    this.tracing = tracing;
   }
 
   public void setWorkflowRunUrl(String workflowRunUrl) {

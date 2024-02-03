@@ -5,17 +5,18 @@ import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.ACTIVE_WORKFLOW_RUN;
 import ca.on.oicr.gsi.vidarr.ConsumableResourceResponse.Visitor;
 import ca.on.oicr.gsi.vidarr.core.Target;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.zaxxer.hikari.HikariDataSource;
 import io.prometheus.client.Histogram;
 import java.sql.SQLException;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Comparator;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 import org.jooq.SQLDialect;
 import org.jooq.impl.DSL;
 
@@ -37,6 +38,7 @@ final class ConsumableResourceChecker implements Runnable {
   private final Runnable next;
   private final Instant startTime = Instant.now();
   private final Target target;
+  private final ObjectNode tracing = Main.MAPPER.createObjectNode();
   private final String vidarrId;
   private final String workflow;
   private final String workflowVersion;
@@ -70,13 +72,9 @@ final class ConsumableResourceChecker implements Runnable {
       return;
     }
     var i = 0;
-    final var resourceBrokers =
-        target
-            .consumableResources()
-            .sorted(Comparator.comparing(cr -> cr.second().priority()))
-            .toList();
+    final var resourceBrokers = target.consumableResources().collect(Collectors.toList());
     for (i = 0; i < resourceBrokers.size(); i++) {
-      final var name = resourceBrokers.get(i).first();
+      final var resourceName = resourceBrokers.get(i).first();
       final var broker = resourceBrokers.get(i).second();
       final var error =
           broker
@@ -87,9 +85,15 @@ final class ConsumableResourceChecker implements Runnable {
                   broker.inputFromSubmitter().map(def -> consumableResources.get(def.first())))
               .apply(
                   new Visitor<Optional<String>>() {
+
                     @Override
                     public Optional<String> available() {
                       return Optional.empty();
+                    }
+
+                    @Override
+                    public void clear(String name) {
+                      tracing.remove(nameForVariable(name));
                     }
 
                     @Override
@@ -97,9 +101,19 @@ final class ConsumableResourceChecker implements Runnable {
                       return Optional.of(message);
                     }
 
+                    private String nameForVariable(String name) {
+                      return String.format("vidarr-resource-%s-%s", resourceName, name);
+                    }
+
+                    @Override
+                    public void set(String name, long value) {
+                      tracing.put(nameForVariable(name), value);
+                    }
+
                     @Override
                     public Optional<String> unavailable() {
-                      return Optional.of(String.format("Resource %s is not available", name));
+                      return Optional.of(
+                          String.format("Resource %s is not available", resourceName));
                     }
                   });
       if (error.isPresent()) {
@@ -119,8 +133,10 @@ final class ConsumableResourceChecker implements Runnable {
         return;
       }
     }
+    final var waiting = Duration.between(startTime, Instant.now()).toSeconds();
+    tracing.put("vidarr-waiting", waiting);
     updateBlockedResource(null);
-    waitTime.labels(workflow).observe(Duration.between(startTime, Instant.now()).toSeconds());
+    waitTime.labels(workflow).observe(waiting);
     next.run();
   }
 
@@ -132,6 +148,7 @@ final class ConsumableResourceChecker implements Runnable {
                   DSL.using(configuration)
                       .update(ACTIVE_WORKFLOW_RUN)
                       .set(ACTIVE_WORKFLOW_RUN.WAITING_RESOURCE, error)
+                      .set(ACTIVE_WORKFLOW_RUN.TRACING, tracing)
                       .where(ACTIVE_WORKFLOW_RUN.ID.eq(dbId))
                       .execute());
 

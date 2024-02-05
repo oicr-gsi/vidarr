@@ -12,4 +12,4 @@ To test a Víðarr workflow locally, ensure that you satisfy these requirements:
 - Follow the steps from the [vidarr-tools README.md](https://github.com/oicr-gsi/vidarr-tools)  to create a local v.out file that will be used in the workflow argument of your command.
 
 Finally, you have all the necessary files to test a Víðarr workflow locally, and you can run it using this command:
-`./path/to/.sh file test --configuration=path/to/config file --test=path/to/test file --workflow=path/to/workflow file`
+`./path/to/.sh_file test --configuration=path/to/config_file --test=path/to/test_file --workflow=path/to/workflow_file`

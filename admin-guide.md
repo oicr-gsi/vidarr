@@ -209,7 +209,6 @@ For testing, only a single target can be configured, so the configuration for
 each plugin is not put though a layer of indirection. Otherwise, the plugin
 configuration are exactly as they would be for a normal server.
 
-
 # Workflow Operations
 TODO -- there is nothing useful at this point for workflow operations
 
@@ -278,3 +277,19 @@ will be captured. Then `"metrics_calculate"` will be called with the
 `"output_metrics"` as the first argument and the file generated in the previous
 step as the second argument. If it exits with a non-zero return code, then the
 test is allowed to pass.
+
+## Testing Víðarr Locally
+
+To test Víðarr locally, ensure that you satisfy these requirements:
+
+- Make sure the .sh file created from the instructions provided in [this step](https://github.com/oicr-gsi/vidarr/blob/master/admin-guide.md#creating-a-development-environment) points to the jars you created [here](https://github.com/oicr-gsi/vidarr/blob/master/admin-guide.md#installing-v%C3%AD%C3%B0arr-on-a-linux-instance).
+- Use the JSON config file generated during that step as the configuration argument in your command.
+  - Update the `"url"` and `"cromwellUrl"` blocks within the JSON file to the secret URL provided in [this file](https://bitbucket.oicr.on.ca/projects/GSI/repos/infrastructure/browse/vidarr/development/development.vidarrconfig.in).
+- Use the JSON test file [here](https://github.com/oicr-gsi/empty/blob/master/vidarrtest-regression.json.in) as the test argument in your command.
+  - Change `"metrics_calculate"`, `"metrics_compare"`, and `"output_metrics"` blocks to your local files cloned from the [empty](https://github.com/oicr-gsi/empty) repo.
+  - The `"configuration"` block can point to any local empty text file.
+- Follow the steps [here](https://github.com/oicr-gsi/vidarr-tools) to create a local v.out file that will be used as the workflow argument in your command.
+
+Finally, you have all the necessary files to test Víðarr locally, and you can run it using this command:
+`/path/to/.sh file test --configuration=/path/to/config file --test=/path/to/test file --workflow/path/to/workflow file` 
+

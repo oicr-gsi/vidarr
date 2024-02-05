@@ -277,4 +277,3 @@ will be captured. Then `"metrics_calculate"` will be called with the
 `"output_metrics"` as the first argument and the file generated in the previous
 step as the second argument. If it exits with a non-zero return code, then the
 test is allowed to pass.
-

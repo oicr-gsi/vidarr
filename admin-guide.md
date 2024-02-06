@@ -168,6 +168,11 @@ This file does _not_ have to be on the Víðarr server and a copy of JARs and th
       "engine": {
         "type": "cromwell",
         "url": "http://cromwell-dev.example.com:8000"
+        "debugInflightRuns": false,
+        "engineParameters": {
+          "read_from_cache": "boolean",
+          "write_to_cache": "boolean"
+        }   
       },
       "inputs": [
         {
@@ -181,6 +186,8 @@ This file does _not_ have to be on the Víðarr server and a copy of JARs and th
       "outputs": [
         {
           "cromwellUrl": "http://cromwell-dev.example.com:8000",
+          "chunks": [2, 4],
+          "debugCalls": false,
           "fileField": "provisionFileOut.inputFilePath",
           "fileSizeField": "provisionFileOut.fileSizeBytes",
           "md5Field": "provisionFileOut.fileMd5sum",
@@ -194,13 +201,13 @@ This file does _not_ have to be on the Víðarr server and a copy of JARs and th
           },
           "workflowUrl": "http://example.com/provisionFileOut.wdl"
         }
-      ]
+      ],
+      "runtimes": []
     }
 
 For testing, only a single target can be configured, so the configuration for
 each plugin is not put though a layer of indirection. Otherwise, the plugin
 configuration are exactly as they would be for a normal server.
-
 
 # Workflow Operations
 TODO -- there is nothing useful at this point for workflow operations

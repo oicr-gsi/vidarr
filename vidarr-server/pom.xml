@@ -121,7 +121,7 @@
             <removeVolumes>true</removeVolumes>
             <images>
               <image>
-                <name>postgres:12-alpine</name>
+                <name>postgres:15-alpine</name>
                 <alias>postgres</alias>
                 <run>
                   <env>
@@ -215,8 +215,8 @@
                         <from>i -&gt; Phase.values()[i]</from>
                         <to>Phase::ordinal</to>
                       </lambdaConverter>
-                      <expression>.*\.engine_phase</expression>
-                      <types>.*</types>
+                      <includeExpression>.*\.engine_phase</includeExpression>
+                      <includeTypes>.*</includeTypes>
                     </forcedType>
                     <forcedType>
                       <userType>ca.on.oicr.gsi.vidarr.core.OperationStatus</userType>
@@ -224,8 +224,8 @@
                         <from>OperationStatus::valueOf</from>
                         <to>OperationStatus::name</to>
                       </lambdaConverter>
-                      <expression>public\.active_operation\.status</expression>
-                      <types>.*</types>
+                      <includeExpression>public\.active_operation\.status</includeExpression>
+                      <includeTypes>.*</includeTypes>
                     </forcedType>
                     <forcedType>
                       <userType>ca.on.oicr.gsi.vidarr.WorkflowLanguage</userType>
@@ -233,8 +233,8 @@
                         <from>WorkflowLanguage::valueOf</from>
                         <to>WorkflowLanguage::name</to>
                       </lambdaConverter>
-                      <expression>public\.workflow_definition\.workflow_language</expression>
-                      <types>.*</types>
+                      <includeExpression>public\.workflow_definition\.workflow_language</includeExpression>
+                      <includeTypes>.*</includeTypes>
                     </forcedType>
                     <forcedType>
                       <userType>com.fasterxml.jackson.databind.JsonNode</userType>
@@ -242,7 +242,7 @@
                       <includeExpression>.*</includeExpression>
                       <!-- We leave labels alone so we can manipulate them using the database functions -->
                       <excludeExpression>.*\.labels</excludeExpression>
-                      <types>JSONB</types>
+                      <includeTypes>JSONB</includeTypes>
                     </forcedType>
                   </forcedTypes>
                 </database>

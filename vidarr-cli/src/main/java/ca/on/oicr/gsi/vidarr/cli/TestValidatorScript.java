@@ -21,13 +21,32 @@ public final class TestValidatorScript extends TestValidator {
   @Override
   public Validator createValidator(String outputDirectory, String id) {
     try {
-      final var tempDir = Files.createTempDirectory("vidarr-test-script");
-      final var calculateScript = tempDir.resolve("calculate");
-      final var calculateDir = tempDir.resolve("output");
-      Files.createDirectories(calculateDir);
-      Files.copy(Path.of(metricsCalculate), calculateScript);
+      // Default tmp directories
+      var tempDir = Files.createTempDirectory("vidarr-test-script");
+      var calculateScript = tempDir.resolve("calculate");
+      var calculateDir = tempDir.resolve("output");
+      String outputFile = "calculate.output";
+
+      // Output directory provided, use that instead
+      if(outputDirectory != null)
+      {
+        tempDir = Path.of(outputDirectory);
+        calculateScript = Path.of(outputDirectory, id);
+        calculateDir = Path.of(outputDirectory, "output");
+        outputFile = id + ".output";
+      }
+
+      // Change to final because variables access from inner class need to be final
+      final var finalDir = tempDir;
+      final var finalCalculateScript = calculateScript;
+      final var finalCalculateDir = calculateDir;
+      final var finalOutputFile = outputFile;
+
+      // Directory creation
+      Files.createDirectories(finalCalculateDir);
+      Files.copy(Path.of(metricsCalculate), finalCalculateScript);
       Files.setPosixFilePermissions(
-          calculateScript,
+          finalCalculateScript,
           EnumSet.of(
               PosixFilePermission.OWNER_READ,
               PosixFilePermission.OWNER_WRITE,
@@ -44,7 +63,7 @@ public final class TestValidatorScript extends TestValidator {
             Void transaction) {
           try {
             final var existing = Path.of(storagePath);
-            Files.createSymbolicLink(calculateDir.resolve(existing.getFileName()), existing);
+            Files.createSymbolicLink(finalCalculateDir.resolve(existing.getFileName()), existing);
           } catch (IOException e) {
             throw new UncheckedIOException(e);
           }
@@ -62,13 +81,20 @@ public final class TestValidatorScript extends TestValidator {
         @Override
         public boolean validate(String id) {
           try {
-            final var output = tempDir.resolve("calculate.output").toAbsolutePath().toFile();
+            // Additional informaiton provided for user
+            System.err.printf("Location of metrics calculate: %s \n", metricsCalculate);
+            System.err.printf("Location of metrics compare: %s \n", metricsCompare);
+            System.err.printf("Location of output metrics %s \n", outputMetrics);
+
+            // Directory where output file will be located
+            final var output = Path.of(String.valueOf(finalDir), finalOutputFile).toAbsolutePath().toFile();
+
             System.err.printf("%s: [%s] Calculating output to %s...%n", id, Instant.now(), output);
             final var calculateProcess =
                 new ProcessBuilder()
                     .inheritIO()
-                    .directory(calculateDir.toFile())
-                    .command(calculateScript.toAbsolutePath().toString(), calculateDir.toString())
+                    .directory(finalCalculateDir.toFile())
+                    .command(finalCalculateScript.toAbsolutePath().toString(), finalCalculateDir.toString())
                     .redirectOutput(output)
                     .start();
             calculateProcess.waitFor();
@@ -84,7 +110,7 @@ public final class TestValidatorScript extends TestValidator {
             final var compareProcess =
                 new ProcessBuilder()
                     .inheritIO()
-                    .directory(tempDir.toFile())
+                    .directory(finalDir.toFile())
                     .command(metricsCompare, outputMetrics, output.toString())
                     .start();
             compareProcess.waitFor();
@@ -101,29 +127,35 @@ public final class TestValidatorScript extends TestValidator {
   }
 
   @JsonProperty("metrics_calculate")
-  public String getMetricsCalculate() {
+  public String getMetricsCalculate()
+  {
     return metricsCalculate;
   }
 
   @JsonProperty("metrics_compare")
-  public String getMetricsCompare() {
+  public String getMetricsCompare()
+  {
     return metricsCompare;
   }
 
   @JsonProperty("output_metrics")
-  public String getOutputMetrics() {
+  public String getOutputMetrics()
+  {
     return outputMetrics;
   }
 
-  public void setMetricsCalculate(String metricsCalculate) {
+  public void setMetricsCalculate(String metricsCalculate)
+  {
     this.metricsCalculate = metricsCalculate;
   }
 
-  public void setMetricsCompare(String metricsCompare) {
+  public void setMetricsCompare(String metricsCompare)
+  {
     this.metricsCompare = metricsCompare;
   }
 
-  public void setOutputMetrics(String outputMetrics) {
+  public void setOutputMetrics(String outputMetrics)
+  {
     this.outputMetrics = outputMetrics;
   }
 }

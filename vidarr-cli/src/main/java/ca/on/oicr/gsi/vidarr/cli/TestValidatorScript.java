@@ -19,7 +19,7 @@ public final class TestValidatorScript extends TestValidator {
   private String outputMetrics;
 
   @Override
-  public Validator createValidator() {
+  public Validator createValidator(String outputDirectory, String id) {
     try {
       final var tempDir = Files.createTempDirectory("vidarr-test-script");
       final var calculateScript = tempDir.resolve("calculate");

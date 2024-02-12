@@ -106,7 +106,7 @@ public class CommandTest implements Callable<Integer> {
             .map(
                 c -> {
                   final var validator =
-                      Validator.all(c.getValidators().stream().map(TestValidator::createValidator));
+                      Validator.all(c.getValidators().stream().map(TestValidator -> TestValidator.createValidator("OUTPUT-DIRECTORY-HERE", c.getId())));
                   final var run =
                       runner.startAsync(
                           String.format("%s-%d", c.getId(), suffix),

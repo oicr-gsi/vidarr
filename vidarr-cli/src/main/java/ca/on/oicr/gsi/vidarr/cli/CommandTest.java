@@ -112,7 +112,7 @@ public class CommandTest implements Callable<Integer> {
                 c -> {
                   // Will use output directory if provided, otherwise "null" is passed into createValidator
                   final var validator =
-                      Validator.all(c.getValidators().stream().map(TestValidator -> TestValidator.createValidator("OUTPUT-DIRECTORY-HERE", c.getId())));
+                      Validator.all(c.getValidators().stream().map(TestValidator -> TestValidator.createValidator(outputDirectory, c.getId())));
 
                   final var run =
                       runner.startAsync(

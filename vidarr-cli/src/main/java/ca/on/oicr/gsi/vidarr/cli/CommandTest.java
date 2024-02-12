@@ -51,6 +51,11 @@ public class CommandTest implements Callable<Integer> {
       description = "The workflow to run")
   private String workflowFile;
 
+  @CommandLine.Option(
+      names = {"--o", "output"},
+      description = "Location of directory to write test output")
+  private String outputDirectory;
+
   @Override
   public Integer call() throws Exception {
     final var suffix = Instant.now().getEpochSecond();
@@ -105,6 +110,7 @@ public class CommandTest implements Callable<Integer> {
         cases.stream()
             .map(
                 c -> {
+                  // Will use output directory if provided, otherwise "null" is passed into createValidator
                   final var validator =
                       Validator.all(c.getValidators().stream().map(TestValidator -> TestValidator.createValidator("OUTPUT-DIRECTORY-HERE", c.getId())));
                   final var run =

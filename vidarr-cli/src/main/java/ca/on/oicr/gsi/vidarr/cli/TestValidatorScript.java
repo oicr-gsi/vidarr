@@ -21,26 +21,11 @@ public final class TestValidatorScript extends TestValidator {
   @Override
   public Validator createValidator(String outputDirectory, String id) {
     try {
-      // Default tmp directories
-      var tempDir = Files.createTempDirectory("vidarr-test-script");
-      var calculateScript = tempDir.resolve("calculate");
-      var calculateDir = tempDir.resolve("output");
-      String outputFile = "calculate.output";
-
-      // Output directory provided, use that instead
-      if(outputDirectory != null)
-      {
-        tempDir = Path.of(outputDirectory);
-        calculateScript = Path.of(outputDirectory, id);
-        calculateDir = Path.of(outputDirectory, "output");
-        outputFile = id + ".output";
-      }
-
-      // Change to final because variables access from inner class need to be final
-      final var finalDir = tempDir;
-      final var finalCalculateScript = calculateScript;
-      final var finalCalculateDir = calculateDir;
-      final var finalOutputFile = outputFile;
+      // If output directory provided, use that else we create temporary directory /tmp
+      final var finalDir = (outputDirectory != null) ? Path.of(outputDirectory) : Files.createTempDirectory("vidarr-test-script");
+      final var finalCalculateScript = (outputDirectory != null) ? Path.of(outputDirectory, id) : finalDir.resolve("calculate");
+      final var finalCalculateDir = (outputDirectory != null) ? Path.of(outputDirectory, "output") : finalDir.resolve("output");
+      final var finalOutputFile = (outputDirectory != null) ? id + ".output" : "calculate.output";
 
       // Directory creation
       Files.createDirectories(finalCalculateDir);

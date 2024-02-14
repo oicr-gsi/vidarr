@@ -270,7 +270,8 @@ validator supported is `"script"`, which runs a calculate script on the output
 files and then runs a comparison script that checks that the calculate script's
 output matches the reference data.
 
-Every provisioned out file will be symlinked into a temporary directory. The
+Users have an option to provide a directory filepath for the provisioned out file. If none is provided then 
+the provisioned out file will be symlinked into a temporary directory. The
 `"metrics_calculate"` script will be run in that directory receiving the path
 to that directory as the first argument. Anything it writes to standard output
 will be captured. Then `"metrics_calculate"` will be called with the

@@ -6,6 +6,28 @@ For unreleased changes, see [changes](changes).
 
 -----------------------------------------------------------------------------
 
+## [0.18.0] - 2024-02-14
+
+### Added
+
+* * Provide more information to consumable resources (the database workflow run creation time and max-in-flight-per-workflow)
+* * Allows setting checking order on conumable resources
+* * Allow retrying workflow runs that fail during provision-out
+* * Adds a manual override consumable resource
+* * Add tracing API for consumable resources
+
+### Changed
+
+* * Make `JsonPost` available to plugins
+
+### Fixed
+
+* Fix vidarr docs
+* Fix vidarr logging
+* Fix vidarr-sh modules export
+  * This allows vidarr-sh to be used with vidarr-cli
+
+
 ## [0.17.2] - 2023-10-25
 
 ### Fixed

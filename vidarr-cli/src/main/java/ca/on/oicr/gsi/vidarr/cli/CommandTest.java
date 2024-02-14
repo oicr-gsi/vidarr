@@ -52,7 +52,7 @@ public class CommandTest implements Callable<Integer> {
   private String workflowFile;
 
   @CommandLine.Option(
-      names = {"--o", "output"},
+      names = {"-o", "--output"},
       description = "Location of directory to write test output")
   private String outputDirectory;
 

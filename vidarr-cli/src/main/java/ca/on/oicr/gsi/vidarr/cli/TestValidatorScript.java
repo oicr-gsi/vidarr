@@ -66,7 +66,7 @@ public final class TestValidatorScript extends TestValidator {
         @Override
         public boolean validate(String id) {
           try {
-            // Additional informaiton provided for user
+            // Additional information provided for user
             System.err.printf("Location of metrics calculate: %s \n", metricsCalculate);
             System.err.printf("Location of metrics compare: %s \n", metricsCompare);
             System.err.printf("Location of output metrics %s \n", outputMetrics);

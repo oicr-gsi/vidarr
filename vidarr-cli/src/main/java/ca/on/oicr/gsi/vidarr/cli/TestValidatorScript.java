@@ -22,9 +22,12 @@ public final class TestValidatorScript extends TestValidator {
   public Validator createValidator(String outputDirectory, String id) {
     try {
       // If output directory provided, use that else we create temporary directory /tmp
-      final var finalDir = (outputDirectory != null) ? Path.of(outputDirectory) : Files.createTempDirectory("vidarr-test-script");
-      final var finalCalculateScript = (outputDirectory != null) ? Path.of(outputDirectory, id) : finalDir.resolve("calculate");
-      final var finalCalculateDir = (outputDirectory != null) ? Path.of(outputDirectory, "output") : finalDir.resolve("output");
+      final var finalDir = (outputDirectory != null) ? Path.of(outputDirectory)
+          : Files.createTempDirectory("vidarr-test-script");
+      final var finalCalculateScript =
+          (outputDirectory != null) ? Path.of(outputDirectory, id) : finalDir.resolve("calculate");
+      final var finalCalculateDir = (outputDirectory != null) ? Path.of(outputDirectory, "output")
+          : finalDir.resolve("output");
       final var finalOutputFile = (outputDirectory != null) ? id + ".output" : "calculate.output";
 
       // Directory creation
@@ -72,14 +75,16 @@ public final class TestValidatorScript extends TestValidator {
             System.err.printf("Location of output metrics %s \n", outputMetrics);
 
             // Directory where output file will be located
-            final var output = Path.of(String.valueOf(finalDir), finalOutputFile).toAbsolutePath().toFile();
+            final var output = Path.of(String.valueOf(finalDir), finalOutputFile).toAbsolutePath()
+                .toFile();
 
             System.err.printf("%s: [%s] Calculating output to %s...%n", id, Instant.now(), output);
             final var calculateProcess =
                 new ProcessBuilder()
                     .inheritIO()
                     .directory(finalCalculateDir.toFile())
-                    .command(finalCalculateScript.toAbsolutePath().toString(), finalCalculateDir.toString())
+                    .command(finalCalculateScript.toAbsolutePath().toString(),
+                        finalCalculateDir.toString())
                     .redirectOutput(output)
                     .start();
             calculateProcess.waitFor();
@@ -112,35 +117,29 @@ public final class TestValidatorScript extends TestValidator {
   }
 
   @JsonProperty("metrics_calculate")
-  public String getMetricsCalculate()
-  {
+  public String getMetricsCalculate() {
     return metricsCalculate;
   }
 
   @JsonProperty("metrics_compare")
-  public String getMetricsCompare()
-  {
+  public String getMetricsCompare() {
     return metricsCompare;
   }
 
   @JsonProperty("output_metrics")
-  public String getOutputMetrics()
-  {
+  public String getOutputMetrics() {
     return outputMetrics;
   }
 
-  public void setMetricsCalculate(String metricsCalculate)
-  {
+  public void setMetricsCalculate(String metricsCalculate) {
     this.metricsCalculate = metricsCalculate;
   }
 
-  public void setMetricsCompare(String metricsCompare)
-  {
+  public void setMetricsCompare(String metricsCompare) {
     this.metricsCompare = metricsCompare;
   }
 
-  public void setOutputMetrics(String outputMetrics)
-  {
+  public void setOutputMetrics(String outputMetrics) {
     this.outputMetrics = outputMetrics;
   }
 }

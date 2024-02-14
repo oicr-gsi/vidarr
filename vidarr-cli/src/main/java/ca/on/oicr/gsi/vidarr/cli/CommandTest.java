@@ -15,9 +15,12 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import picocli.CommandLine;
 
-/** Subcommand to running unit tests */
+/**
+ * Subcommand to running unit tests
+ */
 @CommandLine.Command(name = "test", description = "Run a test suite for a workflow")
 public class CommandTest implements Callable<Integer> {
+
   private static ObjectNode read(String argument) throws IOException {
     if (argument.startsWith("@")) {
       return MAPPER.readValue(new File(argument.substring(1)), ObjectNode.class);
@@ -112,7 +115,9 @@ public class CommandTest implements Callable<Integer> {
                 c -> {
                   // Will use output directory if provided, otherwise "null" is passed into createValidator
                   final var validator =
-                      Validator.all(c.getValidators().stream().map(TestValidator -> TestValidator.createValidator(outputDirectory, c.getId())));
+                      Validator.all(c.getValidators().stream().map(
+                          TestValidator -> TestValidator.createValidator(outputDirectory,
+                              c.getId())));
 
                   final var run =
                       runner.startAsync(

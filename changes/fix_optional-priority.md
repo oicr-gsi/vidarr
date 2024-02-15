@@ -1,0 +1,1 @@
+Make priority resource optional

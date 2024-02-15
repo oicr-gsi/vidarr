@@ -7,10 +7,8 @@ import ca.on.oicr.gsi.vidarr.ConsumableResourceResponse;
 import ca.on.oicr.gsi.vidarr.api.InFlightCountsByWorkflow;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.prometheus.client.Gauge;
-import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
-import java.util.OptionalInt;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -44,28 +42,13 @@ final class MaxInFlightByWorkflow implements ConsumableResource {
     return counts;
   }
 
-  public OptionalInt getMaximumFor(String workflow) {
-    return Optional.of(workflows.get(workflow))
-        .map(state -> OptionalInt.of(state.maximum))
-        .orElse(OptionalInt.empty());
-  }
-
   @Override
   public Optional<Pair<String, BasicType>> inputFromSubmitter() {
     return Optional.empty();
   }
 
   @Override
-  public boolean isInputFromSubmitterRequired() {
-    return false;
-  }
-
-  @Override
-  public void recover(
-      String workflowName,
-      String workflowVersion,
-      String vidarrId,
-      Optional<JsonNode> resourceJson) {
+  public void recover(String workflowName, String workflowVersion, String vidarrId, Optional<JsonNode> resourceJson) {
     final var stateRunning = workflows.computeIfAbsent(workflowName, k -> new MaxState()).running;
     // since we just created it if it doesn't exist, no need for null check here
     stateRunning.add(vidarrId);
@@ -73,8 +56,7 @@ final class MaxInFlightByWorkflow implements ConsumableResource {
   }
 
   @Override
-  public void release(
-      String workflowName, String workflowVersion, String vidarrId, Optional<JsonNode> input) {
+  public void release(String workflowName, String workflowVersion, String vidarrId, Optional<JsonNode> input) {
     final var state = workflows.get(workflowName);
     if (state != null) {
       state.running.remove(vidarrId);
@@ -84,12 +66,7 @@ final class MaxInFlightByWorkflow implements ConsumableResource {
 
   @Override
   public synchronized ConsumableResourceResponse request(
-      String workflowName,
-      String workflowVersion,
-      String vidarrId,
-      Instant createdTime,
-      OptionalInt workflowMaxInFlight,
-      Optional<JsonNode> input) {
+      String workflowName, String workflowVersion, String vidarrId, Optional<JsonNode> input) {
     final var state = workflows.get(workflowName);
     if (state == null) {
       return ConsumableResourceResponse.error(
@@ -107,13 +84,18 @@ final class MaxInFlightByWorkflow implements ConsumableResource {
     }
   }
 
+  @Override
+  public void startup(String name) {
+    // Always ok.
+  }
+
   public void set(String workflowName, int maxInFlight) {
     maxInFlightCount.labels(workflowName).set(maxInFlight);
     workflows.computeIfAbsent(workflowName, k -> new MaxState()).maximum = maxInFlight;
   }
 
   @Override
-  public void startup(String name) {
-    // Always ok.
+  public boolean isInputFromSubmitterRequired() {
+    return false;
   }
 }

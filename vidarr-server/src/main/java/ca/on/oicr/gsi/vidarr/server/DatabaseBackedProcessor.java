@@ -1,16 +1,6 @@
 package ca.on.oicr.gsi.vidarr.server;
 
-import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.ACTIVE_OPERATION;
-import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.ACTIVE_WORKFLOW_RUN;
-import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.ANALYSIS;
-import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.ANALYSIS_EXTERNAL_ID;
-import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.EXTERNAL_ID;
-import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.EXTERNAL_ID_VERSION;
-import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.WORKFLOW;
-import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.WORKFLOW_DEFINITION;
-import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.WORKFLOW_RUN;
-import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.WORKFLOW_VERSION;
-import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.WORKFLOW_VERSION_ACCESSORY;
+import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.*;
 import static org.jooq.impl.DSL.trueCondition;
 
 import ca.on.oicr.gsi.Pair;
@@ -22,19 +12,7 @@ import ca.on.oicr.gsi.vidarr.api.BulkVersionRequest;
 import ca.on.oicr.gsi.vidarr.api.ExternalId;
 import ca.on.oicr.gsi.vidarr.api.ExternalKey;
 import ca.on.oicr.gsi.vidarr.api.ExternalMultiVersionKey;
-import ca.on.oicr.gsi.vidarr.core.BaseProcessor;
-import ca.on.oicr.gsi.vidarr.core.CheckOutputCompatibility;
-import ca.on.oicr.gsi.vidarr.core.ExtractInputExternalIds;
-import ca.on.oicr.gsi.vidarr.core.ExtractInputVidarrIds;
-import ca.on.oicr.gsi.vidarr.core.ExtractOutputKeys;
-import ca.on.oicr.gsi.vidarr.core.ExtractRetryValues;
-import ca.on.oicr.gsi.vidarr.core.FileMetadata;
-import ca.on.oicr.gsi.vidarr.core.OperationStatus;
-import ca.on.oicr.gsi.vidarr.core.OutputCompatibility;
-import ca.on.oicr.gsi.vidarr.core.Phase;
-import ca.on.oicr.gsi.vidarr.core.RecoveryType;
-import ca.on.oicr.gsi.vidarr.core.Target;
-import ca.on.oicr.gsi.vidarr.core.ValidateJsonToSimpleType;
+import ca.on.oicr.gsi.vidarr.core.*;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -50,20 +28,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.sql.SQLException;
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
-import java.util.SortedMap;
-import java.util.TreeMap;
-import java.util.TreeSet;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Semaphore;
@@ -577,7 +542,6 @@ public abstract class DatabaseBackedProcessor
   }
 
   private <T> T launchNewWorkflowRun(
-      MaxInFlightByWorkflow maxInFlightByWorkflow,
       String targetName,
       String name,
       String version,
@@ -645,12 +609,10 @@ public abstract class DatabaseBackedProcessor
             executor(),
             dbWorkflow.dbId(),
             liveness(dbWorkflow.dbId()),
-            maxInFlightByWorkflow,
             name,
             version,
             candidateId,
             consumableResources,
-            dbWorkflow.created(),
             new Runnable() {
               private boolean launched;
 
@@ -679,8 +641,7 @@ public abstract class DatabaseBackedProcessor
     return MAPPER;
   }
 
-  final void recover(Consumer<Runnable> startRaw, MaxInFlightByWorkflow maxInflightByWorkflow)
-      throws SQLException {
+  public final void recover(Consumer<Runnable> startRaw) throws SQLException {
     try (final var connection = dataSource.getConnection()) {
       DSL.using(connection, SQLDialect.POSTGRES)
           .transaction(
@@ -761,12 +722,10 @@ public abstract class DatabaseBackedProcessor
                                                   executor(),
                                                   record.get(ACTIVE_WORKFLOW_RUN.ID),
                                                   liveness(record.get(ACTIVE_WORKFLOW_RUN.ID)),
-                                                  maxInflightByWorkflow,
                                                   record.get(WORKFLOW.NAME),
                                                   record.get(WORKFLOW_VERSION.VERSION),
                                                   record.get(WORKFLOW_RUN.HASH_ID),
                                                   consumableResources,
-                                                  record.get(WORKFLOW_RUN.CREATED).toInstant(),
                                                   () ->
                                                       recover(
                                                           target,
@@ -978,7 +937,7 @@ public abstract class DatabaseBackedProcessor
                                   ee ->
                                       new ExternalMultiVersionKey(
                                           ee.getKey().first(), ee.getKey().second(), ee.getValue()))
-                              .toList();
+                              .collect(Collectors.toList());
                       private final String path = e.getKey();
 
                       @Override
@@ -1026,7 +985,6 @@ public abstract class DatabaseBackedProcessor
       Set<ExternalKey> externalKeys,
       Map<String, JsonNode> consumableResources,
       int attempt,
-      MaxInFlightByWorkflow maxInFlightByWorkflow,
       SubmissionResultHandler<T> handler) {
     return targetByName(targetName)
         .map(
@@ -1164,25 +1122,19 @@ public abstract class DatabaseBackedProcessor
                                                       externalIds);
                                               final var candidates =
                                                   transaction
-                                                      .select(
-                                                          WORKFLOW_RUN.ID,
-                                                          WORKFLOW_RUN.HASH_ID,
-                                                          WORKFLOW_RUN.CREATED)
+                                                      .select(WORKFLOW_RUN.ID, WORKFLOW_RUN.HASH_ID)
                                                       .from(WORKFLOW_RUN)
                                                       .where(WORKFLOW_RUN.HASH_ID.eq(candidateId))
                                                       .stream()
                                                       .map(
                                                           r ->
-                                                              new Candidate(
+                                                              new Pair<>(
                                                                   r.get(WORKFLOW_RUN.ID),
-                                                                  r.get(WORKFLOW_RUN.HASH_ID),
-                                                                  r.get(WORKFLOW_RUN.CREATED)
-                                                                      .toInstant()))
-                                                      .toList();
+                                                                  r.get(WORKFLOW_RUN.HASH_ID)))
+                                                      .collect(Collectors.toList());
                                               if (candidates.isEmpty()) {
                                                 if (handler.allowLaunch()) {
                                                   return launchNewWorkflowRun(
-                                                      maxInFlightByWorkflow,
                                                       targetName,
                                                       name,
                                                       version,
@@ -1203,7 +1155,7 @@ public abstract class DatabaseBackedProcessor
                                                   return handler.dryRunResult();
                                                 }
                                               } else if (candidates.size() == 1) {
-                                                final var workflowRunId = candidates.get(0).id();
+                                                final var workflowRunId = candidates.get(0).first();
                                                 final var knownMatches =
                                                     new HashMap<
                                                         Pair<String, String>, List<String>>();
@@ -1226,14 +1178,14 @@ public abstract class DatabaseBackedProcessor
                                                 }
                                                 if (!missingKeys.isEmpty()) {
                                                   return handler.missingExternalKeyVersions(
-                                                      candidates.get(0).workflowRun(), missingKeys);
+                                                      candidates.get(0).second(), missingKeys);
                                                 }
 
                                                 // Exit early if no launching is to occur (e.g. dry
                                                 // run or validate mode).
                                                 if (!handler.allowLaunch()) {
                                                   return handler.matchExisting(
-                                                      candidates.get(0).workflowRun());
+                                                      candidates.get(0).second());
                                                 }
 
                                                 addNewExternalKeyVersions(
@@ -1293,7 +1245,6 @@ public abstract class DatabaseBackedProcessor
                                                           metadata,
                                                           externalIds,
                                                           liveness(workflowRunId),
-                                                          candidates.get(0).created(),
                                                           externalKeys,
                                                           consumableResources,
                                                           transaction);
@@ -1305,12 +1256,10 @@ public abstract class DatabaseBackedProcessor
                                                           executor(),
                                                           dbWorkflow.dbId(),
                                                           liveness(dbWorkflow.dbId()),
-                                                          maxInFlightByWorkflow,
                                                           name,
                                                           version,
                                                           candidateId,
                                                           consumableResources,
-                                                          candidates.get(0).created(),
                                                           new Runnable() {
                                                             private boolean launched;
 
@@ -1336,13 +1285,13 @@ public abstract class DatabaseBackedProcessor
                                                           }));
                                                 } else {
                                                   return handler.matchExisting(
-                                                      candidates.get(0).workflowRun());
+                                                      candidates.get(0).second());
                                                 }
                                               } else {
                                                 return handler.multipleMatches(
                                                     candidates.stream()
-                                                        .map(Candidate::workflowRun)
-                                                        .toList());
+                                                        .map(Pair::second)
+                                                        .collect(Collectors.toList()));
                                               }
                                             } catch (SQLException e) {
                                               return handler.internalError(e);
@@ -1456,7 +1405,7 @@ public abstract class DatabaseBackedProcessor
                               retryCounts.entrySet().stream()
                                   .filter(e -> !e.getValue().equals(max))
                                   .map(Map.Entry::getKey)
-                                  .toList();
+                                  .collect(Collectors.toList());
                           if (badEntries.isEmpty()) {
                             return Optional.empty();
                           } else {

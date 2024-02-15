@@ -7,9 +7,7 @@ import ca.on.oicr.gsi.vidarr.ConsumableResourceResponse;
 import ca.on.oicr.gsi.vidarr.ConsumableResourceResponse.Visitor;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.time.Instant;
 import java.util.Optional;
-import java.util.OptionalInt;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -54,13 +52,7 @@ public class PriorityByWorkflowTest {
     JsonNode invalidJson = mapper.valueToTree(5);
 
     Optional<String> requestError =
-        sut.request(
-                workflow,
-                version,
-                "abcdef",
-                Instant.EPOCH,
-                OptionalInt.empty(),
-                Optional.of(invalidJson))
+        sut.request(workflow, version, "abcdef", Optional.of(invalidJson))
             .apply(consumableResourceCheckerVisitor);
     assertTrue(requestError.isPresent());
     assertEquals(
@@ -72,8 +64,7 @@ public class PriorityByWorkflowTest {
   @Test
   public void testRequest_emptyInputAndEmptyWaitingNoError() {
     Optional<String> requestError =
-        sut.request(
-                workflow, version, "abcdef", Instant.EPOCH, OptionalInt.empty(), Optional.empty())
+        sut.request(workflow, version, "abcdef", Optional.empty())
             .apply(consumableResourceCheckerVisitor);
 
     assertTrue(requestError.isEmpty());
@@ -82,9 +73,7 @@ public class PriorityByWorkflowTest {
   @Test
   public void testRequest_emptyInputAndEmptyWaitingIsAvailable() {
 
-    var response =
-        sut.request(
-            workflow, version, "abcdef", Instant.EPOCH, OptionalInt.empty(), Optional.empty());
+    var response = sut.request(workflow, version, "abcdef", Optional.empty());
 
     assertEquals(response, ConsumableResourceResponse.AVAILABLE);
   }
@@ -93,13 +82,7 @@ public class PriorityByWorkflowTest {
   public void testRequest_validInputAndEmptyWaitingIsOk() {
     JsonNode validJson = mapper.valueToTree(2);
     Optional<String> requestError =
-        sut.request(
-                workflow,
-                version,
-                "abcdef",
-                Instant.EPOCH,
-                OptionalInt.empty(),
-                Optional.of(validJson))
+        sut.request(workflow, version, "abcdef", Optional.of(validJson))
             .apply(consumableResourceCheckerVisitor);
 
     assertTrue(requestError.isEmpty());
@@ -113,13 +96,7 @@ public class PriorityByWorkflowTest {
     sut.set(workflow, "qwerty", Optional.of(higherPriority));
 
     Optional<String> requestError =
-        sut.request(
-                workflow,
-                version,
-                "abcdef",
-                Instant.EPOCH,
-                OptionalInt.empty(),
-                Optional.of(lowerPriority))
+        sut.request(workflow, version, "abcdef", Optional.of(lowerPriority))
             .apply(consumableResourceCheckerVisitor);
 
     assertTrue(requestError.isPresent());
@@ -136,13 +113,7 @@ public class PriorityByWorkflowTest {
     sut.set(workflow, "qwerty", Optional.of(lowerPriority));
 
     Optional<String> requestError =
-        sut.request(
-                workflow,
-                version,
-                "abcdef",
-                Instant.EPOCH,
-                OptionalInt.empty(),
-                Optional.of(higherPriority))
+        sut.request(workflow, version, "abcdef", Optional.of(higherPriority))
             .apply(consumableResourceCheckerVisitor);
 
     assertTrue(requestError.isEmpty());
@@ -155,14 +126,7 @@ public class PriorityByWorkflowTest {
 
     sut.set(workflow, "qwerty", Optional.of(lowerPriority));
 
-    var response =
-        sut.request(
-            workflow,
-            version,
-            "abcdef",
-            Instant.EPOCH,
-            OptionalInt.empty(),
-            Optional.of(higherPriority));
+    var response = sut.request(workflow, version, "abcdef", Optional.of(higherPriority));
 
     assertEquals(response, ConsumableResourceResponse.AVAILABLE);
   }
@@ -175,13 +139,7 @@ public class PriorityByWorkflowTest {
     sut.set(workflow, "qwerty", Optional.of(twoPriority));
 
     Optional<String> requestError =
-        sut.request(
-                workflow,
-                version,
-                "abcdef",
-                Instant.EPOCH,
-                OptionalInt.empty(),
-                Optional.of(twoPriorityAlso))
+        sut.request(workflow, version, "abcdef", Optional.of(twoPriorityAlso))
             .apply(consumableResourceCheckerVisitor);
 
     assertTrue(requestError.isEmpty());
@@ -194,14 +152,7 @@ public class PriorityByWorkflowTest {
 
     sut.set(workflow, "qwerty", Optional.of(twoPriority));
 
-    var response =
-        sut.request(
-            workflow,
-            version,
-            "abcdef",
-            Instant.EPOCH,
-            OptionalInt.empty(),
-            Optional.of(twoPriorityAlso));
+    var response = sut.request(workflow, version, "abcdef", Optional.of(twoPriorityAlso));
 
     assertEquals(response, ConsumableResourceResponse.AVAILABLE);
   }
@@ -211,18 +162,11 @@ public class PriorityByWorkflowTest {
     JsonNode lowestPriority = mapper.valueToTree(1);
 
     Optional<String> requestErrorForEmpty =
-        sut.request(
-                workflow, version, "abcdef", Instant.EPOCH, OptionalInt.empty(), Optional.empty())
+        sut.request(workflow, version, "abcdef", Optional.empty())
             .apply(consumableResourceCheckerVisitor);
 
     Optional<String> requestErrorForLowest =
-        sut.request(
-                workflow,
-                version,
-                "abcdef",
-                Instant.EPOCH,
-                OptionalInt.empty(),
-                Optional.of(lowestPriority))
+        sut.request(workflow, version, "abcdef", Optional.of(lowestPriority))
             .apply(consumableResourceCheckerVisitor);
 
     assertTrue(requestErrorForEmpty.isEmpty());
@@ -236,25 +180,13 @@ public class PriorityByWorkflowTest {
     JsonNode lowerPriority = mapper.valueToTree(1);
 
     Optional<String> requestErrorHigher =
-        sut.request(
-                workflow,
-                version,
-                "qwerty",
-                Instant.EPOCH,
-                OptionalInt.empty(),
-                Optional.of(higherPriority))
+        sut.request(workflow, version, "qwerty", Optional.of(higherPriority))
             .apply(consumableResourceCheckerVisitor);
 
     sut.release(workflow, version, "qwerty", Optional.of(higherPriority));
 
     Optional<String> requestErrorLower =
-        sut.request(
-                workflow,
-                version,
-                "abcdef",
-                Instant.EPOCH,
-                OptionalInt.empty(),
-                Optional.of(lowerPriority))
+        sut.request(workflow, version, "abcdef", Optional.of(lowerPriority))
             .apply(consumableResourceCheckerVisitor);
 
     assertTrue(requestErrorHigher.isEmpty());
@@ -271,25 +203,13 @@ public class PriorityByWorkflowTest {
     JsonNode lowerPriority = mapper.valueToTree(1);
 
     Optional<String> requestErrorHigher =
-        sut.request(
-                workflow,
-                version,
-                "qwerty",
-                Instant.EPOCH,
-                OptionalInt.empty(),
-                Optional.of(higherPriority))
+        sut.request(workflow, version, "qwerty", Optional.of(higherPriority))
             .apply(consumableResourceCheckerVisitor);
 
     sut.release(workflow, version, "qwerty", Optional.empty());
 
     Optional<String> requestErrorLower =
-        sut.request(
-                workflow,
-                version,
-                "abcdef",
-                Instant.EPOCH,
-                OptionalInt.empty(),
-                Optional.of(lowerPriority))
+        sut.request(workflow, version, "abcdef", Optional.of(lowerPriority))
             .apply(consumableResourceCheckerVisitor);
 
     assertTrue(requestErrorHigher.isEmpty());
@@ -301,18 +221,11 @@ public class PriorityByWorkflowTest {
 
     JsonNode validJson = mapper.valueToTree(2);
 
-    sut.request(
-            workflow, version, "qwerty", Instant.EPOCH, OptionalInt.empty(), Optional.of(validJson))
+    sut.request(workflow, version, "qwerty", Optional.of(validJson))
         .apply(consumableResourceCheckerVisitor);
 
     Optional<String> requestError =
-        sut.request(
-                workflow,
-                version,
-                "abcdef",
-                Instant.EPOCH,
-                OptionalInt.empty(),
-                Optional.of(validJson))
+        sut.request(workflow, version, "abcdef", Optional.of(validJson))
             .apply(consumableResourceCheckerVisitor);
 
     assertTrue(requestError.isEmpty());
@@ -327,13 +240,7 @@ public class PriorityByWorkflowTest {
     sut.set(workflow, "qwerty", Optional.of(higherPriority));
 
     Optional<String> requestErrorLower =
-        sut.request(
-                workflow,
-                version,
-                "qwerty",
-                Instant.EPOCH,
-                OptionalInt.empty(),
-                Optional.of(lowerPriority))
+        sut.request(workflow, version, "qwerty", Optional.of(lowerPriority))
             .apply(consumableResourceCheckerVisitor);
 
     assertTrue(requestErrorLower.isEmpty());

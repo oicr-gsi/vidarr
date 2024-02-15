@@ -2212,7 +2212,7 @@ public final class Main implements ServerConfig {
 
   private void recover() throws SQLException {
     final var recoveredWorkflows = new ArrayList<Runnable>();
-    processor.recover(recoveredWorkflows::add, this.maxInFlightPerWorkflow);
+    processor.recover(recoveredWorkflows::add);
     if (recoveredWorkflows.isEmpty()) {
       System.err.println("No unstarted workflows in the database. Resuming normal operation.");
     } else {
@@ -2252,7 +2252,6 @@ public final class Main implements ServerConfig {
             body.getExternalKeys(),
             body.getConsumableResources(),
             body.getAttempt(),
-            this.maxInFlightPerWorkflow,
             new DatabaseBackedProcessor.SubmissionResultHandler<
                 Pair<Integer, SubmitWorkflowResponse>>() {
               @Override

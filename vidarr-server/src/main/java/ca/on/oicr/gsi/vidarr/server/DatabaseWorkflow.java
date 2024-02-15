@@ -19,7 +19,6 @@ import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.sql.SQLException;
-import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -47,7 +46,7 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
       LongFunction<AtomicBoolean> liveness,
       DSLContext dsl)
       throws SQLException {
-    final var record =
+    final long dbId =
         dsl.insertInto(WORKFLOW_RUN)
             .columns(
                 WORKFLOW_RUN.ARGUMENTS,
@@ -65,11 +64,10 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
                 vidarrId,
                 labelsToJson(labels),
                 fileIds.toArray(String[]::new))
-            .returningResult(WORKFLOW_RUN.ID, WORKFLOW_RUN.CREATED)
+            .returningResult(WORKFLOW_RUN.ID)
             .fetchOptional()
-            .orElseThrow();
-    final long dbId = record.value1();
-    final var created = record.value2().toInstant();
+            .orElseThrow()
+            .value1();
 
     var idQuery =
         dsl.insertInto(EXTERNAL_ID)
@@ -114,8 +112,7 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
         Phase.WAITING_FOR_RESOURCES,
         null,
         0,
-        liveness.apply(dbId),
-        created);
+        liveness.apply(dbId));
   }
 
   public static JSONB labelsToJson(Map<String, String> labels) {
@@ -178,8 +175,7 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
             : Main.MAPPER.convertValue(
                 record.get(ACTIVE_WORKFLOW_RUN.REAL_INPUT), new TypeReference<>() {}),
         record.get(ACTIVE_WORKFLOW_RUN.REAL_INPUT_INDEX),
-        liveness,
-        record.get(WORKFLOW_RUN.CREATED).toInstant());
+        liveness);
   }
 
   public static DatabaseWorkflow reinitialise(
@@ -194,7 +190,6 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
       JsonNode metadata,
       Set<? extends ExternalId> ids,
       AtomicBoolean liveness,
-      Instant created,
       Set<ExternalKey> keys,
       Map<String, JsonNode> consumableResources,
       DSLContext dsl)
@@ -278,8 +273,7 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
         Phase.WAITING_FOR_RESOURCES,
         null,
         0,
-        liveness,
-        created);
+        liveness);
   }
 
   private final JsonNode arguments;
@@ -291,7 +285,6 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
   private final Set<ExternalId> inputIds;
   private boolean isPreflightOkay;
   private final AtomicBoolean liveness;
-  private final Instant created;
   private final JsonNode metadata;
   private Phase phase;
   private List<ObjectNode> realInput;
@@ -320,8 +313,7 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
       Phase phase,
       List<ObjectNode> realInput,
       int realInputIndex,
-      AtomicBoolean liveness,
-      Instant created) {
+      AtomicBoolean liveness) {
     this.target = target;
     this.attempt = attempt;
     this.workflowName = workflowName;
@@ -340,7 +332,6 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
     this.realInput = realInput;
     this.realInputIndex = realInputIndex;
     this.liveness = liveness;
-    this.created = created;
   }
 
   @Override
@@ -439,9 +430,7 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
       if (phase == Phase.FAILED) {
         target
             .consumableResources()
-            .forEach(
-                cr ->
-                    cr.second().release(workflowName, workflowVersion, vidarrId, Optional.empty()));
+            .forEach(cr -> cr.second().release(workflowName, workflowVersion, vidarrId, Optional.empty()));
       }
       return operationInitialStates.stream()
           .map(
@@ -579,10 +568,6 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
     updateField(ACTIVE_WORKFLOW_RUN.WORKFLOW_RUN_URL, workflowRunUrl, transaction);
   }
 
-  public Instant created() {
-    return created;
-  }
-
   @Override
   public void succeeded(DSLContext transaction) {
     updateMainField(WORKFLOW_RUN.COMPLETED, OffsetDateTime.now(), transaction);
@@ -593,8 +578,7 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
     transaction.deleteFrom(ACTIVE_WORKFLOW_RUN).where(ACTIVE_WORKFLOW_RUN.ID.eq(id)).execute();
     target
         .consumableResources()
-        .forEach(
-            cr -> cr.second().release(workflowName, workflowVersion, vidarrId, Optional.empty()));
+        .forEach(cr -> cr.second().release(workflowName, workflowVersion, vidarrId, Optional.empty()));
   }
 
   private <T> void updateField(Field<T> field, T value, DSLContext dsl) {

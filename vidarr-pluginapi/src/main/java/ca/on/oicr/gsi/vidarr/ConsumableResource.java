@@ -11,11 +11,9 @@ import com.fasterxml.jackson.databind.annotation.JsonTypeIdResolver;
 import com.fasterxml.jackson.databind.jsontype.impl.TypeIdResolverBase;
 import io.undertow.server.HttpHandler;
 import java.io.IOException;
-import java.time.Instant;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
-import java.util.OptionalInt;
 import java.util.ServiceLoader;
 import java.util.ServiceLoader.Provider;
 import java.util.stream.Collectors;
@@ -123,20 +121,12 @@ public interface ConsumableResource {
    * @param workflowName the name of the workflow
    * @param workflowVersion the version of the workflow
    * @param vidarrId the identifier of the workflow run
-   * @param createdTime the time the workflow run was created
-   * @param workflowMaxInFlight this is the max-in-flight value stored in the database for this
-   *     workflow
    * @param input the consumable resource information requested from the submitter, if applicable
    *     and provided.
    * @return whether this resource is available
    */
   ConsumableResourceResponse request(
-      String workflowName,
-      String workflowVersion,
-      String vidarrId,
-      Instant createdTime,
-      OptionalInt workflowMaxInFlight,
-      Optional<JsonNode> input);
+      String workflowName, String workflowVersion, String vidarrId, Optional<JsonNode> input);
 
   /**
    * Called to initialise this consumable resource.

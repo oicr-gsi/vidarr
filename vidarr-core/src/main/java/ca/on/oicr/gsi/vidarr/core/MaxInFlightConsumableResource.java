@@ -7,9 +7,7 @@ import ca.on.oicr.gsi.vidarr.ConsumableResourceProvider;
 import ca.on.oicr.gsi.vidarr.ConsumableResourceResponse;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.databind.JsonNode;
-import java.time.Instant;
 import java.util.Optional;
-import java.util.OptionalInt;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
@@ -35,28 +33,18 @@ public final class MaxInFlightConsumableResource implements ConsumableResource {
   }
 
   @Override
-  public void recover(
-      String workflowName,
-      String workflowVersion,
-      String vidarrId,
-      Optional<JsonNode> resourceJson) {
+  public void recover(String workflowName, String workflowVersion, String vidarrId, Optional<JsonNode> resourceJson) {
     inFlight.add(vidarrId);
   }
 
   @Override
-  public void release(
-      String workflowName, String workflowVersion, String vidarrId, Optional<JsonNode> input) {
+  public void release(String workflowName, String workflowVersion, String vidarrId, Optional<JsonNode> input) {
     inFlight.remove(vidarrId);
   }
 
   @Override
   public synchronized ConsumableResourceResponse request(
-      String workflowName,
-      String workflowVersion,
-      String vidarrId,
-      Instant createdTime,
-      OptionalInt workflowMaxInFlight,
-      Optional<JsonNode> input) {
+      String workflowName, String workflowVersion, String vidarrId, Optional<JsonNode> input) {
     if (inFlight.size() <= maximum) {
       inFlight.add(vidarrId);
       return ConsumableResourceResponse.AVAILABLE;

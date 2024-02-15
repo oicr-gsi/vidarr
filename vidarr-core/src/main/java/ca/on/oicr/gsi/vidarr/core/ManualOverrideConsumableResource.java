@@ -14,9 +14,7 @@ import io.undertow.server.HttpServerExchange;
 import io.undertow.util.Headers;
 import io.undertow.util.PathTemplateMatch;
 import io.undertow.util.StatusCodes;
-import java.time.Instant;
 import java.util.Optional;
-import java.util.OptionalInt;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.BiPredicate;
@@ -79,16 +77,10 @@ public final class ManualOverrideConsumableResource implements ConsumableResourc
 
   @Override
   public ConsumableResourceResponse request(
-      String workflowName,
-      String workflowVersion,
-      String vidarrId,
-      Instant createdTime,
-      OptionalInt workflowMaxInFlight,
-      Optional<JsonNode> input) {
+      String workflowName, String workflowVersion, String vidarrId, Optional<JsonNode> input) {
     return allowList.contains(vidarrId)
         ? ConsumableResourceResponse.AVAILABLE
-        : inner.request(
-            workflowName, workflowVersion, vidarrId, createdTime, OptionalInt.empty(), input);
+        : inner.request(workflowName, workflowVersion, vidarrId, input);
   }
 
   public void setInner(ConsumableResource inner) {

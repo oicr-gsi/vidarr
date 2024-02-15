@@ -87,7 +87,7 @@ public final class PriorityByWorkflow implements ConsumableResource {
 
   @Override
   public Optional<Pair<String, BasicType>> inputFromSubmitter() {
-    return Optional.of(new Pair<String, BasicType>("priority", BasicType.INTEGER));
+    return Optional.of(new Pair<>("priority", BasicType.INTEGER.asOptional()));
   }
 
   @Override

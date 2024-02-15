@@ -6,6 +6,13 @@ For unreleased changes, see [changes](changes).
 
 -----------------------------------------------------------------------------
 
+## [0.18.1] - 2024-02-15
+
+### Fixed
+
+* Make priority resource optional
+
+
 ## [0.18.0] - 2024-02-14
 
 ### Added

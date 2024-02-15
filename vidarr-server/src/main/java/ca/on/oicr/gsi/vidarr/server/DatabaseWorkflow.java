@@ -46,7 +46,9 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
       Map<String, JsonNode> consumableResources,
       LongFunction<AtomicBoolean> liveness,
       DSLContext dsl)
+      //Optional<OffsetDateTime> lastAccessed)
       throws SQLException {
+
     final var record =
         dsl.insertInto(WORKFLOW_RUN)
             .columns(
@@ -56,7 +58,8 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
                 WORKFLOW_RUN.WORKFLOW_VERSION_ID,
                 WORKFLOW_RUN.HASH_ID,
                 WORKFLOW_RUN.LABELS,
-                WORKFLOW_RUN.INPUT_FILE_IDS)
+                WORKFLOW_RUN.INPUT_FILE_IDS,
+                WORKFLOW_RUN.LAST_ACCESSED)
             .values(
                 arguments,
                 metadata,
@@ -64,7 +67,9 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
                 workflowVersionId,
                 vidarrId,
                 labelsToJson(labels),
-                fileIds.toArray(String[]::new))
+                fileIds.toArray(String[]::new),
+                OffsetDateTime.now())
+                //lastAccessed.orElse(OffsetDateTime.now()))
             .returningResult(WORKFLOW_RUN.ID, WORKFLOW_RUN.CREATED)
             .fetchOptional()
             .orElseThrow();

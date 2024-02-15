@@ -1540,6 +1540,7 @@ public class MainIntegrationTest {
         .forEach(
             wfr -> {
               ((ObjectNode) wfr).remove("modified");
+              ((ObjectNode) wfr).remove("lastAccessed");
               wfr.get("externalKeys")
                   .forEach(
                       ek -> {

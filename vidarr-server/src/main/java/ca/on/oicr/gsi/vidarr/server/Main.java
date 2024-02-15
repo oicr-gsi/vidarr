@@ -1035,6 +1035,7 @@ public final class Main implements ServerConfig {
     fields.add(literalJsonEntry("labels", WORKFLOW_RUN.LABELS));
     fields.add(literalJsonEntry("modified", WORKFLOW_RUN.MODIFIED));
     fields.add(literalJsonEntry("started", WORKFLOW_RUN.STARTED));
+    fields.add(literalJsonEntry("lastAccessed", WORKFLOW_RUN.LAST_ACCESSED));
 
     if (includeParameters) {
       fields.add(literalJsonEntry("arguments", WORKFLOW_RUN.ARGUMENTS));

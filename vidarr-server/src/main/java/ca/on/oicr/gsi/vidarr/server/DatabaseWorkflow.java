@@ -46,7 +46,6 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
       Map<String, JsonNode> consumableResources,
       LongFunction<AtomicBoolean> liveness,
       DSLContext dsl)
-      //Optional<OffsetDateTime> lastAccessed)
       throws SQLException {
 
     final var record =
@@ -69,7 +68,6 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
                 labelsToJson(labels),
                 fileIds.toArray(String[]::new),
                 OffsetDateTime.now())
-                //lastAccessed.orElse(OffsetDateTime.now()))
             .returningResult(WORKFLOW_RUN.ID, WORKFLOW_RUN.CREATED)
             .fetchOptional()
             .orElseThrow();

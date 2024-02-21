@@ -59,6 +59,11 @@ public class CommandTest implements Callable<Integer> {
       description = "Location of directory to write test output")
   private String outputDirectory;
 
+  @CommandLine.Option(
+      names = {"-v", "--verbose"},
+      description = "Verbose mode. Helpful for troubleshooting")
+  private boolean verboseMode;
+
   @Override
   public Integer call() throws Exception {
     final var suffix = Instant.now().getEpochSecond();
@@ -117,7 +122,7 @@ public class CommandTest implements Callable<Integer> {
                   final var validator =
                       Validator.all(c.getValidators().stream().map(
                           TestValidator -> TestValidator.createValidator(outputDirectory,
-                              c.getId())));
+                              c.getId(), verboseMode)));
 
                   final var run =
                       runner.startAsync(

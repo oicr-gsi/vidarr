@@ -19,15 +19,20 @@ public final class TestValidatorScript extends TestValidator {
   private String outputMetrics;
 
   @Override
-  public Validator createValidator(String outputDirectory, String id) {
+  public Validator createValidator(String outputDirectory, String id, boolean verboseMode) {
     try {
-      // If output directory provided, use that else we create temporary directory /tmp
+      // If output directory provided, we use that
+      // else we create a new directory in the default temporary-file directory
+      // Note: That path is associated with the default FileSystem which is UNIX in our case
       final var finalDir = (outputDirectory != null) ? Path.of(outputDirectory)
           : Files.createTempDirectory("vidarr-test-script");
       final var finalCalculateScript =
-          (outputDirectory != null) ? Path.of(outputDirectory, id) : finalDir.resolve("calculate");
-      final var finalCalculateDir = (outputDirectory != null) ? Path.of(outputDirectory, "output")
-          : finalDir.resolve("output");
+          (outputDirectory != null) ? finalDir.resolve(id) :
+              finalDir.resolve("calculate");
+      final var finalCalculateDir = finalDir.resolve("output");
+
+      // If outputDirectory provided then output file name will be: "id.output"
+      // Otherwise it will be: "calculate.output" if no output directory passed in
       final var finalOutputFile = (outputDirectory != null) ? id + ".output" : "calculate.output";
 
       // Directory creation
@@ -69,10 +74,13 @@ public final class TestValidatorScript extends TestValidator {
         @Override
         public boolean validate(String id) {
           try {
-            // Additional information provided for user
-            System.err.printf("Location of metrics calculate: %s \n", metricsCalculate);
-            System.err.printf("Location of metrics compare: %s \n", metricsCompare);
-            System.err.printf("Location of output metrics %s \n", outputMetrics);
+            // Additional information provided for user if verbose flag -v included
+            if(verboseMode)
+            {
+              System.out.printf("Location of metrics calculate: %s \n", metricsCalculate);
+              System.out.printf("Location of metrics compare: %s \n", metricsCompare);
+              System.out.printf("Location of output metrics %s \n", outputMetrics);
+            }
 
             // Directory where output file will be located
             final var output = Path.of(String.valueOf(finalDir), finalOutputFile).toAbsolutePath()

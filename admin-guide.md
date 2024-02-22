@@ -167,7 +167,7 @@ This file does _not_ have to be on the Víðarr server and a copy of JARs and th
     {
       "engine": {
         "type": "cromwell",
-        "url": "http://cromwell-dev.example.com:8000"
+        "url": "http://cromwell-dev.example.com:8000",
         "debugInflightRuns": false,
         "engineParameters": {
           "read_from_cache": "boolean",

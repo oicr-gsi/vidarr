@@ -238,10 +238,10 @@ shutdown.
 All the configuration parameters for the inner consumable resource are
 unmodified, so this is not a workflow-run visible change. To add or remove
 workflow run IDs to the allow list, send an HTTP `POST` or `DELETE` request to
-`/consumable-resources/`_name_`/allowed/`_run_ where _name_ is the consumable
+`/consumable-resource/`_name_`/allowed/`_run_ where _name_ is the consumable
 resource name and _run_ is the workflow run ID. The current list can be
 retrieved by making a `GET` request to
-`/consumable-resources/`_name_`/allowed`.
+`/consumable-resource/`_name_`/allowed`.
 
 As an example, suppose you wish to have a max-in-flight, but want to run
 something urgent. The configuration would look like:

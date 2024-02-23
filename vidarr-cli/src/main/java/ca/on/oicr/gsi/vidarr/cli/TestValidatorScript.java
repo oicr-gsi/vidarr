@@ -24,10 +24,8 @@ public final class TestValidatorScript extends TestValidator {
   public Validator createValidator(String outputDirectory, String id, boolean verboseMode) {
     try {
       // Get current epoch timestamp and format it to date
-      long epoch = System.currentTimeMillis()/1000; // Returns epoch in seconds.
-      String date =
-          new SimpleDateFormat("yyyy-MM-dd_HH:mm:ss").format(new Date
-              (epoch*1000));
+      long epoch = System.currentTimeMillis();
+      String date = new SimpleDateFormat("yyyy-MM-dd_HH:mm:ss").format(new Date(epoch));
 
       /*
       If output directory provided we will use that

@@ -11,6 +11,8 @@ import java.time.Instant;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.Date;
+import java.text.SimpleDateFormat;
 
 public final class TestValidatorScript extends TestValidator {
 
@@ -21,14 +23,21 @@ public final class TestValidatorScript extends TestValidator {
   @Override
   public Validator createValidator(String outputDirectory, String id, boolean verboseMode) {
     try {
-      // If output directory provided, we use that
-      // else we create a new directory in the default temporary-file directory
-      // Note: That path is associated with the default FileSystem which is UNIX in our case
-      final var finalDir = (outputDirectory != null) ? Path.of(outputDirectory)
+      // Get current epoch timestamp and format it to date
+      long epoch = System.currentTimeMillis()/1000; // Returns epoch in seconds.
+      String date =
+          new SimpleDateFormat("yyyy-MM-dd_HH:mm:ss").format(new Date
+              (epoch*1000));
+
+      /*
+      If output directory provided we will use that
+      Note: within that directory we will have a subdirectory named after current epoch timestamp
+      else we create a new directory in the default temporary-file directory
+      Note: That path is associate with the default FileSystem which is UNIX in our case
+       */
+      final var finalDir = (outputDirectory != null) ? Path.of(outputDirectory, date)
           : Files.createTempDirectory("vidarr-test-script");
-      final var finalCalculateScript =
-          (outputDirectory != null) ? finalDir.resolve(id) :
-              finalDir.resolve("calculate");
+      final var finalCalculateScript = finalDir.resolve(id);
       final var finalCalculateDir = finalDir.resolve("output");
 
       // If outputDirectory provided then output file name will be: "id.output"

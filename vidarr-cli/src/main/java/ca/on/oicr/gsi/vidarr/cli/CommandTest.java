@@ -6,7 +6,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.File;
 import java.io.IOException;
+import java.text.SimpleDateFormat;
 import java.time.Instant;
+import java.util.Date;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
@@ -15,9 +17,12 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import picocli.CommandLine;
 
-/** Subcommand to running unit tests */
+/**
+ * Subcommand to running unit tests
+ */
 @CommandLine.Command(name = "test", description = "Run a test suite for a workflow")
 public class CommandTest implements Callable<Integer> {
+
   private static ObjectNode read(String argument) throws IOException {
     if (argument.startsWith("@")) {
       return MAPPER.readValue(new File(argument.substring(1)), ObjectNode.class);
@@ -51,8 +56,22 @@ public class CommandTest implements Callable<Integer> {
       description = "The workflow to run")
   private String workflowFile;
 
+  @CommandLine.Option(
+      names = {"-o", "--output"},
+      description = "Location of directory to write test output")
+  private String outputDirectory;
+
+  @CommandLine.Option(
+      names = {"-v", "--verbose"},
+      description = "Verbose mode. Helpful for troubleshooting")
+  private boolean verboseMode;
+
   @Override
   public Integer call() throws Exception {
+    // Get current epoch timestamp and format it to date
+    final long epoch = System.currentTimeMillis();
+    final String date = new SimpleDateFormat("yyyy-MM-dd_HH:mm:ss").format(new Date(epoch));
+
     final var suffix = Instant.now().getEpochSecond();
     final var target =
         MAPPER.readValue(new File(configuration), TargetConfiguration.class).toTarget();
@@ -105,8 +124,14 @@ public class CommandTest implements Callable<Integer> {
         cases.stream()
             .map(
                 c -> {
+                  // Will use output directory if provided, otherwise "null" is passed into createValidator
+                  // Timestamp date passed in to use as subdirectory to output directory
+                  // One is created for each vidarr-cli test run
                   final var validator =
-                      Validator.all(c.getValidators().stream().map(TestValidator::createValidator));
+                      Validator.all(c.getValidators().stream().map(
+                          TestValidator -> TestValidator.createValidator(outputDirectory,
+                              c.getId(), date, verboseMode)));
+
                   final var run =
                       runner.startAsync(
                           String.format("%s-%d", c.getId(), suffix),

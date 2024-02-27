@@ -7,5 +7,5 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 @JsonSubTypes(value = {@JsonSubTypes.Type(name = "script", value = TestValidatorScript.class)})
 public abstract class TestValidator {
 
-  abstract Validator createValidator();
+  abstract Validator createValidator(String outputDirectory, String id, String date, boolean verboseMode);
 }

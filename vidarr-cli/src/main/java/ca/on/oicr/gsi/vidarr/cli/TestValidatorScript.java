@@ -11,6 +11,8 @@ import java.time.Instant;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.Date;
+import java.text.SimpleDateFormat;
 
 public final class TestValidatorScript extends TestValidator {
 
@@ -19,15 +21,30 @@ public final class TestValidatorScript extends TestValidator {
   private String outputMetrics;
 
   @Override
-  public Validator createValidator() {
+  public Validator createValidator(String outputDirectory, String id, String date,
+      boolean verboseMode) {
     try {
-      final var tempDir = Files.createTempDirectory("vidarr-test-script");
-      final var calculateScript = tempDir.resolve("calculate");
-      final var calculateDir = tempDir.resolve("output");
-      Files.createDirectories(calculateDir);
-      Files.copy(Path.of(metricsCalculate), calculateScript);
+      /*
+      If output directory provided we will use that
+      Note: within that directory we will have a subdirectory named after current epoch timestamp
+      created inside Call() in commandTest.java
+      else we create a new directory in the default temporary-file directory
+      Note: That path is associate with the default FileSystem which is UNIX in our case
+       */
+      final var finalDir = (outputDirectory != null) ? Path.of(outputDirectory, date)
+          : Files.createTempDirectory("vidarr-test-script");
+      final var finalCalculateScript = finalDir.resolve(id);
+      final var finalCalculateDir = finalDir.resolve("output");
+
+      // If outputDirectory provided then output file name will be: "id.output"
+      // Otherwise it will be: "calculate.output" if no output directory passed in
+      final var finalOutputFile = (outputDirectory != null) ? id + ".output" : "calculate.output";
+
+      // Directory creation
+      Files.createDirectories(finalCalculateDir);
+      Files.copy(Path.of(metricsCalculate), finalCalculateScript);
       Files.setPosixFilePermissions(
-          calculateScript,
+          finalCalculateScript,
           EnumSet.of(
               PosixFilePermission.OWNER_READ,
               PosixFilePermission.OWNER_WRITE,
@@ -44,7 +61,7 @@ public final class TestValidatorScript extends TestValidator {
             Void transaction) {
           try {
             final var existing = Path.of(storagePath);
-            Files.createSymbolicLink(calculateDir.resolve(existing.getFileName()), existing);
+            Files.createSymbolicLink(finalCalculateDir.resolve(existing.getFileName()), existing);
           } catch (IOException e) {
             throw new UncheckedIOException(e);
           }
@@ -62,13 +79,25 @@ public final class TestValidatorScript extends TestValidator {
         @Override
         public boolean validate(String id) {
           try {
-            final var output = tempDir.resolve("calculate.output").toAbsolutePath().toFile();
+            // Additional information provided for user if verbose flag -v included
+            if(verboseMode)
+            {
+              System.out.printf("Location of metrics calculate: %s \n", metricsCalculate);
+              System.out.printf("Location of metrics compare: %s \n", metricsCompare);
+              System.out.printf("Location of output metrics %s \n", outputMetrics);
+            }
+
+            // Directory where output file will be located
+            final var output = Path.of(String.valueOf(finalDir), finalOutputFile).toAbsolutePath()
+                .toFile();
+
             System.err.printf("%s: [%s] Calculating output to %s...%n", id, Instant.now(), output);
             final var calculateProcess =
                 new ProcessBuilder()
                     .inheritIO()
-                    .directory(calculateDir.toFile())
-                    .command(calculateScript.toAbsolutePath().toString(), calculateDir.toString())
+                    .directory(finalCalculateDir.toFile())
+                    .command(finalCalculateScript.toAbsolutePath().toString(),
+                        finalCalculateDir.toString())
                     .redirectOutput(output)
                     .start();
             calculateProcess.waitFor();
@@ -84,7 +113,7 @@ public final class TestValidatorScript extends TestValidator {
             final var compareProcess =
                 new ProcessBuilder()
                     .inheritIO()
-                    .directory(tempDir.toFile())
+                    .directory(finalDir.toFile())
                     .command(metricsCompare, outputMetrics, output.toString())
                     .start();
             compareProcess.waitFor();

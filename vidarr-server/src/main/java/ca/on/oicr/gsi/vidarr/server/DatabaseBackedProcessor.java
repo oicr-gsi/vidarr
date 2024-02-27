@@ -737,15 +737,21 @@ public abstract class DatabaseBackedProcessor
                                             == Phase.WAITING_FOR_RESOURCES) {
                                           final var definition =
                                               buildDefinitionFromRecord(context.dsl(), record);
+                                          final var activeOperations =
+                                              operations.getOrDefault(
+                                                  record.get(ACTIVE_WORKFLOW_RUN.ID), List.of());
+                                          if (activeOperations.isEmpty()) {
+                                            System.err.printf(
+                                                "Error recovering workflow run %s: no operations match\n",
+                                                record.get(WORKFLOW_RUN.HASH_ID));
+                                            return;
+                                          }
                                           final var workflow =
                                               DatabaseWorkflow.recover(
                                                   target,
                                                   record,
                                                   liveness(record.get(ACTIVE_WORKFLOW_RUN.ID)),
                                                   dsl);
-                                          final var activeOperations =
-                                              operations.getOrDefault(
-                                                  record.get(ACTIVE_WORKFLOW_RUN.ID), List.of());
                                           for (final var operation : activeOperations) {
                                             operation.linkTo(workflow);
                                           }
@@ -898,14 +904,20 @@ public abstract class DatabaseBackedProcessor
                                                                 record.get(
                                                                     ACTIVE_WORKFLOW_RUN
                                                                         .CONSUMABLE_RESOURCES))));
+                                        final var activeOperations =
+                                            operations.get(record.get(ACTIVE_WORKFLOW_RUN.ID));
+                                        if (activeOperations.isEmpty()) {
+                                          System.err.printf(
+                                              "Error retrying workflow run %s: no operations match\n",
+                                              record.get(WORKFLOW_RUN.HASH_ID));
+                                          return;
+                                        }
                                         final var workflow =
                                             DatabaseWorkflow.recover(
                                                 target,
                                                 record,
                                                 liveness(record.get(ACTIVE_WORKFLOW_RUN.ID)),
                                                 dsl);
-                                        final var activeOperations =
-                                            operations.get(record.get(ACTIVE_WORKFLOW_RUN.ID));
                                         for (final var operation : activeOperations) {
                                           operation.linkTo(workflow);
                                         }

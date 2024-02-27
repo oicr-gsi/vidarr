@@ -21,15 +21,13 @@ public final class TestValidatorScript extends TestValidator {
   private String outputMetrics;
 
   @Override
-  public Validator createValidator(String outputDirectory, String id, boolean verboseMode) {
+  public Validator createValidator(String outputDirectory, String id, String date,
+      boolean verboseMode) {
     try {
-      // Get current epoch timestamp and format it to date
-      long epoch = System.currentTimeMillis();
-      String date = new SimpleDateFormat("yyyy-MM-dd_HH:mm:ss").format(new Date(epoch));
-
       /*
       If output directory provided we will use that
       Note: within that directory we will have a subdirectory named after current epoch timestamp
+      created inside Call() in commandTest.java
       else we create a new directory in the default temporary-file directory
       Note: That path is associate with the default FileSystem which is UNIX in our case
        */

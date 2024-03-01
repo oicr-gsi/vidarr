@@ -858,19 +858,28 @@ public abstract class DatabaseBackedProcessor
                                     workflowRunIds
                                         .map(WORKFLOW_RUN.HASH_ID::in)
                                         .orElse(trueCondition())))
+                        .forUpdate()
                         .stream()
                         .collect(
                             Collectors.groupingBy(
                                 r -> r.get(ACTIVE_OPERATION.WORKFLOW_RUN_ID),
                                 Collectors.mapping(
-                                    r ->
-                                        DatabaseOperation.recover(
-                                            r, liveness(r.get(ACTIVE_OPERATION.WORKFLOW_RUN_ID))),
+                                    r -> {
+                                      r.set(ACTIVE_OPERATION.STATUS, OperationStatus.INITIALIZING);
+                                      return DatabaseOperation.recover(
+                                          r, liveness(r.get(ACTIVE_OPERATION.WORKFLOW_RUN_ID)));
+                                    },
                                     Collectors.toList())));
-                dsl.update(ACTIVE_WORKFLOW_RUN)
-                    .set(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE, Phase.PROVISION_OUT)
-                    .where(ACTIVE_WORKFLOW_RUN.ID.in(operations.keySet()))
-                    .execute();
+                final var updated =
+                    dsl.update(ACTIVE_WORKFLOW_RUN)
+                        .set(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE, Phase.PROVISION_OUT)
+                        .where(ACTIVE_WORKFLOW_RUN.ID.in(operations.keySet()))
+                        .execute();
+                if (updated != operations.size()) {
+                  System.err.printf(
+                      "Attempting to retry updated %d workflow runs, but should have updated %d.",
+                      updated, operations.size());
+                }
                 dsl.select()
                     .from(
                         ACTIVE_WORKFLOW_RUN
@@ -881,6 +890,7 @@ public abstract class DatabaseBackedProcessor
                             .join(WORKFLOW_DEFINITION)
                             .on(WORKFLOW_VERSION.WORKFLOW_DEFINITION.eq(WORKFLOW_DEFINITION.ID)))
                     .where(ACTIVE_WORKFLOW_RUN.ID.in(operations.keySet()))
+                    .forUpdate()
                     .forEach(
                         record ->
                             targetByName(record.get(ACTIVE_WORKFLOW_RUN.TARGET))

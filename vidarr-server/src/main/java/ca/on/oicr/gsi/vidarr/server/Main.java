@@ -2229,10 +2229,10 @@ public final class Main implements ServerConfig {
               }
 
               @Override
-              public Pair<Integer, SubmitWorkflowResponse> externalIdMismatch() {
+              public Pair<Integer, SubmitWorkflowResponse> externalIdMismatch(String error) {
                 return new Pair<>(
                     StatusCodes.BAD_REQUEST,
-                    new SubmitWorkflowResponseFailure("External IDs do not match"));
+                    new SubmitWorkflowResponseFailure("External IDs do not match: " + error));
               }
 
               @Override

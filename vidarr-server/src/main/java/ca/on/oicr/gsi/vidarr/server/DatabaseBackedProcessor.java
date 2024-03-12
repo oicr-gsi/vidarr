@@ -127,7 +127,7 @@ public abstract class DatabaseBackedProcessor
 
     T dryRunResult();
 
-    T externalIdMismatch();
+    T externalIdMismatch(String error);
 
     T internalError(Exception e);
 
@@ -1163,18 +1163,38 @@ public abstract class DatabaseBackedProcessor
                                                                             output.name()))))
                                                     .collect(Collectors.toSet());
 
-                                            if (externalIds.size() != externalKeys.size()
-                                                || requiredOutputKeys.size() != externalKeys.size()
-                                                || !requiredOutputKeys.equals(externalKeyIds)
-                                                || !externalKeyIds.containsAll(optionalOutputKeys)
-                                                || !externalKeyIds.equals(
-                                                    externalIds.stream()
-                                                        .map(
-                                                            k ->
-                                                                new Pair<>(
-                                                                    k.getProvider(), k.getId()))
-                                                        .collect(Collectors.toSet()))) {
-                                              return handler.externalIdMismatch();
+                                            if (externalIds.size() != externalKeys.size()) {
+                                              return handler.externalIdMismatch(String.format(
+                                                  "%d External IDs found (%s) but %d External Keys found (%s)!",
+                                                  externalIds.size(),
+                                                  externalIds, externalKeys.size(), externalKeys));
+                                            }
+                                            if (requiredOutputKeys.size() != externalKeys.size()) {
+                                              return handler.externalIdMismatch(String.format(
+                                                  "%d required Output Keys found (%s) but %d External Keys found (%s)!",
+                                                  requiredOutputKeys.size(), requiredOutputKeys,
+                                                  externalKeys.size(), externalKeys));
+                                            }
+                                            if (!requiredOutputKeys.equals(externalKeyIds)) {
+                                              return handler.externalIdMismatch(String.format(
+                                                  "Set of Required Output Keys (%s) does not match set of External Keys (%s)!",
+                                                  requiredOutputKeys, externalKeys));
+                                            }
+                                            if (!externalKeyIds.containsAll(optionalOutputKeys)) {
+                                              return handler.externalIdMismatch(String.format(
+                                                  "Set of External Key IDs (%s) does not contain all of the Optional Output Keys (%s)!",
+                                                  externalKeyIds, optionalOutputKeys));
+                                            }
+                                            if (!externalKeyIds.equals(
+                                                externalIds.stream()
+                                                    .map(
+                                                        k ->
+                                                            new Pair<>(
+                                                                k.getProvider(), k.getId()))
+                                                    .collect(Collectors.toSet()))) {
+                                              return handler.externalIdMismatch(String.format(
+                                                  "Unable to map External Key IDs (%s) to External ID by (Provider, ID): %s",
+                                                  externalKeyIds, externalIds));
                                             }
                                             try {
                                               final var candidateId =

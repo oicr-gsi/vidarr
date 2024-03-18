@@ -6,6 +6,27 @@ For unreleased changes, see [changes](changes).
 
 -----------------------------------------------------------------------------
 
+## [0.19.0] - 2024-03-18
+
+### Added
+
+* * Add a new priority-based consumable resource
+* Add an optional output directory argument specifically for vidarr-cli
+  * Allows user to choose output directory for test outputs
+  * This is an optional argument
+  * Default behaviour is to output to tmp directory
+
+### Changed
+
+* Expand External ID resolution errors
+
+### Fixed
+
+* Fix vidarr run last_accessed field
+  * Change so field is set when run is submit (not only on inital loading)
+  * Field is now exported at the api/run/<hash> endpoint
+
+
 ## [0.18.1] - 2024-02-15
 
 ### Fixed

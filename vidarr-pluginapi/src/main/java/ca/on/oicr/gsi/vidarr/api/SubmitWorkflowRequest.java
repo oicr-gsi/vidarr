@@ -35,15 +35,15 @@ public final class SubmitWorkflowRequest {
 
   public boolean equalsIgnoreAttempt(SubmitWorkflowRequest that) {
     return Objects.equals(arguments, that.arguments)
-        && Objects.equals(consumableResources, that.consumableResources)
-        && Objects.equals(engineParameters, that.engineParameters)
-        && Objects.equals(externalKeys, that.externalKeys)
-        && Objects.equals(labels, that.labels)
-        && Objects.equals(metadata, that.metadata)
-        && mode == that.mode
-        && Objects.equals(target, that.target)
-        && Objects.equals(workflow, that.workflow)
-        && Objects.equals(workflowVersion, that.workflowVersion);
+            && Objects.equals(consumableResources, that.consumableResources)
+            && Objects.equals(engineParameters, that.engineParameters)
+            && Objects.equals(externalKeys, that.externalKeys)
+            && Objects.equals(labels, that.labels)
+            && Objects.equals(metadata, that.metadata)
+            && mode == that.mode
+            && Objects.equals(target, that.target)
+            && Objects.equals(workflow, that.workflow)
+            && Objects.equals(workflowVersion, that.workflowVersion);
   }
 
   public ObjectNode getArguments() {
@@ -97,16 +97,16 @@ public final class SubmitWorkflowRequest {
 
   public int hashCodeIgnoreAttempt() {
     return Objects.hash(
-        arguments,
-        consumableResources,
-        engineParameters,
-        externalKeys,
-        labels,
-        metadata,
-        mode,
-        target,
-        workflow,
-        workflowVersion);
+            arguments,
+            consumableResources,
+            engineParameters,
+            externalKeys,
+            labels,
+            metadata,
+            mode,
+            target,
+            workflow,
+            workflowVersion);
   }
 
   public void setArguments(ObjectNode arguments) {

@@ -202,6 +202,16 @@ public abstract class DatabaseBackedProcessor
                                       .and(ACTIVE_OPERATION.ATTEMPT.eq(ACTIVE_WORKFLOW_RUN.ATTEMPT))
                                       .and(ACTIVE_OPERATION.STATUS.eq(OperationStatus.FAILED))))));
 
+  private static final Condition IS_WAITING =
+          WORKFLOW_RUN
+                  .COMPLETED
+                  .isNull()
+                  .and(
+                          ACTIVE_WORKFLOW_RUN
+                                  .ENGINE_PHASE
+                                  .in(Phase.WAITING_FOR_RESOURCES));
+
+
   public static final TypeReference<SortedMap<String, BasicType>> LABELS_JSON_TYPE =
       new TypeReference<>() {};
   static final ObjectMapper MAPPER = new ObjectMapper();
@@ -1283,10 +1293,15 @@ public abstract class DatabaseBackedProcessor
                                                     transaction,
                                                     workflowRunId,
                                                     knownMatches);
+
                                                 // If this workflow is active, but failed, and the
                                                 // attempt number is higher or this is a different
                                                 // workflow version, we should restart it.
-                                                if (context
+                                                // OR
+                                                // If this workflow is active but waiting for resources,
+                                                // and any of the consumable resource values have changed,
+                                                // we should restart it
+                                                if ((context
                                                         .dsl()
                                                         .selectCount()
                                                         .from(
@@ -1309,11 +1324,21 @@ public abstract class DatabaseBackedProcessor
                                                                                 .WORKFLOW_VERSION_ID
                                                                                 .ne(
                                                                                     workflow
-                                                                                        .id()))))
+                                                                                        .id())))
+                                                        .or(
+                                                            WORKFLOW_RUN
+                                                                .ID
+                                                                .eq(workflowRunId)
+                                                                .and(IS_WAITING)
+                                                                .and(ACTIVE_WORKFLOW_RUN.ATTEMPT.eq(attempt))
+                                                                .and(
+                                                                    ACTIVE_WORKFLOW_RUN
+                                                                      .CONSUMABLE_RESOURCES
+                                                                      .ne(Main.MAPPER.<JsonNode>valueToTree(consumableResources)))))
                                                         .fetchOptional()
                                                         .map(Record1::value1)
                                                         .orElse(0)
-                                                    > 0) {
+                                                    > 0)) {
                                                   final var oldLiveness =
                                                       liveness.remove(workflowRunId);
                                                   if (oldLiveness != null) {
@@ -1338,7 +1363,8 @@ public abstract class DatabaseBackedProcessor
                                                           candidates.get(0).created(),
                                                           externalKeys,
                                                           consumableResources,
-                                                          transaction);
+                                                          transaction,
+                                                          attempt);
                                                   return handler.reinitialise(
                                                       candidateId,
                                                       new ConsumableResourceChecker(

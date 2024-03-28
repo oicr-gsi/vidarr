@@ -2,20 +2,9 @@ package ca.on.oicr.gsi.vidarr.core;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.List;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /** Describe a change to a JSON document */
-public final class JsonMutation {
-  private List<JsonPath> path;
-  private JsonNode result;
-
-  public JsonMutation() {}
-
-  public JsonMutation(JsonNode result, Stream<JsonPath> path) {
-    this.result = result;
-    this.path = path.collect(Collectors.toList());
-  }
+public record JsonMutation(List<JsonPath> path, JsonNode result) {
 
   public List<JsonPath> getPath() {
     return path;
@@ -23,13 +12,5 @@ public final class JsonMutation {
 
   public JsonNode getResult() {
     return result;
-  }
-
-  public void setPath(List<JsonPath> path) {
-    this.path = path;
-  }
-
-  public void setResult(JsonNode result) {
-    this.result = result;
   }
 }

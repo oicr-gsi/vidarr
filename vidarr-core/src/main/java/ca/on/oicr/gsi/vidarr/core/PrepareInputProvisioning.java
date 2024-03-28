@@ -1,10 +1,15 @@
 package ca.on.oicr.gsi.vidarr.core;
 
 import ca.on.oicr.gsi.Pair;
+import ca.on.oicr.gsi.vidarr.ActiveOperation;
 import ca.on.oicr.gsi.vidarr.BasicType;
 import ca.on.oicr.gsi.vidarr.InputProvisionFormat;
+import ca.on.oicr.gsi.vidarr.InputProvisioner;
 import ca.on.oicr.gsi.vidarr.InputType;
-import ca.on.oicr.gsi.vidarr.WorkMonitor;
+import ca.on.oicr.gsi.vidarr.OperationAction;
+import ca.on.oicr.gsi.vidarr.OperationStatefulStep;
+import ca.on.oicr.gsi.vidarr.OperationStatefulStep.Child;
+import ca.on.oicr.gsi.vidarr.WorkflowLanguage;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.NullNode;
@@ -18,23 +23,89 @@ import java.util.stream.Stream;
 /** Start the input provisioning tasks */
 final class PrepareInputProvisioning implements InputType.Visitor<JsonNode> {
 
-  public static class ProvisionInMonitor
-      extends WrappedMonitor<List<JsonPath>, JsonNode, JsonMutation> {
+  private static <State extends Record> TaskStarter<JsonMutation> launch(
+      InputProvisionFormat format,
+      WorkflowLanguage language,
+      InputProvisioner<State> provisioner,
+      List<JsonPath> mutation,
+      String id,
+      String filePath) {
+    return TaskStarter.of(
+        "i" + format.name(),
+        wrapProvisionActionInternal(language, provisioner, provisioner.run())
+            .launch(new InputProvisioningStateInternal(mutation, id, filePath)));
+  }
 
-    public ProvisionInMonitor(
-        List<JsonPath> jsonPath, WorkMonitor<JsonMutation, JsonNode> monitor) {
-      super(jsonPath, monitor);
-    }
+  private static <State extends Record> TaskStarter<JsonMutation> launchExternal(
+      InputProvisionFormat format,
+      WorkflowLanguage language,
+      InputProvisioner<State> provisioner,
+      List<JsonPath> mutation,
+      JsonNode metadata) {
+    return TaskStarter.of(
+        "e" + format.name(),
+        wrapProvisionActionExternal(language, provisioner, provisioner.run())
+            .launch(new InputProvisioningStateExternal(mutation, metadata)));
+  }
 
-    @Override
-    protected JsonMutation mix(List<JsonPath> accessory, JsonNode result) {
-      return new JsonMutation(result, accessory.stream());
+  public static <State extends Record> TaskStarter<JsonMutation> recover(
+      WorkflowLanguage language,
+      ActiveOperation<?> operation,
+      InputProvisioner<State> provisioner) {
+    switch (operation.type().charAt(0)) {
+      case 'i':
+        return TaskStarter.of(
+            operation.type(),
+            wrapProvisionActionInternal(language, provisioner, provisioner.run())
+                .recover(operation.recoveryState()));
+      case 'e':
+        return TaskStarter.of(
+            operation.type(),
+            wrapProvisionActionExternal(language, provisioner, provisioner.run())
+                .recover(operation.recoveryState()));
+      default:
+        throw new IllegalArgumentException("Illegal type for operation: " + operation.type());
     }
+  }
+
+  static <State extends Record, OriginalState extends Record>
+      OperationAction<
+              Child<InputProvisioningStateExternal, State>,
+              InputProvisioningStateExternal,
+              JsonMutation>
+          wrapProvisionActionExternal(
+              WorkflowLanguage language,
+              InputProvisioner<OriginalState> provisioner,
+              OperationAction<State, OriginalState, JsonNode> action) {
+    return OperationAction.load(
+            InputProvisioningStateExternal.class, InputProvisioningStateExternal::metadata)
+        .then(
+            OperationStatefulStep.subStep(
+                (state, metadata) -> provisioner.provisionExternal(language, metadata), action))
+        .map((state, result) -> new JsonMutation(state.state().mutation(), result));
+  }
+
+  static <State extends Record, OriginalState extends Record>
+      OperationAction<
+              Child<InputProvisioningStateInternal, State>,
+              InputProvisioningStateInternal,
+              JsonMutation>
+          wrapProvisionActionInternal(
+              WorkflowLanguage language,
+              InputProvisioner<OriginalState> provisioner,
+              OperationAction<State, OriginalState, JsonNode> action) {
+    return OperationAction.load(
+            InputProvisioningStateInternal.class, InputProvisioningStateInternal::id)
+        .then(
+            OperationStatefulStep.subStep(
+                (state, id) -> provisioner.provision(language, id, state.path()), action))
+        .map((state, result) -> new JsonMutation(state.state().mutation(), result));
   }
 
   private final Consumer<TaskStarter<JsonMutation>> consumer;
   private final JsonNode input;
   private final List<JsonPath> jsonPath;
+  private final WorkflowLanguage language;
   private final FileResolver resolver;
   private final Map<Integer, List<Consumer<ObjectNode>>> retryModifications;
   private final Target target;
@@ -43,12 +114,14 @@ final class PrepareInputProvisioning implements InputType.Visitor<JsonNode> {
       Target target,
       JsonNode input,
       Stream<JsonPath> jsonPath,
+      WorkflowLanguage language,
       FileResolver resolver,
       Consumer<TaskStarter<JsonMutation>> consumer,
       Map<Integer, List<Consumer<ObjectNode>>> retryModifications) {
     this.target = target;
     this.input = input;
     this.jsonPath = jsonPath.collect(Collectors.toList());
+    this.language = language;
     this.resolver = resolver;
     this.consumer = consumer;
     this.retryModifications = retryModifications;
@@ -86,6 +159,7 @@ final class PrepareInputProvisioning implements InputType.Visitor<JsonNode> {
                     target,
                     entry.getValue(),
                     Stream.concat(jsonPath.stream(), Stream.of(JsonPath.object(entry.getKey()))),
+                    language,
                     resolver,
                     consumer,
                     retryModifications)));
@@ -106,6 +180,7 @@ final class PrepareInputProvisioning implements InputType.Visitor<JsonNode> {
                     inputEntry.get(0),
                     Stream.concat(
                         jsonPath.stream(), Stream.of(JsonPath.array(i), JsonPath.array(0))),
+                    language,
                     resolver,
                     consumer,
                     retryModifications)));
@@ -116,6 +191,7 @@ final class PrepareInputProvisioning implements InputType.Visitor<JsonNode> {
                     inputEntry.get(1),
                     Stream.concat(
                         jsonPath.stream(), Stream.of(JsonPath.array(i), JsonPath.array(1))),
+                    language,
                     resolver,
                     consumer,
                     retryModifications)));
@@ -155,14 +231,8 @@ final class PrepareInputProvisioning implements InputType.Visitor<JsonNode> {
       switch (input.get("type").asText()) {
         case "EXTERNAL":
           consumer.accept(
-              WrappedMonitor.start(
-                  jsonPath,
-                  ProvisionInMonitor::new,
-                  (language, workflowId, monitor) ->
-                      new Pair<>(
-                          format.name(),
-                          handler.provisionExternal(
-                              language, input.get("contents").get("configuration"), monitor))));
+              launchExternal(
+                  format, language, handler, jsonPath, input.get("contents").get("configuration")));
           break;
         case "INTERNAL":
           if (input.has("contents")
@@ -171,13 +241,7 @@ final class PrepareInputProvisioning implements InputType.Visitor<JsonNode> {
               && input.get("contents").get(0).isTextual()) {
             final var id = input.get("contents").get(0).asText();
             final var filePath = resolver.pathForId(id).map(FileMetadata::path).orElseThrow();
-            consumer.accept(
-                WrappedMonitor.start(
-                    jsonPath,
-                    ProvisionInMonitor::new,
-                    (language, workflowId, monitor) ->
-                        new Pair<>(
-                            format.name(), handler.provision(language, id, filePath, monitor))));
+            consumer.accept(launch(format, language, handler, jsonPath, id, filePath));
           } else {
             throw new IllegalArgumentException("Invalid input file for BY_ID");
           }
@@ -213,6 +277,7 @@ final class PrepareInputProvisioning implements InputType.Visitor<JsonNode> {
                     target,
                     input.get(i),
                     Stream.concat(jsonPath.stream(), Stream.of(JsonPath.array(i))),
+                    language,
                     resolver,
                     consumer,
                     retryModifications)));
@@ -238,6 +303,7 @@ final class PrepareInputProvisioning implements InputType.Visitor<JsonNode> {
                               input.get(p.first()),
                               Stream.concat(
                                   jsonPath.stream(), Stream.of(JsonPath.object(p.first()))),
+                              language,
                               resolver,
                               consumer,
                               retryModifications))));
@@ -269,6 +335,7 @@ final class PrepareInputProvisioning implements InputType.Visitor<JsonNode> {
                     target,
                     input.get(0),
                     Stream.concat(jsonPath.stream(), Stream.of(JsonPath.object("left"))),
+                    language,
                     resolver,
                     consumer,
                     retryModifications)));
@@ -279,6 +346,7 @@ final class PrepareInputProvisioning implements InputType.Visitor<JsonNode> {
                     target,
                     input.get(1),
                     Stream.concat(jsonPath.stream(), Stream.of(JsonPath.object("right"))),
+                    language,
                     resolver,
                     consumer,
                     retryModifications)));
@@ -296,6 +364,7 @@ final class PrepareInputProvisioning implements InputType.Visitor<JsonNode> {
                     target,
                     input.get("left"),
                     Stream.concat(jsonPath.stream(), Stream.of(JsonPath.object("left"))),
+                    language,
                     resolver,
                     consumer,
                     retryModifications)));
@@ -306,6 +375,7 @@ final class PrepareInputProvisioning implements InputType.Visitor<JsonNode> {
                     target,
                     input.get("right"),
                     Stream.concat(jsonPath.stream(), Stream.of(JsonPath.object("right"))),
+                    language,
                     resolver,
                     consumer,
                     retryModifications)));
@@ -356,6 +426,7 @@ final class PrepareInputProvisioning implements InputType.Visitor<JsonNode> {
                               target,
                               input.get("contents"),
                               jsonPath.stream(),
+                              language,
                               resolver,
                               consumer,
                               retryModifications)))
@@ -381,6 +452,7 @@ final class PrepareInputProvisioning implements InputType.Visitor<JsonNode> {
                           target,
                           input.get(index),
                           Stream.concat(jsonPath.stream(), Stream.of(JsonPath.array(index))),
+                          language,
                           resolver,
                           consumer,
                           retryModifications)));

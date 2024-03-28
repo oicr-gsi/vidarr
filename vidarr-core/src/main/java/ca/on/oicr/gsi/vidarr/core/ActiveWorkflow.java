@@ -1,6 +1,7 @@
 package ca.on.oicr.gsi.vidarr.core;
 
 import ca.on.oicr.gsi.Pair;
+import ca.on.oicr.gsi.vidarr.ActiveOperation;
 import ca.on.oicr.gsi.vidarr.api.ExternalId;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;

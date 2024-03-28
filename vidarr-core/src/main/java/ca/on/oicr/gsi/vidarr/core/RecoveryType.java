@@ -1,35 +1,28 @@
 package ca.on.oicr.gsi.vidarr.core;
 
-import ca.on.oicr.gsi.vidarr.OutputProvisioner;
-import ca.on.oicr.gsi.vidarr.OutputProvisioner.Result;
-import ca.on.oicr.gsi.vidarr.RuntimeProvisioner;
-import ca.on.oicr.gsi.vidarr.core.WrappedMonitor.RecoveryStarter;
+import ca.on.oicr.gsi.vidarr.OperationAction;
+import ca.on.oicr.gsi.vidarr.OperationAction.Launcher;
+import com.fasterxml.jackson.databind.JsonNode;
 
 public enum RecoveryType {
   RECOVER {
     @Override
-    RecoveryStarter<Result> provisionOut(OutputProvisioner provisioner) {
-      return provisioner::recover;
-    }
-
-    @Override
-    RecoveryStarter<Result> runtime(RuntimeProvisioner provisioner) {
-      return provisioner::recover;
+    public <State extends Record, OriginalState extends Record, Value>
+        Launcher<State, Value> prepare(
+            OperationAction<State, OriginalState, Value> action, JsonNode state) {
+      return action.recover(state);
     }
   },
   RETRY {
     @Override
-    RecoveryStarter<Result> provisionOut(OutputProvisioner provisioner) {
-      return provisioner::retry;
-    }
-
-    @Override
-    RecoveryStarter<Result> runtime(RuntimeProvisioner provisioner) {
-      return provisioner::retry;
+    public <State extends Record, OriginalState extends Record, Value>
+        Launcher<State, Value> prepare(
+            OperationAction<State, OriginalState, Value> action, JsonNode state) {
+      return action.retry(state);
     }
   };
 
-  abstract RecoveryStarter<Result> provisionOut(OutputProvisioner outputProvisioner);
-
-  abstract RecoveryStarter<Result> runtime(RuntimeProvisioner provisioner);
+  public abstract <State extends Record, OriginalState extends Record, Value>
+      Launcher<State, Value> prepare(
+          OperationAction<State, OriginalState, Value> action, JsonNode state);
 }

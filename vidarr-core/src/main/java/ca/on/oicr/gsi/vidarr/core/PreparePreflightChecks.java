@@ -1,6 +1,5 @@
 package ca.on.oicr.gsi.vidarr.core;
 
-import ca.on.oicr.gsi.Pair;
 import ca.on.oicr.gsi.vidarr.OutputType;
 import ca.on.oicr.gsi.vidarr.api.ExternalId;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -64,9 +63,7 @@ final class PreparePreflightChecks extends BaseOutputExtractor<Boolean, Boolean>
               return null;
             }
           });
-      preflightTask.accept(
-          (workflowLanguage, workflowId, o) ->
-              new Pair<>(format.name(), handler.preflightCheck(metadata, o)));
+      preflightTask.accept(TaskStarter.launch(format, handler, metadata));
       return true;
     }
   }

@@ -1,19 +1,27 @@
 package ca.on.oicr.gsi.vidarr.core;
 
-import ca.on.oicr.gsi.Pair;
-import ca.on.oicr.gsi.vidarr.*;
+import ca.on.oicr.gsi.vidarr.ActiveOperation;
+import ca.on.oicr.gsi.vidarr.ActiveOperation.TransactionManager;
+import ca.on.oicr.gsi.vidarr.InputProvisionFormat;
+import ca.on.oicr.gsi.vidarr.OperationControlFlow;
+import ca.on.oicr.gsi.vidarr.OperationStatus;
+import ca.on.oicr.gsi.vidarr.OutputProvisionFormat;
 import ca.on.oicr.gsi.vidarr.OutputProvisioner.ResultVisitor;
+import ca.on.oicr.gsi.vidarr.WorkflowDefinition;
+import ca.on.oicr.gsi.vidarr.WorkflowEngine;
 import ca.on.oicr.gsi.vidarr.WorkflowEngine.Result;
 import ca.on.oicr.gsi.vidarr.api.ExternalId;
-import ca.on.oicr.gsi.vidarr.core.PrepareOutputProvisioning.ProvisioningOutWorkMonitor;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.lang.System.Logger.Level;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -27,10 +35,29 @@ import java.util.stream.Stream;
 
 public abstract class BaseProcessor<
         W extends ActiveWorkflow<PO, TX>, PO extends ActiveOperation<TX>, TX>
-    implements FileResolver {
+    implements TransactionManager<TX>, FileResolver {
+
+  <State extends Record, Output> OperationControlFlow<State, Output> createNext(
+      PO operation, TerminalHandler<Output> handler) {
+    return new TerminalOperationControlFlow<>(operation, handler);
+  }
+
+  @Override
+  public final void inTransaction(Consumer<TX> transaction) {}
+
+  @Override
+  public final void scheduleTask(Runnable task) {
+    executor.execute(task);
+  }
+
+  @Override
+  public final void scheduleTask(long delay, TimeUnit units, Runnable task) {
+    executor.schedule(task, delay, units);
+  }
+
   private interface PhaseManager<W, R, N, PO> {
 
-    WorkMonitor<R, JsonNode> createMonitor(PO operation);
+    TerminalHandler<R> createTerminal(PO operation);
 
     WorkflowDefinition definition();
 
@@ -41,42 +68,32 @@ public abstract class BaseProcessor<
     W workflow();
   }
 
-  private abstract class BaseOperationMonitor<R> implements WorkMonitor<R, JsonNode>, FileResolver {
+  interface TerminalHandler<Output> {
+    void failed();
+
+    JsonNode serialize(Output output);
+
+    void succeeded(Output output);
+  }
+
+  private final class TerminalOperationControlFlow<State extends Record, Output>
+      implements OperationControlFlow<State, Output> {
     private boolean finished;
     private final PO operation;
+    private final TerminalHandler<Output> handler;
 
-    protected BaseOperationMonitor(PO operation) {
+    TerminalOperationControlFlow(PO operation, TerminalHandler<Output> handler) {
       this.operation = operation;
+      this.handler = handler;
     }
 
     @Override
-    public final synchronized void complete(R result) {
-      if (finished) {
-        throw new IllegalStateException("Operation is already complete.");
-      }
-      finished = true;
-      startTransaction(
-          transaction -> {
-            operation.status(OperationStatus.SUCCEEDED, transaction);
-            operation.recoveryState(serialize(result), transaction);
-          });
-      succeeded(result);
-    }
-
-    protected abstract void failed();
-
-    @Override
-    public final void log(System.Logger.Level level, String message) {
-      operation.log(level, message);
+    public void cancel() {
+      // Do nothing.
     }
 
     @Override
-    public Optional<FileMetadata> pathForId(String id) {
-      return BaseProcessor.this.pathForId(id);
-    }
-
-    @Override
-    public final synchronized void permanentFailure(String reason) {
+    public void error(String error) {
       if (finished) {
         throw new IllegalStateException("Operation is already complete.");
       }
@@ -84,73 +101,29 @@ public abstract class BaseProcessor<
       startTransaction(
           transaction -> {
             operation.status(OperationStatus.FAILED, transaction);
-            operation.error(reason, transaction);
-            operation.log(Level.ERROR, reason);
+            operation.error(error, transaction);
+            operation.log(Level.ERROR, error);
           });
-      failed();
-    }
-
-    private Runnable safeWrap(Runnable task) {
-      return () -> {
-        if (operation.isLive()) {
-          try {
-            task.run();
-          } catch (Throwable e) {
-            log(Level.ERROR, "Task threw exception. Failing workflow: " + e.getMessage());
-            e.printStackTrace();
-            permanentFailure(e.toString());
-          }
-        } else {
-          log(Level.ERROR, "Task is now dead.");
-        }
-      };
+      handler.failed();
     }
 
     @Override
-    public final synchronized void scheduleTask(long delay, TimeUnit units, Runnable task) {
+    public void next(Output output) {
       if (finished) {
-        throw new IllegalStateException("Operation is already complete. Cannot schedule task.");
+        throw new IllegalStateException("Operation is already complete.");
       }
-      executor.schedule(safeWrap(task), delay, units);
+      finished = true;
+      startTransaction(
+          transaction -> {
+            operation.status(OperationStatus.SUCCEEDED, transaction);
+            operation.recoveryState(handler.serialize(output), transaction);
+          });
+      handler.succeeded(output);
     }
 
     @Override
-    public final synchronized void scheduleTask(Runnable task) {
-      if (finished) {
-        throw new IllegalStateException("Operation is already complete. Cannot schedule task.");
-      }
-      executor.execute(safeWrap(task));
-    }
-
-    protected abstract JsonNode serialize(R result);
-
-    @Override
-    public void storeDebugInfo(JsonNode information) {
-      if (finished) {
-        throw new IllegalStateException(
-            "Operation is already complete. Cannot store debugging information.");
-      }
-      startTransaction(transaction -> operation.debugInfo(information, transaction));
-    }
-
-    @Override
-    public final synchronized void storeRecoveryInformation(JsonNode state) {
-      if (finished) {
-        throw new IllegalStateException(
-            "Operation is already complete. Cannot store recovery information.");
-      }
-      startTransaction(transaction -> operation.recoveryState(state, transaction));
-    }
-
-    protected abstract void succeeded(R result);
-
-    @Override
-    public final synchronized void updateState(Status status) {
-      if (finished) {
-        throw new IllegalStateException(
-            "Operation is already complete. Cannot store recovery information.");
-      }
-      startTransaction(transaction -> operation.status(OperationStatus.of(status), transaction));
+    public JsonNode serializeNestedState(State state) {
+      return mapper().valueToTree(state);
     }
   }
 
@@ -167,7 +140,7 @@ public abstract class BaseProcessor<
     }
 
     @Override
-    public WorkMonitor<Void, JsonNode> createMonitor(PO operation) {
+    public TerminalHandler<Void> createTerminal(PO operation) {
       throw new UnsupportedOperationException("Not available for the initial phase");
     }
 
@@ -209,20 +182,20 @@ public abstract class BaseProcessor<
     }
 
     @Override
-    public WorkMonitor<Boolean, JsonNode> createMonitor(PO operation) {
-      return new BaseOperationMonitor<Boolean>(operation) {
+    public TerminalHandler<Boolean> createTerminal(PO operation) {
+      return new TerminalHandler<>() {
         @Override
-        protected void failed() {
+        public void failed() {
           release(false);
         }
 
         @Override
-        protected JsonNode serialize(Boolean result) {
+        public JsonNode serialize(Boolean result) {
           return JsonNodeFactory.instance.booleanNode(result);
         }
 
         @Override
-        protected void succeeded(Boolean result) {
+        public void succeeded(Boolean result) {
           release(result);
         }
       };
@@ -276,6 +249,7 @@ public abstract class BaseProcessor<
                                             target,
                                             activeWorkflow.arguments().get(parameter.name()),
                                             Stream.of(JsonPath.object(parameter.name())),
+                                            definition.language(),
                                             BaseProcessor.this,
                                             provisionInTasks::add,
                                             retryModifications)));
@@ -369,10 +343,10 @@ public abstract class BaseProcessor<
     }
 
     @Override
-    public WorkMonitor<JsonMutation, JsonNode> createMonitor(PO operation) {
-      return new BaseOperationMonitor<JsonMutation>(operation) {
+    public TerminalHandler<JsonMutation> createTerminal(PO operation) {
+      return new TerminalHandler<>() {
         @Override
-        protected void failed() {
+        public void failed() {
           if (size.decrementAndGet() == 0) {
             startTransaction(
                 transaction ->
@@ -381,12 +355,12 @@ public abstract class BaseProcessor<
         }
 
         @Override
-        protected JsonNode serialize(JsonMutation result) {
+        public JsonNode serialize(JsonMutation result) {
           return mapper().valueToTree(result);
         }
 
         @Override
-        protected void succeeded(JsonMutation result) {
+        public void succeeded(JsonMutation result) {
           semaphore.acquireUninterruptibly();
           startTransaction(
               transaction -> {
@@ -404,19 +378,8 @@ public abstract class BaseProcessor<
                   startNextPhase(
                       Phase2ProvisionIn.this,
                       List.of(
-                          (workflowLanguage, workflowId, operation) ->
-                              new Pair<>(
-                                  "",
-                                  target
-                                      .engine()
-                                      .run(
-                                          definition.language(),
-                                          definition.contents(),
-                                          definition.accessoryFiles(),
-                                          activeWorkflow.id(),
-                                          inputs.get(0),
-                                          activeWorkflow.engineArguments(),
-                                          operation))),
+                          TaskStarter.launch(
+                              definition, activeWorkflow, target.engine(), inputs.get(0))),
                       transaction);
                 }
               });
@@ -447,8 +410,7 @@ public abstract class BaseProcessor<
   }
 
   private class Phase3Run
-      implements PhaseManager<
-          W, WorkflowEngine.Result<JsonNode>, Pair<ProvisionData, OutputProvisioner.Result>, PO> {
+      implements PhaseManager<W, WorkflowEngine.Result<JsonNode>, ProvisionData, PO> {
 
     private final W activeWorkflow;
     private final WorkflowDefinition definition;
@@ -464,45 +426,39 @@ public abstract class BaseProcessor<
     }
 
     @Override
-    public WorkMonitor<Result<JsonNode>, JsonNode> createMonitor(PO operation) {
-      return new BaseOperationMonitor<Result<JsonNode>>(operation) {
+    public TerminalHandler<Result<JsonNode>> createTerminal(PO operation) {
+      return new TerminalHandler<>() {
         @Override
-        protected void failed() {
+        public void failed() {
           final var realInputs = activeWorkflow.realInputs();
           startTransaction(
               tx -> {
                 final var index = activeWorkflow.realInputTryNext(tx);
                 if (index < realInputs.size()) {
-                  final var monitor =
-                      new DelayWorkMonitor<WorkflowEngine.Result<JsonNode>, JsonNode>();
-                  final var initialState =
-                      target
-                          .engine()
-                          .run(
-                              definition.language(),
-                              definition.contents(),
-                              definition.accessoryFiles(),
-                              activeWorkflow.id(),
-                              realInputs.get(index),
-                              activeWorkflow.engineArguments(),
-                              monitor);
+                  final var relaunch =
+                      TaskStarter.launch(
+                          definition, activeWorkflow, target.engine(), realInputs.get(index));
                   final var nextPhaseManager = new Phase3Run(target, definition, 1, activeWorkflow);
-                  monitor.set(nextPhaseManager.createMonitor(operation));
                   final var operations =
                       workflow()
                           .phase(
-                              nextPhaseManager.phase(), List.of(new Pair<>("", initialState)), tx);
+                              nextPhaseManager.phase(),
+                              List.of(TaskStarter.toPair(relaunch, mapper())),
+                              tx);
                   if (operations.size() != 1) {
                     // The backing store has decided to abandon this workflow run.
                     return;
                   }
-                  monitor.set(nextPhaseManager.createMonitor(operations.get(0)));
+                  relaunch.start(
+                      BaseProcessor.this,
+                      operations.get(0),
+                      nextPhaseManager.createTerminal(operations.get(0)));
                 }
               });
         }
 
         @Override
-        protected JsonNode serialize(Result<JsonNode> result) {
+        public JsonNode serialize(Result<JsonNode> result) {
           final var output = mapper().createObjectNode();
           output.set("output", result.output());
           output.set("cleanupState", result.cleanupState().orElse(NullNode.getInstance()));
@@ -511,17 +467,21 @@ public abstract class BaseProcessor<
         }
 
         @Override
-        protected void succeeded(Result<JsonNode> result) {
+        public void succeeded(Result<JsonNode> result) {
           if (result.output() == null) {
-            permanentFailure("No output from workflow");
+            startTransaction(
+                transaction -> {
+                  operation.status(OperationStatus.FAILED, transaction);
+                  operation.recoveryState(
+                      JsonNodeFactory.instance.textNode("No output from workflow"), transaction);
+                });
             return;
           }
           startTransaction(
               transaction -> {
                 result.cleanupState().ifPresent(c -> workflow().cleanup(c, transaction));
                 workflow().runUrl(result.workflowRunUrl(), transaction);
-                final var tasks =
-                    new ArrayList<TaskStarter<Pair<ProvisionData, OutputProvisioner.Result>>>();
+                final var tasks = new ArrayList<TaskStarter<ProvisionData>>();
                 final var allIds = workflow().inputIds();
                 final var remainingIds = new HashSet<>(allIds);
                 remainingIds.removeAll(workflow().requestedExternalIds());
@@ -530,13 +490,7 @@ public abstract class BaseProcessor<
                     .forEach(
                         p ->
                             tasks.add(
-                                WrappedMonitor.start(
-                                    new ProvisionData(allIds),
-                                    PrepareOutputProvisioning.ProvisioningOutWorkMonitor::new,
-                                    (language, workflowId, monitor) ->
-                                        new Pair<>(
-                                            "$" + p.name(),
-                                            p.provision(result.workflowRunUrl(), monitor)))));
+                                TaskStarter.launch(p, allIds, Map.of(), result.workflowRunUrl())));
                 if (definition
                     .outputs()
                     .allMatch(
@@ -553,7 +507,8 @@ public abstract class BaseProcessor<
                                         activeWorkflow.metadata().get(output.name()),
                                         allIds,
                                         remainingIds,
-                                        () -> isOk.set(false)))
+                                        () -> isOk.set(false),
+                                        activeWorkflow.id()))
                                 .forEach(tasks::add);
                             return isOk.get();
                           } else {
@@ -580,8 +535,7 @@ public abstract class BaseProcessor<
     }
 
     @Override
-    public PhaseManager<W, Pair<ProvisionData, OutputProvisioner.Result>, ?, PO> startNext(
-        int size) {
+    public PhaseManager<W, ProvisionData, ?, PO> startNext(int size) {
       return new Phase4ProvisionOut(target, definition, size, activeWorkflow);
     }
 
@@ -591,8 +545,7 @@ public abstract class BaseProcessor<
     }
   }
 
-  private class Phase4ProvisionOut
-      implements PhaseManager<W, Pair<ProvisionData, OutputProvisioner.Result>, Void, PO> {
+  private class Phase4ProvisionOut implements PhaseManager<W, ProvisionData, Void, PO> {
 
     private final W activeWorkflow;
     private final WorkflowDefinition definition;
@@ -608,21 +561,22 @@ public abstract class BaseProcessor<
     }
 
     @Override
-    public WorkMonitor<Pair<ProvisionData, OutputProvisioner.Result>, JsonNode> createMonitor(
-        PO operation) {
-      return new BaseOperationMonitor<Pair<ProvisionData, OutputProvisioner.Result>>(operation) {
+    public TerminalHandler<ProvisionData> createTerminal(PO operation) {
+      return new TerminalHandler<>() {
         @Override
-        protected void failed() {
+        public void failed() {
           // Do nothing.
 
         }
 
         @Override
-        protected JsonNode serialize(Pair<ProvisionData, OutputProvisioner.Result> result) {
+        public JsonNode serialize(ProvisionData result) {
           final var node = mapper().createObjectNode();
-          node.putPOJO("info", result.first());
+          final var info = node.putObject("info");
+          info.putPOJO("ids", result.ids());
+          info.putPOJO("labels", result.labels());
           result
-              .second()
+              .result()
               .visit(
                   new ResultVisitor() {
                     @Override
@@ -646,11 +600,11 @@ public abstract class BaseProcessor<
         }
 
         @Override
-        protected void succeeded(Pair<ProvisionData, OutputProvisioner.Result> result) {
+        public void succeeded(ProvisionData result) {
           startTransaction(
               transaction -> {
                 result
-                    .second()
+                    .result()
                     .visit(
                         new ResultVisitor() {
                           @Override
@@ -658,24 +612,20 @@ public abstract class BaseProcessor<
                               String storagePath, String checksum, String checksumType, long size, String metatype) {
                             workflow()
                                 .provisionFile(
-                                    result.first().getIds(),
+                                    result.ids(),
                                     storagePath,
                                     checksum,
                                     checksumType,
                                     metatype,
                                     size,
-                                    result.first().getLabels(),
+                                    result.labels(),
                                     transaction);
                           }
 
                           @Override
                           public void url(String url, Map<String, String> labels) {
                             workflow()
-                                .provisionUrl(
-                                    result.first().getIds(),
-                                    url,
-                                    result.first().getLabels(),
-                                    transaction);
+                                .provisionUrl(result.ids(), url, result.labels(), transaction);
                           }
                         });
                 if (size.decrementAndGet() == 0) {
@@ -685,9 +635,7 @@ public abstract class BaseProcessor<
                   } else {
                     startNextPhase(
                         Phase4ProvisionOut.this,
-                        Collections.singletonList(
-                            (lang, workflowId, monitor) ->
-                                new Pair<>("", target.engine().cleanup(cleanup, monitor))),
+                        List.of(TaskStarter.launchCleanup(target.engine(), cleanup)),
                         transaction);
                   }
                 }
@@ -728,18 +676,18 @@ public abstract class BaseProcessor<
     }
 
     @Override
-    public WorkMonitor<Void, JsonNode> createMonitor(PO operation) {
-      return new BaseOperationMonitor<Void>(operation) {
+    public TerminalHandler<Void> createTerminal(PO operation) {
+      return new TerminalHandler<>() {
         @Override
-        protected void failed() {}
+        public void failed() {}
 
         @Override
-        protected JsonNode serialize(Void result) {
+        public JsonNode serialize(Void result) {
           return JsonNodeFactory.instance.nullNode();
         }
 
         @Override
-        protected void succeeded(Void result) {
+        public void succeeded(Void result) {
           startTransaction(activeWorkflow::succeeded);
         }
       };
@@ -884,32 +832,37 @@ public abstract class BaseProcessor<
             new Phase1Preflight(
                 target, activeOperations.size(), workflow, definition, workflow.isPreflightOkay());
         for (final var operation : activeOperations) {
-          target
-              .provisionerFor(WorkflowOutputDataType.valueOf(operation.type()).format())
-              .preflightRecover(operation.recoveryState(), p1.createMonitor(operation));
+          TaskStarter.of(
+                  operation.type(),
+                  target
+                      .provisionerFor(WorkflowOutputDataType.valueOf(operation.type()).format())
+                      .runPreflight()
+                      .recover(operation.recoveryState()))
+              .start(this, operation, p1.createTerminal(operation));
         }
         break;
       case PROVISION_IN:
         final var p2 = new Phase2ProvisionIn(target, activeOperations.size(), definition, workflow);
         for (final var operation : activeOperations) {
-          WrappedMonitor.recover(
-              operation.recoveryState(),
-              v -> {
-                try {
-                  return List.of(mapper().treeToValue(v, JsonPath[].class));
-                } catch (JsonProcessingException e) {
-                  throw new RuntimeException(e);
-                }
-              },
-              PrepareInputProvisioning.ProvisionInMonitor::new,
-              target.provisionerFor(InputProvisionFormat.valueOf(operation.type()))::recover,
-              p2.createMonitor(operation));
+          PrepareInputProvisioning.recover(
+                  definition.language(),
+                  operation,
+                  target.provisionerFor(
+                      InputProvisionFormat.valueOf(operation.type().substring(1))))
+              .start(this, operation, p2.createTerminal(operation));
         }
         break;
       case RUNNING:
         final var p3 = new Phase3Run(target, definition, activeOperations.size(), workflow);
         for (final var operation : activeOperations) {
-          target.engine().recover(operation.recoveryState(), p3.createMonitor(operation));
+          TaskStarter.of(
+                  "",
+                  target
+                      .engine()
+                      .run()
+                      .map(WorkflowEngine.Result::serialize)
+                      .recover(operation.recoveryState()))
+              .start(this, operation, p3.createTerminal(operation));
         }
         break;
       case PROVISION_OUT:
@@ -917,44 +870,33 @@ public abstract class BaseProcessor<
             new Phase4ProvisionOut(target, definition, activeOperations.size(), workflow);
         for (final var operation : activeOperations) {
           if (operation.type().startsWith("$")) {
-            WrappedMonitor.recover(
-                operation.recoveryState(),
-                v -> {
-                  try {
-                    return mapper().treeToValue(v, ProvisionData.class);
-                  } catch (JsonProcessingException e) {
-                    throw new RuntimeException(e);
-                  }
-                },
-                ProvisioningOutWorkMonitor::new,
-                recoverType.runtime(
-                    target
-                        .runtimeProvisioners()
-                        .filter(p -> p.name().equals(operation.type().substring(1)))
-                        .findAny()
-                        .orElseThrow()),
-                p4.createMonitor(operation));
+            TaskStarter.of(
+                    operation.type(),
+                    recoverType.prepare(
+                        TaskStarter.wrapRuntimeProvisioner(
+                            target
+                                .runtimeProvisioners()
+                                .filter(p -> p.name().equals(operation.type().substring(1)))
+                                .findAny()
+                                .orElseThrow()),
+                        operation.recoveryState()))
+                .start(this, operation, p4.createTerminal(operation));
           } else {
-            WrappedMonitor.recover(
-                operation.recoveryState(),
-                v -> {
-                  try {
-                    return mapper().treeToValue(v, ProvisionData.class);
-                  } catch (JsonProcessingException e) {
-                    throw new RuntimeException(e);
-                  }
-                },
-                ProvisioningOutWorkMonitor::new,
-                recoverType.provisionOut(
-                    target.provisionerFor(OutputProvisionFormat.valueOf(operation.type()))),
-                p4.createMonitor(operation));
+            TaskStarter.of(
+                    operation.type(),
+                    recoverType.prepare(
+                        TaskStarter.wrapOutputProvisioner(
+                            target.provisionerFor(OutputProvisionFormat.valueOf(operation.type()))),
+                        operation.recoveryState()))
+                .start(this, operation, p4.createTerminal(operation));
           }
         }
         break;
       case CLEANUP:
         final var p5 = new Phase5Cleanup(definition, workflow);
         for (final var operation : activeOperations) {
-          target.engine().recoverCleanup(operation.recoveryState(), p5.createMonitor(operation));
+          TaskStarter.of("", target.engine().cleanup().recover(operation.recoveryState()))
+              .start(this, operation, p5.createTerminal(operation));
         }
         break;
       case FAILED:
@@ -1000,17 +942,8 @@ public abstract class BaseProcessor<
       currentPhase.workflow().phase(Phase.FAILED, Collections.emptyList(), transaction);
       return;
     }
-    final var monitors = new ArrayList<DelayWorkMonitor<R, JsonNode>>();
     final var initialStates =
-        nextPhaseSteps.stream()
-            .map(
-                t -> {
-                  final var monitor = new DelayWorkMonitor<R, JsonNode>();
-                  monitors.add(monitor);
-                  return t.start(
-                      currentPhase.definition().language(), currentPhase.workflow().id(), monitor);
-                })
-            .collect(Collectors.toList());
+        nextPhaseSteps.stream().map((starter) -> TaskStarter.toPair(starter, mapper())).toList();
     final var nextPhaseManager = currentPhase.startNext(initialStates.size());
     final var operations =
         currentPhase.workflow().phase(nextPhaseManager.phase(), initialStates, transaction);
@@ -1020,7 +953,7 @@ public abstract class BaseProcessor<
     }
     for (var index = 0; index < nextPhaseSteps.size(); index++) {
       final var operation = operations.get(index);
-      monitors.get(index).set(nextPhaseManager.createMonitor(operation));
+      nextPhaseSteps.get(index).start(this, operation, nextPhaseManager.createTerminal(operation));
     }
   }
 

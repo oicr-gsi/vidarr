@@ -9,7 +9,7 @@ using the `provides` keyword. All plugins need to depend only on the
 infrastructure.
 
 There are several services that a plugin can provide and a plugin is free to
-provide multiple. Plugins are loaded from JSON data in the Vidarr configuration
+provide multiple. Plugins are loaded from JSON data in the Víðarr configuration
 file or, in the case of an unload filter, user requests, using Jackson. Each
 plugin can load whatever Jackson-compatible data from JSON it requires. Each
 plugin has a small "provider" class which provides type information for
@@ -18,7 +18,7 @@ appropriate class instance. The provider class lists what values for `"type"`
 correspond to what Java objects that Jackson should load. Since objects are
 instantiated by Jackson, most have a `startup` method that is called after
 loading is complete where the plugin can do any initialisation required. If it
-throws exceptions, the Vidarr server will fail to start, which is probably the
+throws exceptions, the Víðarr server will fail to start, which is probably the
 correct behaviour for a badly misconfigured plugin.
 
 As an example of a configuration file:
@@ -53,7 +53,7 @@ expected to journal their current state to the database. The `WorkMonitor`
 provides methods to journal state to the database for crash recovery and to
 provide status information to users.
 
-Most plugins have a `recover` method. If Vidarr is restarted, the plugin will
+Most plugins have a `recover` method. If Víðarr is restarted, the plugin will
 be asked to recover its state from the last state information in journaled to
 the database using the `WorkMonitor`. Plugins are expected to be able to pick
 up where they left off based only on this information.
@@ -82,12 +82,12 @@ resource are more "throttling"-type. These include maintenance schedules and
 Prometheus alerts which block workflow runs from starting but don't track 
 anything once the workflow run is underway. 
 
-Consumable resources are long-running. Whenever Vidarr attempts to run a
+Consumable resources are long-running. Whenever Víðarr attempts to run a
 workflow, it will consult the consumable resources to see if there is capacity
 to run the workflow (the `request` method). At that point the consumable
 resource must make a decision as to whether the workflow can proceed. Once the
-workflow has finished running (successfully or not), Vidarr will `release` the
-resource so that it can be used again. When Vidarr restarts, any running
+workflow has finished running (successfully or not), Víðarr will `release` the
+resource so that it can be used again. When Víðarr restarts, any running
 workflows will be called with `recover` to indicate that the resource is being
 used and the resource cannot stop the workflow even if the resource is
 over-capacity. 
@@ -97,7 +97,7 @@ Consumable resources can request data from the user, if desired. The
 information is required or can indicate the name and type of information that
 is required. The `request` and `release` methods will contain a copy of this information,
 encoded as JSON, if the submitter provided it. The JSON data has been
-type-checked by Vidarr, so it should be safe to convert to the expected type
+type-checked by Víðarr, so it should be safe to convert to the expected type
 using Jackson.
 
 Sometimes, consumable resources are doing scoring that would be helpful to know
@@ -122,9 +122,7 @@ shared directory instead of, say, `/tmp` and ensure the right permissions are
 set up.
 These are not the responsibility of the plugin author.
 
-The class `BaseJsonInputProvisioner` is a partial implementation that can store
-crash recovery information in a JSON object of the implementor's choosing,
-making recovery easier.
+This plugin type uses the [operations API](#operations-api).
 
 # Output Provisioners
 Output provisioners implement `ca.on.oicr.gsi.vidarr.OutputProvisionerProvider`
@@ -143,9 +141,7 @@ the plugin to validate any configuration metadata provided by the submitter
 provision out step will be run with the metadata provided by the submitter and
 the output provided by the workflow.
 
-The class `BaseJsonOutputProvisioner` is a partial implementation that can
-store crash recovery information in a JSON object of the implementer's
-choosing, making recovery easier.
+This plugin type uses the [operations API](#operations-api).
 
 # Runtime Provisioners
 Runtime provisioners implement `ca.on.oicr.gsi.vidarr.RuntimeProvisionerProvider`
@@ -159,9 +155,7 @@ This plugin and the workflow plugins must have a mutual understanding of what a
 workflow engine's identifier means. That is somewhat the responsibility of the
 system administrator.
 
-The class `BaseJsonRuntimeProvisioner` is a partial implementation that can
-store crash recovery information in a JSON object of the implementer's
-choosing, making recovery easier.
+This plugin type uses the [operations API](#operations-api).
 
 # Workflow Engine
 Workflow engines implement `ca.on.oicr.gsi.vidarr.WorkflowEngineProvider`
@@ -174,17 +168,15 @@ which ones are allowed via the `supports` method.
 The workflow engine will be given the complete input to the workflow (with real
 paths provided by the input provisioners) and the workflow itself. Once the
 workflow has completed, it must provide a JSON structure that references the
-output of the workflow. Vidarr will identify the output files generated by
-the workflow engine and they will be passed to the output provisioners.
+output of the workflow. Víðarr will identify the output files generated by the
+workflow engine and they will be passed to the output provisioners.
 
 After the output provisioners have completed, the workflow engine will be
 called again to cleanup any output, if this is appropriate. If the workflow
 engine does not support cleanup, it should gracefully succeed during the
 clean-up (and clean-up recovery) methods.
 
-The class `BaseJsonWorkflowEngine` is a partial implementation that can store
-crash recovery information in a JSON object of the implementer's choosing,
-making recovery easier.
+This plugin type uses the [operations API](#operations-api).
 
 # Unload Filters
 Unload filters implement `ca.on.oicr.gsi.vidarr.UnloadFilterProvider` and
@@ -230,6 +222,66 @@ Each component will be called for every pending workflow run, so the analysis
 should be relatively fast. `PriorityInput` implementations should cache results
 from external services.
 
+<a id="operations-api"></a>
+# The Operations API
+Multiple plugins use an operations API rather than direct method calls. The API
+is designed to simplify two messy tasks: asynchronous operations and creating a
+recoverable state. The operations API consists of a few classes in
+`ca.on.oicr.gsi.vidarr`:
+
+- `OperationAction`: the core class that describes an operations process
+- `OperationStep`: a class that describes an asynchronous operation
+- `OperationStatefulStep`: a class that describes an asynchronous operation
+  which reads or modifies the on-going state
+
+The process starts with the plugin generating an original state object. This is
+a plugin-defined record. State objects should _not_ be mutated and using a
+record helps to encourage this. The plugin defines an `OperationAction` that
+describes the process, starting with the original state object, that outlines
+the steps needed to transform that state into the final output expected by the
+plugin.
+
+As Víðarr runs the operations, it keeps track of two values: the state and the
+_current value_. The current value is the output of the previous step and the
+input to the next step. In effect, given steps _A_, _B_, and _C_, the
+operations API will allow writing this as `load(...).then(A).then(B).then(C)`,
+but it will be executing it as `C(B(A(...)))`, where the return value of the
+previous step is the only parameter to the next one. This design is preferable
+to direct calls because Víðarr can stop executing the task when it needs to
+wait and restart it later, removing the burden of asynchronous scheduling from
+the plugin author.
+
+To start, a call to `OperationAction.load` or `OperationAction.value` is
+required. This primes the sequence of events by computing a value from the
+state information alone which will be the input for the first step. After this,
+`then` may be called to manipulate this value. Additionally, there are
+convenience methods `map`, to modify the current value, and `reload`, to discard
+the current value and load a new one from the state.
+
+`OperationStep` is technically a subset of `OperationStatefulStep`, but it is
+implemented separately because the restricted design of `OperationStep` has
+simpler type constraints, producing better errors during development.
+
+How state is managed along this chain of events is intentionally hidden to
+simplify the process. A `OperationStatefulStep` can wrap the state in
+additional information. For instance, `repeatUntilSuccess` needs to track the
+number of times it attempted an operation, so it wraps the state in
+`RepeatCounter`. When the chain is executed, Víðarr takes the original state
+and wraps it in classes like `RepeatCounter` to build up a state that tracks
+all of the paths required by the chain. It can then write this wrapped state to
+the database and, if Víðarr restarts, it can recover the operations
+automatically using this state information.
+
+This means that the steps along the way are automatically wrapping and
+unwrapping state along the way so that the correct information is stored in the
+database. One caveat is that if the structure of the operation of this code
+changes, then so does the state stored in the database. Meaning that
+redesigning the operations may mean that Víðarr cannot recover. Having the
+plugin programmer manually manage state does allow them to have better control
+over this scenario, but for a lot of overhead in the plugin implementation. The
+interfaces Víðarr uses intentionally hide the state type behind a wild card
+(`?`) generic to simplify writing plugins, but any changes to this type will
+cause recovery issues.
 
 # Provided Implementations
 This core implementation provides several plugins independent of external
@@ -502,7 +554,7 @@ This changes the type of an input provider for compatibility with Shesmu. The
 crux is this: Shesmu's tagged unions are more limited than Víðarr's. Shesmu
 requires that a tagged union have a tuple or object while Víðarr permits either
 of those. When using the _one-of_ input source, this introduces the possibility
-of creating a type that Shesmu cannot process.  This allows wrapping a
+of creating a type that Shesmu cannot process.  This allows wrapping an
 priority input's type in a single element tuple, thereby making it compatible
 with Shesmu.
 
@@ -613,7 +665,7 @@ priority is provided using the `"base"` formula.
 Increases the priority as a workflow run sits around. The duration the workflow
 run has been waiting is looked up in the `"escalation"` object; the keys are an
 [ISO-8601 duration](https://en.wikipedia.org/wiki/ISO_8601#Durations) and the
-values are an integer. The smallest matching duration is used and the value
+values are a integer. The smallest matching duration is used and the value
 provided is added to the original score. Values need to be greater than 1 to
 increase priority. If workflow run has been waiting less than the smallest
 duration in the dictionary, the original priority is used. The original

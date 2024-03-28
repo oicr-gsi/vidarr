@@ -1,18 +1,39 @@
 package ca.on.oicr.gsi.vidarr.cromwell;
 
-import static ca.on.oicr.gsi.vidarr.cromwell.CromwellWorkflowEngine.*;
+import static ca.on.oicr.gsi.vidarr.OperationAction.load;
+import static ca.on.oicr.gsi.vidarr.OperationStatefulStep.log;
+import static ca.on.oicr.gsi.vidarr.OperationStatefulStep.onInnerState;
+import static ca.on.oicr.gsi.vidarr.OperationStatefulStep.poll;
+import static ca.on.oicr.gsi.vidarr.OperationStatefulStep.repeatUntilSuccess;
+import static ca.on.oicr.gsi.vidarr.OperationStep.debugInfo;
+import static ca.on.oicr.gsi.vidarr.OperationStep.http;
+import static ca.on.oicr.gsi.vidarr.OperationStep.log;
+import static ca.on.oicr.gsi.vidarr.OperationStep.monitorWhen;
+import static ca.on.oicr.gsi.vidarr.OperationStep.requireJsonSuccess;
+import static ca.on.oicr.gsi.vidarr.OperationStep.requirePresent;
+import static ca.on.oicr.gsi.vidarr.OperationStep.status;
+import static ca.on.oicr.gsi.vidarr.cromwell.CromwellWorkflowEngine.CROMWELL_FAILURES;
+import static ca.on.oicr.gsi.vidarr.cromwell.CromwellWorkflowEngine.MAPPER;
+import static ca.on.oicr.gsi.vidarr.cromwell.CromwellWorkflowEngine.statusFromCromwell;
 
 import ca.on.oicr.gsi.Pair;
 import ca.on.oicr.gsi.status.SectionRenderer;
-import ca.on.oicr.gsi.vidarr.*;
+import ca.on.oicr.gsi.vidarr.BasicType;
+import ca.on.oicr.gsi.vidarr.JsonBodyHandler;
+import ca.on.oicr.gsi.vidarr.OperationAction;
+import ca.on.oicr.gsi.vidarr.OperationStatefulStep;
+import ca.on.oicr.gsi.vidarr.OperationStatefulStep.Child;
+import ca.on.oicr.gsi.vidarr.OperationStatefulStep.RepeatCounter;
+import ca.on.oicr.gsi.vidarr.OutputProvisionFormat;
+import ca.on.oicr.gsi.vidarr.OutputProvisioner;
+import ca.on.oicr.gsi.vidarr.OutputProvisionerProvider;
+import ca.on.oicr.gsi.vidarr.WorkingStatus;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import java.net.URI;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.nio.file.Path;
+import java.lang.System.Logger.Level;
 import java.time.Duration;
-import java.util.*;
-import java.util.concurrent.TimeUnit;
+import java.util.List;
+import java.util.Optional;
 import java.util.stream.Stream;
 
 /**
@@ -20,9 +41,8 @@ import java.util.stream.Stream;
  * workflow
  */
 public class CromwellOutputProvisioner
-    extends BaseJsonOutputProvisioner<OutputMetadata, ProvisionState, Void> {
-  private static final int CHECK_DELAY = 1;
-  private static final List<Pair<String, String>> EXTENSION_TO_META_TYPE =
+    implements OutputProvisioner<PreflightState, ProvisionState> {
+  static final List<Pair<String, String>> EXTENSION_TO_META_TYPE =
       List.of(
           new Pair<>(".bam", "application/bam"),
           new Pair<>(".bai", "application/bam-index"),
@@ -62,6 +82,7 @@ public class CromwellOutputProvisioner
 
   private int[] chunks;
   private String cromwellUrl;
+  private boolean debugCalls;
   private String fileField;
   private String fileSizeField;
   private String checksumField;
@@ -72,140 +93,12 @@ public class CromwellOutputProvisioner
   private ObjectNode workflowOptions = MAPPER.createObjectNode();
   private String workflowSource;
   private String workflowUrl;
-  private Boolean debugCalls;
 
-  public CromwellOutputProvisioner() {
-    super(MAPPER, ProvisionState.class, Void.class, OutputMetadata.class);
-  }
+  public CromwellOutputProvisioner() {}
 
   @Override
   public boolean canProvision(OutputProvisionFormat format) {
     return format == OutputProvisionFormat.FILES;
-  }
-
-  private void check(
-      ProvisionState state, WorkMonitor<OutputProvisioner.Result, ProvisionState> monitor) {
-    try {
-      monitor.log(
-          System.Logger.Level.INFO,
-          String.format("Checking Cromwell job %s on %s", state.getCromwellId(), cromwellUrl));
-      CROMWELL_REQUESTS.labels(cromwellUrl).inc();
-      CLIENT
-          .sendAsync(
-              HttpRequest.newBuilder()
-                  .uri(
-                      CromwellMetadataURL.formatMetadataURL(
-                          cromwellUrl, state.getCromwellId(), debugCalls))
-                  .timeout(Duration.ofMinutes(1))
-                  .GET()
-                  .build(),
-              new JsonBodyHandler<>(MAPPER, WorkflowMetadataResponse.class))
-          .thenApply(HttpResponse::body)
-          .thenAccept(
-              s -> {
-                final var result = s.get();
-                monitor.log(
-                    System.Logger.Level.INFO,
-                    String.format(
-                        "Cromwell job %s on %s is in state %s",
-                        state.getCromwellId(), cromwellUrl, result.getStatus()));
-                monitor.storeDebugInfo(result.debugInfo());
-                switch (result.getStatus()) {
-                    // In the case of failures ("Aborted" or "Failed"), request the full metadata
-                    // from Cromwell if we don't already have it
-                    // so we can have call info for debugging.
-                  case "Aborted":
-                  case "Failed":
-                    if (debugCalls) {
-                      monitor.log(
-                          System.Logger.Level.INFO,
-                          String.format(
-                              "Cromwell job %s is failed. Cromwell OutputProvisioner "
-                                  + "is configured to have already fetched calls info. Skipping "
-                                  + "second request.",
-                              state.getCromwellId()));
-                      monitor.permanentFailure("Cromwell failure: " + result.getStatus());
-                      break;
-                    }
-                    monitor.log(
-                        System.Logger.Level.INFO,
-                        String.format(
-                            "Cromwell job %s is failed, fetching call info on %s",
-                            state.getCromwellId(), cromwellUrl));
-                    CROMWELL_REQUESTS.labels(cromwellUrl).inc();
-
-                    CLIENT
-                        .sendAsync(
-                            HttpRequest.newBuilder()
-                                .uri(
-                                    CromwellMetadataURL.formatMetadataURL(
-                                        cromwellUrl, state.getCromwellId(), true))
-                                .timeout(Duration.ofMinutes(1))
-                                .GET()
-                                .build(),
-                            new JsonBodyHandler<>(MAPPER, WorkflowMetadataResponse.class))
-                        .thenApply(HttpResponse::body)
-                        .thenAccept(
-                            s2 -> {
-                              final var fullResult = s2.get();
-                              monitor.log(
-                                  System.Logger.Level.INFO,
-                                  String.format(
-                                      "Successfully fetched full metadata for Cromwell job %s on %s",
-                                      state.getCromwellId(), cromwellUrl));
-                              monitor.storeDebugInfo(fullResult.debugInfo());
-                              monitor.permanentFailure("Cromwell failure: " + result.getStatus());
-                            })
-                        .exceptionally(
-                            t2 -> {
-                              t2.printStackTrace();
-                              monitor.log(
-                                  System.Logger.Level.WARNING,
-                                  String.format(
-                                      "Failed to get Cromwell job %s on %s due to %s",
-                                      state.getCromwellId(), cromwellUrl, t2.getMessage()));
-                              CROMWELL_FAILURES.labels(cromwellUrl).inc();
-
-                              // TODO: this may schedule 2 requests to cromwell /metadata now.
-                              // Consider
-                              // a failure-unique check
-                              monitor.scheduleTask(
-                                  CHECK_DELAY, TimeUnit.MINUTES, () -> check(state, monitor));
-                              return null;
-                            });
-
-                    break;
-                  case "Succeeded":
-                    finish(state, monitor);
-                    break;
-                  default:
-                    monitor.updateState(statusFromCromwell(result.getStatus()));
-                    monitor.scheduleTask(
-                        CHECK_DELAY, TimeUnit.MINUTES, () -> check(state, monitor));
-                }
-              })
-          .exceptionally(
-              t -> {
-                t.printStackTrace();
-                monitor.log(
-                    System.Logger.Level.WARNING,
-                    String.format(
-                        "Failed to get Cromwell job %s on %s due to %s",
-                        state.getCromwellId(), cromwellUrl, t.getMessage()));
-                CROMWELL_FAILURES.labels(cromwellUrl).inc();
-                monitor.scheduleTask(CHECK_DELAY, TimeUnit.MINUTES, () -> check(state, monitor));
-                return null;
-              });
-    } catch (Exception e) {
-      e.printStackTrace();
-      monitor.log(
-          System.Logger.Level.WARNING,
-          String.format(
-              "Failed to get Cromwell job %s on %s due to %s",
-              state.getCromwellId(), cromwellUrl, e.getMessage()));
-      CROMWELL_FAILURES.labels(cromwellUrl).inc();
-      monitor.scheduleTask(CHECK_DELAY, TimeUnit.MINUTES, () -> check(state, monitor));
-    }
   }
 
   @Override
@@ -224,52 +117,18 @@ public class CromwellOutputProvisioner
     }
   }
 
-  private void finish(
-      ProvisionState state, WorkMonitor<OutputProvisioner.Result, ProvisionState> monitor) {
-    monitor.log(
-        System.Logger.Level.INFO,
-        String.format(
-            "Reaping results of Cromwell job %s on %s", state.getCromwellId(), cromwellUrl));
-    CROMWELL_REQUESTS.labels(cromwellUrl).inc();
-    CLIENT
-        .sendAsync(
-            HttpRequest.newBuilder()
-                .uri(
-                    URI.create(
-                        String.format(
-                            "%s/api/workflows/v1/%s/outputs", cromwellUrl, state.getCromwellId())))
-                .timeout(Duration.ofMinutes(1))
-                .GET()
-                .build(),
-            new JsonBodyHandler<>(MAPPER, WorkflowOutputResponse.class))
-        .thenApply(HttpResponse::body)
-        .thenAccept(
-            s -> {
-              final var result = s.get();
-              monitor.log(
-                  System.Logger.Level.INFO,
-                  String.format(
-                      "Got results of Cromwell job %s on %s", state.getCromwellId(), cromwellUrl));
-              monitor.complete(
-                  Result.file(
-                      result.getOutputs().get(storagePathField).asText(),
-                      result.getOutputs().get(checksumField).asText(),
-                      result.getOutputs().get(checksumTypeField).asText(),
-                      Long.parseLong(result.getOutputs().get(fileSizeField).asText()),
-                      state.getMetaType()));
-            })
-        .exceptionally(
-            t -> {
-              monitor.log(
-                  System.Logger.Level.WARNING,
-                  String.format(
-                      "Failed to get results of Cromwell job %s on %s",
-                      state.getCromwellId(), cromwellUrl));
-              t.printStackTrace();
-              CROMWELL_FAILURES.labels(cromwellUrl).inc();
-              monitor.scheduleTask(CHECK_DELAY, TimeUnit.MINUTES, () -> check(state, monitor));
-              return null;
-            });
+  private OutputProvisioner.Result extractOutput(
+      Child<RepeatCounter<ProvisionState>, ?> state, WorkflowOutputResponse result) {
+    return Result.file(
+        result.getOutputs().get(storagePathField).asText(),
+        result.getOutputs().get(checksumField).asText(),
+        result.getOutputs().get(checksumTypeField).asText(),
+        Long.parseLong(result.getOutputs().get(fileSizeField).asText()),
+        EXTENSION_TO_META_TYPE.stream()
+            .filter(p -> state.state().state().fileName().endsWith(p.first()))
+            .findFirst()
+            .map(Pair::second)
+            .orElseThrow());
   }
 
   public String getChecksumField() {
@@ -321,149 +180,62 @@ public class CromwellOutputProvisioner
   }
 
   @Override
-  protected Void preflightCheck(
-      OutputMetadata metadata, WorkMonitor<Boolean, ProvisionState> monitor) {
-    monitor.scheduleTask(() -> monitor.complete(true));
-    return null;
+  public PreflightState preflightCheck(JsonNode metadata) {
+    return new PreflightState();
   }
 
   @Override
-  protected void preflightRecover(Void state, WorkMonitor<Boolean, ProvisionState> monitor) {
-    monitor.scheduleTask(() -> monitor.complete(true));
+  public ProvisionState provision(String workflowRunId, String data, JsonNode metadata) {
+    return new ProvisionState(cromwellUrl, data, metadata, workflowRunId);
   }
 
   @Override
-  protected ProvisionState provision(
-      String workflowId,
-      String data,
-      OutputMetadata metadata,
-      WorkMonitor<Result, ProvisionState> monitor) {
-    final var state = new ProvisionState();
-    state.setFileName(data);
-    state.setVidarrId(workflowId);
-    var path = Path.of(metadata.getOutputDirectory());
-    int startIndex = 0;
-    for (final var length : chunks) {
-      if (length < 1) {
-        break;
-      }
-      final var endIndex = Math.min(workflowId.length(), startIndex + length);
-      if (endIndex == startIndex) {
-        break;
-      }
-      path = path.resolve(workflowId.substring(startIndex, endIndex));
-      startIndex = endIndex;
-    }
-
-    state.setOutputPrefix(path.resolve(workflowId).toString());
-
-    state.setMetaType(
-        EXTENSION_TO_META_TYPE.stream()
-            .filter(p -> data.endsWith(p.first()))
-            .findFirst()
-            .map(Pair::second)
-            .orElseThrow());
-    recover(state, monitor);
-    return state;
+  public OperationAction<?, ProvisionState, OutputProvisioner.Result> run() {
+    return load(ProvisionState.class, (state) -> state.buildLaunchRequest(this))
+        .then(http(new JsonBodyHandler<>(MAPPER, WorkflowStatusResponse.class)))
+        .then(
+            log(
+                Level.INFO,
+                (response) ->
+                    String.format("Got response %d on %s", response.statusCode(), cromwellUrl)))
+        .then(monitorWhen(CROMWELL_FAILURES, result -> result.statusCode() / 100 != 2, cromwellUrl))
+        .then(requireJsonSuccess())
+        .map(result -> Optional.ofNullable(result.getId()).filter(id -> !id.equals("null")))
+        .then(requirePresent())
+        .then(status(WorkingStatus.QUEUED))
+        .then(
+            log(
+                Level.INFO,
+                id -> String.format("Started Cromwell provision-out %s on %s", id, cromwellUrl)))
+        .then(repeatUntilSuccess(Duration.ofMinutes(10), 5))
+        .then(
+            OperationStatefulStep.subStep(
+                onInnerState(ProvisionState.class, ProvisionState::checkTask),
+                load(StateStarted.class, (state) -> state.buildCheckRequest(debugCalls))
+                    .then(http(new JsonBodyHandler<>(MAPPER, WorkflowMetadataResponse.class)))
+                    .then(requireJsonSuccess())
+                    .then(debugInfo(WorkflowMetadataResponse::debugInfo))
+                    .then(
+                        log(
+                            Level.INFO,
+                            (state, response) ->
+                                String.format(
+                                    "Status of Cromwell provision-out %s on %s: %s",
+                                    state.cromwellId(),
+                                    state.cromwellServer(),
+                                    response.getStatus())))
+                    .then(status(response -> statusFromCromwell(response.getStatus())))
+                    .map(WorkflowMetadataResponse::pollStatus)
+                    .then(poll(Duration.ofMinutes(5)))
+                    .reload(StateStarted::buildOutputsRequest)
+                    .then(http(new JsonBodyHandler<>(MAPPER, WorkflowOutputResponse.class)))
+                    .then(requireJsonSuccess())))
+        .map(this::extractOutput);
   }
 
   @Override
-  protected void recover(ProvisionState state, WorkMonitor<Result, ProvisionState> monitor) {
-    if (state.getCromwellId() == null) {
-      monitor.scheduleTask(
-          () -> {
-            try {
-              monitor.log(
-                  System.Logger.Level.INFO,
-                  String.format(
-                      "Launching provisioning out job on Cromwell %s for %s",
-                      cromwellUrl, state.getFileName()));
-              final var body =
-                  new MultiPartBodyPublisher()
-                      .addPart(
-                          workflowUrl == null ? "workflowSource" : "workflowUrl",
-                          workflowUrl == null ? workflowSource : workflowUrl)
-                      .addPart(
-                          "labels",
-                          MAPPER.writeValueAsString(
-                              Collections.singletonMap(
-                                  "vidarr-id",
-                                  state
-                                      .getVidarrId()
-                                      .substring(Math.max(0, state.getVidarrId().length() - 255)))))
-                      .addPart(
-                          "workflowInputs",
-                          MAPPER.writeValueAsString(
-                              Map.of(
-                                  fileField,
-                                  state.getFileName(),
-                                  outputPrefixField,
-                                  state.getOutputPrefix())))
-                      .addPart("workflowOptions", MAPPER.writeValueAsString(workflowOptions))
-                      .addPart("workflowType", "WDL")
-                      .addPart("workflowTypeVersion", wdlVersion);
-              CROMWELL_REQUESTS.labels(cromwellUrl).inc();
-              CLIENT
-                  .sendAsync(
-                      HttpRequest.newBuilder()
-                          .uri(URI.create(String.format("%s/api/workflows/v1", cromwellUrl)))
-                          .timeout(Duration.ofMinutes(1))
-                          .header("Content-Type", body.getContentType())
-                          .POST(body.build())
-                          .build(),
-                      new JsonBodyHandler<>(MAPPER, WorkflowStatusResponse.class))
-                  .thenApply(HttpResponse::body)
-                  .thenAccept(
-                      s -> {
-                        final var result = s.get();
-                        if (result.getId() == null) {
-                          monitor.permanentFailure("Cromwell to launch workflow.");
-                          return;
-                        }
-                        state.setCromwellId(result.getId());
-                        monitor.storeRecoveryInformation(state);
-                        monitor.updateState(statusFromCromwell(result.getStatus()));
-                        monitor.scheduleTask(
-                            CHECK_DELAY, TimeUnit.MINUTES, () -> check(state, monitor));
-                        monitor.log(
-                            System.Logger.Level.INFO,
-                            String.format(
-                                "Provisioning for %s on Cromwell %s is %s",
-                                state.getFileName(), cromwellUrl, result.getId()));
-                      })
-                  .exceptionally(
-                      t -> {
-                        monitor.log(
-                            System.Logger.Level.WARNING,
-                            String.format(
-                                "Failed to launch provisioning out job on Cromwell %s for %s",
-                                cromwellUrl, state.getFileName()));
-                        t.printStackTrace();
-                        CROMWELL_FAILURES.labels(cromwellUrl).inc();
-
-                        // Call recover() rather than check(): recover() starts with a check for
-                        // a null cromwell ID. There's a chance Exception t is 'header parser
-                        // received no bytes', or another case where we don't have a cromwell id.
-                        // Prevents looping 'Checking Cromwell job null'. recover() calls check()
-                        // if a cromwell id is present.
-                        monitor.scheduleTask(
-                            CHECK_DELAY, TimeUnit.MINUTES, () -> recover(state, monitor));
-                        return null;
-                      });
-            } catch (Exception e) {
-              CROMWELL_FAILURES.labels(cromwellUrl).inc();
-              monitor.permanentFailure(e.toString());
-            }
-          });
-    } else {
-      check(state, monitor);
-    }
-  }
-
-  @Override
-  protected void retry(ProvisionState state, WorkMonitor<Result, ProvisionState> monitor) {
-    state.setCromwellId(null);
-    recover(state, monitor);
+  public OperationAction<?, PreflightState, Boolean> runPreflight() {
+    return OperationAction.value(PreflightState.class, true);
   }
 
   public void setChecksumField(String checksumField) {
@@ -480,6 +252,10 @@ public class CromwellOutputProvisioner
 
   public void setCromwellUrl(String cromwellUrl) {
     this.cromwellUrl = cromwellUrl;
+  }
+
+  public void setDebugCalls(boolean debugCalls) {
+    this.debugCalls = debugCalls;
   }
 
   public void setFileField(String fileField) {
@@ -535,9 +311,5 @@ public class CromwellOutputProvisioner
     } else {
       throw new IllegalArgumentException("Cannot provision non-file output");
     }
-  }
-
-  public void setDebugCalls(Boolean debugCalls) {
-    this.debugCalls = debugCalls;
   }
 }

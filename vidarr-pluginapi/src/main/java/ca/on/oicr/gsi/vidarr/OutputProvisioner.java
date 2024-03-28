@@ -29,12 +29,15 @@ import javax.xml.stream.XMLStreamException;
  *
  * <p>OutputProvisioner uses jackson-databind to map information from the server's '.vidarrconfig'
  * file to member non-static fields. The @JsonIgnore annotation prevents this.
+ *
+ * @param <PreflightState> the state information used to run the preflight check
+ * @param <State> the state information used for provisioning out data
  */
 @JsonTypeIdResolver(OutputProvisioner.OutputProvisionerIdResolver.class)
 @JsonTypeInfo(use = JsonTypeInfo.Id.CUSTOM, include = As.PROPERTY, property = "type")
-public interface OutputProvisioner {
+public interface OutputProvisioner<PreflightState extends Record, State extends Record> {
   final class OutputProvisionerIdResolver extends TypeIdResolverBase {
-    private final Map<String, Class<? extends OutputProvisioner>> knownIds =
+    private final Map<String, Class<? extends OutputProvisioner<?, ?>>> knownIds =
         ServiceLoader.load(OutputProvisionerProvider.class).stream()
             .map(Provider::get)
             .flatMap(OutputProvisionerProvider::types)
@@ -141,63 +144,38 @@ public interface OutputProvisioner {
   void configuration(SectionRenderer sectionRenderer) throws XMLStreamException;
 
   /**
-   * Check that the metadata provided by the submitter is valid.
+   * Prepare state to check that the metadata provided by the submitter is valid.
    *
    * @param metadata the metadata provided by the submitter
-   * @param monitor the monitor structure for writing the output of the checking process
    */
-  JsonNode preflightCheck(JsonNode metadata, WorkMonitor<Boolean, JsonNode> monitor);
+  PreflightState preflightCheck(JsonNode metadata);
 
   /**
-   * Restart a preflight check process from state saved in the database
-   *
-   * @param state the frozen database state
-   * @param monitor the monitor structure for writing the output of the provisioning process
-   */
-  void preflightRecover(JsonNode state, WorkMonitor<Boolean, JsonNode> monitor);
-
-  /**
-   * Begin provisioning out a new output
+   * Prepare state to provision out data
    *
    * <p>This method should not do any externally-visible work. Anything it needs should be done in a
-   * {@link WorkMonitor#scheduleTask(Runnable)} callback so that Vidarr can execute it once the
-   * database is in a healthy state.
+   * {@link #run()} so that Vidarr can execute it once the database is in a healthy state.
    *
    * @param workflowRunId the workflow run ID assigned by Vidarr
    * @param data the output coming from the workflow
    * @param metadata the information coming from the submitter to direct provisioning
-   * @param monitor the monitor structure for writing the output of the provisioning process
    * @return the initial state of the provision out process
    */
-  JsonNode provision(
-      String workflowRunId, String data, JsonNode metadata, WorkMonitor<Result, JsonNode> monitor);
+  State provision(String workflowRunId, String data, JsonNode metadata);
 
   /**
-   * Restart a provisioning process from state saved in the database
+   * Create a declarative structure to execute the provisioning
    *
-   * <p>This method should not do any externally-visible work. Anything it needs should be done in a
-   * {@link WorkMonitor#scheduleTask(Runnable)} callback so that Vidarr can execute it once the
-   * database is in a healthy state.
-   *
-   * @param state the frozen database state
-   * @param monitor the monitor structure for writing the output of the provisioning process
+   * @return the sequence of operations that should be performed
    */
-  void recover(JsonNode state, WorkMonitor<Result, JsonNode> monitor);
+  OperationAction<?, State, Result> run();
 
   /**
-   * Restart a provisioning process from state saved in the database from a failed task.
+   * Create a declarative structure to execute the pre-flight check
    *
-   * <p>This method should not do any externally-visible work. Anything it needs should be done in a
-   * {@link WorkMonitor#scheduleTask(Runnable)} callback so that Vidarr can execute it once the
-   * database is in a healthy state.
-   *
-   * <p>This is meant to allow retrying the provision out process after a failure such as out of
-   * disk that doesn't require reprocessing the data.
-   *
-   * @param state the frozen database state
-   * @param monitor the monitor structure for writing the output of the provisioning process
+   * @return the sequence of operations that should be performed
    */
-  void retry(JsonNode state, WorkMonitor<Result, JsonNode> monitor);
+  OperationAction<?, PreflightState, Boolean> runPreflight();
 
   /**
    * Called to initialise this output provisioner.

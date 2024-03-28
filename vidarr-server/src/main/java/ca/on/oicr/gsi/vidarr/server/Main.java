@@ -29,6 +29,7 @@ import ca.on.oicr.gsi.vidarr.InputProvisioner;
 import ca.on.oicr.gsi.vidarr.InputType;
 import ca.on.oicr.gsi.vidarr.JsonBodyHandler;
 import ca.on.oicr.gsi.vidarr.JsonPost;
+import ca.on.oicr.gsi.vidarr.OperationStatus;
 import ca.on.oicr.gsi.vidarr.OutputProvisionFormat;
 import ca.on.oicr.gsi.vidarr.OutputProvisioner;
 import ca.on.oicr.gsi.vidarr.OutputType;
@@ -41,7 +42,6 @@ import ca.on.oicr.gsi.vidarr.core.BaseProcessor;
 import ca.on.oicr.gsi.vidarr.core.ExtractInputVidarrIds;
 import ca.on.oicr.gsi.vidarr.core.FileMetadata;
 import ca.on.oicr.gsi.vidarr.core.ManualOverrideConsumableResource;
-import ca.on.oicr.gsi.vidarr.core.OperationStatus;
 import ca.on.oicr.gsi.vidarr.core.Phase;
 import ca.on.oicr.gsi.vidarr.core.Target;
 import ca.on.oicr.gsi.vidarr.server.DatabaseBackedProcessor.DeleteResultHandler;
@@ -447,21 +447,21 @@ public final class Main implements ServerConfig {
   private final ReentrantReadWriteLock epochLock = new ReentrantReadWriteLock();
   private final ScheduledExecutorService executor =
       Executors.newScheduledThreadPool(Runtime.getRuntime().availableProcessors());
-  private final Map<String, InputProvisioner> inputProvisioners;
+  private final Map<String, InputProvisioner<?>> inputProvisioners;
   private final Semaphore loadCounter = new Semaphore(3);
   private final MaxInFlightByWorkflow maxInFlightPerWorkflow = new MaxInFlightByWorkflow();
   private final ManualOverrideConsumableResource overridableMaxInFlightPerWorkflow =
       new ManualOverrideConsumableResource();
   private final Map<String, String> otherServers;
-  private final Map<String, OutputProvisioner> outputProvisioners;
+  private final Map<String, OutputProvisioner<?, ?>> outputProvisioners;
   private final int port;
   private final DatabaseBackedProcessor processor;
-  private final Map<String, RuntimeProvisioner> runtimeProvisioners;
+  private final Map<String, RuntimeProvisioner<?>> runtimeProvisioners;
   private final String selfName;
   private final String selfUrl;
   private final Map<String, Target> targets;
   private final Path unloadDirectory;
-  private final Map<String, WorkflowEngine> workflowEngines;
+  private final Map<String, WorkflowEngine<?, ?>> workflowEngines;
   private final StatusPage status =
       new StatusPage(this) {
         @Override
@@ -565,10 +565,10 @@ public final class Main implements ServerConfig {
                                       Stream.of(
                                           new Pair<String, ConsumableResource>(
                                               "", overridableMaxInFlightPerWorkflow)))
-                                  .collect(Collectors.toList());
-                          private final WorkflowEngine engine =
+                                  .toList();
+                          private final WorkflowEngine<?, ?> engine =
                               workflowEngines.get(e.getValue().getWorkflowEngine());
-                          private final Map<InputProvisionFormat, InputProvisioner>
+                          private final Map<InputProvisionFormat, InputProvisioner<?>>
                               inputProvisioners =
                                   e.getValue().getInputProvisioners().stream()
                                       .map(Main.this.inputProvisioners::get)
@@ -576,13 +576,17 @@ public final class Main implements ServerConfig {
                                           p ->
                                               Stream.of(InputProvisionFormat.values())
                                                   .filter(p::canProvision)
-                                                  .map(f -> new Pair<>(f, p)))
+                                                  .map(
+                                                      f ->
+                                                          new Pair<
+                                                              InputProvisionFormat,
+                                                              InputProvisioner<?>>(f, p)))
                                       .collect(
                                           Collectors
-                                              .<Pair<InputProvisionFormat, InputProvisioner>,
-                                                  InputProvisionFormat, InputProvisioner>
+                                              .<Pair<InputProvisionFormat, InputProvisioner<?>>,
+                                                  InputProvisionFormat, InputProvisioner<?>>
                                                   toMap(Pair::first, Pair::second));
-                          private final Map<OutputProvisionFormat, OutputProvisioner>
+                          private final Map<OutputProvisionFormat, OutputProvisioner<?, ?>>
                               outputProvisioners =
                                   e.getValue().getOutputProvisioners().stream()
                                       .map(Main.this.outputProvisioners::get)
@@ -590,16 +594,22 @@ public final class Main implements ServerConfig {
                                           p ->
                                               Stream.of(OutputProvisionFormat.values())
                                                   .filter(p::canProvision)
-                                                  .map(f -> new Pair<>(f, p)))
+                                                  .map(
+                                                      f ->
+                                                          new Pair<
+                                                              OutputProvisionFormat,
+                                                              OutputProvisioner<?, ?>>(f, p)))
                                       .collect(
                                           Collectors
-                                              .<Pair<OutputProvisionFormat, OutputProvisioner>,
-                                                  OutputProvisionFormat, OutputProvisioner>
+                                              .<Pair<
+                                                      OutputProvisionFormat,
+                                                      OutputProvisioner<?, ?>>,
+                                                  OutputProvisionFormat, OutputProvisioner<?, ?>>
                                                   toMap(Pair::first, Pair::second));
-                          private final List<RuntimeProvisioner> runtimeProvisioners =
+                          private final List<RuntimeProvisioner<?>> runtimeProvisioners =
                               e.getValue().getRuntimeProvisioners().stream()
-                                  .map(Main.this.runtimeProvisioners::get)
-                                  .collect(Collectors.toList());
+                                  .<RuntimeProvisioner<?>>map(Main.this.runtimeProvisioners::get)
+                                  .toList();
 
                           @Override
                           public Stream<Pair<String, ConsumableResource>> consumableResources() {
@@ -607,22 +617,23 @@ public final class Main implements ServerConfig {
                           }
 
                           @Override
-                          public WorkflowEngine engine() {
+                          public WorkflowEngine<?, ?> engine() {
                             return engine;
                           }
 
                           @Override
-                          public InputProvisioner provisionerFor(InputProvisionFormat type) {
+                          public InputProvisioner<?> provisionerFor(InputProvisionFormat type) {
                             return inputProvisioners.get(type);
                           }
 
                           @Override
-                          public OutputProvisioner provisionerFor(OutputProvisionFormat type) {
+                          public OutputProvisioner<?, ?> provisionerFor(
+                              OutputProvisionFormat type) {
                             return outputProvisioners.get(type);
                           }
 
                           @Override
-                          public Stream<RuntimeProvisioner> runtimeProvisioners() {
+                          public Stream<RuntimeProvisioner<?>> runtimeProvisioners() {
                             return runtimeProvisioners.stream();
                           }
                         }));
@@ -723,7 +734,7 @@ public final class Main implements ServerConfig {
           .from(WORKFLOW)
           .forEach(record -> maxInFlightPerWorkflow.set(record.value1(), record.value2()));
     }
-    overridableMaxInFlightPerWorkflow.setInner(maxInFlightPerWorkflow);
+
     unloadDirectory = Path.of(configuration.getUnloadDirectory());
   }
 
@@ -2186,7 +2197,7 @@ public final class Main implements ServerConfig {
       System.err.println("No unstarted workflows in the database. Resuming normal operation.");
     } else {
       System.err.printf(
-          "Recovering %d unstarted workflows from the database.", recoveredWorkflows.size());
+          "Recovering %d unstarted workflows fom the database.", recoveredWorkflows.size());
       recoveredWorkflows.forEach(Runnable::run);
     }
   }

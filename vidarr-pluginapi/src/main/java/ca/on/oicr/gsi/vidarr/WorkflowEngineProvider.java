@@ -7,5 +7,5 @@ import java.util.stream.Stream;
 public interface WorkflowEngineProvider {
 
   /** Provides the type names and classes this plugin provides */
-  Stream<Pair<String, Class<? extends WorkflowEngine>>> types();
+  Stream<Pair<String, Class<? extends WorkflowEngine<?, ?>>>> types();
 }

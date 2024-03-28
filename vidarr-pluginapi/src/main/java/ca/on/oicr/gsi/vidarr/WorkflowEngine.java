@@ -1,5 +1,7 @@
 package ca.on.oicr.gsi.vidarr;
 
+import static ca.on.oicr.gsi.vidarr.OperationAction.MAPPER;
+
 import ca.on.oicr.gsi.Pair;
 import ca.on.oicr.gsi.status.SectionRenderer;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
@@ -21,12 +23,39 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.xml.stream.XMLStreamException;
 
-/** Defines an engine that knows how to execute workflows and track the results */
+/**
+ * Defines an engine that knows how to execute workflows and track the results
+ *
+ * @param <State> the initial state information used to launch the workflow
+ * @param <CleanupState> the state used to perform any cleanup after provision out
+ */
 @JsonTypeIdResolver(WorkflowEngine.WorkflowEngineIdResolver.class)
 @JsonTypeInfo(use = JsonTypeInfo.Id.CUSTOM, include = As.PROPERTY, property = "type")
-public interface WorkflowEngine {
+public interface WorkflowEngine<State extends Record, CleanupState extends Record> {
+
+  /**
+   * The output data from a workflow
+   *
+   * @param output the JSON data emitted by the workflow
+   * @param workflowRunUrl the URL of the completed workflow run for provisioning metrics and logs
+   * @param cleanupState a state that can be used later to trigger cleanup of the workflow's output
+   *     once provisioning out has been completed
+   */
+  record Result<C>(JsonNode output, String workflowRunUrl, Optional<C> cleanupState) {
+
+    /**
+     * Convert the cleanup state to a JSON object
+     *
+     * @return a replacement output with the cleanup state serialized, if present
+     */
+    public Result<JsonNode> serialize() {
+      return new WorkflowEngine.Result<>(
+          output(), workflowRunUrl(), cleanupState().map(MAPPER::valueToTree));
+    }
+  }
+
   final class WorkflowEngineIdResolver extends TypeIdResolverBase {
-    private final Map<String, Class<? extends WorkflowEngine>> knownIds =
+    private final Map<String, Class<? extends WorkflowEngine<?, ?>>> knownIds =
         ServiceLoader.load(WorkflowEngineProvider.class).stream()
             .map(Provider::get)
             .flatMap(WorkflowEngineProvider::types)
@@ -58,58 +87,13 @@ public interface WorkflowEngine {
     }
   }
 
-  /** The output data from a workflow */
-  class Result<C> {
-    private final Optional<C> cleanupState;
-    private final JsonNode output;
-    private final String workflowRunUrl;
-
-    /**
-     * Create new workflow output data
-     *
-     * @param output the JSON data emitted by the workflow
-     * @param workflowRunUrl the URL of the completed workflow run for provisioning metrics and logs
-     * @param cleanupState a state that can be used later to trigger cleanup of the workflow's
-     *     output once provisioning out has been completed
-     */
-    public Result(JsonNode output, String workflowRunUrl, Optional<C> cleanupState) {
-      this.output = output;
-      this.workflowRunUrl = workflowRunUrl;
-      this.cleanupState = cleanupState;
-    }
-
-    /** The information the plugin requires to clean up the output, if required. */
-    public Optional<C> cleanupState() {
-      return cleanupState;
-    }
-
-    /** The workflow output's output */
-    public JsonNode output() {
-      return output;
-    }
-
-    /**
-     * The URL identifying the workflow run so the metrics and logs workflows can collect
-     * information about the completed job.
-     */
-    public String workflowRunUrl() {
-      return workflowRunUrl;
-    }
-  }
-
   /**
-   * Clean up the output of a workflow (i.e., delete its on-disk output) after provisioning has been
-   * completed.
+   * Create a declarative structure to clean up the output of a workflow
    *
-   * <p>This method should not do any externally-visible work. Anything it needs should be done in a
-   * {@link WorkMonitor#scheduleTask(Runnable)} callback so that Vidarr can execute it once the
-   * database is in a healthy state.
-   *
-   * @param cleanupState the clean up state provided with the workflow's output
-   * @param monitor the monitor structure for clean up process; since no output is required, supply
-   *     null as the output value
+   * <p>This method should not do any externally-visible work. It creates a set of operations so
+   * that Vidarr can execute it once the database is in a healthy state.
    */
-  JsonNode cleanup(JsonNode cleanupState, WorkMonitor<Void, JsonNode> monitor);
+  OperationAction<?, CleanupState, Void> cleanup();
 
   /** Display configuration status */
   void configuration(SectionRenderer sectionRenderer) throws XMLStreamException;
@@ -123,35 +107,17 @@ public interface WorkflowEngine {
   Optional<BasicType> engineParameters();
 
   /**
-   * Restart a running process from state saved in the database
+   * Create a declarative structure to execute a workflow
    *
-   * <p>This method should not do any externally-visible work. Anything it needs should be done in a
-   * {@link WorkMonitor#scheduleTask(Runnable)} callback so that Vidarr can execute it once the
-   * database is in a healthy state.
-   *
-   * @param state the frozen database state
-   * @param monitor the monitor structure for writing the output of the workflow process
+   * @return the sequence of operations that should be performed
    */
-  void recover(JsonNode state, WorkMonitor<Result<JsonNode>, JsonNode> monitor);
-
-  /**
-   * Restart a running clean up process from state saved in the database
-   *
-   * <p>This method should not do any externally-visible work. Anything it needs should be done in a
-   * {@link WorkMonitor#scheduleTask(Runnable)} callback so that Vidarr can execute it once the
-   * database is in a healthy state.
-   *
-   * @param state the frozen database state
-   * @param monitor the monitor structure for writing the output of the cleanup process
-   */
-  void recoverCleanup(JsonNode state, WorkMonitor<Void, JsonNode> monitor);
+  OperationAction<?, State, Result<CleanupState>> run();
 
   /**
    * Start a new workflow
    *
-   * <p>This method should not do any externally-visible work. Anything it needs should be done in a
-   * {@link WorkMonitor#scheduleTask(Runnable)} callback so that Vidarr can execute it once the
-   * database is in a healthy state.
+   * <p>This method should not do any externally-visible work. It should simply populate the state
+   * structure that will be used by {@link #run()}.
    *
    * @param workflowLanguage the language the workflow was written in
    * @param workflow the contents of the workflow
@@ -159,17 +125,15 @@ public interface WorkflowEngine {
    * @param vidarrId the ID of the workflow being executed
    * @param workflowParameters the input parameters to the workflow
    * @param engineParameters the input configuration parameters to the workflow engine
-   * @param monitor the monitor structure for writing the output of the workflow process
    * @return the initial state of the provision out process
    */
-  JsonNode run(
+  State start(
       WorkflowLanguage workflowLanguage,
       String workflow,
       Stream<Pair<String, String>> accessoryFiles,
       String vidarrId,
       ObjectNode workflowParameters,
-      JsonNode engineParameters,
-      WorkMonitor<Result<JsonNode>, JsonNode> monitor);
+      JsonNode engineParameters);
 
   /**
    * Called to initialise this workflow engine.

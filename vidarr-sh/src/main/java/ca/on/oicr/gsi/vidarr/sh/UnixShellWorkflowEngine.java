@@ -1,38 +1,38 @@
 package ca.on.oicr.gsi.vidarr.sh;
 
+import static ca.on.oicr.gsi.vidarr.OperationStatefulStep.require;
+import static ca.on.oicr.gsi.vidarr.OperationStep.require;
+import static ca.on.oicr.gsi.vidarr.OperationStep.subprocess;
+import static ca.on.oicr.gsi.vidarr.ProcessOutputHandler.readOutput;
+
 import ca.on.oicr.gsi.Pair;
 import ca.on.oicr.gsi.status.SectionRenderer;
-import ca.on.oicr.gsi.vidarr.*;
-import ca.on.oicr.gsi.vidarr.WorkMonitor.Status;
+import ca.on.oicr.gsi.vidarr.BasicType;
+import ca.on.oicr.gsi.vidarr.OperationAction;
+import ca.on.oicr.gsi.vidarr.ProcessInput;
+import ca.on.oicr.gsi.vidarr.ProcessOutput;
+import ca.on.oicr.gsi.vidarr.WorkflowEngine;
+import ca.on.oicr.gsi.vidarr.WorkflowEngineProvider;
+import ca.on.oicr.gsi.vidarr.WorkflowLanguage;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import java.io.File;
-import java.io.IOException;
-import java.lang.ProcessBuilder.Redirect;
 import java.util.Optional;
-import java.util.OptionalInt;
-import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 /** Run commands using UNIX shell locally */
-public final class UnixShellWorkflowEngine
-    extends BaseJsonWorkflowEngine<ShellState, String, String> {
+public final class UnixShellWorkflowEngine implements WorkflowEngine<StateInitial, CleanupState> {
   private static final ObjectMapper MAPPER = new ObjectMapper();
 
   public static WorkflowEngineProvider provider() {
     return () -> Stream.of(new Pair<>("sh", UnixShellWorkflowEngine.class));
   }
 
-  public UnixShellWorkflowEngine() {
-    super(MAPPER, ShellState.class, String.class, String.class);
-  }
+  public UnixShellWorkflowEngine() {}
 
   @Override
-  public String cleanup(String cleanupState, WorkMonitor<Void, String> monitor) {
-    recoverCleanup(cleanupState, monitor);
-    return cleanupState;
+  public OperationAction<?, CleanupState, Void> cleanup() {
+    return OperationAction.value(CleanupState.class, null);
   }
 
   @Override
@@ -46,6 +46,37 @@ public final class UnixShellWorkflowEngine
   }
 
   @Override
+  public OperationAction<?, StateInitial, Result<CleanupState>> run() {
+    return OperationAction.load(
+            StateInitial.class,
+            state ->
+                new ProcessInput(
+                    Optional.of(MAPPER.writeValueAsBytes(state.input())),
+                    Optional.empty(),
+                    "sh",
+                    "-c",
+                    state.workflow()))
+        .then(
+            require(
+                (state, process) -> !state.hasAccessoryFiles(),
+                "Cannot run shell with accessory files."))
+        .then(subprocess(readOutput(JsonNode.class, true)))
+        .then(require(ProcessOutput::success, "Process failed"))
+        .map(output -> new Result<>(output.standardOutput(), "/", Optional.empty()));
+  }
+
+  @Override
+  public StateInitial start(
+      WorkflowLanguage workflowLanguage,
+      String workflow,
+      Stream<Pair<String, String>> accessoryFiles,
+      String vidarrId,
+      ObjectNode workflowParameters,
+      JsonNode engineParameters) {
+    return new StateInitial(workflow, workflowParameters, accessoryFiles.findAny().isPresent());
+  }
+
+  @Override
   public void startup() {
     // Always ok.
   }
@@ -53,122 +84,5 @@ public final class UnixShellWorkflowEngine
   @Override
   public boolean supports(WorkflowLanguage language) {
     return language == WorkflowLanguage.UNIX_SHELL;
-  }
-
-  @Override
-  public void recover(ShellState state, WorkMonitor<Result<String>, ShellState> monitor) {
-    // When we recover, we have no way to recover a process's exit status, so we'll just assume it
-    // exited successfully.
-    ProcessHandle.of(state.getPid())
-        .ifPresentOrElse(
-            handle ->
-                waitForCompletion(
-                    monitor,
-                    new File(state.getOutputPath()),
-                    () -> handle.isAlive() ? OptionalInt.empty() : OptionalInt.of(0)),
-            () -> monitor.permanentFailure("Cannot recover UNIX process between restarts."));
-  }
-
-  @Override
-  protected void recoverCleanup(String path, WorkMonitor<Void, String> monitor) {
-    monitor.scheduleTask(
-        () -> {
-          final var output = new File(path);
-          if (output.exists()) {
-            if (output.delete()) {
-              System.err.printf("Failed to delete file: %s\n", output);
-            }
-          }
-          monitor.complete(null);
-        });
-  }
-
-  @Override
-  public ShellState runWorkflow(
-      WorkflowLanguage workflowLanguage,
-      String workflow,
-      Stream<Pair<String, String>> accessoryFiles,
-      String vidarrId,
-      ObjectNode workflowParameters,
-      JsonNode engineParameters,
-      WorkMonitor<Result<String>, ShellState> monitor) {
-    final var state = new ShellState();
-    final var fail = accessoryFiles.count() > 0;
-    monitor.scheduleTask(
-        () -> {
-          if (fail) {
-            monitor.permanentFailure("Cannot handle accessory files.");
-            return;
-          }
-          try {
-            final File outputFile = File.createTempFile("vidarr-sh", ".out");
-            state.setOutputPath(outputFile.getAbsolutePath());
-            monitor.storeRecoveryInformation(state);
-            monitor.updateState(Status.WAITING);
-            monitor.scheduleTask(
-                () -> {
-                  try {
-                    final var process =
-                        new ProcessBuilder()
-                            .command("sh", "-c", workflow)
-                            .redirectInput(Redirect.PIPE)
-                            .redirectOutput(Redirect.to(outputFile))
-                            .start();
-                    try (final var stdin = process.getOutputStream()) {
-                      MAPPER.writeValue(stdin, workflowParameters);
-                    }
-                    monitor.updateState(Status.RUNNING);
-                    state.setPid(process.pid());
-                    monitor.storeRecoveryInformation(state);
-                    waitForCompletion(
-                        monitor,
-                        outputFile,
-                        () ->
-                            process.isAlive()
-                                ? OptionalInt.empty()
-                                : OptionalInt.of(process.exitValue()));
-                  } catch (IOException e) {
-                    monitor.permanentFailure(e.getMessage());
-                  }
-                });
-          } catch (IOException e) {
-            monitor.permanentFailure(e.getMessage());
-          }
-        });
-    return state;
-  }
-
-  private void waitForCompletion(
-      WorkMonitor<Result<String>, ShellState> monitor,
-      File outputFile,
-      Supplier<OptionalInt> checkExit) {
-    monitor.scheduleTask(
-        1,
-        TimeUnit.MINUTES,
-        new Runnable() {
-          @Override
-          public void run() {
-            checkExit
-                .get()
-                .ifPresentOrElse(
-                    exit -> {
-                      if (exit == 0) {
-                        try {
-                          monitor.complete(
-                              new Result<>(
-                                  MAPPER.readTree(outputFile),
-                                  outputFile.toURI().toASCIIString(),
-                                  Optional.of(outputFile.getAbsolutePath())));
-                        } catch (IOException e) {
-                          monitor.permanentFailure(e.getMessage());
-                        }
-
-                      } else {
-                        monitor.permanentFailure("Process exited with an error.");
-                      }
-                    },
-                    () -> monitor.scheduleTask(1, TimeUnit.MINUTES, this));
-          }
-        });
   }
 }

@@ -1,14 +1,15 @@
 package ca.on.oicr.gsi.vidarr.core;
 
 import ca.on.oicr.gsi.Pair;
-import ca.on.oicr.gsi.vidarr.OutputProvisioner;
-import ca.on.oicr.gsi.vidarr.OutputProvisioner.Result;
 import ca.on.oicr.gsi.vidarr.OutputType;
-import ca.on.oicr.gsi.vidarr.WorkMonitor;
 import ca.on.oicr.gsi.vidarr.api.ExternalId;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.util.*;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.Spliterators;
+import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -20,22 +21,7 @@ import java.util.stream.StreamSupport;
  */
 final class PrepareOutputProvisioning
     extends BaseOutputExtractor<
-        Stream<TaskStarter<Pair<ProvisionData, Result>>>,
-        Stream<TaskStarter<Pair<ProvisionData, Result>>>> {
-  static final class ProvisioningOutWorkMonitor
-      extends WrappedMonitor<
-          ProvisionData, OutputProvisioner.Result, Pair<ProvisionData, OutputProvisioner.Result>> {
-
-    public ProvisioningOutWorkMonitor(
-        ProvisionData accessory, WorkMonitor<Pair<ProvisionData, Result>, JsonNode> monitor) {
-      super(accessory, monitor);
-    }
-
-    @Override
-    protected Pair<ProvisionData, Result> mix(ProvisionData accessory, Result result) {
-      return new Pair<>(accessory, result);
-    }
-  }
+        Stream<TaskStarter<ProvisionData>>, Stream<TaskStarter<ProvisionData>>> {
 
   private static Map<String, String> extractLabels(JsonNode node) {
     final var labels = new TreeMap<String, String>();
@@ -53,6 +39,7 @@ final class PrepareOutputProvisioning
   private final Set<? extends ExternalId> remainingInputIds;
   private final Runnable outputIsBad;
   private final Target target;
+  private final String workflowRunId;
 
   public PrepareOutputProvisioning(
       ObjectMapper mapper,
@@ -61,17 +48,19 @@ final class PrepareOutputProvisioning
       JsonNode metadata,
       Set<? extends ExternalId> allInputIds,
       Set<? extends ExternalId> remainingInputIds,
-      Runnable outputIsBad) {
+      Runnable outputIsBad,
+      String workflowRunId) {
     super(output, metadata);
     this.mapper = mapper;
     this.target = target;
     this.allInputIds = allInputIds;
     this.remainingInputIds = remainingInputIds;
     this.outputIsBad = outputIsBad;
+    this.workflowRunId = workflowRunId;
   }
 
   @Override
-  protected Stream<TaskStarter<Pair<ProvisionData, Result>>> handle(
+  protected Stream<TaskStarter<ProvisionData>> handle(
       WorkflowOutputDataType format,
       boolean optional,
       JsonNode metadata,
@@ -100,9 +89,9 @@ final class PrepareOutputProvisioning
         })
         .map(
             p -> {
-              final var provisionData = new ProvisionData();
-              provisionData.setLabels(p.second());
-              provisionData.setIds(
+              final var data = p.first();
+              final var labels = p.second();
+              final Set<? extends ExternalId> ids =
                   outputData.visit(
                       new OutputDataVisitor<>() {
                         @Override
@@ -119,14 +108,9 @@ final class PrepareOutputProvisioning
                         public Set<? extends ExternalId> remaining() {
                           return remainingInputIds;
                         }
-                      }));
-              return WrappedMonitor.start(
-                  provisionData,
-                  ProvisioningOutWorkMonitor::new,
-                  (workflowLanguage, workflowId, o) ->
-                      new Pair<>(
-                          format.format().name(),
-                          handler.provision(workflowId, p.first(), metadata, o)));
+                      });
+              return TaskStarter.launch(
+                  format.format(), handler, ids, labels, workflowRunId, data, metadata);
             });
   }
 
@@ -136,17 +120,24 @@ final class PrepareOutputProvisioning
   }
 
   @Override
-  protected Stream<TaskStarter<Pair<ProvisionData, Result>>> mergeChildren(
-      Stream<Stream<TaskStarter<Pair<ProvisionData, Result>>>> stream) {
+  protected Stream<TaskStarter<ProvisionData>> mergeChildren(
+      Stream<Stream<TaskStarter<ProvisionData>>> stream) {
     return stream.flatMap(Function.identity());
   }
 
   @Override
-  protected Stream<TaskStarter<Pair<ProvisionData, Result>>> processChild(
+  protected Stream<TaskStarter<ProvisionData>> processChild(
       Map<String, Object> key, String name, OutputType type, JsonNode metadata, JsonNode output) {
     return type.apply(
         new PrepareOutputProvisioning(
-            mapper, target, output, metadata, allInputIds, remainingInputIds, outputIsBad));
+            mapper,
+            target,
+            output,
+            metadata,
+            allInputIds,
+            remainingInputIds,
+            outputIsBad,
+            workflowRunId));
   }
 
   private Stream<JsonNode> stream(JsonNode node, boolean optional) {
@@ -157,7 +148,7 @@ final class PrepareOutputProvisioning
   }
 
   @Override
-  public Stream<TaskStarter<Pair<ProvisionData, Result>>> unknown() {
+  public Stream<TaskStarter<ProvisionData>> unknown() {
     throw new IllegalArgumentException();
   }
 }

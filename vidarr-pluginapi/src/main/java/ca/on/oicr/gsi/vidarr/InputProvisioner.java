@@ -18,12 +18,16 @@ import java.util.ServiceLoader.Provider;
 import java.util.stream.Collectors;
 import javax.xml.stream.XMLStreamException;
 
-/** A mechanism to collect output data from a workflow and push it into an appropriate data store */
+/**
+ * A mechanism to collect output data from a workflow and push it into an appropriate data store
+ *
+ * @param <State> the state information used for provisioning in data
+ */
 @JsonTypeIdResolver(InputProvisioner.InputProvisionerIdResolver.class)
 @JsonTypeInfo(use = JsonTypeInfo.Id.CUSTOM, include = As.PROPERTY, property = "type")
-public interface InputProvisioner {
+public interface InputProvisioner<State extends Record> {
   final class InputProvisionerIdResolver extends TypeIdResolverBase {
-    private final Map<String, Class<? extends InputProvisioner>> knownIds =
+    private final Map<String, Class<? extends InputProvisioner<?>>> knownIds =
         ServiceLoader.load(InputProvisionerProvider.class).stream()
             .map(Provider::get)
             .flatMap(InputProvisionerProvider::types)
@@ -72,44 +76,33 @@ public interface InputProvisioner {
    * Begin provisioning out a new input that was registered in Vidarr
    *
    * <p>This method should not do any externally-visible work. Anything it needs should be done in a
-   * {@link WorkMonitor#scheduleTask(Runnable)} callback so that Vidarr can execute it once the
-   * database is in a healthy state.
+   * {@link #run()} so that Vidarr can execute it once the database is in a healthy state.
    *
    * @param language the workflow language the output will be consumed by
    * @param id the Vidarr ID for the file
    * @param path the output path registered in Vidarr for the file
-   * @param monitor the monitor structure for writing the output of the provisioning process
    * @return the initial state of the provision out process
    */
-  JsonNode provision(
-      WorkflowLanguage language, String id, String path, WorkMonitor<JsonNode, JsonNode> monitor);
+  State provision(WorkflowLanguage language, String id, String path);
 
   /**
    * Begin provisioning out a new input that was not registered in Vidarr
    *
    * <p>This method should not do any externally-visible work. Anything it needs should be done in a
-   * {@link WorkMonitor#scheduleTask(Runnable)} callback so that Vidarr can execute it once the
-   * database is in a healthy state.
+   * {@link #run()} so that Vidarr can execute it once the database is in a healthy state.
    *
    * @param language the workflow language the output will be consumed by
    * @param metadata the information coming from the submitter to direct provisioning
-   * @param monitor the monitor structure for writing the output of the provisioning process
    * @return the initial state of the provision out process
    */
-  JsonNode provisionExternal(
-      WorkflowLanguage language, JsonNode metadata, WorkMonitor<JsonNode, JsonNode> monitor);
+  State provisionExternal(WorkflowLanguage language, JsonNode metadata);
 
   /**
-   * Restart a provisioning process from state saved in the database
+   * Create a declarative structure to execute the provisioning
    *
-   * <p>This method should not do any externally-visible work. Anything it needs should be done in a
-   * {@link WorkMonitor#scheduleTask(Runnable)} callback so that Vidarr can execute it once the
-   * database is in a healthy state.
-   *
-   * @param state the frozen database state
-   * @param monitor the monitor structure for writing the output of the provisioning process
+   * @return the sequence of operations that should be performed
    */
-  void recover(JsonNode state, WorkMonitor<JsonNode, JsonNode> monitor);
+  OperationAction<?, State, JsonNode> run();
   /**
    * Called to initialise this input provisioner.
    *

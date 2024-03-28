@@ -9,7 +9,7 @@ using the `provides` keyword. All plugins need to depend only on the
 infrastructure.
 
 There are several services that a plugin can provide and a plugin is free to
-provide multiple. Plugins are loaded from JSON data in the Vidarr configuration
+provide multiple. Plugins are loaded from JSON data in the Víðarr configuration
 file or, in the case of an unload filter, user requests, using Jackson. Each
 plugin can load whatever Jackson-compatible data from JSON it requires. Each
 plugin has a small "provider" class which provides type information for
@@ -18,7 +18,7 @@ appropriate class instance. The provider class lists what values for `"type"`
 correspond to what Java objects that Jackson should load. Since objects are
 instantiated by Jackson, most have a `startup` method that is called after
 loading is complete where the plugin can do any initialisation required. If it
-throws exceptions, the Vidarr server will fail to start, which is probably the
+throws exceptions, the Víðarr server will fail to start, which is probably the
 correct behaviour for a badly misconfigured plugin.
 
 As an example of a configuration file:
@@ -53,7 +53,7 @@ expected to journal their current state to the database. The `WorkMonitor`
 provides methods to journal state to the database for crash recovery and to
 provide status information to users.
 
-Most plugins have a `recover` method. If Vidarr is restarted, the plugin will
+Most plugins have a `recover` method. If Víðarr is restarted, the plugin will
 be asked to recover its state from the last state information in journaled to
 the database using the `WorkMonitor`. Plugins are expected to be able to pick
 up where they left off based only on this information.
@@ -75,29 +75,29 @@ resources must be available at the start of its run and it holds the resource
 until the workflow completes (successfully or not), at which point the resource
 may be reused by another workflow run. Within quota-type, some require
 information (_e.g._, the amount of RAM), while others are based purely on the
-existence of the workflow run (_e.g._, max-in-flight). The priority consumable 
+existence of the workflow run (_e.g._, max-in-flight). The priority consumable
 resources operates within the restrictions imposed from quota resources and allows
-users to manually set the order in which workflow runs will launch. Other 
-resource are more "throttling"-type. These include maintenance schedules and 
-Prometheus alerts which block workflow runs from starting but don't track 
-anything once the workflow run is underway. 
+users to manually set the order in which workflow runs will launch. Other
+resource are more "throttling"-type. These include maintenance schedules and
+Prometheus alerts which block workflow runs from starting but don't track
+anything once the workflow run is underway.
 
-Consumable resources are long-running. Whenever Vidarr attempts to run a
+Consumable resources are long-running. Whenever Víðarr attempts to run a
 workflow, it will consult the consumable resources to see if there is capacity
 to run the workflow (the `request` method). At that point the consumable
 resource must make a decision as to whether the workflow can proceed. Once the
-workflow has finished running (successfully or not), Vidarr will `release` the
-resource so that it can be used again. When Vidarr restarts, any running
+workflow has finished running (successfully or not), Víðarr will `release` the
+resource so that it can be used again. When Víðarr restarts, any running
 workflows will be called with `recover` to indicate that the resource is being
 used and the resource cannot stop the workflow even if the resource is
-over-capacity. 
+over-capacity.
 
 Consumable resources can request data from the user, if desired. The
 `inputFromSubmitter` can return an empty optional to indicate that no
 information is required or can indicate the name and type of information that
 is required. The `request` and `release` methods will contain a copy of this information,
 encoded as JSON, if the submitter provided it. The JSON data has been
-type-checked by Vidarr, so it should be safe to convert to the expected type
+type-checked by Víðarr, so it should be safe to convert to the expected type
 using Jackson.
 
 Sometimes, consumable resources are doing scoring that would be helpful to know
@@ -122,9 +122,7 @@ shared directory instead of, say, `/tmp` and ensure the right permissions are
 set up.
 These are not the responsibility of the plugin author.
 
-The class `BaseJsonInputProvisioner` is a partial implementation that can store
-crash recovery information in a JSON object of the implementor's choosing,
-making recovery easier.
+This plugin type uses the [operations API](#operations-api).
 
 # Output Provisioners
 Output provisioners implement `ca.on.oicr.gsi.vidarr.OutputProvisionerProvider`
@@ -143,9 +141,7 @@ the plugin to validate any configuration metadata provided by the submitter
 provision out step will be run with the metadata provided by the submitter and
 the output provided by the workflow.
 
-The class `BaseJsonOutputProvisioner` is a partial implementation that can
-store crash recovery information in a JSON object of the implementer's
-choosing, making recovery easier.
+This plugin type uses the [operations API](#operations-api).
 
 # Runtime Provisioners
 Runtime provisioners implement `ca.on.oicr.gsi.vidarr.RuntimeProvisionerProvider`
@@ -159,9 +155,7 @@ This plugin and the workflow plugins must have a mutual understanding of what a
 workflow engine's identifier means. That is somewhat the responsibility of the
 system administrator.
 
-The class `BaseJsonRuntimeProvisioner` is a partial implementation that can
-store crash recovery information in a JSON object of the implementer's
-choosing, making recovery easier.
+This plugin type uses the [operations API](#operations-api).
 
 # Workflow Engine
 Workflow engines implement `ca.on.oicr.gsi.vidarr.WorkflowEngineProvider`
@@ -174,17 +168,15 @@ which ones are allowed via the `supports` method.
 The workflow engine will be given the complete input to the workflow (with real
 paths provided by the input provisioners) and the workflow itself. Once the
 workflow has completed, it must provide a JSON structure that references the
-output of the workflow. Vidarr will identified the output files generated by
-the workflow engine and they will be passed to the output provisioners.
+output of the workflow. Víðarr will identify the output files generated by the
+workflow engine and they will be passed to the output provisioners.
 
 After the output provisioners have completed, the workflow engine will be
 called again to cleanup any output, if this is appropriate. If the workflow
 engine does not support cleanup, it should gracefully succeed during the
 clean-up (and clean-up recovery) methods.
 
-The class `BaseJsonWorkflowEngine` is a partial implementation that can store
-crash recovery information in a JSON object of the implementer's choosing,
-making recovery easier.
+This plugin type uses the [operations API](#operations-api).
 
 # Unload Filters
 Unload filters implement `ca.on.oicr.gsi.vidarr.UnloadFilterProvider` and
@@ -230,6 +222,66 @@ Each component will be called for every pending workflow run, so the analysis
 should be relatively fast. `PriorityInput` implementations should cache results
 from external services.
 
+<a id="operations-api"></a>
+# The Operations API
+Multiple plugins use an operations API rather than direct method calls. The API
+is designed to simplify two messy tasks: asynchronous operations and creating a
+recoverable state. The operations API consists of a few classes in
+`ca.on.oicr.gsi.vidarr`:
+
+- `OperationAction`: the core class that describes an operations process
+- `OperationStep`: a class that describes an asynchronous operation
+- `OperationStatefulStep`: a class that describes an asynchronous operation
+  which reads or modifies the on-going state
+
+The process starts with the plugin generating an original state object. This is
+a plugin-defined record. State objects should _not_ be mutated and using a
+record helps to encourage this. The plugin defines an `OperationAction` that
+describes the process, starting with the original state object, that outlines
+the steps needed to transform that state into the final output expected by the
+plugin.
+
+As Víðarr runs the operations, it keeps track of two values: the state and the
+_current value_. The current value is the output of the previous step and the
+input to the next step. In effect, given steps _A_, _B_, and _C_, the
+operations API will allow writing this as `load(...).then(A).then(B).then(C)`,
+but it will be executing it as `C(B(A(...)))`, where the return value of the
+previous step is the only parameter to the next one. This design is preferable
+to direct calls because Víðarr can stop executing the task when it needs to
+wait and restart it later, removing the burden of asynchronous scheduling from
+the plugin author.
+
+To start, a call to `OperationAction.load` or `OperationAction.value` is
+required. This primes the sequence of events by computing a value from the
+state information alone which will be the input for the first step. After this,
+`then` may be called to manipulate this value. Additionally, there are
+convenience methods `map`, to modify the current value, and `reload`, to discard
+the current value and load a new one from the state.
+
+`OperationStep` is technically a subset of `OperationStatefulStep`, but it is
+implemented separately because the restricted design of `OperationStep` has
+simpler type constraints, producing better errors during development.
+
+How state is managed along this chain of events is intentionally hidden to
+simplify the process. A `OperationStatefulStep` can wrap the state in
+additional information. For instance, `repeatUntilSuccess` needs to track the
+number of times it attempted an operation, so it wraps the state in
+`RepeatCounter`. When the chain is executed, Víðarr takes the original state
+and wraps it in classes like `RepeatCounter` to build up a state that tracks
+all of the paths required by the chain. It can then write this wrapped state to
+the database and, if Víðarr restarts, it can recover the operations
+automatically using this state information.
+
+This means that the steps along the way are automatically wrapping and
+unwrapping state along the way so that the correct information is stored in the
+database. One caveat is that if the structure of the operation of this code
+changes, then so does the state stored in the database. Meaning that
+redesigning the operations may mean that Víðarr cannot recover. Having the
+plugin programmer manually manage state does allow them to have better control
+over this scenario, but for a lot of overhead in the plugin implementation. The
+interfaces Víðarr uses intentionally hide the state type behind a wild card
+(`?`) generic to simplify writing plugins, but any changes to this type will
+cause recovery issues.
 
 # Provided Implementations
 This core implementation provides several plugins independent of external
@@ -368,370 +420,3 @@ provided in the metadata.
 }
 ```
 
-## Priority Input
-Priority inputs provided in Víðarr core.
-
-### JSON Array
-Takes input as an index into an array and returns the value in that array. If
-the index is less than zero, `"underflowPriority"` is returned. If the index is
-beyond the end of the array, `"overflowPriority"` is used. The priorities are
-stored in `"file"` which must be a JSON file containing an array of integers.
-
-```
-{
-  "type": "json-array",
-  "file": "/path/to/list.json"
-  "overflowPriority": 0,
-  "underflowPriority": 1000
-}
-```
-
-### JSON Dictionary
-Takes input as a string and looks up the value of that in a dictionary. If
-the input is not in the dictionary, `"defaultPriority"` is used. The priorities
-are stored in `"file"` which must be a JSON object where all the values are
-integers.
-
-```
-{
-  "type": "json-dictionary",
-  "defaultPriority": 0,
-  "file": "/path/to/obj.json"
-}
-```
-
-### One-Of
-Allows the submitter to select one of multiple priority inputs using a tagged
-union.
-
-```
-{
-  "type": "oneOf",
-  "defaultPriority": 0,
-  "inputs": {
-    "FOO": {...},
-    "BAR": {...}
-  }
-}
-```
-
-The input will take a tagged union/algebraic data type with the appropriate
-inputs. If the name provided by the submitter does not match one of the inputs,
-`"defaultPriority"` is used instead. The names of the keys of `"inputs"` should
-be capitalized for compatibility with Shesmu.
-
-### Prometheus Input
-Reads a variable from Prometheus, filtering on the label set, and returns the
-current value.
-
-```
-{
-  "type": "prometheus",
-  "cacheRequestTimeout": 1,
-  "cacheTtl": 15,
-  "defaultPriority": 0,
-  "labels": ["bob"],
-  "query": "some_prometheus_variable",
-  "url": "http://prometheus.example.com:9090",
-  "workflowNameLabel": "workflow",
-  "workflowVersionLabel": null
-}
-```
-
-The process this input provider uses is as follows:
-
-1. Execute `"query"` on the Prometheus instance at `"url"`. The query can be
-   any valid Prometheus query. If it takes longer than `"cacheRequestTimeout"`
-   minutes, then the query will be treated as a failure. The results will be
-   cached for `"cacheTtl"` minutes before being refreshed.
-2. The submission request will be processed into a label set as described below.
-3. All the records that were returned by the query are scanned for a matching
-   label set.
-4. If a matching label set is found, the last recorded value will be used,
-   regardless of when Prometheus observed it.
-5. If no matching label set is found, `"defaultPriority"` will be  used.
-
-The label set is constructed from the submission request. For each string in
-`"labels"`, the submitter must provide a string value. These labels and values
-will be used as the label set. For example, with the configuration `"labels":
-["bob"]`, the submission request could have `{"bob": "eggs"}` and the filtered
-label set would look like `[bob=eggs]`. Additionally, special labels are
-available for the workflow name and version. If `"workflowNameLabel":
-"workflow"` and the submission request was for `bcl2fastq`, then the label set
-would be `[workflow=bcl2fastq]`. This can be further refined with a workflow
-version using `"workflowVersionLabel"`, which will only be used if
-`"workflowNameLabel"` is not null. Both of these can be turned off by being set
-to null.
-
-### Raw Priority Input
-Takes an optional integer from the submission request and returns it raw, or
-`"defaultPriority"` if not provided.
-
-```
-{
-  "type": "raw",
-  "defaultPriority": 0
-}
-```
-
-### Remote Input
-Takes an arbitrary JSON value and sends it to remote HTTP endpoint for
-evaluation. That endpoint must return a single number. The result will be
-cached. The `"schema"` is a standard Víðarr type that should be requested from
-the submission request.
-
-```
-{
-  "type": "remote",
-  "defaultPriority": 0,
-  "schema": "string",
-  "ttl": 15,
-  "url": "http://foo.com/api/get-priority"
-}
-```
-
-The `"schema"` property defines a type, including an object types, that will be
-required on submission. The data provided by the submission will be sent via
-`POST` request as the body to the URL provided. The endpoint must respond with
-an integer for the priority or null to use the default priority. The result
-will be cached for `"ttl"` minutes before being reattempted.
-
-
-### Tuple-Wrapping Input
-This changes the type of an input provider for compatibility with Shesmu. The
-crux is this: Shesmu's tagged unions are more limited than Víðarr's. Shesmu
-requires that a tagged union have a tuple or object while Víðarr permits either
-of those. When using the _one-of_ input source, this introduces the possibility
-of creating a type that Shesmu cannot process.  This allows wrapping an
-priority input's type in a single element tuple, thereby making it compatible
-with Shesmu.
-
-```
-{
-  "type": "tuple",
-  "inner": {...}
-}
-```
-
-## Priority Formula
-Priority formulas provided in Víðarr core.
-
-### Constant
-Returns a constant value.
-
-```
-{
-  "type": "constant",
-  "value": 100
-}
-```
-
-# Input Variable
-Accesses one of the input scores. If no input score has the identifier
-`"name"`, the minimum integer value is used.
-
-```
-{
-  "type": "input",
-  "name: "foo"
-}
-```
-
-### Minimum and Maximum
-Takes the minimum or maximum of other formulas.
-
-```
-{
-  "type": "maximum",
-  "components": [ ... ]
-}
-```
-
-or
-
-```
-{
-  "type": "minimum",
-  "components": [ ... ]
-}
-```
-
-### Product
-Computes the product of other formulas (_i.e._, multiplies their scores).
-
-```
-{
-  "type": "product",
-  "components": [ ... ]
-}
-```
-
-### Subtraction
-Computes the difference between two formulas; the result of `"left"` minus the
-result of `"right"`.
-
-```
-{
-  "type": "difference",
-  "left": ...,
-  "right": ...
-}
-```
-
-### Summation
-Computes the summation of other formulas (_i.e._, adds their scores).
-
-```
-{
-  "type": "sum",
-  "components": [ ... ]
-}
-```
-
-# Temporal Escalating with Multiplier
-Increases the priority as a workflow run sits around. The duration the workflow
-run has been waiting is looked up in the `"escalation"` object; the keys are an
-[ISO-8601 duration](https://en.wikipedia.org/wiki/ISO_8601#Durations) and the
-values are a floating point number. The smallest matching duration is used and
-the score is multiplied by the value provided. Values need to be greater than 1
-to increase priority. If workflow run has been waiting less than the smallest
-duration in the dictionary, the original priority is used. The original
-priority is provided using the `"base"` formula.
-
-```
-{
-  "type": "escalating-multiplier",
-  "base": ...,
-  "escalation": {
-    "PT1H": 1.2,
-    "PT12H": 2.0
-  }
-}
-```
-
-# Temporal Escalating with Offset
-Increases the priority as a workflow run sits around. The duration the workflow
-run has been waiting is looked up in the `"escalation"` object; the keys are an
-[ISO-8601 duration](https://en.wikipedia.org/wiki/ISO_8601#Durations) and the
-values are a integer. The smallest matching duration is used and the value
-provided is added to the original score. Values need to be greater than 1 to
-increase priority. If workflow run has been waiting less than the smallest
-duration in the dictionary, the original priority is used. The original
-priority is provided using the `"base"` formula.
-
-```
-{
-  "type": "escalating-offset",
-  "base": ...,
-  "escalation": {
-    "PT1H": 10,
-    "PT12H": 100
-  }
-}
-```
-
-## Priority Scorer
-Priority scorers provided in Víðarr core.
-
-### All Of
-Checks several priority scorers and allows permits the workflow run to proceed
-if all scorers allow it to proceed.
-
-```
-{
-  "type": "all",
-  "scorers": [ ... ]
-}
-```
-
-This can be combined with the ranked max-in-flight family to allow a global
-limit with per-workflow limits. For example:
-
-```
-{
-  "scorers": [
-    {
-      "maxInFlight": 500,
-      "type": "ranked-max-in-flight"
-    },
-    {
-      "maxInFlight": 20,
-      "useCustom": true,
-      "type": "ranked-max-in-flight-by-workflow"
-    }
-  ],
-  "type": "all"
-}
-```
-
-This would let the top 500 workflow runs to execute as long as they are also
-among the top 20 workflow run in their respective workflow type.
-
-### Any Of
-Checks several priority scorers and allows permits the workflow run to proceed
-if any scorer would allow it to proceed.
-
-```
-{
-  "type": "any",
-  "scorers": [ ... ]
-}
-```
-
-### Cut-off
-Allows the workflow run to start if the score is strictly greater than `"cutoff"`.
-
-```
-{
-  "type": "cutoff",
-  "cutoff": 9000
-}
-```
-
-### Ranked Max-in-flight
-Ranks workflow runs by score and allows the top ones to run, where the number
-allowed to run is `"maxInFlight"`. This workflow makes a best effort to keep
-the total number running at or below that limit, but various conditions,
-including server relaunch or being used in an `"any"` scorer, may cause it to
-exceed that bound.
-
-This scorer comes in a few flavours:
-
-- `"ranked-max-in-flight"`: the limit is applied to all workflow runs
-- `"ranked-max-in-flight-by-workflow"`: the limit is applied per workflow type
-- `"ranked-max-in-flight-by-workflow-version"`: the limit is applied per workflow type
-  including version
-
-The limit cannot be set individually per workflow in this configuration.
-However, `"ranked-max-in-flight-by-workflow"` and
-`"ranked-max-in-flight-by-workflow-version"` have an additional property
-`"useCustom"`, which will use the max-in-flight values set when a workflow is
-created, as is visible through the `/api/max-in-flight` endpoint. In that case
-`"maxInFlight"` is treated as a fallback.
-
-```
-{
-  "type": "ranked-max-in-flight",
-  "maxInFlight": 500
-}
-```
-
-or
-
-```
-{
-  "type": "ranked-max-in-flight-by-workflow",
-  "useCustom": true,
-  "maxInFlight": 50
-}
-```
-
-or
-
-```
-{
-  "type": "ranked-max-in-flight-by-workflow",
-  "useCustom": false,
-  "maxInFlight": 50
-}
-```

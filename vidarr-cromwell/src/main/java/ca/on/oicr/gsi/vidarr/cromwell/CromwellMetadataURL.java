@@ -10,7 +10,7 @@ import java.net.URI;
  * WorkflowEngine and OutputProvisioner use configuration to control this behaviour.
  */
 final class CromwellMetadataURL {
-  protected static URI formatMetadataURL(String rootUrl, String cromwellId, Boolean includeCalls) {
+  protected static URI formatMetadataURL(String rootUrl, String cromwellId, boolean includeCalls) {
     String metadataAPIformat = "%s/api/workflows/v1/%s/metadata";
 
     // Note that the URL specifies to *exclude* keys, hence the inverted bool test

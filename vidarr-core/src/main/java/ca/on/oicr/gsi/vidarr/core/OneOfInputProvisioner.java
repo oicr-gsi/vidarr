@@ -6,24 +6,27 @@ import ca.on.oicr.gsi.vidarr.BasicType;
 import ca.on.oicr.gsi.vidarr.InputProvisionFormat;
 import ca.on.oicr.gsi.vidarr.InputProvisioner;
 import ca.on.oicr.gsi.vidarr.InputProvisionerProvider;
-import ca.on.oicr.gsi.vidarr.WorkMonitor;
+import ca.on.oicr.gsi.vidarr.OperationAction;
+import ca.on.oicr.gsi.vidarr.OperationAction.BranchState;
 import ca.on.oicr.gsi.vidarr.WorkflowLanguage;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.xml.stream.XMLStreamException;
 
 /** An input provisioner that selects between multiple input provisioners using a tagged union */
-public final class OneOfInputProvisioner implements InputProvisioner {
+public final class OneOfInputProvisioner implements InputProvisioner<BranchState> {
   public static InputProvisionerProvider provider() {
     return () -> Stream.of(new Pair<>("oneOf", OneOfInputProvisioner.class));
   }
 
   private String internal;
-  private Map<String, InputProvisioner> provisioners;
+  private Map<String, InputProvisioner<? extends Record>> provisioners;
 
-  public OneOfInputProvisioner(Map<String, InputProvisioner> provisioners, String internal) {
+  public OneOfInputProvisioner(
+      Map<String, InputProvisioner<? extends Record>> provisioners, String internal) {
     this.provisioners = provisioners;
     this.internal = internal;
   }
@@ -52,47 +55,49 @@ public final class OneOfInputProvisioner implements InputProvisioner {
     return internal;
   }
 
-  public Map<String, InputProvisioner> getProvisioners() {
+  public Map<String, InputProvisioner<? extends Record>> getProvisioners() {
     return provisioners;
   }
 
   @Override
-  public JsonNode provision(
-      WorkflowLanguage language, String id, String path, WorkMonitor<JsonNode, JsonNode> monitor) {
-    final var output = JsonNodeFactory.instance.arrayNode();
-    output.add(internal);
-    output.add(
-        provisioners
-            .get(internal)
-            .provision(language, id, path, new MonitorWithType<>(monitor, internal)));
-    return output;
+  public BranchState provision(WorkflowLanguage language, String id, String path) {
+    return provision(provisioners.get(internal), language, id, path);
+  }
+
+  private <OriginalState extends Record> BranchState provision(
+      InputProvisioner<OriginalState> provisioner,
+      WorkflowLanguage language,
+      String id,
+      String path) {
+    return provisioner.run().intoBranch(internal, provisioner.provision(language, id, path));
   }
 
   @Override
-  public JsonNode provisionExternal(
-      WorkflowLanguage language, JsonNode metadata, WorkMonitor<JsonNode, JsonNode> monitor) {
+  public BranchState provisionExternal(WorkflowLanguage language, JsonNode metadata) {
     final var type = metadata.get("type").asText();
-    final var output = JsonNodeFactory.instance.arrayNode();
-    output.add(type);
-    output.add(
-        provisioners
-            .get(type)
-            .provisionExternal(
-                language, metadata.get("contents"), new MonitorWithType<>(monitor, type)));
-    return output;
+    return provisionExternal(type, provisioners.get(type), language, metadata.get("contents"));
+  }
+
+  private <OriginalState extends Record> BranchState provisionExternal(
+      String name,
+      InputProvisioner<OriginalState> provisioner,
+      WorkflowLanguage language,
+      JsonNode metadata) {
+    return provisioner.run().intoBranch(name, provisioner.provisionExternal(language, metadata));
   }
 
   @Override
-  public void recover(JsonNode state, WorkMonitor<JsonNode, JsonNode> monitor) {
-    final var type = state.get(0).asText();
-    provisioners.get(type).recover(state.get(1), new MonitorWithType<>(monitor, type));
+  public OperationAction<?, BranchState, JsonNode> run() {
+    return OperationAction.branch(
+        provisioners.entrySet().stream()
+            .collect(Collectors.toMap(Entry::getKey, e -> e.getValue().run())));
   }
 
   public void setInternal(String internal) {
     this.internal = internal;
   }
 
-  public void setProvisioners(Map<String, InputProvisioner> provisioners) {
+  public void setProvisioners(Map<String, InputProvisioner<? extends Record>> provisioners) {
     this.provisioners = provisioners;
   }
 

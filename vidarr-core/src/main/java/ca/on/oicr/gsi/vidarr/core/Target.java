@@ -16,22 +16,22 @@ public interface Target {
   /** All consumable resources */
   Stream<Pair<String, ConsumableResource>> consumableResources();
   /** The workflow engine plugin to use */
-  WorkflowEngine engine();
+  WorkflowEngine<?, ?> engine();
 
   /**
    * The input provisioner plugins to use
    *
    * @param type the format being provisioned in
    */
-  InputProvisioner provisionerFor(InputProvisionFormat type);
+  InputProvisioner<?> provisionerFor(InputProvisionFormat type);
 
   /**
    * The output provision plugins to use
    *
    * @param type the format being provisioned out
    */
-  OutputProvisioner provisionerFor(OutputProvisionFormat type);
+  OutputProvisioner<?, ?> provisionerFor(OutputProvisionFormat type);
 
   /** Any runtime provisioners to use on every workflow run */
-  Stream<RuntimeProvisioner> runtimeProvisioners();
+  Stream<RuntimeProvisioner<?>> runtimeProvisioners();
 }

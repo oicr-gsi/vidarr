@@ -18,16 +18,16 @@ public final class ServerConfiguration {
   private String dbPass;
   private int dbPort;
   private String dbUser;
-  private Map<String, InputProvisioner> inputProvisioners;
+  private Map<String, InputProvisioner<?>> inputProvisioners;
   private String name;
   private Map<String, String> otherServers;
-  private Map<String, OutputProvisioner> outputProvisioners;
+  private Map<String, OutputProvisioner<?, ?>> outputProvisioners;
   private int port = 8080;
-  private Map<String, RuntimeProvisioner> runtimeProvisioners;
+  private Map<String, RuntimeProvisioner<?>> runtimeProvisioners;
   private Map<String, TargetConfiguration> targets;
   private String unloadDirectory = ".";
   private String url;
-  private Map<String, WorkflowEngine> workflowEngines;
+  private Map<String, WorkflowEngine<?, ?>> workflowEngines;
 
   public Map<String, ConsumableResource> getConsumableResources() {
     return consumableResources;
@@ -53,7 +53,7 @@ public final class ServerConfiguration {
     return dbUser;
   }
 
-  public Map<String, InputProvisioner> getInputProvisioners() {
+  public Map<String, InputProvisioner<?>> getInputProvisioners() {
     return inputProvisioners;
   }
 
@@ -65,7 +65,7 @@ public final class ServerConfiguration {
     return otherServers;
   }
 
-  public Map<String, OutputProvisioner> getOutputProvisioners() {
+  public Map<String, OutputProvisioner<?, ?>> getOutputProvisioners() {
     return outputProvisioners;
   }
 
@@ -73,7 +73,7 @@ public final class ServerConfiguration {
     return port;
   }
 
-  public Map<String, RuntimeProvisioner> getRuntimeProvisioners() {
+  public Map<String, RuntimeProvisioner<?>> getRuntimeProvisioners() {
     return runtimeProvisioners;
   }
 
@@ -89,7 +89,7 @@ public final class ServerConfiguration {
     return url;
   }
 
-  public Map<String, WorkflowEngine> getWorkflowEngines() {
+  public Map<String, WorkflowEngine<?, ?>> getWorkflowEngines() {
     return workflowEngines;
   }
 
@@ -117,7 +117,7 @@ public final class ServerConfiguration {
     this.dbUser = dbUser;
   }
 
-  public void setInputProvisioners(Map<String, InputProvisioner> inputProvisioners) {
+  public void setInputProvisioners(Map<String, InputProvisioner<?>> inputProvisioners) {
     this.inputProvisioners = inputProvisioners;
   }
 
@@ -129,7 +129,7 @@ public final class ServerConfiguration {
     this.otherServers = otherServers;
   }
 
-  public void setOutputProvisioners(Map<String, OutputProvisioner> outputProvisioners) {
+  public void setOutputProvisioners(Map<String, OutputProvisioner<?, ?>> outputProvisioners) {
     this.outputProvisioners = outputProvisioners;
   }
 
@@ -137,7 +137,7 @@ public final class ServerConfiguration {
     this.port = port;
   }
 
-  public void setRuntimeProvisioners(Map<String, RuntimeProvisioner> runtimeProvisioners) {
+  public void setRuntimeProvisioners(Map<String, RuntimeProvisioner<?>> runtimeProvisioners) {
     this.runtimeProvisioners = runtimeProvisioners;
   }
 
@@ -153,7 +153,7 @@ public final class ServerConfiguration {
     this.url = url;
   }
 
-  public void setWorkflowEngines(Map<String, WorkflowEngine> workflowEngines) {
+  public void setWorkflowEngines(Map<String, WorkflowEngine<?, ?>> workflowEngines) {
     this.workflowEngines = workflowEngines;
   }
 }

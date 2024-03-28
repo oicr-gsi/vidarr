@@ -11,7 +11,7 @@ import java.util.stream.Stream;
 import javax.xml.stream.XMLStreamException;
 
 /** Provision input using the stored path as the input path with no alteration */
-public final class RawInputProvisioner extends BaseJsonInputProvisioner<String, String> {
+public final class RawInputProvisioner implements InputProvisioner<RawInputState> {
   private static final ObjectMapper MAPPER = new ObjectMapper();
 
   public static InputProvisionerProvider provider() {
@@ -20,9 +20,7 @@ public final class RawInputProvisioner extends BaseJsonInputProvisioner<String, 
 
   private Set<InputProvisionFormat> formats;
 
-  public RawInputProvisioner() {
-    super(MAPPER, String.class, String.class);
-  }
+  public RawInputProvisioner() {}
 
   @Override
   public boolean canProvision(InputProvisionFormat format) {
@@ -43,6 +41,22 @@ public final class RawInputProvisioner extends BaseJsonInputProvisioner<String, 
     }
   }
 
+  @Override
+  public RawInputState provision(WorkflowLanguage language, String id, String path) {
+    return new RawInputState(JsonNodeFactory.instance.textNode(path));
+  }
+
+  @Override
+  public RawInputState provisionExternal(WorkflowLanguage language, JsonNode metadata) {
+    return new RawInputState(metadata);
+  }
+
+  @Override
+  public OperationAction<?, RawInputState, JsonNode> run() {
+    return OperationAction.load(RawInputState.class, RawInputState::path)
+        .then(OperationStep.require(JsonNode::isTextual, "Input is not text"));
+  }
+
   public Set<InputProvisionFormat> getFormats() {
     return formats;
   }
@@ -50,25 +64,6 @@ public final class RawInputProvisioner extends BaseJsonInputProvisioner<String, 
   @Override
   public void startup() {
     // Always ok.
-  }
-
-  @Override
-  protected String provisionExternal(
-      WorkflowLanguage language, String metadata, WorkMonitor<JsonNode, String> monitor) {
-    monitor.scheduleTask(() -> monitor.complete(JsonNodeFactory.instance.textNode(metadata)));
-    return metadata;
-  }
-
-  @Override
-  public String provisionRegistered(
-      WorkflowLanguage language, String id, String path, WorkMonitor<JsonNode, String> monitor) {
-    monitor.scheduleTask(() -> monitor.complete(JsonNodeFactory.instance.textNode(path)));
-    return path;
-  }
-
-  @Override
-  protected void recover(String state, WorkMonitor<JsonNode, String> monitor) {
-    monitor.scheduleTask(() -> monitor.complete(JsonNodeFactory.instance.textNode(state)));
   }
 
   public void setFormats(Set<InputProvisionFormat> formats) {

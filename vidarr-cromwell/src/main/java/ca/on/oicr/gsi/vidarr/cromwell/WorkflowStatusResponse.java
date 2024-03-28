@@ -23,4 +23,8 @@ public class WorkflowStatusResponse {
   public void setStatus(String status) {
     this.status = status;
   }
+
+  public boolean hasSucceeded() {
+    return status.equals("Succeeded");
+  }
 }

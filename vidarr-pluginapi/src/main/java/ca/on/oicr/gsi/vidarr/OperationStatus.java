@@ -1,6 +1,4 @@
-package ca.on.oicr.gsi.vidarr.core;
-
-import ca.on.oicr.gsi.vidarr.WorkMonitor.Status;
+package ca.on.oicr.gsi.vidarr;
 
 /** The status for an operation */
 public enum OperationStatus {
@@ -13,7 +11,7 @@ public enum OperationStatus {
   FAILED,
   SUCCEEDED;
 
-  public static OperationStatus of(Status status) {
+  public static OperationStatus of(WorkingStatus status) {
     return switch (status) {
       case WAITING -> PLUGIN_WAITING;
       case QUEUED -> PLUGIN_QUEUED;

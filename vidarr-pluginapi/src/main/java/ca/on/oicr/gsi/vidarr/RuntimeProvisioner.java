@@ -7,7 +7,6 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo.As;
 import com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
 import com.fasterxml.jackson.databind.DatabindContext;
 import com.fasterxml.jackson.databind.JavaType;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.annotation.JsonTypeIdResolver;
 import com.fasterxml.jackson.databind.jsontype.impl.TypeIdResolverBase;
 import java.io.IOException;
@@ -30,14 +29,16 @@ import javax.xml.stream.XMLStreamException;
  *
  * <p>RuntimeProvisioner uses jackson-databind to map information from the server's '.vidarrconfig'
  * file to member non-static fields. The @JsonIgnore annotation prevents this.
+ *
+ * @param <State> the state information used for provisioning out data
  */
 @JsonTypeIdResolver(RuntimeProvisioner.RuntimeProvisionerIdResolver.class)
 @JsonTypeInfo(use = JsonTypeInfo.Id.CUSTOM, include = As.PROPERTY, property = "type")
-public interface RuntimeProvisioner {
+public interface RuntimeProvisioner<State extends Record> {
 
   final class RuntimeProvisionerIdResolver extends TypeIdResolverBase {
 
-    private final Map<String, Class<? extends RuntimeProvisioner>> knownIds =
+    private final Map<String, Class<? extends RuntimeProvisioner<? extends Record>>> knownIds =
         ServiceLoader.load(RuntimeProvisionerProvider.class).stream()
             .map(Provider::get)
             .flatMap(RuntimeProvisionerProvider::types)
@@ -78,39 +79,21 @@ public interface RuntimeProvisioner {
   String name();
 
   /**
-   * Begin provisioning out a new output
+   * Create state for provisioning the output
+   *
+   * <p>This method should do not work. It should only create state for use by the {@link #run()}
    *
    * @param workflowRunUrl the URL provided by the {@link WorkflowEngine.Result#workflowRunUrl()}
-   * @param monitor WorkMonitor for writing the output of the checking process and scheduling
-   *     asynchronous tasks. OutputProvisioner.Result is the expected output type. JsonNode is the
-   *     format of the state records.
-   * @return JsonNode used by WrappedMonitor in BaseProcessor.Phase3Run to serialize to the database
+   * @return the state that will be used by {@link #run()}
    */
-  JsonNode provision(
-      String workflowRunUrl, WorkMonitor<OutputProvisioner.Result, JsonNode> monitor);
+  State provision(String workflowRunUrl);
 
   /**
-   * Restart a provisioning process from state saved in the database
+   * Create a declarative structure to execute the provisioning
    *
-   * <p>Rebuild state from `state` object then schedule appropriate next step with
-   * `monitor.scheduleTask()`
-   *
-   * @param state the frozen database state
-   * @param monitor the monitor structure for writing the output of the provisioning process
+   * @return the sequence of operations that should be performed
    */
-  void recover(JsonNode state, WorkMonitor<OutputProvisioner.Result, JsonNode> monitor);
-
-  /**
-   * Restart a provisioning process from state saved in the database that previously failed
-   *
-   * <p>Rebuild state from `state` object then schedule appropriate next step with
-   * `monitor.scheduleTask()`. This is meant to allow retrying the provision out process after a
-   * failure such as out of disk that doesn't require reprocessing the data.
-   *
-   * @param state the frozen database state
-   * @param monitor the monitor structure for writing the output of the provisioning process
-   */
-  void retry(JsonNode state, WorkMonitor<OutputProvisioner.Result, JsonNode> monitor);
+  OperationAction<?, State, OutputProvisioner.Result> run();
 
   /**
    * Called to initialise this runtime provisioner.

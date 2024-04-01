@@ -11,6 +11,7 @@ import static ca.on.oicr.gsi.vidarr.OperationStep.log;
 import static ca.on.oicr.gsi.vidarr.OperationStep.monitorWhen;
 import static ca.on.oicr.gsi.vidarr.OperationStep.requireJsonSuccess;
 import static ca.on.oicr.gsi.vidarr.OperationStep.requirePresent;
+import static ca.on.oicr.gsi.vidarr.OperationStep.sleep;
 import static ca.on.oicr.gsi.vidarr.OperationStep.status;
 import static ca.on.oicr.gsi.vidarr.cromwell.CromwellWorkflowEngine.CROMWELL_FAILURES;
 import static ca.on.oicr.gsi.vidarr.cromwell.CromwellWorkflowEngine.MAPPER;
@@ -208,6 +209,7 @@ public class CromwellOutputProvisioner
                 Level.INFO,
                 id -> String.format("Started Cromwell provision-out %s on %s", id, cromwellUrl)))
         .then(repeatUntilSuccess(Duration.ofMinutes(10), 5))
+        .then(sleep(Duration.ofSeconds(30)))
         .then(
             OperationStatefulStep.subStep(
                 onInnerState(ProvisionState.class, ProvisionState::checkTask),

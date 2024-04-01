@@ -9,6 +9,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandler;
+import java.time.Duration;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -33,6 +34,7 @@ public abstract sealed class OperationStep<Input, Output>
         OperationStepMapping,
         OperationStepMonitor,
         OperationStepRequire,
+        OperationStepSleep,
         OperationStepStatus,
         OperationStepThen {
 
@@ -210,6 +212,17 @@ public abstract sealed class OperationStep<Input, Output>
    */
   public static <Value> OperationStep<Optional<Value>, Value> requirePresent() {
     return mapping(Optional::orElseThrow);
+  }
+
+  /**
+   * Wait before executing the next steep
+   *
+   * @param duration the amount of time to wait
+   * @return a step that waits
+   * @param <Value> the type of the input and (unchanged) output
+   */
+  public static <Value> OperationStep<Value, Value> sleep(Duration duration) {
+    return new OperationStepSleep<>(duration);
   }
 
   /**

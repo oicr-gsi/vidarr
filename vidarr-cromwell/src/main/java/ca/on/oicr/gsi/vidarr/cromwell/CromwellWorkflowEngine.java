@@ -12,6 +12,7 @@ import static ca.on.oicr.gsi.vidarr.OperationStep.http;
 import static ca.on.oicr.gsi.vidarr.OperationStep.monitorWhen;
 import static ca.on.oicr.gsi.vidarr.OperationStep.requireJsonSuccess;
 import static ca.on.oicr.gsi.vidarr.OperationStep.requirePresent;
+import static ca.on.oicr.gsi.vidarr.OperationStep.sleep;
 import static ca.on.oicr.gsi.vidarr.OperationStep.status;
 
 import ca.on.oicr.gsi.Pair;
@@ -124,6 +125,7 @@ public final class CromwellWorkflowEngine implements WorkflowEngine<StateUnstart
                     String.format(
                         "Started Cromwell workflow %s on %s", id, state.cromwellServer())))
         .then(repeatUntilSuccess(Duration.ofMinutes(10), 5))
+        .then(sleep(Duration.ofSeconds(30)))
         .then(
             subStep(
                 onInnerState(StateUnstarted.class, StateUnstarted::checkTask),

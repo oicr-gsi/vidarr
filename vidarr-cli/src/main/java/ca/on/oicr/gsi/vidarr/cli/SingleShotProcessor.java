@@ -86,7 +86,7 @@ final class SingleShotProcessor
   }
 
   @Override
-  protected void startTransaction(Consumer<Void> operation) {
+  public void inTransaction(Consumer<Void> operation) {
     operation.accept(null);
   }
 }

@@ -660,7 +660,7 @@ public abstract class DatabaseBackedProcessor
                   throw new IllegalStateException("Workflow has already been" + " launched");
                 }
                 launched = true;
-                startTransaction(
+                inTransaction(
                     runTransaction ->
                         DatabaseBackedProcessor.this.start( // runs when new workflow run submitted
                             target, workflow.definition(), dbWorkflow, runTransaction));
@@ -1022,7 +1022,7 @@ public abstract class DatabaseBackedProcessor
   }
 
   @Override
-  protected final void startTransaction(Consumer<DSLContext> operation) {
+  public final void inTransaction(Consumer<DSLContext> operation) {
     databaseLock.acquireUninterruptibly();
     try {
       try (final var connection = dataSource.getConnection()) {
@@ -1364,7 +1364,7 @@ public abstract class DatabaseBackedProcessor
                                                                         + " launched");
                                                               }
                                                               launched = true;
-                                                              startTransaction(
+                                                              inTransaction(
                                                                   runTransaction ->
                                                                       DatabaseBackedProcessor.this
                                                                           .start( // runs when
@@ -1409,7 +1409,7 @@ public abstract class DatabaseBackedProcessor
 
   int updateVersions(BulkVersionRequest request) {
     final var counter = new AtomicInteger();
-    startTransaction(
+    inTransaction(
         context -> {
           for (final var update : request.getUpdates()) {
 

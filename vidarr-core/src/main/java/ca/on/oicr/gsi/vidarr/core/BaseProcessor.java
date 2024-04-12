@@ -43,7 +43,7 @@ public abstract class BaseProcessor<
   }
 
   @Override
-  public final void inTransaction(Consumer<TX> transaction) {}
+  public abstract void inTransaction(Consumer<TX> transaction);
 
   @Override
   public final void scheduleTask(Runnable task) {
@@ -98,7 +98,7 @@ public abstract class BaseProcessor<
         throw new IllegalStateException("Operation is already complete.");
       }
       finished = true;
-      startTransaction(
+      inTransaction(
           transaction -> {
             operation.status(OperationStatus.FAILED, transaction);
             operation.error(error, transaction);
@@ -113,7 +113,7 @@ public abstract class BaseProcessor<
         throw new IllegalStateException("Operation is already complete.");
       }
       finished = true;
-      startTransaction(
+      inTransaction(
           transaction -> {
             operation.status(OperationStatus.SUCCEEDED, transaction);
             operation.recoveryState(handler.serialize(output), transaction);
@@ -212,7 +212,7 @@ public abstract class BaseProcessor<
     }
 
     public void release(Boolean result) {
-      startTransaction(
+      inTransaction(
           transaction -> {
             if (!result) {
               ok = false;
@@ -348,7 +348,7 @@ public abstract class BaseProcessor<
         @Override
         public void failed() {
           if (size.decrementAndGet() == 0) {
-            startTransaction(
+            inTransaction(
                 transaction ->
                     activeWorkflow.phase(Phase.FAILED, Collections.emptyList(), transaction));
           }
@@ -362,7 +362,7 @@ public abstract class BaseProcessor<
         @Override
         public void succeeded(JsonMutation result) {
           semaphore.acquireUninterruptibly();
-          startTransaction(
+          inTransaction(
               transaction -> {
                 final var inputs = activeWorkflow.realInputs();
                 for (final var input : inputs) {
@@ -431,7 +431,7 @@ public abstract class BaseProcessor<
         @Override
         public void failed() {
           final var realInputs = activeWorkflow.realInputs();
-          startTransaction(
+          inTransaction(
               tx -> {
                 final var index = activeWorkflow.realInputTryNext(tx);
                 if (index < realInputs.size()) {
@@ -469,7 +469,7 @@ public abstract class BaseProcessor<
         @Override
         public void succeeded(Result<JsonNode> result) {
           if (result.output() == null) {
-            startTransaction(
+            inTransaction(
                 transaction -> {
                   operation.status(OperationStatus.FAILED, transaction);
                   operation.recoveryState(
@@ -477,7 +477,7 @@ public abstract class BaseProcessor<
                 });
             return;
           }
-          startTransaction(
+          inTransaction(
               transaction -> {
                 result.cleanupState().ifPresent(c -> workflow().cleanup(c, transaction));
                 workflow().runUrl(result.workflowRunUrl(), transaction);
@@ -601,7 +601,7 @@ public abstract class BaseProcessor<
 
         @Override
         public void succeeded(ProvisionData result) {
-          startTransaction(
+          inTransaction(
               transaction -> {
                 result
                     .result()
@@ -688,7 +688,7 @@ public abstract class BaseProcessor<
 
         @Override
         public void succeeded(Void result) {
-          startTransaction(activeWorkflow::succeeded);
+          inTransaction(activeWorkflow::succeeded);
         }
       };
     }
@@ -825,7 +825,7 @@ public abstract class BaseProcessor<
     switch (workflow.phase()) {
       case WAITING_FOR_RESOURCES:
       case INITIALIZING:
-        startTransaction(transaction -> start(target, definition, workflow, transaction));
+        inTransaction(transaction -> start(target, definition, workflow, transaction));
         break;
       case PREFLIGHT:
         final var p1 =
@@ -956,6 +956,4 @@ public abstract class BaseProcessor<
       nextPhaseSteps.get(index).start(this, operation, nextPhaseManager.createTerminal(operation));
     }
   }
-
-  protected abstract void startTransaction(Consumer<TX> operation);
 }

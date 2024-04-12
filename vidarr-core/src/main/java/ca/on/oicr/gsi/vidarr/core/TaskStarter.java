@@ -96,7 +96,7 @@ interface TaskStarter<Output> {
         @Override
         public <TX, PO extends ActiveOperation<TX>> void start(
             BaseProcessor<?, PO, TX> processor, PO operation, TerminalHandler<Void> handler) {
-          processor.startTransaction(
+          processor.inTransaction(
               tx -> {
                 operation.status(OperationStatus.FAILED, tx);
                 operation.recoveryState(processor.mapper().valueToTree(e.getMessage()), tx);

@@ -124,9 +124,9 @@ public class CommandTest implements Callable<Integer> {
         cases.stream()
             .map(
                 c -> {
-                  // Will use output directory if provided, otherwise "null" is passed into createValidator
-                  // Timestamp date passed in to use as subdirectory to output directory
-                  // One is created for each vidarr-cli test run
+                  /* Will use output directory if provided, otherwise "null" is passed into
+                     createValidator Timestamp date passed in to use as subdirectory to output
+                     directory.One is created for each vidarr-cli test run */
                   final var validator =
                       Validator.all(c.getValidators().stream().map(
                           TestValidator -> TestValidator.createValidator(outputDirectory,

@@ -25,6 +25,7 @@ module ca.on.oicr.gsi.vidarr.core {
   requires ca.on.oicr.gsi.vidarr.pluginapi;
   requires com.fasterxml.jackson.core;
   requires com.fasterxml.jackson.databind;
+  requires com.fasterxml.jackson.datatype.jdk8;
   requires java.naming;
   requires java.sql;
   requires java.xml;

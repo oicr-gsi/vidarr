@@ -10,6 +10,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import io.undertow.Handlers;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.HttpServerExchange;
@@ -25,7 +26,9 @@ import java.util.Optional;
 public final class RemotePriorityInput implements PriorityInput {
   private static final HttpClient HTTP_CLIENT = HttpClient.newHttpClient();
   private static final ObjectMapper MAPPER =
-      new ObjectMapper().configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true);
+      new ObjectMapper()
+          .configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true)
+          .registerModule(new Jdk8Module());
   private int defaultPriority;
   private BasicType schema;
   private int ttl = 15;

@@ -741,9 +741,11 @@ public abstract class DatabaseBackedProcessor
                                               operations.getOrDefault(
                                                   record.get(ACTIVE_WORKFLOW_RUN.ID), List.of());
                                           if (activeOperations.isEmpty()) {
+                                            String erroneousHash = record.get(WORKFLOW_RUN.HASH_ID);
                                             System.err.printf(
                                                 "Error recovering workflow run %s: no operations match\n",
-                                                record.get(WORKFLOW_RUN.HASH_ID));
+                                                erroneousHash);
+                                            BadRecoveryTracker.add(erroneousHash);
                                             return;
                                           }
                                           final var workflow =

@@ -68,10 +68,6 @@ public class CommandTest implements Callable<Integer> {
 
   @Override
   public Integer call() throws Exception {
-    // Get current epoch timestamp and format it to date
-    final long epoch = System.currentTimeMillis();
-    final String date = new SimpleDateFormat("yyyy-MM-dd_HH:mm:ss").format(new Date(epoch));
-
     final var suffix = Instant.now().getEpochSecond();
     final var target =
         MAPPER.readValue(new File(configuration), TargetConfiguration.class).toTarget();
@@ -130,7 +126,7 @@ public class CommandTest implements Callable<Integer> {
                   final var validator =
                       Validator.all(c.getValidators().stream().map(
                           TestValidator -> TestValidator.createValidator(outputDirectory,
-                              c.getId(), date, verboseMode)));
+                              c.getId(), verboseMode)));
 
                   final var run =
                       runner.startAsync(

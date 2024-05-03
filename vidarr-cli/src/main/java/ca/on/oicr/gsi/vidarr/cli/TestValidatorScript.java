@@ -19,8 +19,7 @@ public final class TestValidatorScript extends TestValidator {
   private String outputMetrics;
 
   @Override
-  public Validator createValidator(String outputDirectory, String id, String date,
-      boolean verboseMode) {
+  public Validator createValidator(String outputDirectory, String id, boolean verboseMode) {
     try {
       /*
       If output directory provided we will use that
@@ -29,7 +28,7 @@ public final class TestValidatorScript extends TestValidator {
       else we create a new directory in the default temporary-file directory
       Note: That path is associate with the default FileSystem which is UNIX in our case
        */
-      final var finalDir = (outputDirectory != null) ? Path.of(outputDirectory, date)
+      final var finalDir = (outputDirectory != null) ? Path.of(outputDirectory)
           : Files.createTempDirectory("vidarr-test-script");
       final var finalCalculateScript = finalDir.resolve(id);
       final var finalCalculateDir = finalDir.resolve(id + "_calculate_output");

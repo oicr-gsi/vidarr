@@ -19,7 +19,8 @@ public final class TestValidatorScript extends TestValidator {
   private String outputMetrics;
 
   @Override
-  public Validator createValidator(String outputDirectory, String id, boolean verboseMode) {
+  public Validator createValidator(String outputDirectory, String id,
+      String date, boolean verboseMode) {
     try {
       /*
       If output directory provided we will use that
@@ -32,7 +33,7 @@ public final class TestValidatorScript extends TestValidator {
       final var finalDir = (outputDirectory != null) ? Path.of(outputDirectory)
           : tempDir;
       final var finalCalculateScript = tempDir.resolve(id);
-      final var finalCalculateDir = finalDir.resolve(id + "calculate_output");
+      final var finalCalculateDir = finalDir.resolve(date + "_" + id + "_calculate_output");
 
       // If outputDirectory provided then output file name will be: "id.output"
       // Otherwise it will be: "calculate.output" if no output directory passed in

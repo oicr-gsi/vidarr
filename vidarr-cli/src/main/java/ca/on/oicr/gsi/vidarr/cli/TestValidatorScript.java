@@ -32,7 +32,7 @@ public final class TestValidatorScript extends TestValidator {
       final var finalDir = (outputDirectory != null) ? Path.of(outputDirectory)
           : tempDir;
       final var finalCalculateScript = tempDir.resolve(id);
-      final var finalCalculateDir = tempDir.resolve(id + "calculate_output");
+      final var finalCalculateDir = finalDir.resolve(id + "calculate_output");
 
       // If outputDirectory provided then output file name will be: "id.output"
       // Otherwise it will be: "calculate.output" if no output directory passed in

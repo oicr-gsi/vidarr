@@ -30,7 +30,8 @@ public final class TestValidatorScript extends TestValidator {
        */
       final var finalDir = (outputDirectory != null) ? Path.of(outputDirectory)
           : Files.createTempDirectory("vidarr-test-script");
-      final var finalCalculateScript = finalDir.resolve(id);
+      final var tempDir = Files.createTempDirectory("vidarr-calculate-script");
+      final var finalCalculateScript = tempDir.resolve(id); //finalDir.resolve(id);
       final var finalCalculateDir = finalDir.resolve(id + "_calculate_output");
 
       // If outputDirectory provided then output file name will be: "id.output"

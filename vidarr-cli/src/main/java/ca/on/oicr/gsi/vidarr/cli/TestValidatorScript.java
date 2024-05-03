@@ -28,11 +28,11 @@ public final class TestValidatorScript extends TestValidator {
       else we create a new directory in the default temporary-file directory
       Note: That path is associate with the default FileSystem which is UNIX in our case
        */
+      final var tempDir = Files.createTempDirectory("vidarr-test-script");
       final var finalDir = (outputDirectory != null) ? Path.of(outputDirectory)
-          : Files.createTempDirectory("vidarr-test-script");
-      final var tempDir = Files.createTempDirectory("vidarr-calculate-script");
-      final var finalCalculateScript = tempDir.resolve(id); //finalDir.resolve(id);
-      final var finalCalculateDir = finalDir.resolve(id + "_calculate_output");
+          : tempDir;
+      final var finalCalculateScript = tempDir.resolve(id);
+      final var finalCalculateDir = tempDir.resolve(id + "calculate_output");
 
       // If outputDirectory provided then output file name will be: "id.output"
       // Otherwise it will be: "calculate.output" if no output directory passed in

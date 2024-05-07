@@ -40,6 +40,7 @@ import ca.on.oicr.gsi.vidarr.api.*;
 import ca.on.oicr.gsi.vidarr.core.BaseProcessor;
 import ca.on.oicr.gsi.vidarr.core.ExtractInputVidarrIds;
 import ca.on.oicr.gsi.vidarr.core.FileMetadata;
+import ca.on.oicr.gsi.vidarr.core.ManualOverrideConsumableResource;
 import ca.on.oicr.gsi.vidarr.core.OperationStatus;
 import ca.on.oicr.gsi.vidarr.core.Phase;
 import ca.on.oicr.gsi.vidarr.core.Target;
@@ -404,6 +405,9 @@ public final class Main implements ServerConfig {
       routes.addPrefixPath(
           "/consumable-resource/" + consumableResource.getKey(), consumableResource.getValue());
     }
+    routes.addPrefixPath(
+        "/consumable-resource/max-in-flight-by-workflow",
+        server.overridableMaxInFlightPerWorkflow.httpHandler().get());
     final var undertow =
         Undertow.builder()
             .addHttpListener(server.port, "0.0.0.0")
@@ -446,6 +450,8 @@ public final class Main implements ServerConfig {
   private final Map<String, InputProvisioner> inputProvisioners;
   private final Semaphore loadCounter = new Semaphore(3);
   private final MaxInFlightByWorkflow maxInFlightPerWorkflow = new MaxInFlightByWorkflow();
+  private final ManualOverrideConsumableResource overridableMaxInFlightPerWorkflow =
+      new ManualOverrideConsumableResource();
   private final Map<String, String> otherServers;
   private final Map<String, OutputProvisioner> outputProvisioners;
   private final int port;
@@ -558,7 +564,7 @@ public final class Main implements ServerConfig {
                                                   new Pair<>(name, consumableResources.get(name))),
                                       Stream.of(
                                           new Pair<String, ConsumableResource>(
-                                              "", maxInFlightPerWorkflow)))
+                                              "", overridableMaxInFlightPerWorkflow)))
                                   .collect(Collectors.toList());
                           private final WorkflowEngine engine =
                               workflowEngines.get(e.getValue().getWorkflowEngine());
@@ -717,7 +723,7 @@ public final class Main implements ServerConfig {
           .from(WORKFLOW)
           .forEach(record -> maxInFlightPerWorkflow.set(record.value1(), record.value2()));
     }
-
+    overridableMaxInFlightPerWorkflow.setInner(maxInFlightPerWorkflow);
     unloadDirectory = Path.of(configuration.getUnloadDirectory());
   }
 

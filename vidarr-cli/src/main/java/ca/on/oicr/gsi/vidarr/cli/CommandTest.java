@@ -70,7 +70,7 @@ public class CommandTest implements Callable<Integer> {
   public Integer call() throws Exception {
     // Get current epoch timestamp and format it to date
     final long epoch = System.currentTimeMillis();
-    final String date = new SimpleDateFormat("yyyy-MM-dd_HH:mm:ss").format(new Date(epoch));
+    final String date = new SimpleDateFormat("yyyy-MM-dd-HH:mm:ss").format(new Date(epoch));
 
     final var suffix = Instant.now().getEpochSecond();
     final var target =

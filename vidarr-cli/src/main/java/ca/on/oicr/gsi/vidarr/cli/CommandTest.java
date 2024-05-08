@@ -79,7 +79,7 @@ public class CommandTest implements Callable<Integer> {
         MAPPER.readValue(new File(workflowFile), WorkflowConfiguration.class).toDefinition();
     var cases = List.of(MAPPER.readValue(new File(testCases), TestCase[].class));
     if (!includes.isEmpty()) {
-      cases = cases.stream().filter(c -> includes.contains(c.getId())).collect(Collectors.toList());
+      cases = cases.stream().filter(c -> includes.contains(c.getId())).toList();
     }
     if (cases.isEmpty()) {
       System.err.println("No test cases found.");
@@ -113,7 +113,7 @@ public class CommandTest implements Callable<Integer> {
                             c.getMetadata(),
                             c.getEngineArguments())
                         .map((c.getId() + ": ")::concat))
-            .collect(Collectors.toList());
+            .toList();
     if (!errors.isEmpty()) {
       errors.forEach(System.err::println);
       return 2;
@@ -170,7 +170,7 @@ public class CommandTest implements Callable<Integer> {
                             }
                           });
                 })
-            .collect(Collectors.toList())) {
+            .toList()) {
       result &= future.join();
     }
     return result ? 0 : 1;

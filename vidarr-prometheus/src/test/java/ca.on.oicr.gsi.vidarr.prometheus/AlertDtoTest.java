@@ -27,7 +27,7 @@ public class AlertDtoTest {
 
     var matches =
         sut.matches(autoInhibit, "testing", configLabels, Stream.of("vidarr-clinical", "bamqc4"))
-            .collect(Collectors.toList());
+            .toList();
     assertEquals(1, matches.size());
   }
 
@@ -44,7 +44,7 @@ public class AlertDtoTest {
 
     var matches =
         sut.matches(autoInhibit, "testing", configLabels, Stream.of("vidarr-clinical", "bamqc4"))
-            .collect(Collectors.toList());
+            .toList();
     assertEquals(1, matches.size());
   }
 
@@ -61,7 +61,7 @@ public class AlertDtoTest {
 
     var matches =
         sut.matches(autoInhibit, "testing", configLabels, Stream.of("vidarr-clinical", "bamqc4"))
-            .collect(Collectors.toList());
+            .toList();
     assertEquals(1, matches.size());
   }
 
@@ -78,7 +78,7 @@ public class AlertDtoTest {
 
     var matches =
         sut.matches(autoInhibit, "testing", configLabels, Stream.of("vidarr-clinical", "bamqc4"))
-            .collect(Collectors.toList());
+            .toList();
     assertEquals(0, matches.size());
   }
 
@@ -95,7 +95,7 @@ public class AlertDtoTest {
 
     var matches =
         sut.matches(autoInhibit, "testing", configLabels, Stream.of("vidarr-clinical", "bamqc4"))
-            .collect(Collectors.toList());
+            .toList();
     assertEquals(0, matches.size());
   }
 }

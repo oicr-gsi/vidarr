@@ -85,7 +85,7 @@ public class VeryBadDataIntegrationTest {
                 IntStream.range(0, 31),
                 IntStream.concat(IntStream.range(194, 202), IntStream.range(435, 475)))
             .boxed()
-            .collect(Collectors.toList());
+            .toList();
 
     // Filtering original list to only get strings we care about
     return IntStream.range(0, blns.size())

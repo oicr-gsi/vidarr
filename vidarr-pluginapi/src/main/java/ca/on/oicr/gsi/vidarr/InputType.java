@@ -347,7 +347,7 @@ public abstract class InputType {
                   final var fields =
                       contents
                           .map(p -> new Pair<>(p.first(), p.second().apply(this)))
-                          .collect(Collectors.toList());
+                          .toList();
                   return g -> {
                     g.writeStartObject();
                     g.writeStringField(STR_IS, STR_OBJECT);
@@ -426,7 +426,7 @@ public abstract class InputType {
                 @Override
                 public Printer tuple(Stream<InputType> contents) {
                   final var elements =
-                      contents.map(e -> e.apply(this)).collect(Collectors.toList());
+                      contents.map(e -> e.apply(this)).toList();
                   return g -> {
                     g.writeStartObject();
                     g.writeStringField(STR_IS, STR_TUPLE);
@@ -788,15 +788,15 @@ public abstract class InputType {
    */
   public static InputType object(Stream<Pair<String, InputType>> fields) {
     // Sanity checking
-    final List<Pair<String, InputType>> fieldsList = fields.collect(Collectors.toList());
-    if (fieldsList.size() == 0)
+    final List<Pair<String, InputType>> fieldsList = fields.toList();
+    if (fieldsList.isEmpty())
       throw new IllegalArgumentException("Object InputType needs at least 1 field, got 0.");
 
     for (final Map.Entry<String, Long> entry :
         fieldsList.stream()
             .collect(Collectors.groupingBy(Pair::first, Collectors.counting()))
             .entrySet()) {
-      if (entry.getKey().equals("")) {
+      if (entry.getKey().isEmpty()) {
         throw new IllegalArgumentException(
             "Found illegal field key \"\" while creating Object InputType.");
       }

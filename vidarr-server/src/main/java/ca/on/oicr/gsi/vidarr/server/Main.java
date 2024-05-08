@@ -559,7 +559,7 @@ public final class Main implements ServerConfig {
                                       Stream.of(
                                           new Pair<String, ConsumableResource>(
                                               "", maxInFlightPerWorkflow)))
-                                  .collect(Collectors.toList());
+                                  .toList();
                           private final WorkflowEngine engine =
                               workflowEngines.get(e.getValue().getWorkflowEngine());
                           private final Map<InputProvisionFormat, InputProvisioner>
@@ -593,7 +593,7 @@ public final class Main implements ServerConfig {
                           private final List<RuntimeProvisioner> runtimeProvisioners =
                               e.getValue().getRuntimeProvisioners().stream()
                                   .map(Main.this.runtimeProvisioners::get)
-                                  .collect(Collectors.toList());
+                                  .toList();
 
                           @Override
                           public Stream<Pair<String, ConsumableResource>> consumableResources() {

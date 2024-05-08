@@ -90,7 +90,7 @@ public abstract class BasicType {
           final var fields =
               contents
                   .map(p -> new Pair<>(p.first(), p.second().apply(this)))
-                  .collect(Collectors.toList());
+                  .toList();
           return g -> {
             g.writeStartObject();
             g.writeStringField(STR_IS, STR_OBJECT);
@@ -155,7 +155,7 @@ public abstract class BasicType {
 
         @Override
         public Printer tuple(Stream<BasicType> contents) {
-          final var elements = contents.map(e -> e.apply(this)).collect(Collectors.toList());
+          final var elements = contents.map(e -> e.apply(this)).toList();
           return g -> {
             g.writeStartObject();
             g.writeStringField(STR_IS, STR_TUPLE);
@@ -702,15 +702,15 @@ public abstract class BasicType {
    */
   public static BasicType object(Stream<Pair<String, BasicType>> fields) {
     // Sanity checking
-    final List<Pair<String, BasicType>> fieldsList = fields.collect(Collectors.toList());
-    if (fieldsList.size() == 0)
+    final List<Pair<String, BasicType>> fieldsList = fields.toList();
+    if (fieldsList.isEmpty())
       throw new IllegalArgumentException("Object BasicType needs at least 1 field, got 0.");
 
     for (final Map.Entry<String, Long> entry :
         fieldsList.stream()
             .collect(Collectors.groupingBy(Pair::first, Collectors.counting()))
             .entrySet()) {
-      if (entry.getKey().equals("")) {
+      if (entry.getKey().isEmpty()) {
         throw new IllegalArgumentException(
             "Found illegal field key \"\" while creating Object BasicType.");
       }

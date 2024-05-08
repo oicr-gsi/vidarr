@@ -77,7 +77,7 @@ final class ConsumableResourceChecker implements Runnable {
       return;
     }
     var i = 0;
-    final var resourceBrokers = target.consumableResources().collect(Collectors.toList());
+    final var resourceBrokers = target.consumableResources().toList();
     for (i = 0; i < resourceBrokers.size(); i++) {
       final var resourceName = resourceBrokers.get(i).first();
       final var broker = resourceBrokers.get(i).second();

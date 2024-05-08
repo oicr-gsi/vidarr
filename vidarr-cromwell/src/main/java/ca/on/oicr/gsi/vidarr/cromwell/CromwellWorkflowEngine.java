@@ -372,7 +372,7 @@ public final class CromwellWorkflowEngine
                   .flatMap(CromwellWorkflowEngine::findAllParents)
                   .distinct()
                   .sorted(Comparator.comparing(Path::getNameCount))
-                  .collect(Collectors.toList());
+                  .toList();
           for (final var parentDirectory : parentDirectories) {
             zipFile.putNextEntry(new ZipEntry(parentDirectory.toString() + "/"));
             zipFile.closeEntry();

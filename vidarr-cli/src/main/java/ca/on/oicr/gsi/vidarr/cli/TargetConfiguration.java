@@ -6,6 +6,7 @@ import ca.on.oicr.gsi.vidarr.core.Target;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -93,7 +94,7 @@ public final class TargetConfiguration {
               .collect(Collectors.toMap(Pair::first, Pair::second));
 
       final List<RuntimeProvisioner> runtimes =
-          TargetConfiguration.this.runtimes.stream().collect(Collectors.toList());
+          new ArrayList<>(TargetConfiguration.this.runtimes);
 
       @Override
       public Stream<Pair<String, ConsumableResource>> consumableResources() {

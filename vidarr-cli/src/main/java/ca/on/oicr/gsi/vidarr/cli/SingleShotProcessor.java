@@ -63,7 +63,7 @@ final class SingleShotProcessor
     System.err.printf("%s: [%s] Validating input...%n", prefix, Instant.now());
     final List<String> errors =
         validateInput(MAPPER, target, workflow, arguments, metadata, engineParameters)
-            .collect(Collectors.toList());
+            .toList();
     if (!errors.isEmpty()) {
       errors.forEach(System.err::println);
       return null;

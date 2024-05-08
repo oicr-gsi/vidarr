@@ -70,7 +70,7 @@ public class CommandTest implements Callable<Integer> {
   public Integer call() throws Exception {
     // Get current epoch timestamp and format it to date
     final long epoch = System.currentTimeMillis();
-    final String date = new SimpleDateFormat("yyyy-MM-dd_HH:mm:ss").format(new Date(epoch));
+    final String date = new SimpleDateFormat("yyyy-MM-dd-HH:mm:ss").format(new Date(epoch));
 
     final var suffix = Instant.now().getEpochSecond();
     final var target =
@@ -124,9 +124,9 @@ public class CommandTest implements Callable<Integer> {
         cases.stream()
             .map(
                 c -> {
-                  // Will use output directory if provided, otherwise "null" is passed into createValidator
-                  // Timestamp date passed in to use as subdirectory to output directory
-                  // One is created for each vidarr-cli test run
+                  /* Will use output directory if provided, otherwise "null" is passed into
+                     createValidator Timestamp date passed in to use as subdirectory to output
+                     directory.One is created for each vidarr-cli test run */
                   final var validator =
                       Validator.all(c.getValidators().stream().map(
                           TestValidator -> TestValidator.createValidator(outputDirectory,

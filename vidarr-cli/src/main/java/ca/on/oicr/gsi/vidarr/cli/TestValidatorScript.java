@@ -11,8 +11,6 @@ import java.time.Instant;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.Date;
-import java.text.SimpleDateFormat;
 
 public final class TestValidatorScript extends TestValidator {
 
@@ -21,8 +19,8 @@ public final class TestValidatorScript extends TestValidator {
   private String outputMetrics;
 
   @Override
-  public Validator createValidator(String outputDirectory, String id, String date,
-      boolean verboseMode) {
+  public Validator createValidator(String outputDirectory, String id,
+      String date, boolean verboseMode) {
     try {
       /*
       If output directory provided we will use that
@@ -31,10 +29,11 @@ public final class TestValidatorScript extends TestValidator {
       else we create a new directory in the default temporary-file directory
       Note: That path is associate with the default FileSystem which is UNIX in our case
        */
-      final var finalDir = (outputDirectory != null) ? Path.of(outputDirectory, date)
-          : Files.createTempDirectory("vidarr-test-script");
-      final var finalCalculateScript = finalDir.resolve(id);
-      final var finalCalculateDir = finalDir.resolve("output");
+      final var tempDir = Files.createTempDirectory("vidarr-test-script");
+      final var finalDir = (outputDirectory != null) ? Path.of(outputDirectory)
+          : tempDir;
+      final var finalCalculateScript = finalDir.resolve(id + "_calculate_script_" + date);
+      final var finalCalculateDir = finalDir.resolve(id + "_calculate_output_" + date);
 
       // If outputDirectory provided then output file name will be: "id.output"
       // Otherwise it will be: "calculate.output" if no output directory passed in

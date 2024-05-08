@@ -6,6 +6,19 @@ For unreleased changes, see [changes](changes).
 
 -----------------------------------------------------------------------------
 
+## [0.19.1] - 2024-05-08
+
+### Fixed
+
+* fix bad recovery tracking
+  
+* Fix calculated workflow output directory to be unique
+  * Directory where workflows calculated used to be a single directory `output`
+  * Changed so that directory has unique identifier to avoid file already exists errors with
+* Fix broken recovery logic present from v0.19.0
+  
+
+
 ## [0.19.0] - 2024-03-18
 
 ### Added

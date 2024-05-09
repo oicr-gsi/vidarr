@@ -813,7 +813,7 @@ public abstract class BasicType {
   private BasicType() {}
 
   /**
-   * Transform this type into a another representation
+   * Transform this type into another representation
    *
    * @param transformer the converter for each type
    */

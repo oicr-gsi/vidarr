@@ -47,7 +47,7 @@ The goal for Víðarr web service is to:
 
 ## Shesmu Integration
 Shesmu needs file provenance and can use Cerberus as a plugin. Shesmu also
-needs run workflows and can use the `/api/submit` endpoint for that purpose. It
+needs to run workflows and can use the `/api/submit` endpoint for that purpose. It
 needs to know what it can run and uses `/api/workflows` to get the known
 workflow and `/api/targets` to know where it can run them; it generates an
 action definition for every valid workflow version and target combination. The
@@ -83,7 +83,7 @@ Once received:
 Once a workflow is started (or restarted), it goes through phases:
 
 - the workflow waits for any consumable resource to allow it to continue
-- the workflow does a preflight check where it ensure that configuration in the output metadata is valid
+- the workflow does a preflight check where it ensures that configuration in the output metadata is valid
 - it provisions in any input files
 - it runs the workflow
 - it provisions out the results of the workflow

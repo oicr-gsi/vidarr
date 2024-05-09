@@ -909,7 +909,7 @@ public abstract class InputType {
   private InputType() {}
 
   /**
-   * Transform this type into a another representation
+   * Transform this type into another representation
    *
    * @param transformer the converter for each type
    */

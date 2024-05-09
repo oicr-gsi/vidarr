@@ -31,7 +31,7 @@ using `"workflowSource"`. `"workflowOptions"` is the workflow options Cromwell
 requires. Although Cromwell is given the entire workflow, it still needs to
 know the WDL version, provided as `"wdlVersion"`. The workflow will be called
 with two arguments, the file to copy (which will be provided as the argument
-(`"fileField"`) and the submitter-provided archive directory
+(`"fileField"`)) and the submitter-provided archive directory
 (`"outputPrefixField"`). Once the workflow has completed, the plugin will
 collect the permanent location for the file (`"storagePathField"`), the MD5
 (`"md5Field"`), and the file size (`"fileSizeField"`).

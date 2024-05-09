@@ -31,7 +31,7 @@ public interface ActiveOperation<TX> {
    */
   boolean isLive();
   /**
-   * Be told something something interesting
+   * Be told something interesting
    *
    * @param level how important this message is
    * @param message the message to display

@@ -63,7 +63,7 @@ public interface ActiveOperation<TX> {
   String type();
 
   /**
-   * Change the plugin type assocated with this operation
+   * Change the plugin type associated with this operation
    *
    * @param type the new plugin type
    * @param transaction the transaction to perform the update in

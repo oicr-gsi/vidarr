@@ -19,7 +19,7 @@ public interface OutputProvisioningHandler<TX> {
    * @param md5 the MD5 hash of the file's contents
    * @param metatype the MIME type of the file
    * @param fileSize the size of the file, in bytes
-   * @param labels additional data attributes assoicated with this file
+   * @param labels additional data attributes associated with this file
    * @param transaction the transaction to update the information in
    */
   void provisionFile(
@@ -36,7 +36,7 @@ public interface OutputProvisioningHandler<TX> {
    *
    * @param ids the external IDs associated with this file
    * @param url the URL of the data recorded in an external system
-   * @param labels additional data attributes assoicated with this file
+   * @param labels additional data attributes associated with this file
    * @param transaction the transaction to update the information in
    */
   void provisionUrl(

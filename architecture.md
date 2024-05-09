@@ -68,7 +68,7 @@ get around this, Víðarr uses versions. Suppose LIMS `labdata` has an element
 `sample1`.
 
 Every external key can be associated with multiple version names and multiple
-version values. This is designed to work with [Shemu's
+version values. This is designed to work with [Shesmu's
 signatures](https://oicr-gsi.github.io/shesmu/tutorial.html#signature-and-signable-variables).
 The design in Víðarr is meant to work something like this:
 

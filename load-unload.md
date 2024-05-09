@@ -74,4 +74,4 @@ the file have been manipulated, then the identifiers must also be updated. For
 information on how identifiers are calculated, see [Víðarr
 identifiers](identifiers.md).
 
-An example load file is avaiable in `examples/loadable_workflows.json`.
+An example load file is available in `examples/loadable_workflows.json`.

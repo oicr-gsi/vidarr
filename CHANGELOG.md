@@ -6,6 +6,16 @@ For unreleased changes, see [changes](changes).
 
 -----------------------------------------------------------------------------
 
+## [0.20.0] - 2024-05-28
+
+### Changed
+
+* Allow manually overriding max inflight by workflow via posting Vidarr workflow run ids to consumable-resource/max-in-flight-by-workflow/allowed
+
+### Fixed
+
+
+
 ## [0.19.1] - 2024-05-08
 
 ### Fixed

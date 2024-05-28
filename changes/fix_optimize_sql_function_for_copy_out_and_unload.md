@@ -1,1 +1,0 @@
-Optimize get_ids_for_downstream_workflow_runs sql function to improve copy-out and unload performance

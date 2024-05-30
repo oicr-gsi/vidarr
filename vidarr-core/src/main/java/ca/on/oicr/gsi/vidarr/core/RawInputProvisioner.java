@@ -6,13 +6,15 @@ import ca.on.oicr.gsi.vidarr.*;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import java.util.Set;
 import java.util.stream.Stream;
 import javax.xml.stream.XMLStreamException;
 
 /** Provision input using the stored path as the input path with no alteration */
 public final class RawInputProvisioner implements InputProvisioner<RawInputState> {
-  private static final ObjectMapper MAPPER = new ObjectMapper();
+  // Jdk8Module is a compatibility fix for de/serializing Optionals
+  private static final ObjectMapper MAPPER = new ObjectMapper().registerModule(new Jdk8Module());
 
   public static InputProvisionerProvider provider() {
     return () -> Stream.of(new Pair<>("raw", RawInputProvisioner.class));

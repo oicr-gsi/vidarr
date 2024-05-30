@@ -7,6 +7,7 @@ import ca.on.oicr.gsi.vidarr.ConsumableResourceResponse;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import io.undertow.Handlers;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.HttpServerExchange;
@@ -22,7 +23,8 @@ import java.util.function.BiPredicate;
 
 public final class ManualOverrideConsumableResource implements ConsumableResource {
 
-  private static final ObjectMapper MAPPER = new ObjectMapper();
+  // Jdk8Module is a compatibility fix for de/serializing Optionals
+  private static final ObjectMapper MAPPER = new ObjectMapper().registerModule(new Jdk8Module());
   private final Set<String> allowList = new TreeSet<>();
   private ConsumableResource inner;
 

@@ -7,6 +7,7 @@ import static org.hamcrest.Matchers.equalTo;
 import ca.on.oicr.gsi.vidarr.server.dto.ServerConfiguration;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.rasklaad.blns.NaughtyStrings;
 import io.restassured.RestAssured;
@@ -33,7 +34,8 @@ public class VeryBadDataIntegrationTest {
   public static JdbcDatabaseContainer pg =
       DatabaseBackedTestConfiguration.getTestDatabaseContainer();
 
-  private static final ObjectMapper MAPPER = new ObjectMapper();
+  // Jdk8Module is a compatibility fix for de/serializing Optionals
+  private static final ObjectMapper MAPPER = new ObjectMapper().registerModule(new Jdk8Module());
   private static ServerConfiguration config;
   private static Main main;
   private static final HttpClient CLIENT =

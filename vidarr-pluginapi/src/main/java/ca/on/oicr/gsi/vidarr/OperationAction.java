@@ -8,6 +8,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import java.util.Map;
 
 /**
@@ -91,7 +92,8 @@ public abstract sealed class OperationAction<
    */
   public record BranchState(String name, JsonNode inner) {}
 
-  static final ObjectMapper MAPPER = new ObjectMapper();
+  // Jdk8Module is a compatibility fix for de/serializing Optionals
+  static final ObjectMapper MAPPER = new ObjectMapper().registerModule(new Jdk8Module());
 
   /**
    * Create a new action that can follow many paths

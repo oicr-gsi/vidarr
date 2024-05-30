@@ -38,6 +38,7 @@ module ca.on.oicr.gsi.vidarr.pluginapi {
   requires transitive com.fasterxml.jackson.core;
   requires transitive com.fasterxml.jackson.databind;
   requires transitive com.fasterxml.jackson.datatype.jsr310;
+  requires com.fasterxml.jackson.datatype.jdk8;
   requires transitive simpleclient;
   requires java.xml;
   requires java.net.http;

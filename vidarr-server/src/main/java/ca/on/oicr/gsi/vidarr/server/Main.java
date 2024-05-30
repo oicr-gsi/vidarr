@@ -56,6 +56,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
@@ -139,7 +140,8 @@ public final class Main implements ServerConfig {
           .followRedirects(HttpClient.Redirect.NORMAL)
           .connectTimeout(Duration.ofSeconds(20))
           .build();
-  static final ObjectMapper MAPPER = new ObjectMapper();
+  // Jdk8Module is a compatibility fix for de/serializing Optionals
+  static final ObjectMapper MAPPER = new ObjectMapper().registerModule(new Jdk8Module());
   static final JsonFactory MAPPER_FACTORY = new JsonFactory().setCodec(MAPPER);
   private static final String CONTENT_TYPE_TEXT = "text/plain";
   private static final String CONTENT_TYPE_JSON = "application/json";

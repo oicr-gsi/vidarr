@@ -40,6 +40,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import com.zaxxer.hikari.HikariDataSource;
 import io.prometheus.client.Counter;
 import io.prometheus.client.Gauge;
@@ -204,7 +205,8 @@ public abstract class DatabaseBackedProcessor
 
   public static final TypeReference<SortedMap<String, BasicType>> LABELS_JSON_TYPE =
       new TypeReference<>() {};
-  static final ObjectMapper MAPPER = new ObjectMapper();
+  // Jdk8Module is a compatibility fix for de/serializing Optionals
+  static final ObjectMapper MAPPER = new ObjectMapper().registerModule(new Jdk8Module());
   public static final TypeReference<Map<String, OutputType>> OUTPUT_JSON_TYPE =
       new TypeReference<>() {};
   public static final TypeReference<Map<String, InputType>> PARAMETER_JSON_TYPE =

@@ -6,6 +6,7 @@ import ca.on.oicr.gsi.vidarr.PriorityInput;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import io.undertow.Handlers;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.HttpServerExchange;
@@ -18,7 +19,8 @@ import java.util.List;
 import java.util.Optional;
 
 public final class ArrayPriorityInput implements PriorityInput {
-  private static final ObjectMapper MAPPER = new ObjectMapper();
+  // Jdk8Module is a compatibility fix for de/serializing Optionals
+  private static final ObjectMapper MAPPER = new ObjectMapper().registerModule(new Jdk8Module());
   private Path file;
   private int overflowPriority;
   private int underflowPriority;

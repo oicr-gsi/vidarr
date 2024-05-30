@@ -30,6 +30,7 @@ module ca.on.oicr.gsi.vidarr.core {
   requires java.xml;
   requires java.net.http;
   requires simpleclient;
+  requires com.fasterxml.jackson.datatype.jdk8;
 
   provides ConsumableResourceProvider with
       CoreConsumableResourceProvider;

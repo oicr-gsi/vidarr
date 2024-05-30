@@ -734,7 +734,7 @@ public final class Main implements ServerConfig {
           .from(WORKFLOW)
           .forEach(record -> maxInFlightPerWorkflow.set(record.value1(), record.value2()));
     }
-
+    overridableMaxInFlightPerWorkflow.setInner(maxInFlightPerWorkflow);
     unloadDirectory = Path.of(configuration.getUnloadDirectory());
   }
 

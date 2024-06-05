@@ -54,7 +54,7 @@ action definition for every valid workflow version and target combination. The
 submit action in Shesmu has commands to re-run failed workflows (_Reattempt_)
 and unload-and-rerun (_Reprocess_). For more details, see the [Víðarr plugin
 for
-Shesmu](https://github.com/oicr-gsi/shesmu/blob/master/plugin-vidarr/README.md).
+Shesmu](https://github.com/oicr-gsi/shesmu/blob/master/docs/plugin-vidarr.md).
 
 ## How a workflow runs
 Víðarr takes a submission request that includes:

@@ -24,7 +24,7 @@ public abstract class JsonPath {
     @Override
     public JsonPath deserialize(
         JsonParser jsonParser, DeserializationContext deserializationContext) throws IOException {
-      return switch (jsonParser.nextValue()) {
+      return switch (jsonParser.currentToken()) {
         case VALUE_NUMBER_INT -> array(jsonParser.getIntValue());
         case VALUE_STRING -> object(jsonParser.getText());
         default -> throw new IllegalArgumentException("Invalid path operation");

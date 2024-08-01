@@ -47,7 +47,9 @@ public final class TestValidatorScript extends TestValidator {
           EnumSet.of(
               PosixFilePermission.OWNER_READ,
               PosixFilePermission.OWNER_WRITE,
-              PosixFilePermission.OWNER_EXECUTE));
+              PosixFilePermission.OWNER_EXECUTE,
+              PosixFilePermission.GROUP_READ,
+              PosixFilePermission.GROUP_EXECUTE));
       return new Validator() {
         @Override
         public void provisionFile(

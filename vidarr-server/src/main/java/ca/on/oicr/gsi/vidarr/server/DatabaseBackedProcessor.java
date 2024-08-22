@@ -695,7 +695,7 @@ public abstract class DatabaseBackedProcessor
                         .where(
                             ACTIVE_OPERATION
                                 .STATUS
-                                .in(OperationStatus.FAILED, OperationStatus.SUCCEEDED)
+                                .eq(OperationStatus.FAILED)
                                 .not()
                                 .and(
                                     ACTIVE_OPERATION.WORKFLOW_RUN_ID.in(

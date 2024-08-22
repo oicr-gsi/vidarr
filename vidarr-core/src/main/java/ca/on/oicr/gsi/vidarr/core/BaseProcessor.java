@@ -829,6 +829,9 @@ public abstract class BaseProcessor<
         final var p1 =
             new Phase1Preflight(
                 target, activeOperations.size(), workflow, definition, workflow.isPreflightOkay());
+        if (activeOperations.stream().allMatch(o -> o.status().equals(OperationStatus.SUCCEEDED))){
+          p1.release(true);
+        } else {
         for (final var operation : activeOperations) {
           TaskStarter.of(
                   operation.type(),
@@ -837,10 +840,18 @@ public abstract class BaseProcessor<
                       .runPreflight()
                       .recover(operation.recoveryState()))
               .start(this, operation, p1.createTerminal(operation));
-        }
+        }}
         break;
       case PROVISION_IN:
         final var p2 = new Phase2ProvisionIn(target, activeOperations.size(), definition, workflow);
+        if (activeOperations.stream().allMatch(o -> o.status().equals(OperationStatus.SUCCEEDED))){
+          inTransaction(
+              transaction -> {
+                startNextPhase(p2, List.of(TaskStarter.launch(p2.definition(), p2.activeWorkflow,
+                    target.engine(), p2.activeWorkflow.realInputs().get(0))), transaction);
+              }
+          );
+        } else {
         for (final var operation : activeOperations) {
           PrepareInputProvisioning.recover(
                   definition.language(),
@@ -848,10 +859,23 @@ public abstract class BaseProcessor<
                   target.provisionerFor(
                       InputProvisionFormat.valueOf(operation.type().substring(1))))
               .start(this, operation, p2.createTerminal(operation));
-        }
+        }}
         break;
       case RUNNING:
+        /*
+         * The constructor of Phase3Run enforces that activeOperations.size() >1 is illegal
+         */
         final var p3 = new Phase3Run(target, definition, activeOperations.size(), workflow);
+        if (activeOperations.stream().allMatch(o -> o.status().equals(OperationStatus.SUCCEEDED))){
+          inTransaction(
+              transaction -> {
+                // build list of output provisioning tasks
+                // but we need the results to do that... so how?
+
+                // launch phase 4
+              }
+          );
+        } else {
         for (final var operation : activeOperations) {
           TaskStarter.of(
                   "",
@@ -861,11 +885,15 @@ public abstract class BaseProcessor<
                       .map(WorkflowEngine.Result::serialize)
                       .recover(operation.recoveryState()))
               .start(this, operation, p3.createTerminal(operation));
-        }
+        }}
         break;
       case PROVISION_OUT:
         final var p4 =
             new Phase4ProvisionOut(target, definition, activeOperations.size(), workflow);
+        if (activeOperations.stream().allMatch(o -> o.status().equals(OperationStatus.SUCCEEDED))){
+          // TODO advance p4
+          // but we also don't have the result here...
+        } else {
         for (final var operation : activeOperations) {
           if (operation.type().startsWith("$")) {
             TaskStarter.of(
@@ -888,14 +916,17 @@ public abstract class BaseProcessor<
                         operation.recoveryState()))
                 .start(this, operation, p4.createTerminal(operation));
           }
-        }
+        }}
         break;
       case CLEANUP:
         final var p5 = new Phase5Cleanup(definition, workflow);
+        if (activeOperations.stream().allMatch(o -> o.status().equals(OperationStatus.SUCCEEDED))){
+          inTransaction(workflow::succeeded);
+        } else {
         for (final var operation : activeOperations) {
           TaskStarter.of("", target.engine().cleanup().recover(operation.recoveryState()))
               .start(this, operation, p5.createTerminal(operation));
-        }
+        }}
         break;
       case FAILED:
         throw new UnsupportedOperationException();

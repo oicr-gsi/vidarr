@@ -22,6 +22,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -871,10 +872,56 @@ public abstract class BaseProcessor<
         if (activeOperations.stream().allMatch(o -> o.status().equals(OperationStatus.SUCCEEDED))){
           inTransaction(
               transaction -> {
-                // build list of output provisioning tasks
-                // but we need the results to do that... so how?
+                // if cleanup state is not null, do cleanup
+                JsonNode recovery = activeOperations.get(0).recoveryState();
+                JsonNode cleanup = recovery.get("cleanupState");
+                if (null != cleanup && !(cleanup instanceof NullNode)) {
+                  workflow.cleanup(cleanup, transaction);
+                }
 
-                // launch phase 4
+                // build list of runtime/output provisioning tasks
+                ArrayList<TaskStarter<ProvisionData>> tasks = new ArrayList<>();
+                Set<ExternalId> allIds = workflow.inputIds();
+                Set<ExternalId> remainingIds = new HashSet<>(allIds);
+                remainingIds.removeAll(workflow.requestedExternalIds());
+                JsonNode workflowRunUrl = recovery.get("workflowRunUrl");
+                if (null != workflowRunUrl && !(workflowRunUrl instanceof NullNode)){
+                  target.runtimeProvisioners().forEach(
+                      p ->
+                          tasks.add(
+                              TaskStarter.launch(p, allIds, Map.of(), workflowRunUrl.asText())
+                          )
+                  );
+
+                  if(definition.outputs().allMatch(
+                      output -> {
+                        final AtomicBoolean isOk = new AtomicBoolean(true);
+                        JsonNode jsonOutput = recovery.get("output");
+                        if(jsonOutput != null && !(jsonOutput instanceof NullNode)
+                          && jsonOutput.has(output.name())){
+                          output.type().apply(
+                              new PrepareOutputProvisioning(
+                                  mapper(),
+                                  target,
+                                  jsonOutput.get(output.name()),
+                                  workflow.metadata().get(output.name()),
+                                  allIds,
+                                  remainingIds,
+                                  () -> isOk.set(false),
+                                  workflow.id()))
+                              .forEach(tasks::add);
+                          return isOk.get();
+                        } else {
+                          return false;
+                        }
+                      }
+                  )){
+                      // launch phase 4
+                    startNextPhase(p3, tasks, transaction);
+                  } else {
+                    workflow.phase(Phase.FAILED, Collections.emptyList(), transaction);
+                  }
+                }
               }
           );
         } else {

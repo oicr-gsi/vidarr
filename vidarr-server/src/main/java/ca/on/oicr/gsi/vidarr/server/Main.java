@@ -2018,7 +2018,9 @@ public final class Main implements ServerConfig {
               && (output.getMetatype() == null
                   || output.getMetatype().isBlank()
                   || output.getChecksum() == null
-                  || output.getChecksum().isBlank())) {
+                  || output.getChecksum().isBlank()
+                  || output.getChecksumType() == null
+                  || output.getChecksumType().isBlank())) {
             badRequestResponse(
                 exchange,
                 String.format(

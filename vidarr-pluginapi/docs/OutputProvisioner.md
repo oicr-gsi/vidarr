@@ -25,7 +25,8 @@ corresponding type method.
 `public static Result file(String, String, long, String)` enables a `ResultVisitor` to process a file with the specified
 metadata:
   * String storagePath
-  * String md5
+  * String checksum
+  * String checksumType
   * long size
   * String metatype
 
@@ -41,11 +42,11 @@ in `Result` should have a `public static Result` signature and return a `new Res
 `public abstract void visit(ResultVisitor)` which passes the identifier and metadata to the `ResultVisitor`.
 Example: 
 ```java
-public static Result file(String storagePath, String md5, long size, String metatype) {
+public static Result file(String storagePath, String checksum, String checksumType, long size, String metatype) {
     return new Result() {
         @Override
         public void visit(ResultVisitor visitor) {
-          visitor.file(storagePath, md5, size, metatype);
+          visitor.file(storagePath, checksum, checksumType, size, metatype);
         }
       };
     }

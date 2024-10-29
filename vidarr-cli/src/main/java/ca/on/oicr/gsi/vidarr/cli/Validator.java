@@ -22,13 +22,14 @@ public interface Validator extends OutputProvisioningHandler<Void> {
       public void provisionFile(
           Set<? extends ExternalId> ids,
           String storagePath,
-          String md5,
+          String checksum,
+          String checksumType,
           String metatype,
           long fileSize,
           Map<String, String> labels,
           Void transaction) {
         for (final var validator : delegates) {
-          validator.provisionFile(ids, storagePath, md5, metatype, fileSize, labels, transaction);
+          validator.provisionFile(ids, storagePath, checksum, checksumType, metatype, fileSize, labels, transaction);
         }
       }
 

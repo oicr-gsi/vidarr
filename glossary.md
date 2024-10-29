@@ -9,7 +9,7 @@
 - parameters - the input information for a workflow run.
 - provider - An external data store (usually a LIMS) that holds identifiers that can be associated with _workflow runs_ and _analysis output_.
 - provisioner, input - a plugin that can use Víðarr paths or user-provided information to put a real file into a location usable by a workflow engine.
-- provisioner, output - a plugin that can take a file created by a workflow run and put it into permanent storage and provide a path, size, and MD5.
+- provisioner, output - a plugin that can take a file created by a workflow run and put it into permanent storage and provide a path, size, and checksum.
 - provisioner, runtime - a plugin that can take an identifier from a workflow engine and extract any information about the workflow itself (_e.g._, runtime performance, logs) and put them into permanent storage.
 - target - configuration of provisioners and a workflow engine that is capable of executing workflow runs.
 - workflow - a kind of analysis procedure. Each workflow can have many _versions_ that can be executed. A workflow defines _labels_ that must be included in order to execute any version. All versions of a workflow are considered equivalent for the purposes of matching (_i.e._, if a new version is available, but a successful workflow run from previous version completed, then it should not be executed again). See the _OOP analogy_ below.

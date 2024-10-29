@@ -626,10 +626,11 @@ public abstract class BaseProcessor<
               .visit(
                   new ResultVisitor() {
                     @Override
-                    public void file(String storagePath, String md5, long size, String metatype) {
+                    public void file(String storagePath, String checksum, String checksumType, long size, String metatype) {
                       final var file = node.putObject("result");
                       file.put("path", storagePath);
-                      file.put("md5", md5);
+                      file.put("checksum", checksum);
+                      file.put("checksumType", checksumType);
                       file.put("size", size);
                       file.put("metatype", metatype);
                     }
@@ -654,12 +655,13 @@ public abstract class BaseProcessor<
                         new ResultVisitor() {
                           @Override
                           public void file(
-                              String storagePath, String md5, long size, String metatype) {
+                              String storagePath, String checksum, String checksumType, long size, String metatype) {
                             workflow()
                                 .provisionFile(
                                     result.first().getIds(),
                                     storagePath,
-                                    md5,
+                                    checksum,
+                                    checksumType,
                                     metatype,
                                     size,
                                     result.first().getLabels(),

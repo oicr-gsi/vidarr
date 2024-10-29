@@ -144,12 +144,13 @@ final class SingleShotWorkflow implements ActiveWorkflow<SingleShotOperation, Vo
   public void provisionFile(
       Set<? extends ExternalId> ids,
       String storagePath,
-      String md5,
+      String checksum,
+      String checksumType,
       String metatype,
       long fileSize,
       Map<String, String> labels,
       Void transaction) {
-    resultHandler.provisionFile(ids, storagePath, md5, metatype, fileSize, labels, transaction);
+    resultHandler.provisionFile(ids, storagePath, checksum, checksumType, metatype, fileSize, labels, transaction);
   }
 
   @Override

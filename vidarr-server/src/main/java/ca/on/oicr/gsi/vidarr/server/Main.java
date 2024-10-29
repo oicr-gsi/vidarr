@@ -973,7 +973,8 @@ public final class Main implements ServerConfig {
 
     final var analysisFileFields = new ArrayList<>(analysisCommonFields);
     analysisFileFields.add(literalJsonEntry("path", ANALYSIS.FILE_PATH));
-    analysisFileFields.add(literalJsonEntry("md5", ANALYSIS.FILE_MD5SUM));
+    analysisFileFields.add(literalJsonEntry("checksum", ANALYSIS.FILE_CHECKSUM));
+    analysisFileFields.add(literalJsonEntry("checksumType", ANALYSIS.FILE_CHECKSUM_TYPE));
     analysisFileFields.add(literalJsonEntry("metatype", ANALYSIS.FILE_METATYPE));
     analysisFileFields.add(literalJsonEntry("size", ANALYSIS.FILE_SIZE));
 
@@ -1696,8 +1697,11 @@ public final class Main implements ServerConfig {
                     "filePath",
                     analysis.getType().equals("file") ? analysis.getPath() : analysis.getUrl()))
             .set(
-                ANALYSIS.FILE_MD5SUM,
-                param("md5sum", analysis.getType().equals("file") ? analysis.getMd5() : null))
+                ANALYSIS.FILE_CHECKSUM,
+                param("checksum", analysis.getType().equals("file") ? analysis.getChecksum() : null))
+            .set(
+                ANALYSIS.FILE_CHECKSUM_TYPE,
+                param("checksumType", analysis.getType().equals("file") ? analysis.getChecksumType() : null))
             .set(
                 ANALYSIS.FILE_METATYPE,
                 param(
@@ -2013,8 +2017,8 @@ public final class Main implements ServerConfig {
           if (output.getType().equals("file")
               && (output.getMetatype() == null
                   || output.getMetatype().isBlank()
-                  || output.getMd5() == null
-                  || output.getMd5().isBlank())) {
+                  || output.getChecksum() == null
+                  || output.getChecksum().isBlank())) {
             badRequestResponse(
                 exchange,
                 String.format(

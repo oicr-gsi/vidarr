@@ -53,7 +53,8 @@ public final class TestValidatorScript extends TestValidator {
         public void provisionFile(
             Set<? extends ExternalId> ids,
             String storagePath,
-            String md5,
+            String checksum,
+            String checksumType,
             String metatype,
             long fileSize,
             Map<String, String> labels,

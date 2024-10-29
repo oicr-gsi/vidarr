@@ -4,7 +4,7 @@ These plugins allow interfacing Vidarr with [Cromwell](https://cromwell.readthed
 ## Cromwell Output Provisioner
 The output provisioner uses a Cromwell job to copy an output from a file off
 shared disk to another directory for permanent archival. The workflow must
-compute the file size and MD5 of the file's contents and report them plus the
+compute the file size and checksum of the file's contents and report them plus the
 location where the file is now stored.
 
     {
@@ -13,7 +13,8 @@ location where the file is now stored.
       "debugCalls": false,
       "fileField": "provisionFileOut.inputFilePath",
       "fileSizeField": "provisionFileOut.fileSizeBytes",
-      "md5Field": "provisionFileOut.fileMd5sum",
+      "checksumField": "provisionFileOut.fileChecksum",
+      "checksumTypeField": "provisionFileOut.fileChecksumType",
       "outputPrefixField": "provisionFileOut.outputDirectory",
       "storagePathField": "provisionFileOut.fileOutputPath",
       "type": "cromwell",
@@ -33,8 +34,9 @@ know the WDL version, provided as `"wdlVersion"`. The workflow will be called
 with two arguments, the file to copy (which will be provided as the argument
 (`"fileField"`)) and the submitter-provided archive directory
 (`"outputPrefixField"`). Once the workflow has completed, the plugin will
-collect the permanent location for the file (`"storagePathField"`), the MD5
-(`"md5Field"`), and the file size (`"fileSizeField"`).
+collect the permanent location for the file (`"storagePathField"`), the checksum
+(`"checksumField"`), the checksum algorithm (`"checksumTypeField"`) 
+and the file size (`"fileSizeField"`).
 
 After running the specified WDL, the Cromwell OutputProvisioner needs to fetch 
 metadata from the Cromwell server. Including the `calls` block of the metadata
@@ -69,7 +71,8 @@ Here is an example WDL script to do provisioning out that uses rsync to do the f
       }
       output {
         String fileSizeBytes = rsync_file.fileSizeBytes
-        String fileMd5sum = rsync_file.fileMd5sum
+        String fileChecksum = rsync_file.fileMd5sum
+        String fileChecksumType = "md5sum"
         String fileOutputPath = rsync_file.fileOutputPath
       }
     }
@@ -110,7 +113,8 @@ Here is an example WDL script to do provisioning out that uses rsync to do the f
     
       output {
         String fileSizeBytes = read_string("size.out")
-        String fileMd5sum = read_string("md5sum.out")
+        String fileChecksum = read_string("md5sum.out")
+        String fileChecksumType = "md5sum"
         String fileOutputPath = read_string("filePath.out")
       }
     

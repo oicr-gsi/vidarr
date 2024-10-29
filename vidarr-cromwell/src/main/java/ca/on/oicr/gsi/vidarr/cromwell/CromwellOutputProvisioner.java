@@ -64,7 +64,8 @@ public class CromwellOutputProvisioner
   private String cromwellUrl;
   private String fileField;
   private String fileSizeField;
-  private String md5Field;
+  private String checksumField;
+  private String checksumTypeField;
   private String outputPrefixField;
   private String storagePathField;
   private String wdlVersion;
@@ -212,7 +213,8 @@ public class CromwellOutputProvisioner
     sectionRenderer.line("Input Parameter for File Path", fileField);
     sectionRenderer.line("Output Parameter for File Size", fileSizeField);
     sectionRenderer.line("Output Parameter for Final Storage Path", storagePathField);
-    sectionRenderer.line("Output Parameter for MD5", md5Field);
+    sectionRenderer.line("Output Parameter for Checksum", checksumField);
+    sectionRenderer.line("Output Parameter for Checksum Type", checksumTypeField);
     sectionRenderer.line("Provision Out WDL Workflow Version", wdlVersion);
     sectionRenderer.link("Cromwell Instance", cromwellUrl, cromwellUrl);
     if (workflowSource == null) {
@@ -251,7 +253,8 @@ public class CromwellOutputProvisioner
               monitor.complete(
                   Result.file(
                       result.getOutputs().get(storagePathField).asText(),
-                      result.getOutputs().get(md5Field).asText(),
+                      result.getOutputs().get(checksumField).asText(),
+                      result.getOutputs().get(checksumTypeField).asText(),
                       Long.parseLong(result.getOutputs().get(fileSizeField).asText()),
                       state.getMetaType()));
             })
@@ -269,6 +272,14 @@ public class CromwellOutputProvisioner
             });
   }
 
+  public String getChecksumField() {
+    return checksumField;
+  }
+
+  public String getChecksumTypeField() {
+    return checksumTypeField;
+  }
+
   public int[] getChunks() {
     return chunks;
   }
@@ -283,10 +294,6 @@ public class CromwellOutputProvisioner
 
   public String getFileSizeField() {
     return fileSizeField;
-  }
-
-  public String getMd5Field() {
-    return md5Field;
   }
 
   public String getOutputPrefixField() {
@@ -459,6 +466,14 @@ public class CromwellOutputProvisioner
     recover(state, monitor);
   }
 
+  public void setChecksumField(String checksumField) {
+    this.checksumField = checksumField;
+  }
+
+  public void setChecksumTypeField(String checksumTypeField) {
+    this.checksumTypeField = checksumTypeField;
+  }
+
   public void setChunks(int[] chunks) {
     this.chunks = chunks;
   }
@@ -473,10 +488,6 @@ public class CromwellOutputProvisioner
 
   public void setFileSizeField(String fileSizeField) {
     this.fileSizeField = fileSizeField;
-  }
-
-  public void setMd5Field(String md5Field) {
-    this.md5Field = md5Field;
   }
 
   public void setOutputPrefixField(String outputPrefixField) {

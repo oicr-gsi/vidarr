@@ -87,7 +87,8 @@ public class CommandRunner implements Callable<Integer> {
           public void provisionFile(
               Set<? extends ExternalId> ids,
               String storagePath,
-              String md5,
+              String checksum,
+              String checksumType,
               String metatype,
               long fileSize,
               Map<String, String> labels,
@@ -96,7 +97,8 @@ public class CommandRunner implements Callable<Integer> {
             final var node = output.objectNode();
             node.put("type", "file");
             node.put("storagePath", storagePath);
-            node.put("md5", md5);
+            node.put("checksum", checksum);
+            node.put("checksumType", checksumType);
             node.put("metatype", metatype);
             final var outputIds = node.putArray("ids");
             for (final var id : ids) {

@@ -55,7 +55,7 @@ COPY public.active_workflow_run (id, attempt, cleanup_state, completed, consumab
 -- Data for Name: analysis; Type: TABLE DATA; Schema: public; Owner: vidarr
 --
 
-COPY public.analysis (id, analysis_type, created, file_md5sum, file_metatype, file_path, file_size, hash_id, labels, modified, workflow_run_id) FROM stdin;
+COPY public.analysis (id, analysis_type, created, file_checksum, file_checksum_type, file_metatype, file_path, file_size, hash_id, labels, modified, workflow_run_id) FROM stdin;
 \.
 
 

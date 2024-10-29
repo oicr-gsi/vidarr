@@ -477,7 +477,8 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
   public void provisionFile(
       Set<? extends ExternalId> ids,
       String storagePath,
-      String md5,
+      String checksum,
+      String checksumType,
       String metatype,
       long fileSize,
       Map<String, String> labels,
@@ -492,7 +493,8 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
         final var recordId =
             dsl.insertInto(ANALYSIS)
                 .set(ANALYSIS.ANALYSIS_TYPE, "file")
-                .set(ANALYSIS.FILE_MD5SUM, md5)
+                .set(ANALYSIS.FILE_CHECKSUM, checksum)
+                .set(ANALYSIS.FILE_CHECKSUM_TYPE, checksumType)
                 .set(ANALYSIS.FILE_METATYPE, metatype)
                 .set(ANALYSIS.FILE_PATH, storagePath)
                 .set(ANALYSIS.FILE_SIZE, fileSize)

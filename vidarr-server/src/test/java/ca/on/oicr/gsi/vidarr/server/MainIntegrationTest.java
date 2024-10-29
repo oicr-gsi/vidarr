@@ -1514,7 +1514,8 @@ public class MainIntegrationTest {
         "path",
         "/analysis/archive/seqware/seqware_analysis_12/hsqwprod/seqware-results"
             + "/CASAVA_2.9.1/83779816/SWID_14718190_DCRT_016_Br_R_PE_234_MR_obs528_P016_190711_M00146_0072_000000000-D6D3B_ACTGAT_L001_R2_001.fastq.gz");
-    on.put("md5", "f48142a9bee7e789c15c21bd34e9adec");
+    on.put("checksum", "f48142a9bee7e789c15c21bd34e9adec");
+    on.put("checksumType", "md5sum");
     on.put("metatype", "chemical/seq-na-fastq-gzip");
     on.put("size", 7135629);
     return on;

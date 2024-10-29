@@ -161,7 +161,10 @@
           },
           {
             "properties": {
-              "md5": {
+              "checksum": {
+                "type": "string"
+              },
+              "checksumType": {
                 "type": "string"
               },
               "metatype": {

@@ -11,7 +11,8 @@ public class ProvenanceAnalysisRecord<K extends ExternalId> {
   private List<K> externalKeys;
   private String id;
   private Map<String, String> labels;
-  private String md5;
+  private String checksum;
+  private String checksumType;
   private String metatype;
   private ZonedDateTime modified;
   private String path;
@@ -19,6 +20,10 @@ public class ProvenanceAnalysisRecord<K extends ExternalId> {
   private String type;
   private String url;
   private String workflowRun;
+
+  public String getChecksumType() {
+    return checksumType;
+  }
 
   public ZonedDateTime getCreated() {
     return created;
@@ -36,8 +41,8 @@ public class ProvenanceAnalysisRecord<K extends ExternalId> {
     return labels;
   }
 
-  public String getMd5() {
-    return md5;
+  public String getChecksum() {
+    return checksum;
   }
 
   public String getMetatype() {
@@ -68,6 +73,10 @@ public class ProvenanceAnalysisRecord<K extends ExternalId> {
     return workflowRun;
   }
 
+  public void setChecksumType(String checksumType) {
+    this.checksumType = checksumType;
+  }
+
   public void setCreated(ZonedDateTime created) {
     this.created = created;
   }
@@ -84,8 +93,8 @@ public class ProvenanceAnalysisRecord<K extends ExternalId> {
     this.labels = labels;
   }
 
-  public void setMd5(String md5) {
-    this.md5 = md5;
+  public void setChecksum(String checksum) {
+    this.checksum = checksum;
   }
 
   public void setMetatype(String metatype) {

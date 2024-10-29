@@ -72,11 +72,12 @@ public interface OutputProvisioner {
      * The output is a file
      *
      * @param storagePath the permanent storage path for the file
-     * @param md5 the MD5 sum of the file as a hex-encoded string
+     * @param checksum the checksum of the file as a hex-encoded string
+     * @param checksumType the algorithm used to generate the checksum
      * @param size the size of the file, in bytes
      * @param metatype the MIME type of the file
      */
-    void file(String storagePath, String md5, long size, String metatype);
+    void file(String storagePath, String checksum, String checksumType, long size, String metatype);
 
     /**
      * The output is a reference to another system *
@@ -92,17 +93,18 @@ public interface OutputProvisioner {
      * Create metadata for a file object
      *
      * @param storagePath the permanent storage path for the file
-     * @param md5 the MD5 sum of the file as a hex-encoded string
+     * @param checksum the checksum of the file as a hex-encoded string
+     * @param checksumType the algorithm used to generate the checksum
      * @param size the size of the file, in bytes
      * @param metatype the MIME type of the file
      * @return the output provisioning metadata
      */
-    public static Result file(String storagePath, String md5, long size, String metatype) {
+    public static Result file(String storagePath, String checksum, String checksumType, long size, String metatype) {
       return new Result() {
 
         @Override
         public void visit(ResultVisitor visitor) {
-          visitor.file(storagePath, md5, size, metatype);
+          visitor.file(storagePath, checksum, checksumType, size, metatype);
         }
       };
     }

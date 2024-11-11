@@ -173,6 +173,11 @@ public final class CromwellWorkflowEngine
                               return null;
                             });
                     break;
+                  // Cromwell has become unavailable or there was a problem initializing the
+                  // Cromwell job. Don't ask Cromwell for more information, just die
+                  case "fail":
+                    monitor.permanentFailure("Cromwell server issue for " + result.getId() + ": " + result.getStatus());
+                    break;
                   case "Succeeded":
                     finish(state, monitor);
                     break;

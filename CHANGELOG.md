@@ -6,6 +6,19 @@ For unreleased changes, see [changes](changes).
 
 -----------------------------------------------------------------------------
 
+## [0.21.0] - 2024-11-19
+
+### Added
+
+* Support for multiple checksum algorithms
+  
+
+### Fixed
+
+* Account for Cromwell server issue
+  
+
+
 ## [0.20.1] - 2024-09-17
 
 ### Fixed

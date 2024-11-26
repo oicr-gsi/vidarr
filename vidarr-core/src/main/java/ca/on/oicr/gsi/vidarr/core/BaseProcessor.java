@@ -22,6 +22,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -829,6 +830,9 @@ public abstract class BaseProcessor<
         final var p1 =
             new Phase1Preflight(
                 target, activeOperations.size(), workflow, definition, workflow.isPreflightOkay());
+        if (activeOperations.stream().allMatch(o -> o.status().equals(OperationStatus.SUCCEEDED))){
+          p1.release(true);
+        } else {
         for (final var operation : activeOperations) {
           TaskStarter.of(
                   operation.type(),
@@ -837,10 +841,18 @@ public abstract class BaseProcessor<
                       .runPreflight()
                       .recover(operation.recoveryState()))
               .start(this, operation, p1.createTerminal(operation));
-        }
+        }}
         break;
       case PROVISION_IN:
         final var p2 = new Phase2ProvisionIn(target, activeOperations.size(), definition, workflow);
+        if (activeOperations.stream().allMatch(o -> o.status().equals(OperationStatus.SUCCEEDED))){
+          inTransaction(
+              transaction -> {
+                startNextPhase(p2, List.of(TaskStarter.launch(p2.definition(), p2.activeWorkflow,
+                    target.engine(), p2.activeWorkflow.realInputs().get(0))), transaction);
+              }
+          );
+        } else {
         for (final var operation : activeOperations) {
           PrepareInputProvisioning.recover(
                   definition.language(),
@@ -848,10 +860,69 @@ public abstract class BaseProcessor<
                   target.provisionerFor(
                       InputProvisionFormat.valueOf(operation.type().substring(1))))
               .start(this, operation, p2.createTerminal(operation));
-        }
+        }}
         break;
       case RUNNING:
+        /*
+         * The constructor of Phase3Run enforces that activeOperations.size() >1 is illegal
+         */
         final var p3 = new Phase3Run(target, definition, activeOperations.size(), workflow);
+        if (activeOperations.stream().allMatch(o -> o.status().equals(OperationStatus.SUCCEEDED))){
+          inTransaction(
+              transaction -> {
+                // if cleanup state is not null, do cleanup
+                JsonNode recovery = activeOperations.get(0).recoveryState();
+                JsonNode cleanup = recovery.get("cleanupState");
+                if (null != cleanup && !(cleanup instanceof NullNode)) {
+                  workflow.cleanup(cleanup, transaction);
+                }
+
+                // build list of runtime/output provisioning tasks
+                ArrayList<TaskStarter<ProvisionData>> tasks = new ArrayList<>();
+                Set<ExternalId> allIds = workflow.inputIds();
+                Set<ExternalId> remainingIds = new HashSet<>(allIds);
+                remainingIds.removeAll(workflow.requestedExternalIds());
+                JsonNode workflowRunUrl = recovery.get("workflowRunUrl");
+                if (null != workflowRunUrl && !(workflowRunUrl instanceof NullNode)){
+                  target.runtimeProvisioners().forEach(
+                      p ->
+                          tasks.add(
+                              TaskStarter.launch(p, allIds, Map.of(), workflowRunUrl.asText())
+                          )
+                  );
+
+                  if(definition.outputs().allMatch(
+                      output -> {
+                        final AtomicBoolean isOk = new AtomicBoolean(true);
+                        JsonNode jsonOutput = recovery.get("output");
+                        if(jsonOutput != null && !(jsonOutput instanceof NullNode)
+                          && jsonOutput.has(output.name())){
+                          output.type().apply(
+                              new PrepareOutputProvisioning(
+                                  mapper(),
+                                  target,
+                                  jsonOutput.get(output.name()),
+                                  workflow.metadata().get(output.name()),
+                                  allIds,
+                                  remainingIds,
+                                  () -> isOk.set(false),
+                                  workflow.id()))
+                              .forEach(tasks::add);
+                          return isOk.get();
+                        } else {
+                          return false;
+                        }
+                      }
+                  )){
+                      // launch phase 4
+                    startNextPhase(p3, tasks, transaction);
+                  } else {
+                    workflow.phase(Phase.FAILED, Collections.emptyList(), transaction);
+                  }
+                }
+              }
+          );
+        } else {
         for (final var operation : activeOperations) {
           TaskStarter.of(
                   "",
@@ -861,11 +932,15 @@ public abstract class BaseProcessor<
                       .map(WorkflowEngine.Result::serialize)
                       .recover(operation.recoveryState()))
               .start(this, operation, p3.createTerminal(operation));
-        }
+        }}
         break;
       case PROVISION_OUT:
         final var p4 =
             new Phase4ProvisionOut(target, definition, activeOperations.size(), workflow);
+        if (activeOperations.stream().allMatch(o -> o.status().equals(OperationStatus.SUCCEEDED))){
+          // TODO advance p4
+          // but we also don't have the result here...
+        } else {
         for (final var operation : activeOperations) {
           if (operation.type().startsWith("$")) {
             TaskStarter.of(
@@ -888,14 +963,17 @@ public abstract class BaseProcessor<
                         operation.recoveryState()))
                 .start(this, operation, p4.createTerminal(operation));
           }
-        }
+        }}
         break;
       case CLEANUP:
         final var p5 = new Phase5Cleanup(definition, workflow);
+        if (activeOperations.stream().allMatch(o -> o.status().equals(OperationStatus.SUCCEEDED))){
+          inTransaction(workflow::succeeded);
+        } else {
         for (final var operation : activeOperations) {
           TaskStarter.of("", target.engine().cleanup().recover(operation.recoveryState()))
               .start(this, operation, p5.createTerminal(operation));
-        }
+        }}
         break;
       case FAILED:
         throw new UnsupportedOperationException();

@@ -27,7 +27,7 @@ public class AlertDtoTest {
 
     var matches =
         sut.matches(autoInhibit, "testing", configLabels, Stream.of("vidarr-clinical", "bamqc4"))
-            .collect(Collectors.toList());
+            .toList();
     assertEquals(1, matches.size());
   }
 
@@ -44,7 +44,7 @@ public class AlertDtoTest {
 
     var matches =
         sut.matches(autoInhibit, "testing", configLabels, Stream.of("vidarr-clinical", "bamqc4"))
-            .collect(Collectors.toList());
+            .toList();
     assertEquals(1, matches.size());
   }
 
@@ -61,7 +61,7 @@ public class AlertDtoTest {
 
     var matches =
         sut.matches(autoInhibit, "testing", configLabels, Stream.of("vidarr-clinical", "bamqc4"))
-            .collect(Collectors.toList());
+            .toList();
     assertEquals(1, matches.size());
   }
 
@@ -78,7 +78,7 @@ public class AlertDtoTest {
 
     var matches =
         sut.matches(autoInhibit, "testing", configLabels, Stream.of("vidarr-clinical", "bamqc4"))
-            .collect(Collectors.toList());
+            .toList();
     assertEquals(0, matches.size());
   }
 
@@ -95,7 +95,24 @@ public class AlertDtoTest {
 
     var matches =
         sut.matches(autoInhibit, "testing", configLabels, Stream.of("vidarr-clinical", "bamqc4"))
-            .collect(Collectors.toList());
+            .toList();
     assertEquals(0, matches.size());
+  }
+
+  @Test
+  public void whenAlertScopeIsWorkflowRunId_matchesShouldMatch() {
+    AlertDto sut = new AlertDto();
+
+    ObjectNode labels = mapper.createObjectNode();
+    labels.put("environment", "testing");
+    labels.put("job", "bamqc4");
+    labels.put("scope", "615ed228fad3ae6193d5279dc689e83fa4225cd69c929e266dd84ef2ed96e719");
+    labels.put("alertname", "AutoInhibit");
+    sut.setLabels(labels);
+
+    var matches =
+        sut.matches(autoInhibit, "testing", configLabels, Stream.of("vidarr-clinical", "615ed228fad3ae6193d5279dc689e83fa4225cd69c929e266dd84ef2ed96e719"))
+            .toList();
+    assertEquals(1, matches.size());
   }
 }

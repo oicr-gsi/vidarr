@@ -147,6 +147,7 @@ public class AlertmanagerAutoInhibitConsumableResource implements ConsumableReso
                         Stream.of(
                                 valuesOfInterest.stream(),
                                 Stream.of(workflowName),
+                                Stream.of(vidarrId),
                                 Stream.of(
                                     String.format(
                                         "%s_%s", workflowName, workflowVersionWithUnderscores)))

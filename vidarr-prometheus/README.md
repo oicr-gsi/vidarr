@@ -52,8 +52,8 @@ Alertmanager times out.
 workflow run inhibition.
 
 `"valuesOfInterest"` is the set of label values that will be assessed for 
-workflow run inhibition. Internally, the _workflow name_ and _workflow name and version_* 
-are added to this list of values of interest.
+workflow run inhibition. Internally, the _workflow name_ and _workflow name and version_*,
+and _workflow run ID_ are added to this list of values of interest.
 
 ### Workflow run inhibition
 In order for a match and a workflow run inhibition to occur, the alert must
@@ -63,7 +63,8 @@ have the following:
   * one or more of the labels in `<labelsOfInterest>` whose value is:
     * one of the `<valuesOfInterest>`; or
     * _workflow name_; or
-    * _workflow name and version_*
+    * _workflow name and version_* ; or
+    * _workflow run ID_
 
 *(formatted like 
 _bcl2fastq_3_2_0_, where any periods in the version are converted to underscores)

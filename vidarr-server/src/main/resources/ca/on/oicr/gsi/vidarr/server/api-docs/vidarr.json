@@ -1448,7 +1448,7 @@
             "description": "The workflow run was deleted"
           },
           "404": {
-            "description": "No workflow run was found for the given identifier"
+            "description": "No active workflow run was found for the given identifier"
           },
           "409": {
             "description": "The workflow run cannot be deleted because it is actively running"

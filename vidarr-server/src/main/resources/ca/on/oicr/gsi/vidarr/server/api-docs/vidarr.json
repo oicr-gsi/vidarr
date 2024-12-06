@@ -1182,6 +1182,9 @@
               }
             },
             "description": "Workflows, workflow versions, or workflow runs are malformed or in conflict with existing data"
+          },
+          "507": {
+            "description": "Too many load/unload requests; try again later"
           }
         }
       }
@@ -1446,6 +1449,9 @@
           },
           "404": {
             "description": "No workflow run was found for the given identifier"
+          },
+          "409": {
+            "description": "The workflow run cannot be deleted because it is actively running"
           }
         },
         "summary": "Delete an active workflow run",
@@ -1697,6 +1703,9 @@
               }
             },
             "description": "An object detailing the name of the file in the configured 'unloadDirectory' where the unloaded data is stored (this data has been removed from the Vidarr database) and the IDs of the workflow runs which have been removed."
+          },
+          "507": {
+            "description": "Too many load/unload requests; try again later"
           }
         }
       }

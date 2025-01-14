@@ -53,8 +53,11 @@ public record StateUnstarted(
                 MAPPER.writeValueAsString(
                     Collections.singletonMap(
                         "vidarr-id",
-                        this.vidarrId().substring(Math.max(0, this.vidarrId().length() - 255)))))
-            .addPart("workflowOptions", MAPPER.writeValueAsString(this.engineParameters()));
+                        this.vidarrId().substring(Math.max(0, this.vidarrId().length() - 255)))));
+    if (engineParameters != null) {
+      // Cromwell will error on null values, so only add if engineParameters are present
+      body.addPart("workflowOptions", MAPPER.writeValueAsString(this.engineParameters()));
+    }
     if (!this.workflowInputFiles().isEmpty()) {
       // Cromwell doesn't deduplicate these and stores them all in its database,
       // so it doesn't

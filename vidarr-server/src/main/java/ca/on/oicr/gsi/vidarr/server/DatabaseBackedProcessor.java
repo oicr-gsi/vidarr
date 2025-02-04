@@ -11,6 +11,8 @@ import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.WORKFLOW_DEFINITION;
 import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.WORKFLOW_RUN;
 import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.WORKFLOW_VERSION;
 import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.WORKFLOW_VERSION_ACCESSORY;
+import static java.util.stream.Collectors.collectingAndThen;
+import static java.util.stream.Collectors.toList;
 import static org.jooq.impl.DSL.trueCondition;
 
 import ca.on.oicr.gsi.Pair;
@@ -60,6 +62,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
@@ -87,6 +90,7 @@ public abstract class DatabaseBackedProcessor
     extends BaseProcessor<DatabaseWorkflow, DatabaseOperation, DSLContext> {
 
   private static class BadRecoveryTracker {
+
     private static final Set<String> badRecoveryIds = new HashSet<>();
     private static final Gauge badRecoveryCount =
         Gauge.build(
@@ -124,6 +128,7 @@ public abstract class DatabaseBackedProcessor
   }
 
   public interface SubmissionResultHandler<T> {
+
     boolean allowLaunch();
 
     T dryRunResult();
@@ -204,13 +209,16 @@ public abstract class DatabaseBackedProcessor
                                       .and(ACTIVE_OPERATION.STATUS.eq(OperationStatus.FAILED))))));
 
   public static final TypeReference<SortedMap<String, BasicType>> LABELS_JSON_TYPE =
-      new TypeReference<>() {};
+      new TypeReference<>() {
+      };
   // Jdk8Module is a compatibility fix for de/serializing Optionals
   static final ObjectMapper MAPPER = new ObjectMapper().registerModule(new Jdk8Module());
   public static final TypeReference<Map<String, OutputType>> OUTPUT_JSON_TYPE =
-      new TypeReference<>() {};
+      new TypeReference<>() {
+      };
   public static final TypeReference<Map<String, InputType>> PARAMETER_JSON_TYPE =
-      new TypeReference<>() {};
+      new TypeReference<>() {
+      };
 
   private static WorkflowDefinition buildDefinitionFromRecord(
       DSLContext context, org.jooq.Record record) {
@@ -248,11 +256,11 @@ public abstract class DatabaseBackedProcessor
     }
     return consumableResources.containsKey(resource.first())
         ? resource
-            .second()
-            .apply(
-                new ValidateJsonToSimpleType(
-                    "Consumable resource: " + resource.first(),
-                    consumableResources.get(resource.first())))
+        .second()
+        .apply(
+            new ValidateJsonToSimpleType(
+                "Consumable resource: " + resource.first(),
+                consumableResources.get(resource.first())))
         : Stream.of(String.format("Missing required consumable resource %s", resource.first()));
   }
 
@@ -267,27 +275,27 @@ public abstract class DatabaseBackedProcessor
       digest.update(name.getBytes(StandardCharsets.UTF_8));
       for (final var id : inputIds) {
         final var idBytes = hashFromAnalysisId(id).getBytes(StandardCharsets.UTF_8);
-        digest.update(new byte[] {0});
+        digest.update(new byte[]{0});
         digest.update(idBytes);
       }
       final var sortedExternalIds = new ArrayList<>(externalIds);
       sortedExternalIds.sort(
           Comparator.comparing(ExternalId::getProvider).thenComparing(ExternalId::getId));
       for (final var id : sortedExternalIds) {
-        digest.update(new byte[] {0});
-        digest.update(new byte[] {0});
+        digest.update(new byte[]{0});
+        digest.update(new byte[]{0});
         digest.update(id.getProvider().getBytes(StandardCharsets.UTF_8));
-        digest.update(new byte[] {0});
+        digest.update(new byte[]{0});
         digest.update(id.getId().getBytes(StandardCharsets.UTF_8));
-        digest.update(new byte[] {0});
+        digest.update(new byte[]{0});
       }
 
       // The client may submit any number of workflow labels, but this hashing/matching only
       // takes into account the labels that the workflow is configured with.
       for (final var label : labelsFromWorkflow) {
-        digest.update(new byte[] {0});
+        digest.update(new byte[]{0});
         digest.update(label.getBytes(StandardCharsets.UTF_8));
-        digest.update(new byte[] {0});
+        digest.update(new byte[]{0});
         digest.update(MAPPER.writeValueAsBytes(labelsFromClient.get(label)));
       }
 
@@ -488,17 +496,17 @@ public abstract class DatabaseBackedProcessor
             p ->
                 arguments.has(p.name())
                     ? p.type()
-                        .apply(
-                            new ExtractInputExternalIds(
-                                MAPPER,
-                                arguments.get(p.name()),
-                                id -> {
-                                  final var result = pathForId(id);
-                                  if (result.isEmpty()) {
-                                    unresolvedIds.add(id);
-                                  }
-                                  return result;
-                                }))
+                    .apply(
+                        new ExtractInputExternalIds(
+                            MAPPER,
+                            arguments.get(p.name()),
+                            id -> {
+                              final var result = pathForId(id);
+                              if (result.isEmpty()) {
+                                unresolvedIds.add(id);
+                              }
+                              return result;
+                            }))
                     : Stream.empty())
         .collect(
             Collectors.toCollection(
@@ -714,11 +722,22 @@ public abstract class DatabaseBackedProcessor
                         .collect(
                             Collectors.groupingBy(
                                 r -> r.get(ACTIVE_OPERATION.WORKFLOW_RUN_ID),
-                                Collectors.mapping(
-                                    r ->
-                                        DatabaseOperation.recover(
-                                            r, liveness(r.get(ACTIVE_OPERATION.WORKFLOW_RUN_ID))),
-                                    Collectors.toList())));
+                                collectingAndThen(toList(), ops -> {
+                                  Phase maxEnginePhase = ops.stream()
+                                      .map(r -> r.get(ACTIVE_OPERATION.ENGINE_PHASE))
+                                      .filter(Objects::nonNull)
+                                      .max(Comparator.comparing(Phase::ordinal))
+                                      .orElse(null);
+                                  // all operations are required to have an engine phase so this will never be null
+
+                                  // select the operations with max engine phase as recovery only operates on one phase
+                                  return ops.stream()
+                                      .filter(r -> r.get(ACTIVE_OPERATION.ENGINE_PHASE)
+                                          .equals(maxEnginePhase))
+                                      .map(r -> DatabaseOperation.recover(r,
+                                          liveness(r.get(ACTIVE_OPERATION.WORKFLOW_RUN_ID))))
+                                      .collect(Collectors.toList());
+                                })));
                 dsl.select()
                     .from(
                         ACTIVE_WORKFLOW_RUN
@@ -755,7 +774,8 @@ public abstract class DatabaseBackedProcessor
                                               MAPPER.convertValue(
                                                   record.get(
                                                       ACTIVE_WORKFLOW_RUN.CONSUMABLE_RESOURCES),
-                                                  new TypeReference<Map<String, JsonNode>>() {});
+                                                  new TypeReference<Map<String, JsonNode>>() {
+                                                  });
                                           startRaw.accept(
                                               new ConsumableResourceChecker(
                                                   target,
@@ -865,7 +885,7 @@ public abstract class DatabaseBackedProcessor
                                       return DatabaseOperation.recover(
                                           r, liveness(r.get(ACTIVE_OPERATION.WORKFLOW_RUN_ID)));
                                     },
-                                    Collectors.toList())));
+                                    toList())));
                 final var updated =
                     dsl.update(ACTIVE_WORKFLOW_RUN)
                         .set(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE, Phase.PROVISION_OUT)
@@ -1283,32 +1303,32 @@ public abstract class DatabaseBackedProcessor
                                                 // attempt number is higher or this is a different
                                                 // workflow version, we should restart it.
                                                 if (context
-                                                        .dsl()
-                                                        .selectCount()
-                                                        .from(
-                                                            ACTIVE_WORKFLOW_RUN
-                                                                .join(WORKFLOW_RUN)
-                                                                .on(
-                                                                    WORKFLOW_RUN.ID.eq(
-                                                                        ACTIVE_WORKFLOW_RUN.ID)))
-                                                        .where(
-                                                            WORKFLOW_RUN
-                                                                .ID
-                                                                .eq(workflowRunId)
-                                                                .and(IS_DEAD)
-                                                                .and(
-                                                                    ACTIVE_WORKFLOW_RUN
-                                                                        .ATTEMPT
-                                                                        .eq(attempt - 1)
-                                                                        .or(
-                                                                            WORKFLOW_RUN
-                                                                                .WORKFLOW_VERSION_ID
-                                                                                .ne(
-                                                                                    workflow
-                                                                                        .id()))))
-                                                        .fetchOptional()
-                                                        .map(Record1::value1)
-                                                        .orElse(0)
+                                                    .dsl()
+                                                    .selectCount()
+                                                    .from(
+                                                        ACTIVE_WORKFLOW_RUN
+                                                            .join(WORKFLOW_RUN)
+                                                            .on(
+                                                                WORKFLOW_RUN.ID.eq(
+                                                                    ACTIVE_WORKFLOW_RUN.ID)))
+                                                    .where(
+                                                        WORKFLOW_RUN
+                                                            .ID
+                                                            .eq(workflowRunId)
+                                                            .and(IS_DEAD)
+                                                            .and(
+                                                                ACTIVE_WORKFLOW_RUN
+                                                                    .ATTEMPT
+                                                                    .eq(attempt - 1)
+                                                                    .or(
+                                                                        WORKFLOW_RUN
+                                                                            .WORKFLOW_VERSION_ID
+                                                                            .ne(
+                                                                                workflow
+                                                                                    .id()))))
+                                                    .fetchOptional()
+                                                    .map(Record1::value1)
+                                                    .orElse(0)
                                                     > 0) {
                                                   final var oldLiveness =
                                                       liveness.remove(workflowRunId);
@@ -1507,17 +1527,19 @@ public abstract class DatabaseBackedProcessor
 
   private static String hashFromAnalysisId(String id) {
     Matcher matcher = BaseProcessor.ANALYSIS_RECORD_ID.matcher(id);
-    if (!matcher.matches())
+    if (!matcher.matches()) {
       throw new IllegalArgumentException(
           String.format("'%s' is a malformed Vidarr file identifier", id));
+    }
     return matcher.group("hash");
   }
 
   public static String extractHashIfIsFullWorkflowRunId(String id) {
     Matcher matcher = BaseProcessor.WORKFLOW_RUN_ID.matcher(id);
-    if (!matcher.matches())
+    if (!matcher.matches()) {
       // assume it's already a hash
       return id;
+    }
     return matcher.group("hash");
   }
 }

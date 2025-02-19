@@ -88,6 +88,7 @@ import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
@@ -111,11 +112,13 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import javax.xml.stream.XMLOutputFactory;
 import javax.xml.stream.XMLStreamException;
 import org.flywaydb.core.Flyway;
 import org.jooq.Condition;
 import org.jooq.Configuration;
 import org.jooq.DSLContext;
+import org.jooq.DatePart;
 import org.jooq.Field;
 import org.jooq.JSON;
 import org.jooq.JSONB;
@@ -327,6 +330,7 @@ public final class Main implements ServerConfig {
         Handlers.path(
             Handlers.routing()
                 .get("/", monitor(new BlockingHandler(server::status)))
+                .get("/workflows.atom", monitor(new BlockingHandler(server::fetchWorkflowsAtom)))
                 .get("/api/file/{hash}", monitor(server::fetchFile))
                 .get("/api/run/{hash}", monitor(new BlockingHandler(server::fetchRun)))
                 .get("/api/recovery-failures", monitor(server::fetchRecoveryFailures))
@@ -1509,7 +1513,6 @@ public final class Main implements ServerConfig {
 
   private void fetchWorkflows(HttpServerExchange exchange) {
     try (final var connection = dataSource.getConnection()) {
-      final var workflowVersionAlias = WORKFLOW_VERSION.as("other_workflow_version");
       final var response =
           DSL.using(connection, SQLDialect.POSTGRES)
               .select(
@@ -1539,6 +1542,82 @@ public final class Main implements ServerConfig {
       okJsonResponse(exchange, response == null ? "[]" : response.data());
     } catch (SQLException e) {
       internalServerErrorResponse(exchange, e);
+    }
+  }
+
+  private void fetchWorkflowsAtom(HttpServerExchange exchange) {
+    try (final var connection = dataSource.getConnection();
+        final var stream = exchange.getOutputStream()) {
+
+      final var writer = XMLOutputFactory.newFactory().createXMLStreamWriter(stream);
+      writer.writeStartDocument("utf-8", "1.0");
+      writer.writeStartElement("feed");
+      writer.writeDefaultNamespace("http://www.w3.org/2005/Atom");
+
+      writer.writeStartElement("title");
+      writer.writeCharacters("Workflow Installations for ");
+      writer.writeCharacters(selfName);
+      writer.writeEndElement();
+      writer.writeStartElement("id");
+      writer.writeCharacters(selfUrl);
+      writer.writeCharacters("/workflows.atom");
+
+      writer.writeStartElement("updated");
+      writer.writeCharacters(
+          DSL.using(connection, SQLDialect.POSTGRES)
+              .select(DSL.max(WORKFLOW_VERSION.CREATED))
+              .from(WORKFLOW_VERSION)
+              .fetchOptional()
+              .map(Record1::value1)
+              .orElse(Instant.EPOCH.atOffset(ZoneOffset.UTC))
+              .toString());
+      writer.writeEndElement();
+      writer.writeCharacters("");
+      writer.flush();
+
+      DSL.using(connection, SQLDialect.POSTGRES)
+          .select(
+              DSL.xmlelement(
+                  "entry",
+                  DSL.xmlelement("id", DSL.concat(WORKFLOW_VERSION.HASH_ID)),
+                  DSL.xmlelement(
+                      "title",
+                      DSL.concat(WORKFLOW_VERSION.NAME, DSL.value(" "), WORKFLOW_VERSION.VERSION),
+                      DSL.xmlelement(
+                          "link",
+                          DSL.xmlattributes(
+                              DSL.concat(
+                                      DSL.value(selfUrl + "/api/workflow/"),
+                                      WORKFLOW_VERSION.NAME,
+                                      DSL.value("/"),
+                                      WORKFLOW_VERSION.VERSION)
+                                  .as("href"))),
+                      DSL.xmlelement(
+                          "updated",
+                          DSL.toChar(WORKFLOW_VERSION.CREATED, "YYYY-MM-DD\"T\"HH24:MI:SSOF")))))
+          .from(WORKFLOW_VERSION)
+          .where(
+              WORKFLOW_VERSION
+                  .NAME
+                  .in(DSL.select(WORKFLOW.NAME).from(WORKFLOW).where(WORKFLOW.IS_ACTIVE))
+                  .and(
+                      DSL.timestampDiff(
+                              DatePart.DAY,
+                              DSL.currentTimestamp(),
+                              DSL.cast(WORKFLOW_VERSION.CREATED, Timestamp.class))
+                          .le(7)))
+          .forEach(
+              r -> {
+                try {
+                  stream.write(r.value1().data().getBytes(StandardCharsets.UTF_8));
+                } catch (IOException e) {
+                  throw new RuntimeException(e);
+                }
+              });
+      writer.writeEndElement();
+      writer.writeEndDocument();
+    } catch (Exception e) {
+      e.printStackTrace();
     }
   }
 

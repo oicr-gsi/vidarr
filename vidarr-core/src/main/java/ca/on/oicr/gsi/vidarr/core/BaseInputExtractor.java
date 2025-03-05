@@ -134,7 +134,7 @@ abstract class BaseInputExtractor<R, D, E, F, L, Y> implements InputType.Visitor
 
   @Override
   public final R retry(BasicType inner) {
-    if (input.isArray()) {
+    if (input.isObject()) {
       return aggregateRetry(
           StreamSupport.stream(Spliterators.spliteratorUnknownSize(input.fields(), 0), false)
               .map(e -> retry(e.getKey(), inner, e.getValue())));

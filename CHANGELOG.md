@@ -6,6 +6,17 @@ For unreleased changes, see [changes](changes).
 
 -----------------------------------------------------------------------------
 
+## [0.22.0] - 2025-03-06
+
+### Added
+
+* Inhibit workflow run launch if AutoInhibit alert contains workflow run ID in its job or scope
+
+### Fixed
+
+* Fixed error when submitting a workflow run with `retry` arguments syntax
+
+
 ## [0.21.0] - 2024-11-19
 
 ### Added

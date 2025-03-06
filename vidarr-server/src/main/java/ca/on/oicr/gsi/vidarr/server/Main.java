@@ -1861,9 +1861,17 @@ public final class Main implements ServerConfig {
       // We have to hold a very expensive lock to load data in the database, so we're going to do an
       // offline validation of the data to make sure it's self-consistent, then acquire the lock and
       // do an online validation.
+
+      // Map of Workflow Name to Pair of UnloadedWorkflow and Map of Workflow Version to Pair of
+      // workflow version hash and UnloadedWorkflowVersion
+      // TODO why...
       final var workflowInfo =
           new TreeMap<
               String, Pair<UnloadedWorkflow, Map<String, Pair<String, UnloadedWorkflowVersion>>>>();
+
+      // First, validate the workflows
+      // Data we would like to load must not have duplicate workflows
+      // If not a duplicate, track the workflow as known
       for (final var workflow : unloadedData.getWorkflows()) {
         if (workflowInfo.containsKey(workflow.getName())) {
           badRequestResponse(
@@ -1873,6 +1881,9 @@ public final class Main implements ServerConfig {
         }
         workflowInfo.put(workflow.getName(), new Pair<>(workflow, new TreeMap<>()));
       }
+
+      // Data we would like to load must reference valid workflow versions
+      // 1. Can't have a version for an unknown workflow
       for (final var workflowVersion : unloadedData.getWorkflowVersions()) {
         final var info = workflowInfo.get(workflowVersion.getName());
         if (info == null) {
@@ -1883,6 +1894,8 @@ public final class Main implements ServerConfig {
                   workflowVersion.getName()));
           return;
         }
+
+        // 2. Can't have a duplicate workflow version
         if (info.second().containsKey(workflowVersion.getVersion())) {
           badRequestResponse(
               exchange,
@@ -1891,11 +1904,11 @@ public final class Main implements ServerConfig {
                   workflowVersion.getName(), workflowVersion.getVersion()));
           return;
         }
+
+        // Success; compute hash ID and store in map
         final var definitionHash = generateWorkflowDefinitionHash(workflowVersion.getWorkflow());
         final var accessoryHashes =
             generateAccessoryWorkflowHashes(workflowVersion.getAccessoryFiles());
-
-        // Success; compute hash ID and store in map
         final var workflowVersionHash =
             generateWorkflowVersionHash(
                 workflowVersion.getName(),
@@ -1913,6 +1926,8 @@ public final class Main implements ServerConfig {
       // this.
       final var seenWorkflowRunIds = new TreeSet<String>();
       for (final var workflowRun : unloadedData.getWorkflowRuns()) {
+
+        // All workflow runs must be of installed workflows
         final var info = workflowInfo.get(workflowRun.getWorkflowName());
         if (info == null) {
           badRequestResponse(
@@ -1922,6 +1937,8 @@ public final class Main implements ServerConfig {
                   workflowRun.getId(), workflowRun.getWorkflowName()));
           return;
         }
+
+        // All workflow runs must be of installed workflow versions
         final var versionInfo = info.second().get(workflowRun.getWorkflowVersion());
         if (versionInfo == null) {
           badRequestResponse(
@@ -1933,7 +1950,9 @@ public final class Main implements ServerConfig {
                   workflowRun.getWorkflowVersion()));
           return;
         }
-        // Validate labels
+
+        // Validate that the labels are what we expect and can resolve to Vidarr types
+        // TODO: This returns a Stream of String if a label is good too - is this broken?
         final var labelErrors =
             DatabaseBackedProcessor.validateLabels(
                     workflowRun.getLabels(), info.first().getLabels())
@@ -1946,6 +1965,8 @@ public final class Main implements ServerConfig {
                   workflowRun.getId(), String.join("; ", labelErrors)));
           return;
         }
+
+        // Check that the External Keys do not contain duplicates
         final var knownExternalIds =
             workflowRun.getExternalKeys().stream()
                 .map(e -> new Pair<>(e.getProvider(), e.getId()))
@@ -1956,7 +1977,8 @@ public final class Main implements ServerConfig {
               String.format("Workflow run %s has duplicate external keys", workflowRun.getId()));
           return;
         }
-        // Compute the hash ID this workflow run should have
+
+        // Compute the hash ID this workflow run should have and comapre it to the one we received
         final var correctId =
             DatabaseBackedProcessor.computeWorkflowRunHashId(
                 workflowRun.getWorkflowName(),
@@ -1981,6 +2003,8 @@ public final class Main implements ServerConfig {
                   workflowRun.getId(), correctId));
           return;
         }
+
+        // Cannot have the same workflow run multiple times in the request
         if (!seenWorkflowRunIds.add(correctId)) {
           badRequestResponse(
               exchange,
@@ -1988,7 +2012,8 @@ public final class Main implements ServerConfig {
                   "Workflow run %s is included multiple times in the input.", workflowRun.getId()));
           return;
         }
-        // Validate output analyses for external IDs and hashes
+
+        // Workflow run must have some analysis
         if (workflowRun.getAnalysis() == null || workflowRun.getAnalysis().isEmpty()) {
           badRequestResponse(
               exchange, String.format("Workflow run %s has no analysis.", workflowRun.getId()));
@@ -1996,6 +2021,7 @@ public final class Main implements ServerConfig {
         }
 
         for (final var output : workflowRun.getAnalysis()) {
+          // Every analysis record must have at least one external key
           if (output.getExternalKeys().isEmpty()) {
             badRequestResponse(
                 exchange,
@@ -2005,6 +2031,10 @@ public final class Main implements ServerConfig {
                     workflowRun.getId(), output.getId()));
             return;
           }
+
+          // Compare the external IDs in each analysis record to the set of External IDs we built
+          // when checking for duplicate external keys and ensure every external ID in the
+          // analysis record corresponds to an external ID from the workflow run
           for (final var externalId : output.getExternalKeys()) {
             if (!knownExternalIds.contains(
                 new Pair<>(externalId.getProvider(), externalId.getId()))) {
@@ -2020,6 +2050,8 @@ public final class Main implements ServerConfig {
               return;
             }
           }
+
+          // The only valid output types for analysis record are file and url
           if (!output.getType().equals("file") && !output.getType().equals("url")) {
             badRequestResponse(
                 exchange,
@@ -2028,6 +2060,8 @@ public final class Main implements ServerConfig {
                     workflowRun.getId(), output.getId(), output.getType()));
             return;
           }
+
+          // Validate all required metadata is present for file typed analysis record
           if (output.getType().equals("file")
               && (output.getMetatype() == null
                   || output.getMetatype().isBlank()
@@ -2042,6 +2076,8 @@ public final class Main implements ServerConfig {
                     workflowRun.getId(), output.getId()));
             return;
           }
+
+          // Calculate the hash of the analysis record and compare to the hash we received
           final var fileDigest = MessageDigest.getInstance("SHA-256");
           fileDigest.update(workflowRun.getId().getBytes(StandardCharsets.UTF_8));
           fileDigest.update(
@@ -2062,8 +2098,8 @@ public final class Main implements ServerConfig {
       }
 
       // Okay, if we made it this far, the file is theoretically loadable. There needs to be
-      // additional validation against the database, but we will do that in a transaction with the
-      // expensive lock.
+      // additional validation against the database (loadDataIntoDatabase()), but we will do that in
+      // a transaction with the expensive lock.
       if (!loadCounter.tryAcquire()) {
         exchange.setStatusCode(StatusCodes.INSUFFICIENT_STORAGE);
         exchange
@@ -2103,13 +2139,24 @@ public final class Main implements ServerConfig {
     return accessoryHashes;
   }
 
+  /**
+   * TODO write me
+   * @param unloadedData
+   * @param workflowInfo
+   * @param configuration
+   * @throws JsonProcessingException
+   * @throws NoSuchAlgorithmException
+   */
   private void loadDataIntoDatabase(
       UnloadedData unloadedData,
       TreeMap<String, Pair<UnloadedWorkflow, Map<String, Pair<String, UnloadedWorkflowVersion>>>>
           workflowInfo,
       Configuration configuration)
       throws JsonProcessingException, NoSuchAlgorithmException {
+    // Map of Workflow Name to Workflow Version IDs (UnloadedWorkflowVersion.version to id.get.value1??)
+    // TODO what is that
     final var workflowId = new TreeMap<String, Map<String, Integer>>();
+
     for (final var info : workflowInfo.values()) {
       final var workflowName = info.first().getName();
       final var workflowLabels = info.first().getLabels();
@@ -2176,7 +2223,7 @@ public final class Main implements ServerConfig {
               workflowId.get(run.getWorkflowName()).get(run.getWorkflowVersion()),
               now,
               run);
-      if (id.isPresent()) {
+      if (id.isPresent()) { // TODO Nothing doing...
         for (final var externalId : run.getExternalKeys()) {
 
           insertExternalKey(configuration, id.get(), externalId);

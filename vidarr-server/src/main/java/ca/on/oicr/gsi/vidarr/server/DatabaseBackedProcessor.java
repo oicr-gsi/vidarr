@@ -305,18 +305,31 @@ public abstract class DatabaseBackedProcessor
     }
   }
 
+  /**
+   * Sanity check an individual workflow run's labels against the workflow definition's labels
+   * @param providedLabels labels from an individual workflow run
+   * @param expectedLabels labels from the workflow definition
+   * @return Stream of label errors
+   */
   public static Stream<String> validateLabels(
-      ObjectNode providedLabels, Map<String, BasicType> labels) {
+      ObjectNode providedLabels, Map<String, BasicType> expectedLabels) {
+
+    // Provided and Expected labels should have the same counts
+    // If no labels provided nor expected, return early
     final var providedCount = providedLabels == null ? 0 : providedLabels.size();
-    final var labelCount = labels == null ? 0 : labels.size();
-    if (labelCount == 0 && providedCount == 0) {
+    final var expectedLabelCount = expectedLabels == null ? 0 : expectedLabels.size();
+    if (expectedLabelCount == 0 && providedCount == 0) {
       return Stream.empty();
     }
-    if (providedCount != labelCount) {
+    if (providedCount != expectedLabelCount) {
       return Stream.of(
-          String.format("%d labels are provided but %d are expected.", providedCount, labelCount));
+          String.format("%d labels are provided but %d are expected.", providedCount, expectedLabelCount));
     }
-    return labels.entrySet().stream()
+
+    // For every expected label, see if that label is in the provided labels
+    // If it is, validate that the label can be resolved to a vidarr type and return it
+    // Otherwise report label not provided
+    return expectedLabels.entrySet().stream()
         .flatMap(
             entry -> {
               if (providedLabels.has(entry.getKey())) {

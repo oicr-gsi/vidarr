@@ -297,6 +297,8 @@ public abstract class DatabaseBackedProcessor
         digest.update(label.getBytes(StandardCharsets.UTF_8));
         digest.update(new byte[]{0});
         digest.update(MAPPER.writeValueAsBytes(labelsFromClient.get(label)));
+	// Note that if the .get(label) value is a string, writeValueAsBytes will also encode the literal (escaped) quote marks around the value.
+	// This means that if you are generating a workflow run hash outside of vidarr, if your label value is a string then you need to surround it with literal (escaped) quotes when hashing
       }
 
       return hexDigits(digest.digest());

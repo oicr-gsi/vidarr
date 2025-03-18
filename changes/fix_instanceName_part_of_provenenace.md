@@ -1,0 +1,1 @@
+instanceName should be returned in a ProvenanceWorkflowRun response object

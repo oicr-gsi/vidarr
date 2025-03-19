@@ -1005,7 +1005,7 @@ public final class Main implements ServerConfig {
     fields.add(literalJsonEntry("modified", WORKFLOW_RUN.MODIFIED));
     fields.add(literalJsonEntry("started", WORKFLOW_RUN.STARTED));
     fields.add(literalJsonEntry("lastAccessed", WORKFLOW_RUN.LAST_ACCESSED));
-    fields.add(literalJsonEntry("another", DSL.coalesce(selfName, DSL.inline(selfName))));
+    fields.add(literalJsonEntry("instanceName", DSL.coalesce(selfName, DSL.inline(selfName))));
 
     if (includeParameters) {
       fields.add(literalJsonEntry("arguments", WORKFLOW_RUN.ARGUMENTS));

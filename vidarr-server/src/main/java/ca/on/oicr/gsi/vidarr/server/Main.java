@@ -2156,9 +2156,9 @@ public final class Main implements ServerConfig {
     // Map of Workflow Name to Workflow Version IDs (UnloadedWorkflowVersion.version to id.get.value1??)
     // TODO what is that
     final var workflowId = new TreeMap<String, Map<String, Integer>>();
-
+    // Insert the workflow and workflow version from workflowInfo
     for (final var info : workflowInfo.values()) {
-      final var workflowName = info.first().getName();
+      final var workflowName = info.first().getName(); //info.first() is the UnloadedWorkflow
       final var workflowLabels = info.first().getLabels();
       var labels =
           Objects.requireNonNullElse(
@@ -2172,8 +2172,8 @@ public final class Main implements ServerConfig {
       }
       final var workflowVersionIds = new TreeMap<String, Integer>();
       workflowId.put(workflowName, workflowVersionIds);
-      for (final var version : info.second().values()) {
-        final var workflowScript = version.second().getWorkflow();
+      for (final var version : info.second().values()) { //info.second() is the Map<String, Pair<String, UnloadedWorkflowVersion>>
+        final var workflowScript = version.second().getWorkflow(); // which makes version.second() the UnloadedWorkflowVersion
         final var rootWorkflowHash = generateWorkflowDefinitionHash(workflowScript);
 
         WorkflowLanguage workflowLanguage = version.second().getLanguage();
@@ -2192,7 +2192,7 @@ public final class Main implements ServerConfig {
                 workflowVersion,
                 outputs,
                 parameters);
-        // We will have no ID from the insert if it already there
+        // We will have no ID from the insert if it already there // Andre this does not seem to be true
         if (id.isPresent()) {
           workflowVersionIds.put(workflowVersion, id.get().value1());
           for (final var accessory : version.second().getAccessoryFiles().entrySet()) {
@@ -2214,7 +2214,7 @@ public final class Main implements ServerConfig {
                   .orElseThrow());
         }
       }
-    }
+    } // insert the workflow run from unloaded data (why?)
     final var now = OffsetDateTime.now();
     for (final var run : unloadedData.getWorkflowRuns()) {
       final var id =
@@ -2223,7 +2223,7 @@ public final class Main implements ServerConfig {
               workflowId.get(run.getWorkflowName()).get(run.getWorkflowVersion()),
               now,
               run);
-      if (id.isPresent()) { // TODO Nothing doing...
+      if (id.isPresent()) {
         for (final var externalId : run.getExternalKeys()) {
 
           insertExternalKey(configuration, id.get(), externalId);

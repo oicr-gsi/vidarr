@@ -1189,6 +1189,38 @@
         }
       }
     },
+    "/api/load-unverified": {
+      "post": {
+        "description": "Add workflow and workflow run data to the Vidarr database without a workflow run hash.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CopyUnloadOutput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Workflows and workflow runs were added to the Vidarr database"
+          },
+          "400": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Workflows, workflow versions, or workflow runs are malformed or in conflict with existing data"
+          },
+          "507": {
+            "description": "Too many load/unload requests; try again later"
+          }
+        }
+      }
+    },
     "/api/max-in-flight": {
       "get": {
         "description": "Fetch current in-flight and max in-flight data for all workflows",

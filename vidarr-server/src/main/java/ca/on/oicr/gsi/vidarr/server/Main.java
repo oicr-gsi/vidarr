@@ -379,6 +379,11 @@ public final class Main implements ServerConfig {
                         new BlockingHandler(
                             JsonPost.parse(MAPPER, UnloadedData.class, server::load))))
                 .post(
+                    "/api/load-unverified",
+                    monitor(
+                        new BlockingHandler(
+                            JsonPost.parse(MAPPER, UnloadedData.class, server::loadUnverified))))
+                .post(
                     "/api/retry-provision-out",
                     monitor(
                         new BlockingHandler(
@@ -1874,7 +1879,8 @@ public final class Main implements ServerConfig {
         .fetchOptional();
   }
 
-  private void load(HttpServerExchange exchange, UnloadedData unloadedData) {
+  // TODO refactor me into a mode of load (moad)
+  private void loadUnverified(HttpServerExchange exchange, UnloadedData unloadedData) {
     try {
       // We have to hold a very expensive lock to load data in the database, so we're going to do an
       // offline validation of the data to make sure it's self-consistent, then acquire the lock and
@@ -1993,8 +1999,266 @@ public final class Main implements ServerConfig {
           return;
         }
 
-        // Compute the hash ID this workflow run should have and compare it to the one we received
+        // Create a new hash and slap it on!@!
         final String correctId =
+            DatabaseBackedProcessor.computeWorkflowRunHashId(
+                workflowRun.getWorkflowName(),
+                workflowRun.getLabels(),
+                info.first().getLabels() == null ? Set.of() : info.first().getLabels().keySet(),
+                versionInfo.second().getParameters().entrySet().stream()
+                    .flatMap(
+                        param ->
+                            param
+                                .getValue()
+                                .apply(
+                                    new ExtractInputVidarrIds(
+                                        MAPPER, workflowRun.getArguments().get(param.getKey()))))
+                    .collect(Collectors.toCollection(TreeSet::new)),
+                workflowRun.getExternalKeys());
+
+        workflowRun.setId(correctId);
+
+        // Cannot have the same workflow run multiple times in the request
+        if (!seenWorkflowRunIds.add(correctId)) {
+          badRequestResponse(
+              exchange,
+              String.format(
+                  "Workflow run %s is included multiple times in the input.", workflowRun.getId()));
+          return;
+        }
+
+        // Workflow run must have some analysis
+        if (workflowRun.getAnalysis() == null || workflowRun.getAnalysis().isEmpty()) {
+          badRequestResponse(
+              exchange, String.format("Workflow run %s has no analysis.", workflowRun.getId()));
+          return;
+        }
+
+        for (final var output : workflowRun.getAnalysis()) {
+          // Every analysis record must have at least one external key
+          if (output.getExternalKeys().isEmpty()) {
+            badRequestResponse(
+                exchange,
+                String.format(
+                    "Workflow run %s has output %s that is not associated with any external"
+                        + " identifiers.",
+                    workflowRun.getId(), output.getId()));
+            return;
+          }
+
+          // Compare the external IDs in each analysis record to the set of External IDs we built
+          // when checking for duplicate external keys and ensure every external ID in the
+          // analysis record corresponds to an external ID from the workflow run
+          for (final var externalId : output.getExternalKeys()) {
+            if (!knownExternalIds.contains(
+                new Pair<>(externalId.getProvider(), externalId.getId()))) {
+              badRequestResponse(
+                  exchange,
+                  String.format(
+                      "Workflow run %s has output %s that references unknown external ID"
+                          + " %s/%s.",
+                      workflowRun.getId(),
+                      output.getId(),
+                      externalId.getProvider(),
+                      externalId.getId()));
+              return;
+            }
+          }
+
+          // The only valid output types for analysis record are file and url
+          if (!output.getType().equals("file") && !output.getType().equals("url")) {
+            badRequestResponse(
+                exchange,
+                String.format(
+                    "Workflow run %s has output %s that unknown output type %s.",
+                    workflowRun.getId(), output.getId(), output.getType()));
+            return;
+          }
+
+          // Validate all required metadata is present for file typed analysis record
+          if (output.getType().equals("file")
+              && (output.getMetatype() == null
+              || output.getMetatype().isBlank()
+              || output.getChecksum() == null
+              || output.getChecksum().isBlank()
+              || output.getChecksumType() == null
+              || output.getChecksumType().isBlank())) {
+            badRequestResponse(
+                exchange,
+                String.format(
+                    "Workflow run %s has file output %s with missing information.",
+                    workflowRun.getId(), output.getId()));
+            return;
+          }
+
+          // Calculate the hash of the analysis record and slap er on!!!!
+          final var fileDigest = MessageDigest.getInstance("SHA-256");
+          fileDigest.update(workflowRun.getId().getBytes(StandardCharsets.UTF_8));
+          fileDigest.update(
+              (output.getType().equals("file")
+                  ? Path.of(output.getPath()).getFileName().toString()
+                  : output.getUrl())
+                  .getBytes(StandardCharsets.UTF_8));
+          final var correctOutputId = hexDigits(fileDigest.digest());
+          output.setId(correctOutputId);
+        }
+      }
+
+      // Okay, if we made it this far, the file is theoretically loadable. There needs to be
+      // additional validation against the database (loadDataIntoDatabase()), but we will do that in
+      // a transaction with the expensive lock.
+      if (!loadCounter.tryAcquire()) {
+        exchange.setStatusCode(StatusCodes.INSUFFICIENT_STORAGE);
+        exchange
+            .getResponseSender()
+            .send(
+                "There are too many load/unload requests queued right now. Please try again"
+                    + " later.");
+        return;
+      }
+      epochLock.writeLock().lock();
+      loadCounter.release();
+      try (final var connection = dataSource.getConnection()) {
+        DSL.using(connection, SQLDialect.POSTGRES)
+            .transaction(
+                configuration -> loadDataIntoDatabase(unloadedData, workflowInfo, configuration));
+        okEmptyResponse(exchange);
+      } catch (IllegalArgumentException e) {
+        badRequestResponse(exchange, e.getMessage());
+      } catch (Exception e) {
+        internalServerErrorResponse(exchange, e);
+      } finally {
+        epochLock.writeLock().unlock();
+      }
+    } catch (JsonProcessingException | NoSuchAlgorithmException e) {
+      internalServerErrorResponse(exchange, e);
+    }
+  }
+
+  private void load(HttpServerExchange exchange, UnloadedData unloadedData) {
+    try {
+      // We have to hold a very expensive lock to load data in the database, so we're going to do an
+      // offline validation of the data to make sure it's self-consistent, then acquire the lock and
+      // do an online validation.
+
+      // Map of Workflow Name to Pair of UnloadedWorkflow and Map of Workflow Version to Pair of
+      // workflow version hash and UnloadedWorkflowVersion
+      // TODO why...
+      final var workflowInfo =
+          new TreeMap<
+              String, Pair<UnloadedWorkflow, Map<String, Pair<String, UnloadedWorkflowVersion>>>>();
+
+      // First, validate the workflows
+      // Data we would like to load must not have duplicate workflows
+      // If not a duplicate, track the workflow as known
+      for (final var workflow : unloadedData.getWorkflows()) {
+        if (workflowInfo.containsKey(workflow.getName())) {
+          badRequestResponse(
+              exchange,
+              String.format("Duplicate workflow %s in load request.", workflow.getName()));
+          return;
+        }
+        workflowInfo.put(workflow.getName(), new Pair<>(workflow, new TreeMap<>()));
+      }
+
+      // Data we would like to load must reference valid workflow versions
+      // 1. Can't have a version for an unknown workflow
+      for (final var workflowVersion : unloadedData.getWorkflowVersions()) {
+        final var info = workflowInfo.get(workflowVersion.getName());
+        if (info == null) {
+          badRequestResponse(
+              exchange,
+              String.format(
+                  "Workflow version references unknown workflow %s in load request.",
+                  workflowVersion.getName()));
+          return;
+        }
+
+        // 2. Can't have a duplicate workflow version
+        if (info.second().containsKey(workflowVersion.getVersion())) {
+          badRequestResponse(
+              exchange,
+              String.format(
+                  "Duplicate workflow version %s/%s in load request.",
+                  workflowVersion.getName(), workflowVersion.getVersion()));
+          return;
+        }
+
+        // Success; compute hash ID and store in map
+        final var definitionHash = generateWorkflowDefinitionHash(workflowVersion.getWorkflow());
+        final var accessoryHashes =
+            generateAccessoryWorkflowHashes(workflowVersion.getAccessoryFiles());
+        final var workflowVersionHash =
+            generateWorkflowVersionHash(
+                workflowVersion.getName(),
+                workflowVersion.getVersion(),
+                definitionHash,
+                workflowVersion.getOutputs(),
+                workflowVersion.getParameters(),
+                accessoryHashes);
+
+        info.second()
+            .put(workflowVersion.getVersion(), new Pair<>(workflowVersionHash, workflowVersion));
+      }
+
+      // Validate the workflow runs; all workflow data must be included, so we don't need the DB for
+      // this.
+      final var seenWorkflowRunIds = new TreeSet<String>();
+      for (final var workflowRun : unloadedData.getWorkflowRuns()) {
+
+        // All workflow runs must be of installed workflows
+        final var info = workflowInfo.get(workflowRun.getWorkflowName());
+        if (info == null) {
+          badRequestResponse(
+              exchange,
+              String.format(
+                  "Workflow run %s references missing workflow %s in load request.",
+                  workflowRun.getId(), workflowRun.getWorkflowName()));
+          return;
+        }
+
+        // All workflow runs must be of installed workflow versions
+        final var versionInfo = info.second().get(workflowRun.getWorkflowVersion());
+        if (versionInfo == null) {
+          badRequestResponse(
+              exchange,
+              String.format(
+                  "Workflow run %s references missing workflow version %s/%s in load request.",
+                  workflowRun.getId(),
+                  workflowRun.getWorkflowName(),
+                  workflowRun.getWorkflowVersion()));
+          return;
+        }
+
+        // Validate that the labels are what we expect and can resolve to Vidarr types
+        // TODO: This returns a Stream of String if a label is good too - is this broken?
+        final var labelErrors =
+            DatabaseBackedProcessor.validateLabels(
+                    workflowRun.getLabels(), info.first().getLabels())
+                .collect(Collectors.toList());
+        if (!labelErrors.isEmpty()) {
+          badRequestResponse(
+              exchange,
+              String.format(
+                  "Workflow run %s has bad labels: %s",
+                  workflowRun.getId(), String.join("; ", labelErrors)));
+          return;
+        }
+
+        // Check that the External Keys do not contain duplicates
+        final var knownExternalIds =
+            workflowRun.getExternalKeys().stream()
+                .map(e -> new Pair<>(e.getProvider(), e.getId()))
+                .collect(Collectors.toSet());
+        if (knownExternalIds.size() != workflowRun.getExternalKeys().size()) {
+          badRequestResponse(
+              exchange,
+              String.format("Workflow run %s has duplicate external keys", workflowRun.getId()));
+          return;
+        }
+
+        // Compute the hash ID this workflow run should have and comapre it to the one we received
+        final var correctId =
             DatabaseBackedProcessor.computeWorkflowRunHashId(
                 workflowRun.getWorkflowName(),
                 workflowRun.getLabels(),
@@ -2111,8 +2375,8 @@ public final class Main implements ServerConfig {
       }
 
       // Okay, if we made it this far, the file is theoretically loadable. There needs to be
-      // additional validation against the database, but we will do that in a transaction with the
-      // expensive lock.
+      // additional validation against the database (loadDataIntoDatabase()), but we will do that in
+      // a transaction with the expensive lock.
       if (!loadCounter.tryAcquire()) {
         exchange.setStatusCode(StatusCodes.INSUFFICIENT_STORAGE);
         exchange

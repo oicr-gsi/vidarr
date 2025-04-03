@@ -59,7 +59,6 @@ public final class ProvenanceWorkflowRun<K extends ExternalId> {
     return inputFiles;
   }
 
-  @JsonIgnore
   public String getInstanceName() {
     return instanceName;
   }

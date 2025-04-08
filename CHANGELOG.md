@@ -6,6 +6,13 @@ For unreleased changes, see [changes](changes).
 
 -----------------------------------------------------------------------------
 
+## [0.23.0] - 2025-04-08
+
+### Changed
+
+* * Redesign `WorkflowEngine` and `Provisioner` APIs to be fluent rather than callbacks
+
+
 ## [0.22.1] - 2025-03-21
 
 ### Fixed

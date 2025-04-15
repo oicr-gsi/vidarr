@@ -38,8 +38,11 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.xml.stream.XMLStreamException;
 
-/** Run workflows using Cromwell */
+/**
+ * Run workflows using Cromwell
+ */
 public final class CromwellWorkflowEngine implements WorkflowEngine<StateUnstarted, CleanupState> {
+
   private static final int CHECK_DELAY = 1;
   static final HttpClient CLIENT =
       HttpClient.newBuilder()
@@ -79,7 +82,8 @@ public final class CromwellWorkflowEngine implements WorkflowEngine<StateUnstart
   private Map<String, BasicType> engineParameters;
   private String url;
 
-  public CromwellWorkflowEngine() {}
+  public CromwellWorkflowEngine() {
+  }
 
   @Override
   public OperationAction<?, CleanupState, Void> cleanup() {
@@ -114,7 +118,7 @@ public final class CromwellWorkflowEngine implements WorkflowEngine<StateUnstart
                 (state, response) ->
                     String.format(
                         "Got response %d on %s", response.statusCode(), state.cromwellServer())))
-        .then(monitorWhen(CROMWELL_FAILURES, OperationStep::isHttpOk, url))
+        .then(monitorWhen(CROMWELL_FAILURES, OperationStep::isHttpNotOk, url))
         .then(requireJsonSuccess())
         .map(result -> Optional.ofNullable(result.getId()).filter(id -> !id.equals("null")))
         .then(requirePresent())

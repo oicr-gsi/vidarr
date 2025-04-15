@@ -25,6 +25,7 @@ import ca.on.oicr.gsi.vidarr.OperationAction;
 import ca.on.oicr.gsi.vidarr.OperationStatefulStep;
 import ca.on.oicr.gsi.vidarr.OperationStatefulStep.Child;
 import ca.on.oicr.gsi.vidarr.OperationStatefulStep.RepeatCounter;
+import ca.on.oicr.gsi.vidarr.OperationStep;
 import ca.on.oicr.gsi.vidarr.OutputProvisionFormat;
 import ca.on.oicr.gsi.vidarr.OutputProvisioner;
 import ca.on.oicr.gsi.vidarr.OutputProvisionerProvider;
@@ -43,6 +44,7 @@ import java.util.stream.Stream;
  */
 public class CromwellOutputProvisioner
     implements OutputProvisioner<PreflightState, ProvisionState> {
+
   static final List<Pair<String, String>> EXTENSION_TO_META_TYPE =
       List.of(
           new Pair<>(".bam", "application/bam"),
@@ -95,7 +97,8 @@ public class CromwellOutputProvisioner
   private String workflowSource;
   private String workflowUrl;
 
-  public CromwellOutputProvisioner() {}
+  public CromwellOutputProvisioner() {
+  }
 
   @Override
   public boolean canProvision(OutputProvisionFormat format) {
@@ -199,7 +202,7 @@ public class CromwellOutputProvisioner
                 Level.INFO,
                 (response) ->
                     String.format("Got response %d on %s", response.statusCode(), cromwellUrl)))
-        .then(monitorWhen(CROMWELL_FAILURES, result -> result.statusCode() / 100 != 2, cromwellUrl))
+        .then(monitorWhen(CROMWELL_FAILURES, OperationStep::isHttpNotOk, cromwellUrl))
         .then(requireJsonSuccess())
         .map(result -> Optional.ofNullable(result.getId()).filter(id -> !id.equals("null")))
         .then(requirePresent())

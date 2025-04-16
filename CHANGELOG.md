@@ -6,6 +6,13 @@ For unreleased changes, see [changes](changes).
 
 -----------------------------------------------------------------------------
 
+## [2.0.1] - 2025-04-16
+
+### Fixed
+
+* `vidarr_cromwell_failed_requests` counter was incrementing incorrectly
+
+
 ## [2.0.0] - 2025-04-08
 
 ### Fixed

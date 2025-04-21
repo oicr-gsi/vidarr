@@ -953,16 +953,14 @@ public abstract class BaseProcessor<
           // SUCCEEDED means we've already created the file entries in the db, so all that's left to do is clean up
           inTransaction(
               transaction -> {
-                final var cleanup = workflow.cleanup();
-                if (cleanup == null) {
-                  workflow.succeeded(transaction);
-                } else {
+                activeOperations.stream()
+                        .filter(ao -> ao.recoveryState().get("cleanupState") != null || !(ao.recoveryState().get("cleanupState") instanceof NullNode))
+                        .forEach(ao -> workflow.cleanup(ao.recoveryState().get("cleanupState"), transaction));
                   startNextPhase(
                       p4,
-                      List.of(TaskStarter.launchCleanup(target.engine(), cleanup)),
+                      List.of(TaskStarter.launchCleanup(target.engine(), workflow.cleanup())),
                       transaction
                   );
-                }
               });
         } else {
           for (final var operation : activeOperations) {

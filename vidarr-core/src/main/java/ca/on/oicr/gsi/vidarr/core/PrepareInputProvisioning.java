@@ -32,7 +32,7 @@ final class PrepareInputProvisioning implements InputType.Visitor<JsonNode> {
       String filePath) {
     return TaskStarter.of(
         "i" + format.name(),
-        wrapProvisionActionInternal(language, provisioner, provisioner.run())
+        wrapProvisionActionInternal(language, provisioner, provisioner.build())
             .launch(new InputProvisioningStateInternal(mutation, id, filePath)));
   }
 
@@ -44,7 +44,7 @@ final class PrepareInputProvisioning implements InputType.Visitor<JsonNode> {
       JsonNode metadata) {
     return TaskStarter.of(
         "e" + format.name(),
-        wrapProvisionActionExternal(language, provisioner, provisioner.run())
+        wrapProvisionActionExternal(language, provisioner, provisioner.build())
             .launch(new InputProvisioningStateExternal(mutation, metadata)));
   }
 
@@ -56,12 +56,12 @@ final class PrepareInputProvisioning implements InputType.Visitor<JsonNode> {
       case 'i':
         return TaskStarter.of(
             operation.type(),
-            wrapProvisionActionInternal(language, provisioner, provisioner.run())
+            wrapProvisionActionInternal(language, provisioner, provisioner.build())
                 .recover(operation.recoveryState()));
       case 'e':
         return TaskStarter.of(
             operation.type(),
-            wrapProvisionActionExternal(language, provisioner, provisioner.run())
+            wrapProvisionActionExternal(language, provisioner, provisioner.build())
                 .recover(operation.recoveryState()));
       default:
         throw new IllegalArgumentException("Illegal type for operation: " + operation.type());
@@ -81,7 +81,7 @@ final class PrepareInputProvisioning implements InputType.Visitor<JsonNode> {
             InputProvisioningStateExternal.class, InputProvisioningStateExternal::metadata)
         .then(
             OperationStatefulStep.subStep(
-                (state, metadata) -> provisioner.provisionExternal(language, metadata), action))
+                (state, metadata) -> provisioner.prepareExternalProvisionInput(language, metadata), action))
         .map((state, result) -> new JsonMutation(state.state().mutation(), result));
   }
 
@@ -98,7 +98,7 @@ final class PrepareInputProvisioning implements InputType.Visitor<JsonNode> {
             InputProvisioningStateInternal.class, InputProvisioningStateInternal::id)
         .then(
             OperationStatefulStep.subStep(
-                (state, id) -> provisioner.provision(language, id, state.path()), action))
+                (state, id) -> provisioner.prepareInternalProvisionInput(language, id, state.path()), action))
         .map((state, result) -> new JsonMutation(state.state().mutation(), result));
   }
 

@@ -44,17 +44,17 @@ public final class RawInputProvisioner implements InputProvisioner<RawInputState
   }
 
   @Override
-  public RawInputState provision(WorkflowLanguage language, String id, String path) {
+  public RawInputState prepareInternalProvisionInput(WorkflowLanguage language, String id, String path) {
     return new RawInputState(JsonNodeFactory.instance.textNode(path));
   }
 
   @Override
-  public RawInputState provisionExternal(WorkflowLanguage language, JsonNode metadata) {
+  public RawInputState prepareExternalProvisionInput(WorkflowLanguage language, JsonNode metadata) {
     return new RawInputState(metadata);
   }
 
   @Override
-  public OperationAction<?, RawInputState, JsonNode> run() {
+  public OperationAction<?, RawInputState, JsonNode> build() {
     return OperationAction.load(RawInputState.class, RawInputState::path)
         .then(OperationStep.require(JsonNode::isTextual, "Input is not text"));
   }

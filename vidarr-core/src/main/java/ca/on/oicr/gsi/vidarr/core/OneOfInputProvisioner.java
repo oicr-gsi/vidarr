@@ -60,7 +60,7 @@ public final class OneOfInputProvisioner implements InputProvisioner<BranchState
   }
 
   @Override
-  public BranchState provision(WorkflowLanguage language, String id, String path) {
+  public BranchState prepareInternalProvisionInput(WorkflowLanguage language, String id, String path) {
     return provision(provisioners.get(internal), language, id, path);
   }
 
@@ -69,11 +69,11 @@ public final class OneOfInputProvisioner implements InputProvisioner<BranchState
       WorkflowLanguage language,
       String id,
       String path) {
-    return provisioner.run().intoBranch(internal, provisioner.provision(language, id, path));
+    return provisioner.build().intoBranch(internal, provisioner.prepareInternalProvisionInput(language, id, path));
   }
 
   @Override
-  public BranchState provisionExternal(WorkflowLanguage language, JsonNode metadata) {
+  public BranchState prepareExternalProvisionInput(WorkflowLanguage language, JsonNode metadata) {
     final var type = metadata.get("type").asText();
     return provisionExternal(type, provisioners.get(type), language, metadata.get("contents"));
   }
@@ -83,14 +83,14 @@ public final class OneOfInputProvisioner implements InputProvisioner<BranchState
       InputProvisioner<OriginalState> provisioner,
       WorkflowLanguage language,
       JsonNode metadata) {
-    return provisioner.run().intoBranch(name, provisioner.provisionExternal(language, metadata));
+    return provisioner.build().intoBranch(name, provisioner.prepareExternalProvisionInput(language, metadata));
   }
 
   @Override
-  public OperationAction<?, BranchState, JsonNode> run() {
+  public OperationAction<?, BranchState, JsonNode> build() {
     return OperationAction.branch(
         provisioners.entrySet().stream()
-            .collect(Collectors.toMap(Entry::getKey, e -> e.getValue().run())));
+            .collect(Collectors.toMap(Entry::getKey, e -> e.getValue().build())));
   }
 
   public void setInternal(String internal) {

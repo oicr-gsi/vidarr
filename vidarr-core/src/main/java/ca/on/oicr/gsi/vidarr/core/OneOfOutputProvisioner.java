@@ -49,11 +49,11 @@ public final class OneOfOutputProvisioner implements OutputProvisioner<BranchSta
 
   private <PreflightState extends Record> BranchState preflightCheck(
       String type, OutputProvisioner<PreflightState, ?> provisioner, JsonNode metadata) {
-    return provisioner.runPreflight().intoBranch(type, provisioner.preflightCheck(metadata));
+    return provisioner.buildPreflight().intoBranch(type, provisioner.preflightCheck(metadata));
   }
 
   @Override
-  public BranchState provision(String workflowRunId, String data, JsonNode metadata) {
+  public BranchState prepareProvisionInput(String workflowRunId, String data, JsonNode metadata) {
     final var type = metadata.get("type").asText();
     return provision(type, provisioners.get(type), workflowRunId, data, metadata.get("contents"));
   }
@@ -64,21 +64,21 @@ public final class OneOfOutputProvisioner implements OutputProvisioner<BranchSta
       String workflowRunId,
       String data,
       JsonNode metadata) {
-    return provisioner.run().intoBranch(type, provisioner.provision(workflowRunId, data, metadata));
+    return provisioner.build().intoBranch(type, provisioner.prepareProvisionInput(workflowRunId, data, metadata));
   }
 
   @Override
-  public OperationAction<?, BranchState, Result> run() {
+  public OperationAction<?, BranchState, Result> build() {
     return OperationAction.branch(
         provisioners.entrySet().stream()
-            .collect(Collectors.toMap(Entry::getKey, e -> e.getValue().run())));
+            .collect(Collectors.toMap(Entry::getKey, e -> e.getValue().build())));
   }
 
   @Override
-  public OperationAction<?, BranchState, Boolean> runPreflight() {
+  public OperationAction<?, BranchState, Boolean> buildPreflight() {
     return OperationAction.branch(
         provisioners.entrySet().stream()
-            .collect(Collectors.toMap(Entry::getKey, e -> e.getValue().runPreflight())));
+            .collect(Collectors.toMap(Entry::getKey, e -> e.getValue().buildPreflight())));
   }
 
   @Override

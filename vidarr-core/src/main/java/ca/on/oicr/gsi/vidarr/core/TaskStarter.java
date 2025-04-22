@@ -49,7 +49,7 @@ interface TaskStarter<Output> {
 
     return of(
         format.name(),
-        wrapOutputProvisioner(provisioner, provisioner.run())
+        wrapOutputProvisioner(provisioner, provisioner.build())
             .launch(new OutputProvisionState(ids, labels, workflowRunId, data, metadata)));
   }
 
@@ -79,7 +79,7 @@ interface TaskStarter<Output> {
       OutputProvisioner<PreflightState, ?> provisioner,
       JsonNode metadata) {
     return of(
-        format.name(), provisioner.runPreflight().launch(provisioner.preflightCheck(metadata)));
+        format.name(), provisioner.buildPreflight().launch(provisioner.preflightCheck(metadata)));
   }
 
   static <Cleanup extends Record> TaskStarter<Void> launchCleanup(
@@ -140,7 +140,7 @@ interface TaskStarter<Output> {
 
   static <OriginalState extends Record> OperationAction<?, ?, ProvisionData> wrapOutputProvisioner(
       OutputProvisioner<?, OriginalState> provisioner) {
-    return wrapOutputProvisioner(provisioner, provisioner.run());
+    return wrapOutputProvisioner(provisioner, provisioner.build());
   }
 
   private static <State extends Record, OriginalState extends Record>
@@ -151,7 +151,7 @@ interface TaskStarter<Output> {
     return OperationAction.load(OutputProvisionState.class, OutputProvisionState::workflowRunId)
         .then(
             OperationStatefulStep.subStep(
-                (state, id) -> provisioner.provision(id, state.data(), state.metadata()), action))
+                (state, id) -> provisioner.prepareProvisionInput(id, state.data(), state.metadata()), action))
         .map(
             (state, result) ->
                 new ProvisionData(state.state().ids(), state.state().labels(), result));

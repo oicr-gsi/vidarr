@@ -189,12 +189,12 @@ public class CromwellOutputProvisioner
   }
 
   @Override
-  public ProvisionState provision(String workflowRunId, String data, JsonNode metadata) {
+  public ProvisionState prepareProvisionInput(String workflowRunId, String data, JsonNode metadata) {
     return new ProvisionState(cromwellUrl, data, metadata, workflowRunId);
   }
 
   @Override
-  public OperationAction<?, ProvisionState, OutputProvisioner.Result> run() {
+  public OperationAction<?, ProvisionState, OutputProvisioner.Result> build() {
     return load(ProvisionState.class, (state) -> state.buildLaunchRequest(this))
         .then(http(new JsonBodyHandler<>(MAPPER, WorkflowStatusResponse.class)))
         .then(
@@ -239,7 +239,7 @@ public class CromwellOutputProvisioner
   }
 
   @Override
-  public OperationAction<?, PreflightState, Boolean> runPreflight() {
+  public OperationAction<?, PreflightState, Boolean> buildPreflight() {
     return OperationAction.value(PreflightState.class, true);
   }
 

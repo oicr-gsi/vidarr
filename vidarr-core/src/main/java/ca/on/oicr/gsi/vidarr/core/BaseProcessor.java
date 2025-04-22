@@ -846,7 +846,7 @@ public abstract class BaseProcessor<
                     operation.type(),
                     target
                         .provisionerFor(WorkflowOutputDataType.valueOf(operation.type()).format())
-                        .runPreflight()
+                        .buildPreflight()
                         .recover(operation.recoveryState()))
                 .start(this, operation, p1.createTerminal(operation));
           }

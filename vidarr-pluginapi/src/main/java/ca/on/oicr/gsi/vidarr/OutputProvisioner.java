@@ -156,28 +156,33 @@ public interface OutputProvisioner<PreflightState extends Record, State extends 
    * Prepare state to provision out data
    *
    * <p>This method should not do any externally-visible work. Anything it needs should be done in a
-   * {@link #run()} so that Vidarr can execute it once the database is in a healthy state.
+   * {@link #build()} so that Vidarr can execute it once the database is in a healthy state.
+   * If build() is compared to Pattern.compile(), then prepareProvisionInput prepares the String that will
+   * have match() executed against it.
    *
    * @param workflowRunId the workflow run ID assigned by Vidarr
    * @param data the output coming from the workflow
    * @param metadata the information coming from the submitter to direct provisioning
    * @return the initial state of the provision out process
    */
-  State provision(String workflowRunId, String data, JsonNode metadata);
+  State prepareProvisionInput(String workflowRunId, String data, JsonNode metadata);
 
   /**
-   * Create a declarative structure to execute the provisioning
+   * Build a declarative structure to execute the provisioning when played back
+   *
+   * Compare to Pattern.compile() - builds a ready object for later use by the processor.
+   * This allows the processor to play back and pause the sequence of events built here.
    *
    * @return the sequence of operations that should be performed
    */
-  OperationAction<?, State, Result> run();
+  OperationAction<?, State, Result> build();
 
   /**
-   * Create a declarative structure to execute the pre-flight check
+   * Build a declarative structure to execute the pre-flight check when played back
    *
    * @return the sequence of operations that should be performed
    */
-  OperationAction<?, PreflightState, Boolean> runPreflight();
+  OperationAction<?, PreflightState, Boolean> buildPreflight();
 
   /**
    * Called to initialise this output provisioner.

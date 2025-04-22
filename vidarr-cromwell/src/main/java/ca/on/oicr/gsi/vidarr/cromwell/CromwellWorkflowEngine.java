@@ -109,7 +109,7 @@ public final class CromwellWorkflowEngine implements WorkflowEngine<StateUnstart
   }
 
   @Override
-  public OperationAction<?, StateUnstarted, Result<CleanupState>> run() {
+  public OperationAction<?, StateUnstarted, Result<CleanupState>> build() {
     return load(StateUnstarted.class, StateUnstarted::buildLaunchRequest)
         .then(http(new JsonBodyHandler<>(MAPPER, WorkflowStatusResponse.class)))
         .then(
@@ -174,7 +174,7 @@ public final class CromwellWorkflowEngine implements WorkflowEngine<StateUnstart
   }
 
   @Override
-  public StateUnstarted start(
+  public StateUnstarted prepareInput(
       WorkflowLanguage workflowLanguage,
       String workflow,
       Stream<Pair<String, String>> accessoryFiles,

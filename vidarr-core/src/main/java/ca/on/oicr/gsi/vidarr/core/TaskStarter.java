@@ -62,10 +62,10 @@ interface TaskStarter<Output> {
     return of(
         "",
         engine
-            .run()
+            .build()
             .map(WorkflowEngine.Result::serialize)
             .launch(
-                engine.start(
+                engine.prepareInput(
                     definition.language(),
                     definition.contents(),
                     definition.accessoryFiles(),

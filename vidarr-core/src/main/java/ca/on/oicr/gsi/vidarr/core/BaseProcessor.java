@@ -19,7 +19,6 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.lang.System.Logger.Level;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -939,7 +938,7 @@ public abstract class BaseProcessor<
                     "",
                     target
                         .engine()
-                        .run()
+                        .build()
                         .map(WorkflowEngine.Result::serialize)
                         .recover(operation.recoveryState()))
                 .start(this, operation, p3.createTerminal(operation));

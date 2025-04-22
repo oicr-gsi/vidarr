@@ -46,7 +46,7 @@ public final class UnixShellWorkflowEngine implements WorkflowEngine<StateInitia
   }
 
   @Override
-  public OperationAction<?, StateInitial, Result<CleanupState>> run() {
+  public OperationAction<?, StateInitial, Result<CleanupState>> build() {
     return OperationAction.load(
             StateInitial.class,
             state ->
@@ -66,7 +66,7 @@ public final class UnixShellWorkflowEngine implements WorkflowEngine<StateInitia
   }
 
   @Override
-  public StateInitial start(
+  public StateInitial prepareInput(
       WorkflowLanguage workflowLanguage,
       String workflow,
       Stream<Pair<String, String>> accessoryFiles,

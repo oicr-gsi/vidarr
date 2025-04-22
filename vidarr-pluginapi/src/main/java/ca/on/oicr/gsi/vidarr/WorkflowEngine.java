@@ -107,17 +107,22 @@ public interface WorkflowEngine<State extends Record, CleanupState extends Recor
   Optional<BasicType> engineParameters();
 
   /**
-   * Create a declarative structure to execute a workflow
+   * Build a declarative structure which executes a workflow when played back
+   *
+   * Compare to Pattern.compile() - builds a ready object for later use by the processor.
+   * This allows the processor to play back and pause the sequence of events built here.
    *
    * @return the sequence of operations that should be performed
    */
-  OperationAction<?, State, Result<CleanupState>> run();
+  OperationAction<?, State, Result<CleanupState>> build();
 
   /**
-   * Start a new workflow
+   * Prepare the input to a new workflow
    *
    * <p>This method should not do any externally-visible work. It should simply populate the state
-   * structure that will be used by {@link #run()}.
+   * structure that will be used by the object created in {@link #build()}.
+   * If build() is compared to Pattern.compile(), then prepareInput prepares the String that will
+   * have match() executed against it.
    *
    * @param workflowLanguage the language the workflow was written in
    * @param workflow the contents of the workflow
@@ -127,7 +132,7 @@ public interface WorkflowEngine<State extends Record, CleanupState extends Recor
    * @param engineParameters the input configuration parameters to the workflow engine
    * @return the initial state of the provision out process
    */
-  State start(
+  State prepareInput(
       WorkflowLanguage workflowLanguage,
       String workflow,
       Stream<Pair<String, String>> accessoryFiles,

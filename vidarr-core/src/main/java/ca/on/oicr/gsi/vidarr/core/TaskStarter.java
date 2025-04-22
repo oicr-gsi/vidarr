@@ -34,7 +34,7 @@ interface TaskStarter<Output> {
       String workflowRunUrl) {
     return of(
         "$" + provisioner.name(),
-        wrapRuntimeAction(provisioner, provisioner.run())
+        wrapRuntimeAction(provisioner, provisioner.build())
             .launch(new RuntimeProvisionState(ids, labels, workflowRunUrl)));
   }
 
@@ -163,7 +163,7 @@ interface TaskStarter<Output> {
               RuntimeProvisioner<OriginalState> provisioner,
               OperationAction<State, OriginalState, OutputProvisioner.Result> action) {
     return OperationAction.load(RuntimeProvisionState.class, RuntimeProvisionState::workflowRunUrl)
-        .then(OperationStatefulStep.subStep((state, url) -> provisioner.provision(url), action))
+        .then(OperationStatefulStep.subStep((state, url) -> provisioner.prepareProvisionInput(url), action))
         .map(
             (state, result) ->
                 new ProvisionData(state.state().ids(), state.state().labels(), result));
@@ -172,7 +172,7 @@ interface TaskStarter<Output> {
   static <OriginalState extends Record>
       OperationAction<?, RuntimeProvisionState, ProvisionData> wrapRuntimeProvisioner(
           RuntimeProvisioner<OriginalState> provisioner) {
-    return wrapRuntimeAction(provisioner, provisioner.run());
+    return wrapRuntimeAction(provisioner, provisioner.build());
   }
 
   String name();

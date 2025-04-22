@@ -79,21 +79,27 @@ public interface RuntimeProvisioner<State extends Record> {
   String name();
 
   /**
-   * Create state for provisioning the output
+   * Prepare state to provision out data
    *
-   * <p>This method should do not work. It should only create state for use by the {@link #run()}
+   * <p>This method should not do any externally-visible work. Anything it needs should be done in a
+   * {@link #build()} so that Vidarr can execute it once the database is in a healthy state.
+   * If build() is compared to Pattern.compile(), then prepareProvisionInput prepares the String
+   * that will have match() executed against it.
    *
    * @param workflowRunUrl the URL provided by the {@link WorkflowEngine.Result#workflowRunUrl()}
-   * @return the state that will be used by {@link #run()}
+   * @return the state that will be used by {@link #build()}
    */
-  State provision(String workflowRunUrl);
+  State prepareProvisionInput(String workflowRunUrl);
 
   /**
-   * Create a declarative structure to execute the provisioning
+   * Build a declarative structure to execute the provisioning when played back
+   *
+   * Compare to Pattern.compile() - builds a ready object for later use by the processor.
+   * This allows the processor to play back and pause the sequence of events built here.
    *
    * @return the sequence of operations that should be performed
    */
-  OperationAction<?, State, OutputProvisioner.Result> run();
+  OperationAction<?, State, OutputProvisioner.Result> build();
 
   /**
    * Called to initialise this runtime provisioner.

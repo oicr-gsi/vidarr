@@ -966,7 +966,8 @@ public abstract class BaseProcessor<
         } else {
           for (final var operation : activeOperations) {
             if (operation.status().equals(OperationStatus.SUCCEEDED)) {
-              // only launch the non-succeeded operations
+              // update the count of outstanding operations
+              p4.size.decrementAndGet();
               continue;
             }
             if (operation.type().startsWith("$")) {

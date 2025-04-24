@@ -6,6 +6,13 @@ For unreleased changes, see [changes](changes).
 
 -----------------------------------------------------------------------------
 
+## [2.0.2] - 2025-04-24
+
+### Fixed
+
+* Bug in where workflow runs would hang at provision out with all operations SUCCEEDED when the workflow run was recovered and only some operations were SUCCEEDED and others were FAILED/PLUGIN_RUNNING
+
+
 ## [2.0.1] - 2025-04-16
 
 ### Fixed

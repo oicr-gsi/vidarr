@@ -297,6 +297,7 @@ public abstract class DatabaseBackedProcessor
         digest.update(label.getBytes(StandardCharsets.UTF_8));
         digest.update(new byte[]{0});
         digest.update(MAPPER.writeValueAsBytes(labelsFromClient.get(label)));
+	// note that if the .get(label) value is a string, writeValueAsBytes will also encode the literal (escaped) quote marks around the value.
       }
 
       return hexDigits(digest.digest());

@@ -1090,7 +1090,7 @@
               }
             }
           },
-          "description": "Available filters are: [\"and\", \"not\", \"or\", \"vidarr-analysis-id\", \"vidarr-completed-after\", \"vidarr-external-id\", \"vidarr-external-provider\", \"vidarr-last-submitted-after\", \"vidarr-workflow-id\", \"vidarr-workflow-name\", \"vidarr-workflow-run-id\"]. Filters can be combined."
+          "description": "The `filter` object contains two arguments: `type` and a value. Valid `type` options are: [\"and\", \"not\", \"or\", \"vidarr-analysis-id\", \"vidarr-completed-after\", \"vidarr-external-id\", \"vidarr-external-provider\", \"vidarr-last-submitted-after\", \"vidarr-workflow-id\", \"vidarr-workflow-name\", \"vidarr-workflow-run-id\"]. The value is type-dependent; options are described in the UnloadFilterX options in the Schemas section below.\n\nFor example, unloading by workflow run ID would look like this: { \"type\": \"vidarr-workflow-run-id\", \"id\": [\"list of one or more workflow run IDs\"] } .\n\nThe \"and\", \"not\" or \"or\" filter types accept an array of filters, which enables combining filter conditions."
         },
         "responses": {
           "200": {
@@ -1678,7 +1678,7 @@
               }
             }
           },
-          "description": "Available filters are: [\"and\", \"not\", \"or\", \"vidarr-analysis-id\", \"vidarr-completed-after\", \"vidarr-external-id\", \"vidarr-external-provider\", \"vidarr-last-submitted-after\", \"vidarr-workflow-id\", \"vidarr-workflow-name\", \"vidarr-workflow-run-id\"]. Filters can be combined. Definitionally, 'recursive' is true"
+          "description": "The `filter` object contains two arguments: `type` and a value. Valid `type` options are: [\"and\", \"not\", \"or\", \"vidarr-analysis-id\", \"vidarr-completed-after\", \"vidarr-external-id\", \"vidarr-external-provider\", \"vidarr-last-submitted-after\", \"vidarr-workflow-id\", \"vidarr-workflow-name\", \"vidarr-workflow-run-id\"]. The value is type-dependent; options are described in the UnloadFilterX options in the Schemas section below.\n\nFor example, unloading by workflow run ID would look like this: { \"type\": \"vidarr-workflow-run-id\", \"id\": [\"list of one or more workflow run IDs\"] } .\n\nThe \"and\", \"not\" or \"or\" filter types accept an array of filters, which enables combining filter conditions. Definitionally, 'recursive' is true"
         },
         "responses": {
           "200": {

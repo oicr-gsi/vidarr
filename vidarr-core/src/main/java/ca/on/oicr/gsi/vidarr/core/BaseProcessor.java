@@ -842,6 +842,11 @@ public abstract class BaseProcessor<
           p1.release(true);
         } else {
           for (final var operation : activeOperations) {
+            if (operation.status().equals(OperationStatus.SUCCEEDED)) {
+              // update the count of outstanding operations
+              p1.outstanding.decrementAndGet();
+              continue;
+            }
             TaskStarter.of(
                     operation.type(),
                     target
@@ -863,6 +868,11 @@ public abstract class BaseProcessor<
           );
         } else {
           for (final var operation : activeOperations) {
+            if (operation.status().equals(OperationStatus.SUCCEEDED)) {
+              // update the count of outstanding operations
+              p2.size.decrementAndGet();
+              continue;
+            }
             PrepareInputProvisioning.recover(
                     definition.language(),
                     operation,

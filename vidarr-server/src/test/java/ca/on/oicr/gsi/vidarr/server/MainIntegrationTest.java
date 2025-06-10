@@ -95,6 +95,11 @@ public class MainIntegrationTest {
   }
 
   @Test
+  public void whenGetAtom_then200Response() {
+    get("/workflows.atom").then().assertThat().statusCode(200);
+  }
+
+  @Test
   public void whenGetWorkflows_thenAvailableWorkflowsAreFound() {
     List<Map<String, Object>> activeWorkflows = get("/api/workflows").as(new TypeRef<>() {});
     assertTrue(activeWorkflows.size() > 1);

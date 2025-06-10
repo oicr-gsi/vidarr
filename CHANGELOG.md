@@ -6,6 +6,17 @@ For unreleased changes, see [changes](changes).
 
 -----------------------------------------------------------------------------
 
+## [2.1.0] - 2025-06-10
+
+### Added
+
+* Add vidarr-cardea plugin to get workflow run priority from Cardea case id
+
+### Changed
+
+* Clarify filter usage for copy-out and unload
+
+
 ## [2.0.2] - 2025-04-24
 
 ### Fixed

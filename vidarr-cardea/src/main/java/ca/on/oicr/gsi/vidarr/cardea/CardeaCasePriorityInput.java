@@ -68,7 +68,7 @@ public class CardeaCasePriorityInput implements PriorityInput {
     return ttl;
   }
 
-  public String getUrl() {
+  public String getBaseUrl() {
     return baseUrl;
   }
 
@@ -99,8 +99,8 @@ public class CardeaCasePriorityInput implements PriorityInput {
     this.ttl = ttl;
   }
 
-  public void setUrl(String url) {
-    this.baseUrl = url;
+  public void setBaseUrl(String baseUrl) {
+    this.baseUrl = baseUrl;
   }
 
   @Override

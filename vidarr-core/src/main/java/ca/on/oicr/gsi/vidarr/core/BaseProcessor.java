@@ -838,15 +838,11 @@ public abstract class BaseProcessor<
         final var p1 =
             new Phase1Preflight(
                 target, activeOperations.size(), workflow, definition, workflow.isPreflightOkay());
-        if (activeOperations.stream().allMatch(o -> o.status().equals(OperationStatus.SUCCEEDED))) {
-          p1.release(true);
-        } else {
-          for (final var operation : activeOperations) {
-            if (operation.status().equals(OperationStatus.SUCCEEDED)) {
-              // update the count of outstanding operations
-              p1.outstanding.decrementAndGet();
-              continue;
-            }
+        for (final var operation : activeOperations) {
+          if (operation.status().equals(OperationStatus.SUCCEEDED) || operation.status()
+              .equals(OperationStatus.FAILED)) {
+            p1.release(operation.status().equals(OperationStatus.SUCCEEDED));
+          } else {
             TaskStarter.of(
                     operation.type(),
                     target

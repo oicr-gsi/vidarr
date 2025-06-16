@@ -10,6 +10,7 @@ For unreleased changes, see [changes](changes).
 
 ### Fixed
 
+* Update vidarr-cardea `url` to `baseUrl`
 
 
 ## [2.1.0] - 2025-06-10

@@ -5,63 +5,50 @@ import ca.on.oicr.gsi.cache.SimpleRecord;
 import ca.on.oicr.gsi.vidarr.BasicType;
 import ca.on.oicr.gsi.vidarr.JsonBodyHandler;
 import ca.on.oicr.gsi.vidarr.PriorityInput;
-import com.fasterxml.jackson.core.JacksonException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import io.prometheus.client.Counter;
 import io.undertow.Handlers;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.HttpServerExchange;
 import io.undertow.util.StatusCodes;
+import java.lang.System.Logger.Level;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Optional;
+import java.util.function.Supplier;
 
 public class CardeaCasePriorityInput implements PriorityInput {
 
   private static final HttpClient HTTP_CLIENT = HttpClient.newHttpClient();
-  private static final ObjectMapper MAPPER =
-      new ObjectMapper()
-          .registerModule(new Jdk8Module())
-          .configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true);
+  private static final ObjectMapper MAPPER = new ObjectMapper().registerModule(new Jdk8Module());
   private int defaultPriority;
-  private BasicType schema;
   private int ttl = 60;
   private String baseUrl;
   private KeyValueCache<String, Optional<Integer>> values;
   private static final String casePriorityUrlFormat = "%s/cases/%s/priority";
 
-  static final Counter CARDEA_CASE_ID_PRIORITY_FAILED =
+  static final Counter CARDEA_CASE_ID_UNKNOWN =
       Counter.build(
-              "vidarr_cardea_priority_by_case_id_failed_requests",
-              "The number of failed Cardea priority by case id requests")
+              "vidarr_cardea_case_id_unknown",
+              "The number requests where the case id is unknown to Cardea")
           .labelNames("target")
           .register();
 
   @Override
   public int compute(String workflowName, String workflowVersion, Instant created, JsonNode input) {
-    try {
-      return values.get(MAPPER.writeValueAsString(input)).orElse(defaultPriority);
-    } catch (JacksonException e) {
-      CARDEA_CASE_ID_PRIORITY_FAILED.labels(baseUrl).inc();
-      e.printStackTrace();
-      return defaultPriority;
-    }
+    return values.get(input.asText()).orElse(defaultPriority);
   }
 
   public int getDefaultPriority() {
     return defaultPriority;
-  }
-
-  public BasicType getSchema() {
-    return schema;
   }
 
   public int getTtl() {
@@ -91,10 +78,6 @@ public class CardeaCasePriorityInput implements PriorityInput {
     this.defaultPriority = defaultPriority;
   }
 
-  public void setSchema(BasicType schema) {
-    this.schema = schema;
-  }
-
   public void setTtl(int ttl) {
     this.ttl = ttl;
   }
@@ -109,7 +92,7 @@ public class CardeaCasePriorityInput implements PriorityInput {
         new KeyValueCache<>(resourceName + " " + inputName, ttl, SimpleRecord::new) {
           @Override
           protected Optional<Integer> fetch(String caseId, Instant lastUpdated) throws Exception {
-            return HTTP_CLIENT
+            HttpResponse<Supplier<Optional<Integer>>> response = HTTP_CLIENT
                 .send(
                     HttpRequest.newBuilder(
                             URI.create(
@@ -121,9 +104,15 @@ public class CardeaCasePriorityInput implements PriorityInput {
                         .header("Content-type", "application/json")
                         .GET()
                         .build(),
-                    new JsonBodyHandler<>(MAPPER, new TypeReference<Optional<Integer>>() {}))
-                .body()
-                .get();
+                    new JsonBodyHandler<>(MAPPER, new TypeReference<>() {
+                    }));
+            if (response.statusCode() == 404) {
+              System.err.printf("%s: caseId=\"%s\" not found at %s\n", Level.WARNING, caseId, baseUrl);
+              CARDEA_CASE_ID_UNKNOWN.labels(baseUrl).inc();
+              // compute() will determine what priority should be returned
+              return Optional.empty();
+            }
+            return response.body().get();
           }
         };
   }

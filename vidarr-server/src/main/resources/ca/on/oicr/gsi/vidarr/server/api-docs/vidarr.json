@@ -1431,7 +1431,7 @@
     },
     "/api/status/{hash}": {
       "delete": {
-        "description": "Delete an active workflow run using the workflow run's unique identifier",
+        "description": "Delete a failed or waiting workflow run using the workflow run's unique identifier",
         "parameters": [
           {
             "description": "Unique workflow run identifier",

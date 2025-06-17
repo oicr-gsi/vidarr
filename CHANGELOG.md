@@ -6,6 +6,14 @@ For unreleased changes, see [changes](changes).
 
 -----------------------------------------------------------------------------
 
+## [2.1.2] - 2025-06-17
+
+### Fixed
+
+* Fix vidarr-cardea input parsing of case id and update its prometheus metric to tracking unknown case ids rather than parse errors
+* Bug where recovering a workflow run in preflight where all operations were succeeded caused the workflow run to get stuck
+
+
 ## [2.1.1] - 2025-06-11
 
 ### Fixed

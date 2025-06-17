@@ -2206,7 +2206,7 @@ public final class Main implements ServerConfig {
       System.err.println("No unstarted workflows in the database. Resuming normal operation.");
     } else {
       System.err.printf(
-          "Recovering %d unstarted workflows fom the database.", recoveredWorkflows.size());
+          "Recovering %d unstarted workflows from the database.\n", recoveredWorkflows.size());
       recoveredWorkflows.forEach(Runnable::run);
     }
   }

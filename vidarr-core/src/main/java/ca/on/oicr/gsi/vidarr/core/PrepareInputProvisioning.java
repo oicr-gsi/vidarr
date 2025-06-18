@@ -20,7 +20,9 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-/** Start the input provisioning tasks */
+/**
+ * Start the input provisioning tasks
+ */
 final class PrepareInputProvisioning implements InputType.Visitor<JsonNode> {
 
   private static <State extends Record> TaskStarter<JsonMutation> launch(
@@ -69,36 +71,38 @@ final class PrepareInputProvisioning implements InputType.Visitor<JsonNode> {
   }
 
   static <State extends Record, OriginalState extends Record>
-      OperationAction<
-              Child<InputProvisioningStateExternal, State>,
-              InputProvisioningStateExternal,
-              JsonMutation>
-          wrapProvisionActionExternal(
-              WorkflowLanguage language,
-              InputProvisioner<OriginalState> provisioner,
-              OperationAction<State, OriginalState, JsonNode> action) {
+  OperationAction<
+      Child<InputProvisioningStateExternal, State>,
+      InputProvisioningStateExternal,
+      JsonMutation>
+  wrapProvisionActionExternal(
+      WorkflowLanguage language,
+      InputProvisioner<OriginalState> provisioner,
+      OperationAction<State, OriginalState, JsonNode> action) {
     return OperationAction.load(
             InputProvisioningStateExternal.class, InputProvisioningStateExternal::metadata)
         .then(
             OperationStatefulStep.subStep(
-                (state, metadata) -> provisioner.prepareExternalProvisionInput(language, metadata), action))
+                (state, metadata) -> provisioner.prepareExternalProvisionInput(language, metadata),
+                action))
         .map((state, result) -> new JsonMutation(state.state().mutation(), result));
   }
 
   static <State extends Record, OriginalState extends Record>
-      OperationAction<
-              Child<InputProvisioningStateInternal, State>,
-              InputProvisioningStateInternal,
-              JsonMutation>
-          wrapProvisionActionInternal(
-              WorkflowLanguage language,
-              InputProvisioner<OriginalState> provisioner,
-              OperationAction<State, OriginalState, JsonNode> action) {
+  OperationAction<
+      Child<InputProvisioningStateInternal, State>,
+      InputProvisioningStateInternal,
+      JsonMutation>
+  wrapProvisionActionInternal(
+      WorkflowLanguage language,
+      InputProvisioner<OriginalState> provisioner,
+      OperationAction<State, OriginalState, JsonNode> action) {
     return OperationAction.load(
             InputProvisioningStateInternal.class, InputProvisioningStateInternal::id)
         .then(
             OperationStatefulStep.subStep(
-                (state, id) -> provisioner.prepareInternalProvisionInput(language, id, state.path()), action))
+                (state, id) -> provisioner.prepareInternalProvisionInput(language, id,
+                    state.path()), action))
         .map((state, result) -> new JsonMutation(state.state().mutation(), result));
   }
 
@@ -240,7 +244,9 @@ final class PrepareInputProvisioning implements InputType.Visitor<JsonNode> {
               && input.get("contents").size() == 1
               && input.get("contents").get(0).isTextual()) {
             final var id = input.get("contents").get(0).asText();
-            final var filePath = resolver.pathForId(id).map(FileMetadata::path).orElseThrow();
+            final var filePath = resolver.pathForId(id).map(FileMetadata::path).orElseThrow(
+                () -> new IllegalArgumentException(
+                    String.format("Could not resolve input file %s", id)));
             consumer.accept(launch(format, language, handler, jsonPath, id, filePath));
           } else {
             throw new IllegalArgumentException("Invalid input file for BY_ID");

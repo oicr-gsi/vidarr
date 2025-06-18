@@ -6,6 +6,13 @@ For unreleased changes, see [changes](changes).
 
 -----------------------------------------------------------------------------
 
+## [2.1.3] - 2025-06-18
+
+### Fixed
+
+* Fix vidarr-cache fetch initial cache population exception by returning the default priority
+
+
 ## [2.1.2] - 2025-06-17
 
 ### Fixed

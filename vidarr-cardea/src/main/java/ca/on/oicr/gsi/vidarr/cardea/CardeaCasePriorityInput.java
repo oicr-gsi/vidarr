@@ -109,8 +109,7 @@ public class CardeaCasePriorityInput implements PriorityInput {
             if (response.statusCode() == 404) {
               System.err.printf("%s: caseId=\"%s\" not found at %s\n", Level.WARNING, caseId, baseUrl);
               CARDEA_CASE_ID_UNKNOWN.labels(baseUrl).inc();
-              // compute() will determine what priority should be returned
-              return Optional.empty();
+              return Optional.of(defaultPriority);
             }
             return response.body().get();
           }

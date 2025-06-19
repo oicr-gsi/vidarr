@@ -38,7 +38,7 @@ type.
 This provision will only handle an output format if all the provisioners can
 handle that format.
 
-## Raw Input Provider
+## Raw Input Provisioner
 The raw input provisioner assumes that output files are available as input
 files and passes them through unchanged to workflows.
 
@@ -61,3 +61,11 @@ Only file output types are supported. The provisioner will preserve the original
 outputs.
 This Output Provisioner is meant primarily for testing and development, and is not meant for use
 in production or to move large (>~2GB) files.
+
+## No-Op Workflow Engine
+This Workflow Engine is primarily used during development. Like the Raw Input Provisioner, the
+No-Op Workflow Engine passes inputs unchanged through to Output Provisioning.
+The No-Op Workflow Engine "supports" all workflow languages, because it completely ignores the 
+workflow provided.
+
+    "type": "no-op"

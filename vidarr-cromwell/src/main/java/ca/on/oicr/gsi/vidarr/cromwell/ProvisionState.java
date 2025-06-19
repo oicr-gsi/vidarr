@@ -17,14 +17,14 @@ public record ProvisionState(
     String cromwellUrl, String fileName, JsonNode metadata, String vidarrId) {
 
   public HttpRequest buildLaunchRequest(CromwellOutputProvisioner provisioner) throws IOException {
-    final var outputMetadata = MAPPER.convertValue(metadata, OutputMetadata.class);
-    var path = Path.of(outputMetadata.getOutputDirectory());
+    final OutputMetadata outputMetadata = MAPPER.convertValue(metadata, OutputMetadata.class);
+    Path path = Path.of(outputMetadata.getOutputDirectory());
     int startIndex = 0;
-    for (final var length : provisioner.getChunks()) {
+    for (final int length : provisioner.getChunks()) {
       if (length < 1) {
         break;
       }
-      final var endIndex = Math.min(vidarrId.length(), startIndex + length);
+      final int endIndex = Math.min(vidarrId.length(), startIndex + length);
       if (endIndex == startIndex) {
         break;
       }
@@ -32,9 +32,9 @@ public record ProvisionState(
       startIndex = endIndex;
     }
 
-    final var outputPrefix = path.resolve(vidarrId).toString();
+    final String outputPrefix = path.resolve(vidarrId).toString();
 
-    final var body =
+    final MultiPartBodyPublisher body =
         new MultiPartBodyPublisher()
             .addPart(
                 provisioner.getWorkflowUrl() == null ? "workflowSource" : "workflowUrl",

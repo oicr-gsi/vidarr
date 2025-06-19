@@ -22,6 +22,7 @@ import ca.on.oicr.gsi.vidarr.OperationStatus;
 import ca.on.oicr.gsi.vidarr.OutputType;
 import ca.on.oicr.gsi.vidarr.WorkflowDefinition;
 import ca.on.oicr.gsi.vidarr.api.BulkVersionRequest;
+import ca.on.oicr.gsi.vidarr.api.BulkVersionUpdate;
 import ca.on.oicr.gsi.vidarr.api.ExternalId;
 import ca.on.oicr.gsi.vidarr.api.ExternalKey;
 import ca.on.oicr.gsi.vidarr.api.ExternalMultiVersionKey;
@@ -37,6 +38,7 @@ import ca.on.oicr.gsi.vidarr.core.Phase;
 import ca.on.oicr.gsi.vidarr.core.RecoveryType;
 import ca.on.oicr.gsi.vidarr.core.Target;
 import ca.on.oicr.gsi.vidarr.core.ValidateJsonToSimpleType;
+import ca.on.oicr.gsi.vidarr.server.jooq.tables.records.ExternalIdVersionRecord;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -51,6 +53,7 @@ import java.lang.ref.SoftReference;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.sql.Connection;
 import java.sql.SQLException;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -62,6 +65,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -81,6 +85,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
+import org.jooq.InsertValuesStep3;
 import org.jooq.Record1;
 import org.jooq.Record2;
 import org.jooq.SQLDialect;
@@ -222,7 +227,7 @@ public abstract class DatabaseBackedProcessor
 
   private static WorkflowDefinition buildDefinitionFromRecord(
       DSLContext context, org.jooq.Record record) {
-    final var accessoryFiles =
+    final Map<String, String> accessoryFiles =
         context
             .select(WORKFLOW_VERSION_ACCESSORY.FILENAME, WORKFLOW_DEFINITION.WORKFLOW_FILE)
             .from(
@@ -271,17 +276,17 @@ public abstract class DatabaseBackedProcessor
       TreeSet<String> inputIds,
       Collection<? extends ExternalId> externalIds) {
     try {
-      final var digest = MessageDigest.getInstance("SHA-256");
+      final MessageDigest digest = MessageDigest.getInstance("SHA-256");
       digest.update(name.getBytes(StandardCharsets.UTF_8));
-      for (final var id : inputIds) {
-        final var idBytes = hashFromAnalysisId(id).getBytes(StandardCharsets.UTF_8);
+      for (final String id : inputIds) {
+        final byte[] idBytes = hashFromAnalysisId(id).getBytes(StandardCharsets.UTF_8);
         digest.update(new byte[]{0});
         digest.update(idBytes);
       }
-      final var sortedExternalIds = new ArrayList<>(externalIds);
+      final ArrayList<? extends ExternalId> sortedExternalIds = new ArrayList<>(externalIds);
       sortedExternalIds.sort(
           Comparator.comparing(ExternalId::getProvider).thenComparing(ExternalId::getId));
-      for (final var id : sortedExternalIds) {
+      for (final ExternalId id : sortedExternalIds) {
         digest.update(new byte[]{0});
         digest.update(new byte[]{0});
         digest.update(id.getProvider().getBytes(StandardCharsets.UTF_8));
@@ -292,7 +297,7 @@ public abstract class DatabaseBackedProcessor
 
       // The client may submit any number of workflow labels, but this hashing/matching only
       // takes into account the labels that the workflow is configured with.
-      for (final var label : labelsFromWorkflow) {
+      for (final String label : labelsFromWorkflow) {
         digest.update(new byte[]{0});
         digest.update(label.getBytes(StandardCharsets.UTF_8));
         digest.update(new byte[]{0});
@@ -307,18 +312,31 @@ public abstract class DatabaseBackedProcessor
     }
   }
 
+  /**
+   * Sanity check an individual workflow run's labels against the workflow definition's labels
+   * @param providedLabels labels from an individual workflow run
+   * @param expectedLabels labels from the workflow definition
+   * @return Stream of label errors
+   */
   public static Stream<String> validateLabels(
-      ObjectNode providedLabels, Map<String, BasicType> labels) {
-    final var providedCount = providedLabels == null ? 0 : providedLabels.size();
-    final var labelCount = labels == null ? 0 : labels.size();
-    if (labelCount == 0 && providedCount == 0) {
+      ObjectNode providedLabels, Map<String, BasicType> expectedLabels) {
+
+    // Provided and Expected labels should have the same counts
+    // If no labels provided nor expected, return early
+    final int providedCount = providedLabels == null ? 0 : providedLabels.size();
+    final int expectedLabelCount = expectedLabels == null ? 0 : expectedLabels.size();
+    if (expectedLabelCount == 0 && providedCount == 0) {
       return Stream.empty();
     }
-    if (providedCount != labelCount) {
+    if (providedCount != expectedLabelCount) {
       return Stream.of(
-          String.format("%d labels are provided but %d are expected.", providedCount, labelCount));
+          String.format("%d labels are provided but %d are expected.", providedCount, expectedLabelCount));
     }
-    return labels.entrySet().stream()
+
+    // For every expected label, see if that label is in the provided labels
+    // If it is, validate that the label can be resolved to a vidarr type and return it
+    // Otherwise report label not provided
+    return expectedLabels.entrySet().stream()
         .flatMap(
             entry -> {
               if (providedLabels.has(entry.getKey())) {
@@ -349,15 +367,15 @@ public abstract class DatabaseBackedProcessor
       DSLContext transaction,
       Long workflowRunId,
       HashMap<Pair<String, String>, List<String>> knownMatches) {
-    var externalVersionInsert =
+    InsertValuesStep3<ExternalIdVersionRecord, Integer, String, String> externalVersionInsert =
         transaction
             .insertInto(EXTERNAL_ID_VERSION)
             .columns(
                 EXTERNAL_ID_VERSION.EXTERNAL_ID_ID,
                 EXTERNAL_ID_VERSION.KEY,
                 EXTERNAL_ID_VERSION.VALUE);
-    for (final var externalKey : externalKeys) {
-      final var matchKeys =
+    for (final ExternalKey externalKey : externalKeys) {
+      final List<String> matchKeys =
           knownMatches.get(new Pair<>(externalKey.getProvider(), externalKey.getId()));
       transaction
           .update(EXTERNAL_ID_VERSION)
@@ -387,7 +405,7 @@ public abstract class DatabaseBackedProcessor
                           .reduce(Condition::or)
                           .orElseThrow()))
           .execute();
-      for (final var entry : externalKey.getVersions().entrySet()) {
+      for (final Entry<String, String> entry : externalKey.getVersions().entrySet()) {
         if (matchKeys.contains(entry.getKey())) {
           continue;
         }
@@ -410,11 +428,11 @@ public abstract class DatabaseBackedProcessor
   }
 
   protected final <T> T delete(String workflowRunId, DeleteResultHandler<T> handler) {
-    try (final var connection = dataSource.getConnection()) {
+    try (final Connection connection = dataSource.getConnection()) {
       return DSL.using(connection, SQLDialect.POSTGRES)
           .transactionResult(
               context -> {
-                final var transaction = DSL.using(context);
+                final DSLContext transaction = DSL.using(context);
                 return transaction
                     .select(ACTIVE_WORKFLOW_RUN.ID, DSL.field(IS_DEAD))
                     .from(
@@ -426,9 +444,9 @@ public abstract class DatabaseBackedProcessor
                     .map(
                         (id_and_dead) -> {
                           if (id_and_dead.component2()) {
-                            final var oldLiveness = liveness.remove(id_and_dead.component1());
+                            final SoftReference<AtomicBoolean> oldLiveness = liveness.remove(id_and_dead.component1());
                             if (oldLiveness != null) {
-                              final var oldLivenessLock = oldLiveness.get();
+                              final AtomicBoolean oldLivenessLock = oldLiveness.get();
                               if (oldLivenessLock != null) {
                                 oldLivenessLock.set(false);
                               }
@@ -503,7 +521,7 @@ public abstract class DatabaseBackedProcessor
                             MAPPER,
                             arguments.get(p.name()),
                             id -> {
-                              final var result = pathForId(id);
+                              final Optional<FileMetadata> result = pathForId(id);
                               if (result.isEmpty()) {
                                 unresolvedIds.add(id);
                               }
@@ -607,7 +625,7 @@ public abstract class DatabaseBackedProcessor
       TreeSet<ExternalId> externalIds,
       String candidateId)
       throws SQLException {
-    final var dbWorkflow =
+    final DatabaseWorkflow dbWorkflow =
         DatabaseWorkflow.create(
             targetName,
             target,
@@ -624,15 +642,15 @@ public abstract class DatabaseBackedProcessor
             consumableResources,
             this::liveness,
             transaction);
-    var externalVersionInsert =
+    InsertValuesStep3<ExternalIdVersionRecord, Integer, String, String> externalVersionInsert =
         transaction
             .insertInto(EXTERNAL_ID_VERSION)
             .columns(
                 EXTERNAL_ID_VERSION.EXTERNAL_ID_ID,
                 EXTERNAL_ID_VERSION.KEY,
                 EXTERNAL_ID_VERSION.VALUE);
-    for (final var externalKey : externalKeys) {
-      for (final var entry : externalKey.getVersions().entrySet()) {
+    for (final ExternalKey externalKey : externalKeys) {
+      for (final Entry<String, String> entry : externalKey.getVersions().entrySet()) {
         externalVersionInsert =
             externalVersionInsert.values(
                 DSL.field(
@@ -693,12 +711,12 @@ public abstract class DatabaseBackedProcessor
 
   final void recover(Consumer<Runnable> startRaw, MaxInFlightByWorkflow maxInflightByWorkflow)
       throws SQLException {
-    try (final var connection = dataSource.getConnection()) {
+    try (final Connection connection = dataSource.getConnection()) {
       DSL.using(connection, SQLDialect.POSTGRES)
           .transaction(
               context -> {
-                var dsl = DSL.using(context);
-                var operations =
+                DSLContext dsl = DSL.using(context);
+                Map<Long, List<DatabaseOperation>> operations =
                     dsl
                         .select(ACTIVE_OPERATION.asterisk())
                         .from(ACTIVE_OPERATION)
@@ -758,25 +776,25 @@ public abstract class DatabaseBackedProcessor
                                       try {
                                         if (record.get(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE)
                                             == Phase.WAITING_FOR_RESOURCES) {
-                                          final var definition =
+                                          final WorkflowDefinition definition =
                                               buildDefinitionFromRecord(context.dsl(), record);
-                                          final var activeOperations =
+                                          final List<DatabaseOperation> activeOperations =
                                               operations.getOrDefault(
                                                   record.get(ACTIVE_WORKFLOW_RUN.ID), List.of());
-                                          final var workflow =
+                                          final DatabaseWorkflow workflow =
                                               DatabaseWorkflow.recover(
                                                   target,
                                                   record,
                                                   liveness(record.get(ACTIVE_WORKFLOW_RUN.ID)),
                                                   dsl);
-                                          for (final var operation : activeOperations) {
+                                          for (final DatabaseOperation operation : activeOperations) {
                                             operation.linkTo(workflow);
                                           }
-                                          final var consumableResources =
+                                          final Map<String, JsonNode> consumableResources =
                                               MAPPER.convertValue(
                                                   record.get(
                                                       ACTIVE_WORKFLOW_RUN.CONSUMABLE_RESOURCES),
-                                                  new TypeReference<Map<String, JsonNode>>() {
+                                                  new TypeReference<>() {
                                                   });
                                           startRaw.accept(
                                               new ConsumableResourceChecker(
@@ -815,16 +833,16 @@ public abstract class DatabaseBackedProcessor
                                                                   record.get(
                                                                       ACTIVE_WORKFLOW_RUN
                                                                           .CONSUMABLE_RESOURCES))));
-                                          final var workflow =
+                                          final DatabaseWorkflow workflow =
                                               DatabaseWorkflow.recover(
                                                   target,
                                                   record,
                                                   liveness(record.get(ACTIVE_WORKFLOW_RUN.ID)),
                                                   dsl);
-                                          final var activeOperations =
+                                          final List<DatabaseOperation> activeOperations =
                                               operations.getOrDefault(
                                                   record.get(ACTIVE_WORKFLOW_RUN.ID), List.of());
-                                          for (final var operation : activeOperations) {
+                                          for (final DatabaseOperation operation : activeOperations) {
                                             operation.linkTo(workflow);
                                           }
                                           recover(
@@ -850,13 +868,13 @@ public abstract class DatabaseBackedProcessor
   }
 
   public final List<String> retry(Optional<List<String>> workflowRunIds) throws SQLException {
-    try (final var connection = dataSource.getConnection()) {
-      final var ids = new ArrayList<String>();
+    try (final Connection connection = dataSource.getConnection()) {
+      final ArrayList<String> ids = new ArrayList<>();
       DSL.using(connection, SQLDialect.POSTGRES)
           .transaction(
               context -> {
-                var dsl = DSL.using(context);
-                var operations =
+                DSLContext dsl = DSL.using(context);
+                Map<Long, List<DatabaseOperation>> operations =
                     dsl
                         .select(ACTIVE_OPERATION.asterisk())
                         .from(
@@ -888,7 +906,7 @@ public abstract class DatabaseBackedProcessor
                                           r, liveness(r.get(ACTIVE_OPERATION.WORKFLOW_RUN_ID)));
                                     },
                                     toList())));
-                final var updated =
+                final int updated =
                     dsl.update(ACTIVE_WORKFLOW_RUN)
                         .set(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE, Phase.PROVISION_OUT)
                         .where(ACTIVE_WORKFLOW_RUN.ID.in(operations.keySet()))
@@ -932,7 +950,7 @@ public abstract class DatabaseBackedProcessor
                                                                 record.get(
                                                                     ACTIVE_WORKFLOW_RUN
                                                                         .CONSUMABLE_RESOURCES))));
-                                        final var activeOperations =
+                                        final List<DatabaseOperation> activeOperations =
                                             operations.get(record.get(ACTIVE_WORKFLOW_RUN.ID));
                                         if (activeOperations.isEmpty()) {
                                           System.err.printf(
@@ -940,13 +958,13 @@ public abstract class DatabaseBackedProcessor
                                               record.get(WORKFLOW_RUN.HASH_ID));
                                           return;
                                         }
-                                        final var workflow =
+                                        final DatabaseWorkflow workflow =
                                             DatabaseWorkflow.recover(
                                                 target,
                                                 record,
                                                 liveness(record.get(ACTIVE_WORKFLOW_RUN.ID)),
                                                 dsl);
-                                        for (final var operation : activeOperations) {
+                                        for (final DatabaseOperation operation : activeOperations) {
                                           operation.linkTo(workflow);
                                         }
                                         recover(
@@ -977,7 +995,7 @@ public abstract class DatabaseBackedProcessor
 
   protected final Optional<FileMetadata> resolveInDatabase(String inputId) {
     try {
-      try (final var connection = dataSource.getConnection()) {
+      try (final Connection connection = dataSource.getConnection()) {
         return DSL
             .using(connection, SQLDialect.POSTGRES)
             .select()
@@ -1043,7 +1061,7 @@ public abstract class DatabaseBackedProcessor
   public final void inTransaction(Consumer<DSLContext> operation) {
     databaseLock.acquireUninterruptibly();
     try {
-      try (final var connection = dataSource.getConnection()) {
+      try (final Connection connection = dataSource.getConnection()) {
         DSL.using(connection, SQLDialect.POSTGRES)
             .transaction(context -> operation.accept(DSL.using(context)));
         connection.commit();
@@ -1072,17 +1090,17 @@ public abstract class DatabaseBackedProcessor
         .map(
             target -> {
               try {
-                try (final var connection = dataSource.getConnection()) {
-                  final var submitResult =
+                try (final Connection connection = dataSource.getConnection()) {
+                  final T submitResult =
                       DSL.using(connection, SQLDialect.POSTGRES)
                           .transactionResult(
                               context -> {
-                                final var transaction = DSL.using(context);
+                                final DSLContext transaction = DSL.using(context);
                                 try {
                                   return getWorkflowByName(name, version, transaction)
                                       .map(
                                           workflow -> {
-                                            final var errors =
+                                            final Set<String> errors =
                                                 validateWorkflowInputs(
                                                     labels,
                                                     arguments,
@@ -1094,7 +1112,7 @@ public abstract class DatabaseBackedProcessor
                                             if (!errors.isEmpty()) {
                                               return handler.invalidWorkflow(errors);
                                             }
-                                            final var retryError =
+                                            final Optional<String> retryError =
                                                 validateWorkflowRetry(arguments, workflow);
                                             if (retryError.isPresent()) {
                                               return handler.invalidWorkflow(
@@ -1126,12 +1144,12 @@ public abstract class DatabaseBackedProcessor
                                                           + " potentially lose keys."));
                                             }
 
-                                            final var inputIds =
+                                            final TreeSet<String> inputIds =
                                                 extractWorkflowInputIds(arguments, workflow);
 
-                                            final var unresolvedIds = new TreeSet<String>();
+                                            final TreeSet<String> unresolvedIds = new TreeSet<>();
 
-                                            final var externalIds =
+                                            final TreeSet<ExternalId> externalIds =
                                                 extractExternalIds(
                                                     arguments, workflow, unresolvedIds);
                                             if (!unresolvedIds.isEmpty()) {
@@ -1142,13 +1160,13 @@ public abstract class DatabaseBackedProcessor
                                               return handler.missingExternalIdVersion();
                                             }
 
-                                            final var externalKeyIds =
+                                            final Set<Pair<String, String>> externalKeyIds =
                                                 externalKeys.stream()
                                                     .map(
                                                         k -> new Pair<>(k.getProvider(), k.getId()))
                                                     .collect(Collectors.toSet());
 
-                                            final var requiredOutputKeys =
+                                            final Set<Pair<String, String>> requiredOutputKeys =
                                                 workflow
                                                     .definition()
                                                     .outputs()
@@ -1164,7 +1182,7 @@ public abstract class DatabaseBackedProcessor
                                                                         metadata.get(
                                                                             output.name()))))
                                                     .collect(Collectors.toSet());
-                                            final var optionalOutputKeys =
+                                            final Set<Pair<String, String>> optionalOutputKeys =
                                                 workflow
                                                     .definition()
                                                     .outputs()
@@ -1215,14 +1233,14 @@ public abstract class DatabaseBackedProcessor
                                                   externalKeyIds, externalIds));
                                             }
                                             try {
-                                              final var candidateId =
+                                              final String candidateId =
                                                   computeWorkflowRunHashId(
                                                       name,
                                                       labels,
                                                       workflow,
                                                       inputIds,
                                                       externalIds);
-                                              final var candidates =
+                                              final List<Candidate> candidates =
                                                   transaction
                                                       .select(
                                                           WORKFLOW_RUN.ID,
@@ -1263,14 +1281,13 @@ public abstract class DatabaseBackedProcessor
                                                   return handler.dryRunResult();
                                                 }
                                               } else if (candidates.size() == 1) {
-                                                final var workflowRunId = candidates.get(0).id();
-                                                final var knownMatches =
-                                                    new HashMap<
-                                                        Pair<String, String>, List<String>>();
-                                                final var missingKeys =
-                                                    new ArrayList<ExternalKey>();
-                                                for (final var externalKey : externalKeys) {
-                                                  final var matchKeys =
+                                                final long workflowRunId = candidates.get(0).id();
+                                                final HashMap<Pair<String, String>, List<String>> knownMatches =
+                                                    new HashMap<>();
+                                                final ArrayList<ExternalKey> missingKeys =
+                                                    new ArrayList<>();
+                                                for (final ExternalKey externalKey : externalKeys) {
+                                                  final List<String> matchKeys =
                                                       findMatchingVersionKeysMatchingExternalId(
                                                           transaction, workflowRunId, externalKey);
 
@@ -1332,15 +1349,15 @@ public abstract class DatabaseBackedProcessor
                                                     .map(Record1::value1)
                                                     .orElse(0)
                                                     > 0) {
-                                                  final var oldLiveness =
+                                                  final SoftReference<AtomicBoolean> oldLiveness =
                                                       liveness.remove(workflowRunId);
                                                   if (oldLiveness != null) {
-                                                    final var oldLivenessLock = oldLiveness.get();
+                                                    final AtomicBoolean oldLivenessLock = oldLiveness.get();
                                                     if (oldLivenessLock != null) {
                                                       oldLivenessLock.set(false);
                                                     }
                                                   }
-                                                  final var dbWorkflow =
+                                                  final DatabaseWorkflow dbWorkflow =
                                                       DatabaseWorkflow.reinitialise(
                                                           target,
                                                           workflowRunId,
@@ -1426,10 +1443,10 @@ public abstract class DatabaseBackedProcessor
   protected abstract Optional<Target> targetByName(String name);
 
   int updateVersions(BulkVersionRequest request) {
-    final var counter = new AtomicInteger();
+    final AtomicInteger counter = new AtomicInteger();
     inTransaction(
         context -> {
-          for (final var update : request.getUpdates()) {
+          for (final BulkVersionUpdate update : request.getUpdates()) {
 
             counter.addAndGet(
                 context
@@ -1485,7 +1502,7 @@ public abstract class DatabaseBackedProcessor
   }
 
   private Optional<String> validateWorkflowRetry(JsonNode arguments, WorkflowInformation workflow) {
-    final var retryCounts =
+    final Map<Integer, Long> retryCounts =
         workflow
             .definition()
             .parameters()
@@ -1512,7 +1529,7 @@ public abstract class DatabaseBackedProcessor
                     .max(Comparator.naturalOrder())
                     .flatMap(
                         max -> {
-                          final var badEntries =
+                          final List<Integer> badEntries =
                               retryCounts.entrySet().stream()
                                   .filter(e -> !e.getValue().equals(max))
                                   .map(Map.Entry::getKey)

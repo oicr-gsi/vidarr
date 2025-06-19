@@ -199,8 +199,8 @@ public abstract sealed class OperationAction<
    * @return a launcher to being execution
    */
   public final Launcher<State, Value> launch(OriginalState originalState) {
-    final var state = buildState(originalState);
-    final var jsonState = MAPPER.valueToTree(state);
+    final State state = buildState(originalState);
+    final JsonNode jsonState = MAPPER.valueToTree(state);
     return new Launcher<>() {
       @Override
       public <TX> void launch(
@@ -232,7 +232,8 @@ public abstract sealed class OperationAction<
   }
 
   /**
-   * Transform the current value into another
+   * Transform the current value into another.
+   * Wraps synchronous methods into async step.
    *
    * <p>This is syntactic sugar for {@link OperationStep#mapping(Transformer)}
    *
@@ -278,7 +279,7 @@ public abstract sealed class OperationAction<
    */
   public final Launcher<State, Value> retry(JsonNode state) {
     try {
-      final var s = rewind(MAPPER.convertValue(state, jacksonType()));
+      final State s = rewind(MAPPER.convertValue(state, jacksonType()));
 
       return new Launcher<>() {
         @Override
@@ -335,7 +336,7 @@ public abstract sealed class OperationAction<
       OperationControlFlow<State, Value> flow);
 
   /**
-   * Transform the current operation in a way that uses state
+   * Transform the current operation using some async method that uses state.
    *
    * @param flow the flow control to apply; this flow control might modify the state
    * @return an action that applies this modification
@@ -349,7 +350,7 @@ public abstract sealed class OperationAction<
   }
 
   /**
-   * Perform an operation on the current value and return a new value
+   * Perform an async operation on the current value and return a new value
    *
    * <p>Note that these steps are independent of the state and only operate the input value
    *

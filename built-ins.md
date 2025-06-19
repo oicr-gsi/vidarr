@@ -38,7 +38,7 @@ type.
 This provision will only handle an output format if all the provisioners can
 handle that format.
 
-## Raw Input Provider
+## Raw Input Provisioner
 The raw input provisioner assumes that output files are available as input
 files and passes them through unchanged to workflows.
 
@@ -52,3 +52,10 @@ The `"formats"` list determines what input formats it will handle. `"FILE"` and
 `"DIRECTORY"` are supported. Note that some workflow engines, including
 Cromwell, are not equipped to handle directories in all cases.
 
+## No-Op Workflow Engine
+This Workflow Engine is primarily used during development. Like the Raw Input Provisioner, the
+No-Op Workflow Engine passes inputs unchanged through to Output Provisioning.
+The No-Op Workflow Engine "supports" all workflow languages, because it completely ignores the 
+workflow provided.
+
+    "type": "no-op"

@@ -4,10 +4,12 @@ import ca.on.oicr.gsi.vidarr.OutputProvisionerProvider;
 import ca.on.oicr.gsi.vidarr.PriorityFormulaProvider;
 import ca.on.oicr.gsi.vidarr.PriorityInputProvider;
 import ca.on.oicr.gsi.vidarr.PriorityScorerProvider;
+import ca.on.oicr.gsi.vidarr.WorkflowEngineProvider;
 import ca.on.oicr.gsi.vidarr.core.CoreConsumableResourceProvider;
 import ca.on.oicr.gsi.vidarr.core.CorePriorityFormulaProvider;
 import ca.on.oicr.gsi.vidarr.core.CorePriorityInputProvider;
 import ca.on.oicr.gsi.vidarr.core.CorePriorityScorerProvider;
+import ca.on.oicr.gsi.vidarr.core.NoOpWorkflowEngine;
 import ca.on.oicr.gsi.vidarr.core.LocalOutputProvisioner;
 import ca.on.oicr.gsi.vidarr.core.OneOfInputProvisioner;
 import ca.on.oicr.gsi.vidarr.core.OneOfOutputProvisioner;
@@ -47,4 +49,6 @@ module ca.on.oicr.gsi.vidarr.core {
       CorePriorityFormulaProvider;
   provides PriorityScorerProvider with
       CorePriorityScorerProvider;
+  provides WorkflowEngineProvider with
+      NoOpWorkflowEngine;
 }

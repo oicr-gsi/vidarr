@@ -59,3 +59,5 @@ The Local Output Provisioner moves files from one location in the local environm
 
 Only file output types are supported. The provisioner will preserve the original filename of the
 outputs.
+This Output Provisioner is meant primarily for testing and development, and is not meant for use
+in production or to move large (>~2GB) files.

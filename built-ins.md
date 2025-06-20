@@ -52,3 +52,12 @@ The `"formats"` list determines what input formats it will handle. `"FILE"` and
 `"DIRECTORY"` are supported. Note that some workflow engines, including
 Cromwell, are not equipped to handle directories in all cases.
 
+## Local Output Provisioner
+The Local Output Provisioner moves files from one location in the local environment to another.
+
+    "type": "local"
+
+Only file output types are supported. The provisioner will preserve the original filename of the
+outputs.
+This Output Provisioner is meant primarily for testing and development, and is not meant for use
+in production or to move large (>~2GB) files.

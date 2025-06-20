@@ -8,6 +8,7 @@ import ca.on.oicr.gsi.vidarr.core.CoreConsumableResourceProvider;
 import ca.on.oicr.gsi.vidarr.core.CorePriorityFormulaProvider;
 import ca.on.oicr.gsi.vidarr.core.CorePriorityInputProvider;
 import ca.on.oicr.gsi.vidarr.core.CorePriorityScorerProvider;
+import ca.on.oicr.gsi.vidarr.core.LocalOutputProvisioner;
 import ca.on.oicr.gsi.vidarr.core.OneOfInputProvisioner;
 import ca.on.oicr.gsi.vidarr.core.OneOfOutputProvisioner;
 import ca.on.oicr.gsi.vidarr.core.RawInputProvisioner;
@@ -38,7 +39,8 @@ module ca.on.oicr.gsi.vidarr.core {
       OneOfInputProvisioner,
       RawInputProvisioner;
   provides OutputProvisionerProvider with
-      OneOfOutputProvisioner;
+      OneOfOutputProvisioner,
+      LocalOutputProvisioner;
   provides PriorityInputProvider with
       CorePriorityInputProvider;
   provides PriorityFormulaProvider with

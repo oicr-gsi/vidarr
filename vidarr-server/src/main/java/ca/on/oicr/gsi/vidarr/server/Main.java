@@ -2155,7 +2155,6 @@ public final class Main implements ServerConfig {
   }
 
   /**
-   * TODO write me
    * @param unloadedData
    * @param workflowInfo
    * @param configuration
@@ -2169,7 +2168,6 @@ public final class Main implements ServerConfig {
       Configuration configuration)
       throws JsonProcessingException, NoSuchAlgorithmException {
     // Map of Workflow Name to Workflow Version IDs (UnloadedWorkflowVersion.version to id.get.value1??)
-    // TODO what is that
     final var workflowId = new TreeMap<String, Map<String, Integer>>();
     // Insert the workflow and workflow version from workflowInfo
     for (final var info : workflowInfo.values()) {
@@ -2207,7 +2205,7 @@ public final class Main implements ServerConfig {
                 workflowVersion,
                 outputs,
                 parameters);
-        // We will have no ID from the insert if it already there // Andre this does not seem to be true
+        // We will have no ID from the insert if it already there
         if (id.isPresent()) {
           workflowVersionIds.put(workflowVersion, id.get().value1());
           for (final var accessory : version.second().getAccessoryFiles().entrySet()) {
@@ -2229,7 +2227,7 @@ public final class Main implements ServerConfig {
                   .orElseThrow());
         }
       }
-    } // insert the workflow run from unloaded data (why?)
+    } // insert the workflow run from unloaded data
     final var now = OffsetDateTime.now();
     for (final var run : unloadedData.getWorkflowRuns()) {
       final var id =

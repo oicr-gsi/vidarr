@@ -2119,7 +2119,7 @@ public final class Main implements ServerConfig {
               badRequestResponse(
                   exchange,
                   String.format(
-                      "Workflow run %s has output %s that should have ID %s.",
+                      "Workflow run %s has analysis %s that should have ID %s.",
                       workflowRun.getId(), output.getId(), correctOutputId));
               return;
             }

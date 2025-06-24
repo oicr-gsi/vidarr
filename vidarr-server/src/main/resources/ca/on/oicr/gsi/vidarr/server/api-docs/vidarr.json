@@ -1189,9 +1189,9 @@
         }
       }
     },
-    "/api/load-unverified": {
+    "/api/load-injected": {
       "post": {
-        "description": "Add workflow and workflow run data to the Vidarr database without a workflow run hash.",
+        "description": "Add workflow and workflow run data to the Vidarr database without workflow run or analysis hashes.",
         "requestBody": {
           "content": {
             "application/json": {

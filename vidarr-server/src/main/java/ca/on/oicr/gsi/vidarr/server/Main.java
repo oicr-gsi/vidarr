@@ -379,7 +379,7 @@ public final class Main implements ServerConfig {
                         new BlockingHandler(
                             JsonPost.parse(MAPPER, UnloadedData.class, (exchange, data) -> server.load(exchange, data, true)))))
                 .post(
-                    "/api/load-unverified",
+                    "/api/load-injected",
                     monitor(
                         new BlockingHandler(
                             JsonPost.parse(MAPPER, UnloadedData.class, (exchange, data) -> server.load(exchange, data, false)))))

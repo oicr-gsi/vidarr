@@ -1,1 +1,1 @@
-load-unverified endpoint for injecting data with having first calculated the hashes
+load-injected endpoint for injecting data with having first calculated the hashes

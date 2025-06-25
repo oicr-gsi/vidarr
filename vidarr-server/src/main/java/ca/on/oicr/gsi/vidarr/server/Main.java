@@ -391,6 +391,7 @@ public final class Main implements ServerConfig {
                                 MAPPER,
                                 RetryProvisionOutRequest.class,
                                 server::retryProvisionOut))))
+                .post("/api/reprovision-out", monitor(new BlockingHandler(JsonPost.parse(MAPPER, ReprovisionOutRequest.class, server::reprovisionOut))))
                 .delete(
                     "/api/status/{hash}", monitor(new BlockingHandler(server::deleteWorkflowRun)))
                 .post(
@@ -443,6 +444,15 @@ public final class Main implements ServerConfig {
             .build();
     undertow.start();
     server.recover();
+  }
+
+  private void reprovisionOut(HttpServerExchange exchange, ReprovisionOutRequest reprovisionOutRequest) {
+    OutputProvisioner<?,?> provisioner = outputProvisioners.get(reprovisionOutRequest.getOutputProvisionerName());
+    try {
+      processor.reprovisionOut(reprovisionOutRequest.getAnalysisHashIds(), provisioner);
+    } catch (Exception e){
+      internalServerErrorResponse(exchange, e);
+    }
   }
 
   private static void metrics(HttpServerExchange exchange) {

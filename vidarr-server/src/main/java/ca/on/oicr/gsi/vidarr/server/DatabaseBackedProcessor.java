@@ -19,6 +19,7 @@ import ca.on.oicr.gsi.Pair;
 import ca.on.oicr.gsi.vidarr.BasicType;
 import ca.on.oicr.gsi.vidarr.InputType;
 import ca.on.oicr.gsi.vidarr.OperationStatus;
+import ca.on.oicr.gsi.vidarr.OutputProvisioner;
 import ca.on.oicr.gsi.vidarr.OutputType;
 import ca.on.oicr.gsi.vidarr.WorkflowDefinition;
 import ca.on.oicr.gsi.vidarr.api.BulkVersionRequest;
@@ -991,6 +992,10 @@ public abstract class DatabaseBackedProcessor
 
   protected final Set<String> recoveryFailures() {
     return BadRecoveryTracker.badRecoveryIds;
+  }
+
+  public void reprovisionOut(List<String> analysisIds, OutputProvisioner<?,?> provisioner){
+
   }
 
   protected final Optional<FileMetadata> resolveInDatabase(String inputId) {

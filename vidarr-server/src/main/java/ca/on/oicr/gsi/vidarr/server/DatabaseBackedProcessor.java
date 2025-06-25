@@ -17,11 +17,17 @@ import static org.jooq.impl.DSL.trueCondition;
 
 import ca.on.oicr.gsi.Pair;
 import ca.on.oicr.gsi.vidarr.BasicType;
+import ca.on.oicr.gsi.vidarr.ConsumableResource;
+import ca.on.oicr.gsi.vidarr.InputProvisionFormat;
+import ca.on.oicr.gsi.vidarr.InputProvisioner;
 import ca.on.oicr.gsi.vidarr.InputType;
 import ca.on.oicr.gsi.vidarr.OperationStatus;
+import ca.on.oicr.gsi.vidarr.OutputProvisionFormat;
 import ca.on.oicr.gsi.vidarr.OutputProvisioner;
 import ca.on.oicr.gsi.vidarr.OutputType;
+import ca.on.oicr.gsi.vidarr.RuntimeProvisioner;
 import ca.on.oicr.gsi.vidarr.WorkflowDefinition;
+import ca.on.oicr.gsi.vidarr.WorkflowEngine;
 import ca.on.oicr.gsi.vidarr.api.BulkVersionRequest;
 import ca.on.oicr.gsi.vidarr.api.BulkVersionUpdate;
 import ca.on.oicr.gsi.vidarr.api.ExternalId;
@@ -34,8 +40,10 @@ import ca.on.oicr.gsi.vidarr.core.ExtractInputVidarrIds;
 import ca.on.oicr.gsi.vidarr.core.ExtractOutputKeys;
 import ca.on.oicr.gsi.vidarr.core.ExtractRetryValues;
 import ca.on.oicr.gsi.vidarr.core.FileMetadata;
+import ca.on.oicr.gsi.vidarr.core.NoOpWorkflowEngine;
 import ca.on.oicr.gsi.vidarr.core.OutputCompatibility;
 import ca.on.oicr.gsi.vidarr.core.Phase;
+import ca.on.oicr.gsi.vidarr.core.RawInputProvisioner;
 import ca.on.oicr.gsi.vidarr.core.RecoveryType;
 import ca.on.oicr.gsi.vidarr.core.Target;
 import ca.on.oicr.gsi.vidarr.core.ValidateJsonToSimpleType;
@@ -995,7 +1003,32 @@ public abstract class DatabaseBackedProcessor
   }
 
   public void reprovisionOut(List<String> analysisIds, OutputProvisioner<?,?> provisioner){
+    Target newTarget = new Target() {
+      @Override
+      public Stream<Pair<String, ConsumableResource>> consumableResources() {
+        return Stream.empty();
+      }
 
+      @Override
+      public WorkflowEngine<?, ?> engine() {
+        return new NoOpWorkflowEngine();
+      }
+
+      @Override
+      public InputProvisioner<?> provisionerFor(InputProvisionFormat type) {
+        return new RawInputProvisioner();
+      }
+
+      @Override
+      public OutputProvisioner<?, ?> provisionerFor(OutputProvisionFormat type) {
+        return provisioner;
+      }
+
+      @Override
+      public Stream<RuntimeProvisioner<?>> runtimeProvisioners() {
+        return Stream.empty();
+      }
+    };
   }
 
   protected final Optional<FileMetadata> resolveInDatabase(String inputId) {

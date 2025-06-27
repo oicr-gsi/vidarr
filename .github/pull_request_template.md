@@ -1,5 +1,5 @@
 Jira ticket:
 
 - [ ] Includes a change file
-- [ ] Updates developer documentation
+- [ ] Updates developer documentation (or n/a)
 

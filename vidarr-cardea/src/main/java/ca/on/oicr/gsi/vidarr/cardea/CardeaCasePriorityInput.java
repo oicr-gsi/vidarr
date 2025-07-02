@@ -106,7 +106,8 @@ public class CardeaCasePriorityInput implements PriorityInput {
                     new JsonBodyHandler<>(MAPPER, new TypeReference<>() {
                     }));
             if (response.statusCode() == 404) {
-              System.err.printf("%s: caseId=\"%s\" not found at %s\n", Level.WARNING, caseId, baseUrl);
+              System.err.printf("%s: caseId=\"%s\" not found at %s\n", Level.WARNING, caseId,
+                  baseUrl);
               CARDEA_CASE_ID_UNKNOWN.labels(baseUrl).inc();
               return Optional.of(defaultPriority);
             }

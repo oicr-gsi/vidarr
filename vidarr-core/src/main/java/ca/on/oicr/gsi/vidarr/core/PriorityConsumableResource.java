@@ -20,6 +20,7 @@ import java.util.OptionalInt;
 import java.util.stream.Collectors;
 
 public final class PriorityConsumableResource implements ConsumableResource {
+
   private Integer defaultPriority;
   private PriorityFormula formula;
   private Map<String, PriorityInput> inputs;

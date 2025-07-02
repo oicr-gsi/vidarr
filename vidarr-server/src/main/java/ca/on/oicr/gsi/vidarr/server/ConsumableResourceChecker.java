@@ -25,6 +25,7 @@ import org.jooq.SQLDialect;
 import org.jooq.impl.DSL;
 
 final class ConsumableResourceChecker implements Runnable {
+
   private static final Histogram waitTime =
       Histogram.build(
               "vidarr_consumable_resource_wait_time",
@@ -81,7 +82,8 @@ final class ConsumableResourceChecker implements Runnable {
       return;
     }
     int i = 0;
-    final List<Pair<String, ConsumableResource>> resourceBrokers = target.consumableResources().collect(Collectors.toList());
+    final List<Pair<String, ConsumableResource>> resourceBrokers = target.consumableResources()
+        .collect(Collectors.toList());
     for (i = 0; i < resourceBrokers.size(); i++) {
       final String resourceName = resourceBrokers.get(i).first();
       final ConsumableResource broker = resourceBrokers.get(i).second();

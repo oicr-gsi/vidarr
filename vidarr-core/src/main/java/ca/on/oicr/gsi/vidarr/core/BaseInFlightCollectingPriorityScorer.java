@@ -8,6 +8,7 @@ import java.util.OptionalInt;
 import java.util.SortedSet;
 
 public abstract class BaseInFlightCollectingPriorityScorer implements PriorityScorer {
+
   protected record WorkflowRunScore(String vidarrId, int priority)
       implements Comparable<WorkflowRunScore> {
 
@@ -37,7 +38,8 @@ public abstract class BaseInFlightCollectingPriorityScorer implements PrioritySc
     final SortedSet<WorkflowRunScore> active = get(workflowName, workflowVersion);
     final int limit = getLimit(workflowName, workflowVersion, maxInFlight, workflowMaxInFlight);
     synchronized (active) {
-      final Optional<WorkflowRunScore> existing = active.stream().filter(e -> e.vidarrId().equals(vidarrId)).findFirst();
+      final Optional<WorkflowRunScore> existing = active.stream()
+          .filter(e -> e.vidarrId().equals(vidarrId)).findFirst();
       if (existing.isPresent()) {
         final int existingPriority = existing.get().priority();
         if (existingPriority == Integer.MAX_VALUE) {

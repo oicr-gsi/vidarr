@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Optional;
 
 public abstract class BaseAggregatePriorityScorer implements PriorityScorer {
+
   protected List<PriorityScorer> scorers;
 
   public final List<PriorityScorer> getScorers() {

@@ -19,15 +19,16 @@ public final class AllPriorityScorer extends BaseAggregatePriorityScorer {
     // Compute score for all of the scorers so they get a chance to build their caches
     // Not optimal to exit early in this case as that would prevent all caches from being built.
     List<PriorityScorer> okayScorers = new LinkedList<>();
-    for(PriorityScorer scorer: scorers){
-      if(scorer.compute(workflowName, workflowVersion, vidarrId, created, workflowMaxInFlight, score)){
+    for (PriorityScorer scorer : scorers) {
+      if (scorer.compute(workflowName, workflowVersion, vidarrId, created, workflowMaxInFlight,
+          score)) {
         okayScorers.add(scorer);
       }
     }
 
     // If one or more of the scorers is not OK, release the ones that are and return false
-    if(okayScorers.size() != scorers.size()){
-      for (PriorityScorer scorer: okayScorers){
+    if (okayScorers.size() != scorers.size()) {
+      for (PriorityScorer scorer : okayScorers) {
         scorer.release(workflowName, workflowVersion, vidarrId);
       }
       return false;

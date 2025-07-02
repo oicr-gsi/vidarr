@@ -31,9 +31,8 @@ public class CardeaCasePriorityInput implements PriorityInput {
   private static final ObjectMapper MAPPER = new ObjectMapper().registerModule(new Jdk8Module());
   private int defaultPriority;
   private int ttl = 60;
-  private String baseUrl;
+  private String baseUrl, casesUrl;
   private KeyValueCache<String, Optional<Integer>> values;
-  private static final String casePriorityUrlFormat = "%s/cases/%s/priority";
 
   static final Counter CARDEA_CASE_ID_UNKNOWN =
       Counter.build(
@@ -88,19 +87,19 @@ public class CardeaCasePriorityInput implements PriorityInput {
 
   @Override
   public void startup(String resourceName, String inputName) {
+    casesUrl = new StringBuilder(baseUrl).append("/cases/").toString();
     values =
         new KeyValueCache<>(resourceName + " " + inputName, ttl, SimpleRecord::new) {
           @Override
           protected Optional<Integer> fetch(String caseId, Instant lastUpdated) throws Exception {
+            String fullUrl = new StringBuilder(casesUrl)
+                .append(URLEncoder.encode(caseId, StandardCharsets.UTF_8)
+                    .replace("+", "%20"))
+                .append("/priority").toString();
             HttpResponse<Supplier<Optional<Integer>>> response = HTTP_CLIENT
                 .send(
                     HttpRequest.newBuilder(
-                            URI.create(
-                                String.format(
-                                    casePriorityUrlFormat,
-                                    baseUrl,
-                                    URLEncoder.encode(caseId, StandardCharsets.UTF_8)
-                                        .replace("+", "%20"))))
+                            URI.create(fullUrl))
                         .header("Content-type", "application/json")
                         .GET()
                         .build(),

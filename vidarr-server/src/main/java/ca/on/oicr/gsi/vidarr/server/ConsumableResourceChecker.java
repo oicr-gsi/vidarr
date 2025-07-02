@@ -2,15 +2,19 @@ package ca.on.oicr.gsi.vidarr.server;
 
 import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.ACTIVE_WORKFLOW_RUN;
 
+import ca.on.oicr.gsi.Pair;
+import ca.on.oicr.gsi.vidarr.ConsumableResource;
 import ca.on.oicr.gsi.vidarr.ConsumableResourceResponse.Visitor;
 import ca.on.oicr.gsi.vidarr.core.Target;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.zaxxer.hikari.HikariDataSource;
 import io.prometheus.client.Histogram;
+import java.sql.Connection;
 import java.sql.SQLException;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ScheduledExecutorService;
@@ -76,12 +80,12 @@ final class ConsumableResourceChecker implements Runnable {
     if (!isLive.get()) {
       return;
     }
-    var i = 0;
-    final var resourceBrokers = target.consumableResources().collect(Collectors.toList());
+    int i = 0;
+    final List<Pair<String, ConsumableResource>> resourceBrokers = target.consumableResources().collect(Collectors.toList());
     for (i = 0; i < resourceBrokers.size(); i++) {
-      final var resourceName = resourceBrokers.get(i).first();
-      final var broker = resourceBrokers.get(i).second();
-      final var error =
+      final String resourceName = resourceBrokers.get(i).first();
+      final ConsumableResource broker = resourceBrokers.get(i).second();
+      final Optional<String> error =
           broker
               .request(
                   workflow,
@@ -126,7 +130,7 @@ final class ConsumableResourceChecker implements Runnable {
       if (error.isPresent()) {
         updateBlockedResource(error.get());
         // Each resource performs a check and only releases resources if they've been acquired
-        for (final var b : resourceBrokers.subList(0, i)) {
+        for (final Pair<String, ConsumableResource> b : resourceBrokers.subList(0, i)) {
           b.second()
               .release(
                   workflow,
@@ -140,7 +144,7 @@ final class ConsumableResourceChecker implements Runnable {
         return;
       }
     }
-    final var waiting = Duration.between(createdTime, Instant.now()).toSeconds();
+    final long waiting = Duration.between(createdTime, Instant.now()).toSeconds();
     tracing.put("vidarr-waiting", waiting);
     updateBlockedResource(null);
     waitTime.labels(workflow).observe(waiting);
@@ -148,7 +152,7 @@ final class ConsumableResourceChecker implements Runnable {
   }
 
   private void updateBlockedResource(String error) {
-    try (final var connection = dataSource.getConnection()) {
+    try (final Connection connection = dataSource.getConnection()) {
       DSL.using(connection, SQLDialect.POSTGRES)
           .transaction(
               configuration ->

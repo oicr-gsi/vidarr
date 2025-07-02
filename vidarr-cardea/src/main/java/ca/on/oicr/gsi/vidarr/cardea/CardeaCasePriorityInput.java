@@ -83,11 +83,11 @@ public class CardeaCasePriorityInput implements PriorityInput {
 
   public void setBaseUrl(String baseUrl) {
     this.baseUrl = baseUrl;
+    casesUrl = new StringBuilder(baseUrl).append("/cases/").toString();
   }
 
   @Override
   public void startup(String resourceName, String inputName) {
-    casesUrl = new StringBuilder(baseUrl).append("/cases/").toString();
     values =
         new KeyValueCache<>(resourceName + " " + inputName, ttl, SimpleRecord::new) {
           @Override

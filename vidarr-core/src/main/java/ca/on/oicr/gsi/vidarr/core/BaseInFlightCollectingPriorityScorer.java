@@ -13,7 +13,7 @@ public abstract class BaseInFlightCollectingPriorityScorer implements PrioritySc
 
     @Override
     public int compareTo(WorkflowRunScore workflowRunScore) {
-      var result = Integer.compare(workflowRunScore.priority, this.priority);
+      int result = Integer.compare(workflowRunScore.priority, this.priority);
       if (result == 0) {
         result = this.vidarrId.compareTo(workflowRunScore.vidarrId());
       }
@@ -34,12 +34,12 @@ public abstract class BaseInFlightCollectingPriorityScorer implements PrioritySc
     if (score == Integer.MAX_VALUE) {
       score--;
     }
-    final var active = get(workflowName, workflowVersion);
-    final var limit = getLimit(workflowName, workflowVersion, maxInFlight, workflowMaxInFlight);
+    final SortedSet<WorkflowRunScore> active = get(workflowName, workflowVersion);
+    final int limit = getLimit(workflowName, workflowVersion, maxInFlight, workflowMaxInFlight);
     synchronized (active) {
-      final var existing = active.stream().filter(e -> e.vidarrId().equals(vidarrId)).findFirst();
+      final Optional<WorkflowRunScore> existing = active.stream().filter(e -> e.vidarrId().equals(vidarrId)).findFirst();
       if (existing.isPresent()) {
-        final var existingPriority = existing.get().priority();
+        final int existingPriority = existing.get().priority();
         if (existingPriority == Integer.MAX_VALUE) {
           return true;
         } else if (existingPriority == score) {
@@ -55,7 +55,7 @@ public abstract class BaseInFlightCollectingPriorityScorer implements PrioritySc
           active.remove(existing.get());
         }
       }
-      final var wfrScore = new WorkflowRunScore(vidarrId, score);
+      final WorkflowRunScore wfrScore = new WorkflowRunScore(vidarrId, score);
       active.add(wfrScore);
       // Checking that an existing record was present ensures that we don't allow first-come low
       // priority jobs to take all the tokens
@@ -88,7 +88,7 @@ public abstract class BaseInFlightCollectingPriorityScorer implements PrioritySc
 
   @Override
   public final void recover(String workflowName, String workflowVersion, String vidarrId) {
-    final var active = get(workflowName, workflowVersion);
+    final SortedSet<WorkflowRunScore> active = get(workflowName, workflowVersion);
     synchronized (active) {
       active.removeIf(a -> a.vidarrId().equals(vidarrId));
       active.add(new WorkflowRunScore(vidarrId, Integer.MAX_VALUE));
@@ -97,7 +97,7 @@ public abstract class BaseInFlightCollectingPriorityScorer implements PrioritySc
 
   @Override
   public final void release(String workflowName, String workflowVersion, String vidarrId) {
-    final var active = get(workflowName, workflowVersion);
+    final SortedSet<WorkflowRunScore> active = get(workflowName, workflowVersion);
     synchronized (active) {
       active.removeIf(a -> a.vidarrId().equals(vidarrId));
     }

@@ -11,8 +11,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.NullNode;
 import io.undertow.Handlers;
 import io.undertow.server.HttpHandler;
+import io.undertow.server.handlers.PathHandler;
 import java.time.Instant;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.stream.Collectors;
@@ -26,8 +28,8 @@ public final class PriorityConsumableResource implements ConsumableResource {
 
   @Override
   public Optional<HttpHandler> httpHandler() {
-    final var routes = scorer.httpHandler().map(Handlers::path).orElseGet(Handlers::path);
-    for (final var entry : inputs.entrySet()) {
+    final PathHandler routes = scorer.httpHandler().map(Handlers::path).orElseGet(Handlers::path);
+    for (final Entry<String, PriorityInput> entry : inputs.entrySet()) {
       entry.getValue().httpHandler().ifPresent(h -> routes.addPrefixPath("/" + entry.getKey(), h));
     }
     return Optional.of(routes);
@@ -35,7 +37,7 @@ public final class PriorityConsumableResource implements ConsumableResource {
 
   @Override
   public Optional<Pair<String, BasicType>> inputFromSubmitter() {
-    final var type =
+    final BasicType type =
         BasicType.object(
             inputs.entrySet().stream()
                 .map(e -> new Pair<>(e.getKey(), e.getValue().inputFromSubmitter())));
@@ -83,7 +85,7 @@ public final class PriorityConsumableResource implements ConsumableResource {
                         Collectors.toMap(
                             Map.Entry::getKey,
                             e -> {
-                              final var value = i.get(e.getKey());
+                              final JsonNode value = i.get(e.getKey());
                               return e.getValue()
                                   .compute(
                                       workflowName,
@@ -97,7 +99,7 @@ public final class PriorityConsumableResource implements ConsumableResource {
                 iv ->
                     formula.compute(name -> iv.getOrDefault(name, Integer.MIN_VALUE), createdTime))
             .orElse(defaultPriority);
-    final var available =
+    final boolean available =
         scorer.compute(
             workflowName, workflowVersion, vidarrId, createdTime, workflowMaxInFlight, priority);
     return new ConsumableResourceResponse() {
@@ -132,7 +134,7 @@ public final class PriorityConsumableResource implements ConsumableResource {
   @Override
   public void startup(String name) {
     this.name = name;
-    for (final var input : inputs.entrySet()) {
+    for (final Entry<String, PriorityInput> input : inputs.entrySet()) {
       input.getValue().startup(name, input.getKey());
     }
     scorer.startup();

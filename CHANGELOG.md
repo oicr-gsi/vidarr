@@ -6,6 +6,26 @@ For unreleased changes, see [changes](changes).
 
 -----------------------------------------------------------------------------
 
+## [2.2.0] - 2025-07-04
+
+### Added
+
+* No-Op Workflow Engine for testing and reprovisioning
+  
+* load-injected endpoint for injecting data without having first calculated the hashes
+* Local Output Provisioner for local development and integration testing
+  
+
+### Changed
+
+* Clarify in API docs what states a workflow run can have in order to be eligible for deletion
+
+### Fixed
+
+* Performance improvements for cardea case priority cache
+* Performance improvements for `all` type priority scorer
+
+
 ## [2.1.3] - 2025-06-18
 
 ### Fixed

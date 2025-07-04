@@ -1,1 +1,0 @@
-Performance improvements for `all` type priority scorer

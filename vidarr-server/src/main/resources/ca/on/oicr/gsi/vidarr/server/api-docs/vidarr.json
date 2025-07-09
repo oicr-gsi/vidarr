@@ -1401,6 +1401,53 @@
         ]
       }
     },
+    "/api/reprovision-out": {
+      "post": {
+        "description": "Re-do provision-out on a finished workflow run with another output provisioner.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "workflowRunHashIds": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "outputProvisionerName": {
+                    "type": "string"
+                  },
+                  "outputPath": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "TODO WRITE ME."
+          }
+        },
+        "summary": "Redoes provisioning out with a new provisioner",
+        "tags": [
+          "workflow-run"
+        ]
+      }
+    },
     "/api/run/{hash}": {
       "get": {
         "description": "Get information about a completed workflow run by the workflow run's unique identifier.",

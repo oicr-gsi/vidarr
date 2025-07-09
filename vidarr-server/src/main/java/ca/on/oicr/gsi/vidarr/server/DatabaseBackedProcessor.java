@@ -28,6 +28,7 @@ import ca.on.oicr.gsi.vidarr.OutputType;
 import ca.on.oicr.gsi.vidarr.RuntimeProvisioner;
 import ca.on.oicr.gsi.vidarr.WorkflowDefinition;
 import ca.on.oicr.gsi.vidarr.WorkflowEngine;
+import ca.on.oicr.gsi.vidarr.WorkflowLanguage;
 import ca.on.oicr.gsi.vidarr.api.BulkVersionRequest;
 import ca.on.oicr.gsi.vidarr.api.BulkVersionUpdate;
 import ca.on.oicr.gsi.vidarr.api.ExternalId;
@@ -94,6 +95,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
+import org.jooq.Field;
 import org.jooq.InsertValuesStep3;
 import org.jooq.Record1;
 import org.jooq.Record2;
@@ -311,8 +313,8 @@ public abstract class DatabaseBackedProcessor
         digest.update(label.getBytes(StandardCharsets.UTF_8));
         digest.update(new byte[]{0});
         digest.update(MAPPER.writeValueAsBytes(labelsFromClient.get(label)));
-	// Note that if the .get(label) value is a string, writeValueAsBytes will also encode the literal (escaped) quote marks around the value.
-	// This means that if you are generating a workflow run hash outside of vidarr, if your label value is a string then you need to surround it with literal (escaped) quotes when hashing
+        // Note that if the .get(label) value is a string, writeValueAsBytes will also encode the literal (escaped) quote marks around the value.
+        // This means that if you are generating a workflow run hash outside of vidarr, if your label value is a string then you need to surround it with literal (escaped) quotes when hashing
       }
 
       return hexDigits(digest.digest());
@@ -323,6 +325,7 @@ public abstract class DatabaseBackedProcessor
 
   /**
    * Sanity check an individual workflow run's labels against the workflow definition's labels
+   *
    * @param providedLabels labels from an individual workflow run
    * @param expectedLabels labels from the workflow definition
    * @return Stream of label errors
@@ -339,7 +342,8 @@ public abstract class DatabaseBackedProcessor
     }
     if (providedCount != expectedLabelCount) {
       return Stream.of(
-          String.format("%d labels are provided but %d are expected.", providedCount, expectedLabelCount));
+          String.format("%d labels are provided but %d are expected.", providedCount,
+              expectedLabelCount));
     }
 
     // For every expected label, see if that label is in the provided labels
@@ -453,7 +457,8 @@ public abstract class DatabaseBackedProcessor
                     .map(
                         (id_and_dead) -> {
                           if (id_and_dead.component2()) {
-                            final SoftReference<AtomicBoolean> oldLiveness = liveness.remove(id_and_dead.component1());
+                            final SoftReference<AtomicBoolean> oldLiveness = liveness.remove(
+                                id_and_dead.component1());
                             if (oldLiveness != null) {
                               final AtomicBoolean oldLivenessLock = oldLiveness.get();
                               if (oldLivenessLock != null) {
@@ -1002,7 +1007,12 @@ public abstract class DatabaseBackedProcessor
     return BadRecoveryTracker.badRecoveryIds;
   }
 
-  public void reprovisionOut(List<String> analysisIds, OutputProvisioner<?,?> provisioner){
+  public <T> void reprovisionOut(List<String> workflowRunIds, OutputProvisioner<?, ?> provisioner,
+      String outputPath,
+      SubmissionResultHandler<T> handler)
+      throws Exception {
+    // New target to aim the new job at
+    // TODO is this going to be a problem for recovery?
     Target newTarget = new Target() {
       @Override
       public Stream<Pair<String, ConsumableResource>> consumableResources() {
@@ -1029,6 +1039,66 @@ public abstract class DatabaseBackedProcessor
         return Stream.empty();
       }
     };
+
+    // Create a new active_workflow_runs from the existing and finished workflow_runs
+    try (final Connection connection = dataSource.getConnection()) {
+      DSL.using(connection, SQLDialect.POSTGRES)
+          .transaction(
+              context -> {
+                DSLContext dsl = DSL.using(context);
+                dsl.select()
+                    .from(
+                        WORKFLOW_RUN
+                            .join(WORKFLOW_VERSION)
+                            .on(WORKFLOW_RUN.WORKFLOW_VERSION_ID.eq(WORKFLOW_VERSION.ID))
+                            .join(WORKFLOW_DEFINITION)
+                            .on(WORKFLOW_VERSION.WORKFLOW_DEFINITION.eq(WORKFLOW_DEFINITION.ID)))
+                    .where(WORKFLOW_RUN.HASH_ID.in(workflowRunIds)
+                        .and(WORKFLOW_RUN.COMPLETED.isNotNull()))
+                    .forEach(
+                        record -> {
+                          dsl.update(WORKFLOW_RUN)
+                              .set(WORKFLOW_RUN.COMPLETED,
+                                  (OffsetDateTime) null) // have to cast null to something to resolve ambiguous signature
+                              .where(WORKFLOW_RUN.HASH_ID.eq(record.get(WORKFLOW_RUN.HASH_ID)))
+                              .execute();
+                          final DatabaseWorkflow workflow =
+                              DatabaseWorkflow.reprovision(newTarget, outputPath, record,
+                                  liveness(record.get(WORKFLOW_RUN.ID)), dsl);
+                          handler.launched(record.get(WORKFLOW_RUN.HASH_ID),
+                              new ConsumableResourceChecker(
+                                  newTarget,
+                                  dataSource,
+                                  executor(),
+                                  workflow.dbId(),
+                                  liveness(workflow.dbId()),
+                                  new MaxInFlightByWorkflow(), // TODO probably will break
+                                  "reprovision",
+                                  "1",
+                                  record.get(WORKFLOW_RUN.HASH_ID),
+                                  Map.of(),
+                                  record.get(WORKFLOW_RUN.CREATED).toInstant(),
+                                  new Runnable() {
+                                    @Override
+                                    public void run() {
+                                      DatabaseBackedProcessor.this.recover(
+                                          newTarget, new WorkflowDefinition(
+                                              null,
+                                              null,
+                                              null,
+                                              Map.of(),
+                                              Stream.of(),
+                                              Stream.of()
+                                          ), workflow,
+                                          List.of(), // TODO some actual values
+                                          RecoveryType.RECOVER
+                                      );
+                                    }
+                                  }));
+                        });
+              });
+    }
+
   }
 
   protected final Optional<FileMetadata> resolveInDatabase(String inputId) {

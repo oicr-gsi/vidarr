@@ -12,6 +12,7 @@ import ca.on.oicr.gsi.vidarr.core.Target;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.nio.charset.StandardCharsets;
@@ -22,6 +23,7 @@ import java.sql.SQLException;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.*;
+import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongFunction;
 import java.util.stream.Collectors;
@@ -30,6 +32,7 @@ import org.jooq.Record;
 import org.jooq.impl.DSL;
 
 public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLContext> {
+
   public static DatabaseWorkflow create(
       String targetName,
       Target target,
@@ -121,6 +124,85 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
         created);
   }
 
+  public static DatabaseWorkflow reprovision(Target target, String outputPath, Record record,
+      AtomicBoolean liveness,
+      DSLContext dsl) {
+    final long dbId = record.get(WORKFLOW_RUN.ID);
+    final var inputIds = new HashSet<ExternalId>();
+    final var requestedInputIds = new HashSet<ExternalId>();
+    dsl.select(EXTERNAL_ID.asterisk())
+        .from(EXTERNAL_ID)
+        .where(EXTERNAL_ID.WORKFLOW_RUN_ID.eq(dbId))
+        .forEach(
+            externalIdRecord -> {
+              final var externalId =
+                  new ExternalId(
+                      externalIdRecord.get(EXTERNAL_ID.PROVIDER),
+                      externalIdRecord.get(EXTERNAL_ID.EXTERNAL_ID_));
+              inputIds.add(externalId);
+              if (externalIdRecord.get(EXTERNAL_ID.REQUESTED)) {
+                requestedInputIds.add(externalId);
+              }
+            });
+
+    dsl.insertInto(ACTIVE_WORKFLOW_RUN)
+        .columns(
+            ACTIVE_WORKFLOW_RUN.ID,
+            ACTIVE_WORKFLOW_RUN.ENGINE_PHASE,
+            ACTIVE_WORKFLOW_RUN.EXTRA_INPUT_IDS_HANDLED,
+            ACTIVE_WORKFLOW_RUN.PREFLIGHT_OKAY,
+            ACTIVE_WORKFLOW_RUN.TARGET,
+            ACTIVE_WORKFLOW_RUN.CONSUMABLE_RESOURCES)
+        .values(
+            dbId,
+            Phase.PROVISION_OUT,
+            false,
+            true,
+            "reprovision",
+            Main.MAPPER.nullNode())
+        .execute();
+
+    JsonNode metadata = record.get(WORKFLOW_RUN.METADATA);
+    Iterator<Entry<String, JsonNode>> iterator = metadata.fields();
+    while (iterator.hasNext()) {
+      Entry<String, JsonNode> entry = iterator.next();
+      ArrayNode contents = (ArrayNode) entry.getValue().get("contents");
+      Iterator<JsonNode> iterator2 = contents.elements();
+      while (iterator2.hasNext()) {
+        ObjectNode content = (ObjectNode) iterator2.next();
+        if (content.has("outputDirectory")) {
+          content.put("outputDirectory", outputPath);
+        }
+      }
+    }
+
+    dsl.update(WORKFLOW_RUN)
+        .set(WORKFLOW_RUN.METADATA, metadata)
+        .where(WORKFLOW_RUN.ID.eq(dbId))
+        .execute();
+
+    return new DatabaseWorkflow(
+        target,
+        dbId,
+        record.get(WORKFLOW_RUN.HASH_ID),
+        0,
+        "reprovision",
+        "1",
+        metadata,
+        record.get(WORKFLOW_RUN.ENGINE_PARAMETERS),
+        record.get(WORKFLOW_RUN.METADATA),
+        Main.MAPPER.nullNode(),
+        false, // TODO need the actual value here lol
+        inputIds,
+        requestedInputIds,
+        true,
+        Phase.PROVISION_OUT,
+        List.of(),
+        0,
+        liveness,
+        record.get(WORKFLOW_RUN.CREATED).toInstant());
+  }
+
   public static JSONB labelsToJson(Map<String, String> labels) {
     final var labelNode = JsonNodeFactory.instance.objectNode();
     for (final var label : labels.entrySet()) {
@@ -179,7 +261,8 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
         record.get(ACTIVE_WORKFLOW_RUN.REAL_INPUT).isNull()
             ? null
             : Main.MAPPER.convertValue(
-                record.get(ACTIVE_WORKFLOW_RUN.REAL_INPUT), new TypeReference<>() {}),
+                record.get(ACTIVE_WORKFLOW_RUN.REAL_INPUT), new TypeReference<>() {
+                }),
         record.get(ACTIVE_WORKFLOW_RUN.REAL_INPUT_INDEX),
         liveness,
         record.get(WORKFLOW_RUN.CREATED).toInstant());

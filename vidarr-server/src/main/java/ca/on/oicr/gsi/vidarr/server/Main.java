@@ -149,6 +149,7 @@ import org.postgresql.ds.PGSimpleDataSource;
 public final class Main implements ServerConfig {
 
   private interface UnloadProcessor<T> {
+
     T process(Configuration configuration, Long[] workflowRuns) throws IOException, SQLException;
   }
 
@@ -293,7 +294,8 @@ public final class Main implements ServerConfig {
     if (allowedTypes != null && allowedTypes.size() != 0) {
       condition = condition.and(EXTERNAL_ID_VERSION.KEY.in(allowedTypes));
     }
-    final ExternalIdVersion externalIdVersionAlias = EXTERNAL_ID_VERSION.as("externalIdVersionInner");
+    final ExternalIdVersion externalIdVersionAlias = EXTERNAL_ID_VERSION.as(
+        "externalIdVersionInner");
     final Table<Record1<String>> table =
         DSL.selectDistinct(EXTERNAL_ID_VERSION.KEY.as("desired_key"))
             .from(EXTERNAL_ID_VERSION)
@@ -377,12 +379,14 @@ public final class Main implements ServerConfig {
                     "/api/load",
                     monitor(
                         new BlockingHandler(
-                            JsonPost.parse(MAPPER, UnloadedData.class, (exchange, data) -> server.load(exchange, data, true)))))
+                            JsonPost.parse(MAPPER, UnloadedData.class,
+                                (exchange, data) -> server.load(exchange, data, true)))))
                 .post(
                     "/api/load-injected",
                     monitor(
                         new BlockingHandler(
-                            JsonPost.parse(MAPPER, UnloadedData.class, (exchange, data) -> server.load(exchange, data, false)))))
+                            JsonPost.parse(MAPPER, UnloadedData.class,
+                                (exchange, data) -> server.load(exchange, data, false)))))
                 .post(
                     "/api/retry-provision-out",
                     monitor(
@@ -391,7 +395,8 @@ public final class Main implements ServerConfig {
                                 MAPPER,
                                 RetryProvisionOutRequest.class,
                                 server::retryProvisionOut))))
-                .post("/api/reprovision-out", monitor(new BlockingHandler(JsonPost.parse(MAPPER, ReprovisionOutRequest.class, server::reprovisionOut))))
+                .post("/api/reprovision-out", monitor(new BlockingHandler(
+                    JsonPost.parse(MAPPER, ReprovisionOutRequest.class, server::reprovisionOut))))
                 .delete(
                     "/api/status/{hash}", monitor(new BlockingHandler(server::deleteWorkflowRun)))
                 .post(
@@ -446,11 +451,126 @@ public final class Main implements ServerConfig {
     server.recover();
   }
 
-  private void reprovisionOut(HttpServerExchange exchange, ReprovisionOutRequest reprovisionOutRequest) {
-    OutputProvisioner<?,?> provisioner = outputProvisioners.get(reprovisionOutRequest.getOutputProvisionerName());
+  private void reprovisionOut(HttpServerExchange exchange,
+      ReprovisionOutRequest reprovisionOutRequest) {
+    if (!reprovisionOutRequest.check()) {
+      exchange.setStatusCode(400);
+      return;
+    }
+    OutputProvisioner<?, ?> provisioner = outputProvisioners.get(
+        reprovisionOutRequest.getOutputProvisionerName());
+    final AtomicReference<Runnable> postCommitAction = new AtomicReference<>();
     try {
-      processor.reprovisionOut(reprovisionOutRequest.getAnalysisHashIds(), provisioner);
-    } catch (Exception e){
+      processor.reprovisionOut(reprovisionOutRequest.getWorkflowRunHashIds(), provisioner,
+          reprovisionOutRequest.getOutputPath(),
+          new DatabaseBackedProcessor.SubmissionResultHandler<>() {
+            @Override
+            public boolean allowLaunch() {
+              return true;
+            }
+
+            @Override
+            public Pair<Integer, SubmitWorkflowResponse> dryRunResult() {
+              return new Pair<>(StatusCodes.OK, new SubmitWorkflowResponseDryRun());
+            }
+
+            @Override
+            public Pair<Integer, SubmitWorkflowResponse> externalIdMismatch(String error) {
+              return new Pair<>(
+                  StatusCodes.BAD_REQUEST,
+                  new SubmitWorkflowResponseFailure("External IDs do not match: " + error));
+            }
+
+            @Override
+            public Pair<Integer, SubmitWorkflowResponse> internalError(Exception e) {
+              e.printStackTrace();
+              return new Pair<>(
+                  StatusCodes.INTERNAL_SERVER_ERROR,
+                  new SubmitWorkflowResponseFailure(e.getMessage()));
+            }
+
+            @Override
+            public Pair<Integer, SubmitWorkflowResponse> invalidWorkflow(Set<String> errors) {
+              return new Pair<>(
+                  StatusCodes.BAD_REQUEST, new SubmitWorkflowResponseFailure(errors));
+            }
+
+            @Override
+            public Pair<Integer, SubmitWorkflowResponse> launched(
+                String vidarrId, Runnable start) {
+              postCommitAction.set(start);
+              return new Pair<>(StatusCodes.OK, new SubmitWorkflowResponseSuccess(vidarrId));
+            }
+
+            @Override
+            public Pair<Integer, SubmitWorkflowResponse> matchExisting(String vidarrId) {
+              return new Pair<>(StatusCodes.OK, new SubmitWorkflowResponseSuccess(vidarrId));
+            }
+
+            @Override
+            public Pair<Integer, SubmitWorkflowResponse> missingExternalIdVersion() {
+              return new Pair<>(
+                  StatusCodes.BAD_REQUEST,
+                  new SubmitWorkflowResponseFailure("External IDs do not have versions set."));
+            }
+
+            @Override
+            public Pair<Integer, SubmitWorkflowResponse> missingExternalKeyVersions(
+                String vidarrId, List<ExternalKey> missingKeys) {
+              return new Pair<>(
+                  StatusCodes.BAD_REQUEST,
+                  new SubmitWorkflowResponseMissingKeyVersions(vidarrId, missingKeys));
+            }
+
+            @Override
+            public Pair<Integer, SubmitWorkflowResponse> multipleMatches(List<String> matchIds) {
+              return new Pair<>(
+                  StatusCodes.CONFLICT, new SubmitWorkflowResponseConflict(matchIds));
+            }
+
+            @Override
+            public Pair<Integer, SubmitWorkflowResponse> reinitialise(
+                String vidarrId, Runnable start) {
+              postCommitAction.set(start);
+              return new Pair<>(StatusCodes.OK, new SubmitWorkflowResponseSuccess(vidarrId));
+            }
+
+            @Override
+            public Pair<Integer, SubmitWorkflowResponse> unknownTarget(String targetName) {
+              return new Pair<>(
+                  StatusCodes.BAD_REQUEST,
+                  new SubmitWorkflowResponseFailure(
+                      String.format("Target %s is unknown", targetName)));
+            }
+
+            @Override
+            public Pair<Integer, SubmitWorkflowResponse> unknownWorkflow(
+                String name, String version) {
+              return new Pair<>(
+                  StatusCodes.BAD_REQUEST,
+                  new SubmitWorkflowResponseFailure(
+                      String.format("Workflow %s (%s) is unknown", name, version)));
+            }
+
+            @Override
+            public Pair<Integer, SubmitWorkflowResponse> unresolvedIds(TreeSet<String> inputId) {
+              return new Pair<>(
+                  StatusCodes.BAD_REQUEST,
+                  new SubmitWorkflowResponseFailure(
+                      inputId.stream()
+                          .map(id -> String.format("Input ID %s cannot be resolved", id))
+                          .collect(Collectors.toList())));
+            }
+          });
+      exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_JSON);
+      exchange.setStatusCode(200);
+      if (postCommitAction.get() != null) {
+        postCommitAction.get().run();
+      }
+      // TODO make an actual response
+      //exchange.getResponseSender().send(MAPPER.writeValueAsString(response.second()));
+
+    } catch (Exception e) {
       internalServerErrorResponse(exchange, e);
     }
   }
@@ -605,42 +725,42 @@ public final class Main implements ServerConfig {
                               workflowEngines.get(e.getValue().getWorkflowEngine());
                           private final Map<InputProvisionFormat, InputProvisioner<?>>
                               inputProvisioners =
-                                  e.getValue().getInputProvisioners().stream()
-                                      .map(Main.this.inputProvisioners::get)
-                                      .flatMap(
-                                          p ->
-                                              Stream.of(InputProvisionFormat.values())
-                                                  .filter(p::canProvision)
-                                                  .map(
-                                                      f ->
-                                                          new Pair<
-                                                              InputProvisionFormat,
-                                                              InputProvisioner<?>>(f, p)))
-                                      .collect(
-                                          Collectors
-                                              .<Pair<InputProvisionFormat, InputProvisioner<?>>,
-                                                  InputProvisionFormat, InputProvisioner<?>>
-                                                  toMap(Pair::first, Pair::second));
+                              e.getValue().getInputProvisioners().stream()
+                                  .map(Main.this.inputProvisioners::get)
+                                  .flatMap(
+                                      p ->
+                                          Stream.of(InputProvisionFormat.values())
+                                              .filter(p::canProvision)
+                                              .map(
+                                                  f ->
+                                                      new Pair<
+                                                          InputProvisionFormat,
+                                                          InputProvisioner<?>>(f, p)))
+                                  .collect(
+                                      Collectors
+                                          .<Pair<InputProvisionFormat, InputProvisioner<?>>,
+                                              InputProvisionFormat, InputProvisioner<?>>
+                                              toMap(Pair::first, Pair::second));
                           private final Map<OutputProvisionFormat, OutputProvisioner<?, ?>>
                               outputProvisioners =
-                                  e.getValue().getOutputProvisioners().stream()
-                                      .map(Main.this.outputProvisioners::get)
-                                      .flatMap(
-                                          p ->
-                                              Stream.of(OutputProvisionFormat.values())
-                                                  .filter(p::canProvision)
-                                                  .map(
-                                                      f ->
-                                                          new Pair<
-                                                              OutputProvisionFormat,
-                                                              OutputProvisioner<?, ?>>(f, p)))
-                                      .collect(
-                                          Collectors
-                                              .<Pair<
-                                                      OutputProvisionFormat,
-                                                      OutputProvisioner<?, ?>>,
-                                                  OutputProvisionFormat, OutputProvisioner<?, ?>>
-                                                  toMap(Pair::first, Pair::second));
+                              e.getValue().getOutputProvisioners().stream()
+                                  .map(Main.this.outputProvisioners::get)
+                                  .flatMap(
+                                      p ->
+                                          Stream.of(OutputProvisionFormat.values())
+                                              .filter(p::canProvision)
+                                              .map(
+                                                  f ->
+                                                      new Pair<
+                                                          OutputProvisionFormat,
+                                                          OutputProvisioner<?, ?>>(f, p)))
+                                  .collect(
+                                      Collectors
+                                          .<Pair<
+                                              OutputProvisionFormat,
+                                              OutputProvisioner<?, ?>>,
+                                              OutputProvisionFormat, OutputProvisioner<?, ?>>
+                                              toMap(Pair::first, Pair::second));
                           private final List<RuntimeProvisioner<?>> runtimeProvisioners =
                               e.getValue().getRuntimeProvisioners().stream()
                                   .<RuntimeProvisioner<?>>map(Main.this.runtimeProvisioners::get)
@@ -674,8 +794,8 @@ public final class Main implements ServerConfig {
                         }));
 
     final PGSimpleDataSource simpleConnection = new PGSimpleDataSource();
-    simpleConnection.setServerNames(new String[] {configuration.getDbHost()});
-    simpleConnection.setPortNumbers(new int[] {configuration.getDbPort()});
+    simpleConnection.setServerNames(new String[]{configuration.getDbHost()});
+    simpleConnection.setPortNumbers(new int[]{configuration.getDbPort()});
     simpleConnection.setDatabaseName(configuration.getDbName());
     simpleConnection.setUser(configuration.getDbUser());
     simpleConnection.setPassword(configuration.getDbPass());
@@ -725,7 +845,8 @@ public final class Main implements ServerConfig {
                           new TypeReference<>() {
                           }));
               if (response.statusCode() == HttpURLConnection.HTTP_OK) {
-                final ProvenanceAnalysisRecord<ExternalMultiVersionKey> result = response.body().get();
+                final ProvenanceAnalysisRecord<ExternalMultiVersionKey> result = response.body()
+                    .get();
                 return Optional.of(
                     new FileMetadata() {
                       private final List<ExternalMultiVersionKey> keys = result.getExternalKeys();
@@ -998,7 +1119,8 @@ public final class Main implements ServerConfig {
           (tx, ids) -> {
             exchange.setStatusCode(StatusCodes.OK);
             exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_JSON);
-            try (final JsonGenerator output = MAPPER_FACTORY.createGenerator(exchange.getOutputStream())) {
+            try (final JsonGenerator output = MAPPER_FACTORY.createGenerator(
+                exchange.getOutputStream())) {
               dumpUnloadDataToJson(tx, ids, output);
             }
             return null;
@@ -1232,7 +1354,8 @@ public final class Main implements ServerConfig {
             });
     output.writeEndArray();
     output.writeArrayFieldStart("workflowVersions");
-    final WorkflowDefinition accessoryDefinition = WORKFLOW_DEFINITION.as("accessoryWorkflowDefinition");
+    final WorkflowDefinition accessoryDefinition = WORKFLOW_DEFINITION.as(
+        "accessoryWorkflowDefinition");
     DSL.using(tx)
         .select(
             DSL.jsonObject(
@@ -1633,7 +1756,8 @@ public final class Main implements ServerConfig {
   }
 
   private JSONObjectNullStep<JSON> workflowVersionWithDefinitionFields() {
-    final WorkflowDefinition accessoryDefinition = WORKFLOW_DEFINITION.as("accessoryWorkflowDefinition");
+    final WorkflowDefinition accessoryDefinition = WORKFLOW_DEFINITION.as(
+        "accessoryWorkflowDefinition");
     return DSL.jsonObject(
         literalJsonEntry("name", WORKFLOW_VERSION.NAME),
         literalJsonEntry("version", WORKFLOW_VERSION.VERSION),
@@ -1745,10 +1869,12 @@ public final class Main implements ServerConfig {
                     analysis.getType().equals("file") ? analysis.getPath() : analysis.getUrl()))
             .set(
                 ANALYSIS.FILE_CHECKSUM,
-                param("checksum", analysis.getType().equals("file") ? analysis.getChecksum() : null))
+                param("checksum",
+                    analysis.getType().equals("file") ? analysis.getChecksum() : null))
             .set(
                 ANALYSIS.FILE_CHECKSUM_TYPE,
-                param("checksumType", analysis.getType().equals("file") ? analysis.getChecksumType() : null))
+                param("checksumType",
+                    analysis.getType().equals("file") ? analysis.getChecksumType() : null))
             .set(
                 ANALYSIS.FILE_METATYPE,
                 param(
@@ -1917,7 +2043,8 @@ public final class Main implements ServerConfig {
       // Data we would like to load must reference valid workflow versions
       // 1. Can't have a version for an unknown workflow
       for (final UnloadedWorkflowVersion workflowVersion : unloadedData.getWorkflowVersions()) {
-        final Pair<UnloadedWorkflow, Map<String, Pair<String, UnloadedWorkflowVersion>>> info = workflowInfo.get(workflowVersion.getName());
+        final Pair<UnloadedWorkflow, Map<String, Pair<String, UnloadedWorkflowVersion>>> info = workflowInfo.get(
+            workflowVersion.getName());
         if (info == null) {
           badRequestResponse(
               exchange,
@@ -1960,7 +2087,8 @@ public final class Main implements ServerConfig {
       for (final ProvenanceWorkflowRun<ExternalMultiVersionKey> workflowRun : unloadedData.getWorkflowRuns()) {
 
         // All workflow runs must be of installed workflows
-        final Pair<UnloadedWorkflow, Map<String, Pair<String, UnloadedWorkflowVersion>>> info = workflowInfo.get(workflowRun.getWorkflowName());
+        final Pair<UnloadedWorkflow, Map<String, Pair<String, UnloadedWorkflowVersion>>> info = workflowInfo.get(
+            workflowRun.getWorkflowName());
         if (info == null) {
           badRequestResponse(
               exchange,
@@ -1971,7 +2099,8 @@ public final class Main implements ServerConfig {
         }
 
         // All workflow runs must be of installed workflow versions
-        final Pair<String, UnloadedWorkflowVersion> versionInfo = info.second().get(workflowRun.getWorkflowVersion());
+        final Pair<String, UnloadedWorkflowVersion> versionInfo = info.second()
+            .get(workflowRun.getWorkflowVersion());
         if (versionInfo == null) {
           badRequestResponse(
               exchange,
@@ -2100,11 +2229,11 @@ public final class Main implements ServerConfig {
           // Validate all required metadata is present for file typed analysis record
           if (output.getType().equals("file")
               && (output.getMetatype() == null
-                  || output.getMetatype().isBlank()
-                  || output.getChecksum() == null
-                  || output.getChecksum().isBlank()
-                  || output.getChecksumType() == null
-                  || output.getChecksumType().isBlank())) {
+              || output.getMetatype().isBlank()
+              || output.getChecksum() == null
+              || output.getChecksum().isBlank()
+              || output.getChecksumType() == null
+              || output.getChecksumType().isBlank())) {
             badRequestResponse(
                 exchange,
                 String.format(
@@ -2119,8 +2248,8 @@ public final class Main implements ServerConfig {
           fileDigest.update(workflowRun.getId().getBytes(StandardCharsets.UTF_8));
           fileDigest.update(
               (output.getType().equals("file")
-                      ? Path.of(output.getPath()).getFileName().toString()
-                      : output.getUrl())
+                  ? Path.of(output.getPath()).getFileName().toString()
+                  : output.getUrl())
                   .getBytes(StandardCharsets.UTF_8));
           final String correctOutputId = hexDigits(fileDigest.digest());
 
@@ -2173,7 +2302,9 @@ public final class Main implements ServerConfig {
   private TreeMap<String, String> generateAccessoryWorkflowHashes(
       Map<String, String> accessoryFiles) throws NoSuchAlgorithmException {
     final TreeMap<String, String> accessoryHashes = new TreeMap<>();
-    if (accessoryFiles == null) return accessoryHashes;
+    if (accessoryFiles == null) {
+      return accessoryHashes;
+    }
     for (final Entry<String, String> accessory : new TreeMap<>(accessoryFiles).entrySet()) {
       final String accessoryHash = generateWorkflowDefinitionHash(accessory.getValue());
       accessoryHashes.put(accessory.getKey(), accessoryHash);
@@ -2237,8 +2368,10 @@ public final class Main implements ServerConfig {
         // We will have no ID from the insert if it already there
         if (id.isPresent()) {
           workflowVersionIds.put(workflowVersion, id.get().value1());
-          for (final Entry<String, String> accessory : version.second().getAccessoryFiles().entrySet()) {
-            final String accessoryWorkflowHash = generateWorkflowDefinitionHash(accessory.getValue());
+          for (final Entry<String, String> accessory : version.second().getAccessoryFiles()
+              .entrySet()) {
+            final String accessoryWorkflowHash = generateWorkflowDefinitionHash(
+                accessory.getValue());
             insertWorkflowDefinition(
                 configuration, accessory.getValue(), accessoryWorkflowHash, workflowLanguage);
             associateDefinitionAsAccessory(
@@ -2740,7 +2873,8 @@ public final class Main implements ServerConfig {
     // where value1 is present enough to be returned, but null-like enough to throw NPE when
     // calling .data() on it.
 
-    return MAPPER.readValue(result, new TypeReference<>() {});
+    return MAPPER.readValue(result, new TypeReference<>() {
+    });
   }
 
   private String generateWorkflowDefinitionHash(String workflowDefinition)
@@ -2760,18 +2894,18 @@ public final class Main implements ServerConfig {
       throws NoSuchAlgorithmException, JsonProcessingException {
     final MessageDigest versionDigest = MessageDigest.getInstance("SHA-256");
     versionDigest.update(workflowName.getBytes(StandardCharsets.UTF_8));
-    versionDigest.update(new byte[] {0});
+    versionDigest.update(new byte[]{0});
     versionDigest.update(version.getBytes(StandardCharsets.UTF_8));
-    versionDigest.update(new byte[] {0});
+    versionDigest.update(new byte[]{0});
     versionDigest.update(workflowDefinitionHash.getBytes(StandardCharsets.UTF_8));
     versionDigest.update(MAPPER.writeValueAsBytes(outputs));
     versionDigest.update(MAPPER.writeValueAsBytes(inputs));
 
     if (accessoryHashes != null) {
       for (final Entry<String, String> accessory : new TreeMap<>(accessoryHashes).entrySet()) {
-        versionDigest.update(new byte[] {0});
+        versionDigest.update(new byte[]{0});
         versionDigest.update(accessory.getKey().getBytes(StandardCharsets.UTF_8));
-        versionDigest.update(new byte[] {0});
+        versionDigest.update(new byte[]{0});
         versionDigest.update(accessory.getValue().getBytes(StandardCharsets.UTF_8));
       }
     }

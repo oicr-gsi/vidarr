@@ -1,25 +1,45 @@
 package ca.on.oicr.gsi.vidarr.api;
+
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.util.List;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class ReprovisionOutRequest{
-  private List<String> analysisHashIds;
-  private String outputProvisionerName;
+public class ReprovisionOutRequest {
 
-  public List<String> getAnalysisHashIds() {
-    return analysisHashIds;
+  private List<String> workflowRunHashIds;
+  private String outputProvisionerName;
+  private String outputPath;
+
+  public String getOutputPath() {
+    return outputPath;
+  }
+
+  public List<String> getWorkflowRunHashIds() {
+    return workflowRunHashIds;
   }
 
   public String getOutputProvisionerName() {
     return outputProvisionerName;
   }
 
-  public void setAnalysisHashIds(List<String> analysisHashIds) {
-    this.analysisHashIds = analysisHashIds;
+  public void setOutputPath(String outputPath) {
+    this.outputPath = outputPath;
+  }
+
+  public void setWorkflowRunHashIds(List<String> workflowRunHashIds) {
+    this.workflowRunHashIds = workflowRunHashIds;
   }
 
   public void setOutputProvisionerName(String outputProvisionerName) {
     this.outputProvisionerName = outputProvisionerName;
+  }
+
+  public boolean check() {
+    return null != workflowRunHashIds
+        && null != outputProvisionerName
+        && null != outputPath
+        && !workflowRunHashIds.isEmpty()
+        && !outputProvisionerName.isBlank()
+        && !outputPath.isBlank();
   }
 }

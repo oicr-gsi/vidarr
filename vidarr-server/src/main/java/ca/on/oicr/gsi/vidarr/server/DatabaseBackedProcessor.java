@@ -73,6 +73,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -1062,16 +1063,17 @@ public abstract class DatabaseBackedProcessor
                                   (OffsetDateTime) null) // have to cast null to something to resolve ambiguous signature
                               .where(WORKFLOW_RUN.HASH_ID.eq(record.get(WORKFLOW_RUN.HASH_ID)))
                               .execute();
-                          final DatabaseWorkflow workflow =
+                          final Pair<DatabaseWorkflow, List<DatabaseOperation>> workflowInfo =
                               DatabaseWorkflow.reprovision(newTarget, outputPath, record,
                                   liveness(record.get(WORKFLOW_RUN.ID)), dsl);
+
                           handler.launched(record.get(WORKFLOW_RUN.HASH_ID),
                               new ConsumableResourceChecker(
                                   newTarget,
                                   dataSource,
                                   executor(),
-                                  workflow.dbId(),
-                                  liveness(workflow.dbId()),
+                                  workflowInfo.first().dbId(),
+                                  liveness(workflowInfo.first().dbId()),
                                   new MaxInFlightByWorkflow(), // TODO probably will break
                                   "reprovision",
                                   "1",
@@ -1089,8 +1091,8 @@ public abstract class DatabaseBackedProcessor
                                               Map.of(),
                                               Stream.of(),
                                               Stream.of()
-                                          ), workflow,
-                                          List.of(), // TODO some actual values
+                                          ), workflowInfo.first(),
+                                          workflowInfo.second(),
                                           RecoveryType.RECOVER
                                       );
                                     }

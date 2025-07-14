@@ -124,12 +124,15 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
         created);
   }
 
-  public static DatabaseWorkflow reprovision(Target target, String outputPath, Record record,
+  public static Pair<DatabaseWorkflow, List<DatabaseOperation>> reprovision(Target target,
+      String outputPath, Record record,
       AtomicBoolean liveness,
       DSLContext dsl) {
     final long dbId = record.get(WORKFLOW_RUN.ID);
-    final var inputIds = new HashSet<ExternalId>();
-    final var requestedInputIds = new HashSet<ExternalId>();
+    final HashSet<ExternalId> inputIds = new HashSet<>();
+    final HashSet<ExternalId> requestedInputIds = new HashSet<>();
+    List<DatabaseOperation> dbOperations = new LinkedList<>();
+
     dsl.select(EXTERNAL_ID.asterisk())
         .from(EXTERNAL_ID)
         .where(EXTERNAL_ID.WORKFLOW_RUN_ID.eq(dbId))
@@ -171,24 +174,23 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
       while (iterator2.hasNext()) {
         ObjectNode content = (ObjectNode) iterator2.next();
         if (content.has("outputDirectory")) {
+          // Update metadata outputDirectory to new output path so they provision out there
           content.put("outputDirectory", outputPath);
+
+          // map to OutputType and PrepareOutputProvisioning
+          // TODO ugh, the external keys
         }
       }
     }
 
-    dsl.update(WORKFLOW_RUN)
-        .set(WORKFLOW_RUN.METADATA, metadata)
-        .where(WORKFLOW_RUN.ID.eq(dbId))
-        .execute();
-
-    return new DatabaseWorkflow(
+    DatabaseWorkflow dbWorkflow = new DatabaseWorkflow(
         target,
         dbId,
         record.get(WORKFLOW_RUN.HASH_ID),
         0,
         "reprovision",
         "1",
-        metadata,
+        null,
         record.get(WORKFLOW_RUN.ENGINE_PARAMETERS),
         record.get(WORKFLOW_RUN.METADATA),
         Main.MAPPER.nullNode(),
@@ -201,6 +203,19 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
         0,
         liveness,
         record.get(WORKFLOW_RUN.CREATED).toInstant());
+
+    dsl.update(WORKFLOW_RUN)
+        .set(WORKFLOW_RUN.METADATA, metadata)
+        .where(WORKFLOW_RUN.ID.eq(dbId))
+        .execute();
+
+    return new Pair<>(dbWorkflow,
+        dbWorkflow.phase(
+            Phase.PROVISION_OUT,
+            List.of(),
+            dsl
+        )
+    );
   }
 
   public static JSONB labelsToJson(Map<String, String> labels) {

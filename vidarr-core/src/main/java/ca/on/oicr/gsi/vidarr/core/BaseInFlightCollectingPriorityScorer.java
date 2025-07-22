@@ -5,7 +5,9 @@ import io.undertow.server.HttpHandler;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.OptionalInt;
+import java.util.Set;
 import java.util.SortedSet;
+import java.util.stream.Collectors;
 
 public abstract class BaseInFlightCollectingPriorityScorer implements PriorityScorer {
 
@@ -45,7 +47,8 @@ public abstract class BaseInFlightCollectingPriorityScorer implements PrioritySc
         if (existingPriority == Integer.MAX_VALUE) {
           return true;
         } else if (existingPriority == score) {
-          if (active.headSet(existing.get()).size() < limit) {
+          final int finalScore = score;
+          if (active.stream().filter(e -> e.priority() > finalScore).count() < limit) {
             active.remove(existing.get());
             active.add(new WorkflowRunScore(vidarrId, Integer.MAX_VALUE));
             return true;

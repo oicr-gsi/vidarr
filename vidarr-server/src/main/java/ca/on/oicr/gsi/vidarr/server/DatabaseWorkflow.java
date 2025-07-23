@@ -176,9 +176,6 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
         if (content.has("outputDirectory")) {
           // Update metadata outputDirectory to new output path so they provision out there
           content.put("outputDirectory", outputPath);
-
-          // map to OutputType and PrepareOutputProvisioning
-          // TODO ugh, the external keys
         }
       }
     }
@@ -198,7 +195,7 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
         inputIds,
         requestedInputIds,
         true,
-        Phase.PROVISION_OUT,
+        Phase.WAITING_FOR_RESOURCES,
         List.of(),
         0,
         liveness,

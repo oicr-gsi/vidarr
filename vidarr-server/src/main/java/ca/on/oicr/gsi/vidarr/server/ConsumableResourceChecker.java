@@ -9,6 +9,7 @@ import ca.on.oicr.gsi.vidarr.core.Target;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.zaxxer.hikari.HikariDataSource;
+import io.prometheus.client.Counter;
 import io.prometheus.client.Histogram;
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -35,6 +36,12 @@ final class ConsumableResourceChecker implements Runnable {
           .labelNames("workflow")
           .register();
 
+  private static final Counter waitRounds =
+      Counter.build(
+              "vidarr_consumable_resource_wait_rounds",
+              "How many rounds a workflow run had to wait for"
+          ).labelNames("id")
+          .register();
   private final Map<String, JsonNode> consumableResources;
   private final Instant createdTime;
   private final HikariDataSource dataSource;
@@ -154,6 +161,7 @@ final class ConsumableResourceChecker implements Runnable {
   }
 
   private void updateBlockedResource(String error) {
+    waitRounds.labels(vidarrId).inc();
     try (final Connection connection = dataSource.getConnection()) {
       DSL.using(connection, SQLDialect.POSTGRES)
           .transaction(

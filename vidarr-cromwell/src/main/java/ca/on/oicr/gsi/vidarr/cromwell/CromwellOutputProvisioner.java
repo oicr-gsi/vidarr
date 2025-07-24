@@ -189,7 +189,8 @@ public class CromwellOutputProvisioner
   }
 
   @Override
-  public ProvisionState prepareProvisionInput(String workflowRunId, String data, JsonNode metadata) {
+  public ProvisionState prepareProvisionInput(String workflowRunId, String data,
+      JsonNode metadata) {
     return new ProvisionState(cromwellUrl, data, metadata, workflowRunId);
   }
 
@@ -218,6 +219,7 @@ public class CromwellOutputProvisioner
                 onInnerState(ProvisionState.class, ProvisionState::checkTask),
                 load(StateStarted.class, (state) -> state.buildCheckRequest(debugCalls))
                     .then(http(new JsonBodyHandler<>(MAPPER, WorkflowMetadataResponse.class)))
+                    .then(monitorWhen(CROMWELL_FAILURES, OperationStep::isHttpNotOk, cromwellUrl))
                     .then(requireJsonSuccess())
                     .then(debugInfo(WorkflowMetadataResponse::debugInfo))
                     .then(
@@ -234,6 +236,7 @@ public class CromwellOutputProvisioner
                     .then(poll(Duration.ofMinutes(5)))
                     .reload(StateStarted::buildOutputsRequest)
                     .then(http(new JsonBodyHandler<>(MAPPER, WorkflowOutputResponse.class)))
+                    .then(monitorWhen(CROMWELL_FAILURES, OperationStep::isHttpNotOk, cromwellUrl))
                     .then(requireJsonSuccess())))
         .map(this::extractOutput);
   }

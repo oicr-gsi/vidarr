@@ -38,9 +38,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.xml.stream.XMLStreamException;
 
-/**
- * Run workflows using Cromwell
- */
+/** Run workflows using Cromwell */
 public final class CromwellWorkflowEngine implements WorkflowEngine<StateUnstarted, CleanupState> {
 
   private static final int CHECK_DELAY = 1;
@@ -82,8 +80,7 @@ public final class CromwellWorkflowEngine implements WorkflowEngine<StateUnstart
   private Map<String, BasicType> engineParameters;
   private String url;
 
-  public CromwellWorkflowEngine() {
-  }
+  public CromwellWorkflowEngine() {}
 
   @Override
   public OperationAction<?, CleanupState, Void> cleanup() {
@@ -136,6 +133,7 @@ public final class CromwellWorkflowEngine implements WorkflowEngine<StateUnstart
                 onInnerState(StateUnstarted.class, StateUnstarted::checkTask),
                 load(StateStarted.class, (state) -> state.buildCheckRequest(debugInflightRuns))
                     .then(http(new JsonBodyHandler<>(MAPPER, WorkflowMetadataResponse.class)))
+                    .then(monitorWhen(CROMWELL_FAILURES, OperationStep::isHttpNotOk, url))
                     .then(requireJsonSuccess())
                     .then(debugInfo(WorkflowMetadataResponse::debugInfo))
                     .then(
@@ -152,6 +150,7 @@ public final class CromwellWorkflowEngine implements WorkflowEngine<StateUnstart
                     .then(poll(Duration.ofMinutes(5)))
                     .reload(StateStarted::buildOutputsRequest)
                     .then(http(new JsonBodyHandler<>(MAPPER, WorkflowOutputResponse.class)))
+                    .then(monitorWhen(CROMWELL_FAILURES, OperationStep::isHttpNotOk, url))
                     .then(requireJsonSuccess())
                     .map(
                         (state, output) ->

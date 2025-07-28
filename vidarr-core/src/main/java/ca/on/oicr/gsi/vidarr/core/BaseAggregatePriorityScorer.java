@@ -33,9 +33,16 @@ public abstract class BaseAggregatePriorityScorer implements PriorityScorer {
   }
 
   @Override
-  public final void release(String workflowName, String workflowVersion, String vidarrId) {
+  public final void complete(String workflowName, String workflowVersion, String vidarrId) {
     for (final PriorityScorer scorer : scorers) {
-      scorer.release(workflowName, workflowVersion, vidarrId);
+      scorer.complete(workflowName, workflowVersion, vidarrId);
+    }
+  }
+
+  @Override
+  public final void putItBack(String workflowName, String workflowVersion, String vidarrId) {
+    for (final PriorityScorer scorer : scorers) {
+      scorer.putItBack(workflowName, workflowVersion, vidarrId);
     }
   }
 

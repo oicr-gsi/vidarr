@@ -29,7 +29,7 @@ public final class AllPriorityScorer extends BaseAggregatePriorityScorer {
     // If one or more of the scorers is not OK, release the ones that are and return false
     if (okayScorers.size() != scorers.size()) {
       for (PriorityScorer scorer : okayScorers) {
-        scorer.release(workflowName, workflowVersion, vidarrId);
+        scorer.putItBack(workflowName, workflowVersion, vidarrId);
       }
       return false;
     } else { // all of the scorers returned true, we are good to go

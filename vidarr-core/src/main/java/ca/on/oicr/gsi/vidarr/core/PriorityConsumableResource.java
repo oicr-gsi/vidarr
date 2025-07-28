@@ -67,7 +67,7 @@ public final class PriorityConsumableResource implements ConsumableResource {
   @Override
   public void release(
       String workflowName, String workflowVersion, String vidarrId, Optional<JsonNode> input) {
-    scorer.release(workflowName, workflowVersion, vidarrId);
+    scorer.complete(workflowName, workflowVersion, vidarrId);
   }
 
   @Override

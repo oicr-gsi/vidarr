@@ -5,18 +5,16 @@ import io.undertow.server.HttpHandler;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.OptionalInt;
-import java.util.Set;
 import java.util.SortedSet;
-import java.util.stream.Collectors;
 
 public abstract class BaseInFlightCollectingPriorityScorer implements PriorityScorer {
 
-  protected record WorkflowRunScore(String vidarrId, int priority)
+  protected record WorkflowRunScore(String vidarrId, int currentPriority, int originalPriority)
       implements Comparable<WorkflowRunScore> {
 
     @Override
     public int compareTo(WorkflowRunScore workflowRunScore) {
-      int result = Integer.compare(workflowRunScore.priority, this.priority);
+      int result = Integer.compare(workflowRunScore.currentPriority, this.currentPriority);
       if (result == 0) {
         result = this.vidarrId.compareTo(workflowRunScore.vidarrId());
       }
@@ -43,14 +41,14 @@ public abstract class BaseInFlightCollectingPriorityScorer implements PrioritySc
       final Optional<WorkflowRunScore> existing = active.stream()
           .filter(e -> e.vidarrId().equals(vidarrId)).findFirst();
       if (existing.isPresent()) {
-        final int existingPriority = existing.get().priority();
+        final int existingPriority = existing.get().currentPriority();
         if (existingPriority == Integer.MAX_VALUE) {
           return true;
         } else if (existingPriority == score) {
           final int finalScore = score;
-          if (active.stream().filter(e -> e.priority() > finalScore).count() < limit) {
+          if (active.stream().filter(e -> e.currentPriority() > finalScore).count() < limit) {
             active.remove(existing.get());
-            active.add(new WorkflowRunScore(vidarrId, Integer.MAX_VALUE));
+            active.add(new WorkflowRunScore(vidarrId, Integer.MAX_VALUE, score));
             return true;
           } else {
             return false;
@@ -60,13 +58,13 @@ public abstract class BaseInFlightCollectingPriorityScorer implements PrioritySc
           active.remove(existing.get());
         }
       }
-      final WorkflowRunScore wfrScore = new WorkflowRunScore(vidarrId, score);
+      final WorkflowRunScore wfrScore = new WorkflowRunScore(vidarrId, score, score);
       active.add(wfrScore);
       // Checking that an existing record was present ensures that we don't allow first-come low
-      // priority jobs to take all the tokens
+      // currentPriority jobs to take all the tokens
       if (existing.isPresent() && active.headSet(wfrScore).size() < limit) {
         active.remove(wfrScore);
-        active.add(new WorkflowRunScore(vidarrId, Integer.MAX_VALUE));
+        active.add(new WorkflowRunScore(vidarrId, Integer.MAX_VALUE, score));
         return true;
       } else {
         return false;
@@ -96,15 +94,30 @@ public abstract class BaseInFlightCollectingPriorityScorer implements PrioritySc
     final SortedSet<WorkflowRunScore> active = get(workflowName, workflowVersion);
     synchronized (active) {
       active.removeIf(a -> a.vidarrId().equals(vidarrId));
-      active.add(new WorkflowRunScore(vidarrId, Integer.MAX_VALUE));
+      active.add(new WorkflowRunScore(vidarrId, Integer.MAX_VALUE, Integer.MAX_VALUE));
     }
   }
 
   @Override
-  public final void release(String workflowName, String workflowVersion, String vidarrId) {
+  public final void complete(String workflowName, String workflowVersion, String vidarrId) {
     final SortedSet<WorkflowRunScore> active = get(workflowName, workflowVersion);
     synchronized (active) {
       active.removeIf(a -> a.vidarrId().equals(vidarrId));
+    }
+  }
+
+  @Override
+  public final void putItBack(String workflowName, String workflowVersion, String vidarrId) {
+    final SortedSet<WorkflowRunScore> active = get(workflowName, workflowVersion);
+    synchronized (active) {
+      Optional<WorkflowRunScore> wfrScoreMaybe = active.stream()
+          .filter(a -> a.vidarrId().equals(vidarrId)).findFirst();
+      if (wfrScoreMaybe.isPresent()) {
+        WorkflowRunScore wfrScore = wfrScoreMaybe.get();
+        active.remove(wfrScore);
+        active.add(new WorkflowRunScore(vidarrId, wfrScore.originalPriority(),
+            wfrScore.originalPriority()));
+      } // else do nothing - but this shouldn't happen
     }
   }
 

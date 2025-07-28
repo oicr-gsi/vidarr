@@ -7,6 +7,7 @@ import java.util.Optional;
 import java.util.OptionalInt;
 
 public final class CutoffPriorityScorer implements PriorityScorer {
+
   private int cutoff;
 
   @Override
@@ -30,15 +31,22 @@ public final class CutoffPriorityScorer implements PriorityScorer {
   }
 
   @Override
-  public void recover(String workflowName, String workflowVersion, String vidarrId) {}
+  public void recover(String workflowName, String workflowVersion, String vidarrId) {
+  }
 
   @Override
-  public void release(String workflowName, String workflowVersion, String vidarrId) {}
+  public void complete(String workflowName, String workflowVersion, String vidarrId) {
+  }
+
+  @Override
+  public void putItBack(String workflowName, String workflowVersion, String vidarrId) {
+  }
 
   public void setCutoff(int cutoff) {
     this.cutoff = cutoff;
   }
 
   @Override
-  public void startup() {}
+  public void startup() {
+  }
 }

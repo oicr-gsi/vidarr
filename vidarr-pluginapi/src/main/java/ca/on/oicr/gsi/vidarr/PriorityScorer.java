@@ -20,7 +20,9 @@ import java.util.ServiceLoader;
 import java.util.ServiceLoader.Provider;
 import java.util.stream.Collectors;
 
-/** Examine a score to determine if a workflow run should be allowed to proceed or wait */
+/**
+ * Examine a score to determine if a workflow run should be allowed to proceed or wait
+ */
 @JsonTypeIdResolver(PriorityScorerIdResolver.class)
 @JsonTypeInfo(use = Id.CUSTOM, include = As.PROPERTY, property = "type")
 public interface PriorityScorer {
@@ -62,12 +64,12 @@ public interface PriorityScorer {
   /**
    * Determine if the workflow run can begin now
    *
-   * @param workflowName the name of the workflow
-   * @param workflowVersion the version of the workflow
-   * @param vidarrId the workflow run identifier
-   * @param created the time when the workflow run was first submitted
+   * @param workflowName        the name of the workflow
+   * @param workflowVersion     the version of the workflow
+   * @param vidarrId            the workflow run identifier
+   * @param created             the time when the workflow run was first submitted
    * @param workflowMaxInFlight the max-in-flight value for this workflow, if available
-   * @param score the computed score for this workflow run
+   * @param score               the computed score for this workflow run
    * @return true if the workflow run may proceed; false if it should wait
    */
   boolean compute(
@@ -77,6 +79,7 @@ public interface PriorityScorer {
       Instant created,
       OptionalInt workflowMaxInFlight,
       int score);
+
   /**
    * Priority scorers may provide an optional HTTP API to extend their functionality that will be
    * accessible through their parent consumable resource.
@@ -92,20 +95,35 @@ public interface PriorityScorer {
    * Indicate that Vidarr has restarted and this workflow run will be started even if this scorer
    * would make it wait.
    *
-   * @param workflowName the name of the workflow
+   * @param workflowName    the name of the workflow
    * @param workflowVersion the version of the workflow
-   * @param vidarrId the identifier of the workflow run
+   * @param vidarrId        the identifier of the workflow run
    */
   void recover(String workflowName, String workflowVersion, String vidarrId);
 
   /**
    * Indicate that the workflow run has completed and the score should purge any state about it
    *
-   * @param workflowName the name of the workflow
+   * @param workflowName    the name of the workflow
    * @param workflowVersion the version of the workflow
-   * @param vidarrId the identifier of the workflow run
+   * @param vidarrId        the identifier of the workflow run
    */
-  void release(String workflowName, String workflowVersion, String vidarrId);
-  /** Perform any initialization required by this input */
+  void complete(String workflowName, String workflowVersion, String vidarrId);
+
+
+  /**
+   * Indicate that an outer aggregate scorer has failed to meet criteria to start this workflow run,
+   * don't completely forget this job but also don't keep it at top priority.
+   *
+   * @param workflowName    the name of the workflow
+   * @param workflowVersion the version of the workflow
+   * @param vidarrId        the identifier of the workflow run
+   */
+  void putItBack(String workflowName, String workflowVersion, String vidarrId);
+
+
+  /**
+   * Perform any initialization required by this input
+   */
   void startup();
 }

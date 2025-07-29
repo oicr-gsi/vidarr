@@ -62,7 +62,9 @@ public abstract class BaseInFlightCollectingPriorityScorer implements PrioritySc
       active.add(wfrScore);
       // Checking that an existing record was present ensures that we don't allow first-come low
       // currentPriority jobs to take all the tokens
-      if (existing.isPresent() && active.headSet(wfrScore).size() < limit) {
+      final int finalScore = score;
+      if (existing.isPresent()
+          && active.stream().filter(e -> e.currentPriority() > finalScore).count() < limit) {
         active.remove(wfrScore);
         active.add(new WorkflowRunScore(vidarrId, Integer.MAX_VALUE, score));
         return true;

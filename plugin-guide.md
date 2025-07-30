@@ -1,4 +1,5 @@
 # Víðarr Plugin Developer's Guide
+
 Víðarr uses plugins to allow interaction with a diverse set of systems. Plugins
 are loaded by the Java
 [`ServiceLoader`](https://docs.oracle.com/javase/9/docs/api/java/util/ServiceLoader.html)
@@ -31,6 +32,7 @@ As an example of a configuration file:
   }
 }
 ```
+
 The `"type": "max-in-flight"` property is used to connect this configuration to
 `ca.on.oicr.gsi.vidarr.core.MaxInFlightConsumableResource`. The `"maximum"`
 property is populated by Jackson into an instance of that class. Here `"total"`
@@ -61,6 +63,7 @@ up where they left off based only on this information.
 See [Víðarr Code Style](code-style.md) for preferred code formatting.
 
 # Consumable Resource
+
 Consumable resources implement
 `ca.on.oicr.gsi.vidarr.ConsumableResourceProvider` and
 `ca.on.oicr.gsi.vidarr.ConsumableResource`. These plugins are responsible for
@@ -75,12 +78,12 @@ resources must be available at the start of its run and it holds the resource
 until the workflow completes (successfully or not), at which point the resource
 may be reused by another workflow run. Within quota-type, some require
 information (_e.g._, the amount of RAM), while others are based purely on the
-existence of the workflow run (_e.g._, max-in-flight). The priority consumable 
+existence of the workflow run (_e.g._, max-in-flight). The priority consumable
 resources operates within the restrictions imposed from quota resources and allows
-users to manually set the order in which workflow runs will launch. Other 
-resource are more "throttling"-type. These include maintenance schedules and 
-Prometheus alerts which block workflow runs from starting but don't track 
-anything once the workflow run is underway. 
+users to manually set the order in which workflow runs will launch. Other
+resource are more "throttling"-type. These include maintenance schedules and
+Prometheus alerts which block workflow runs from starting but don't track
+anything once the workflow run is underway.
 
 Consumable resources are long-running. Whenever Víðarr attempts to run a
 workflow, it will consult the consumable resources to see if there is capacity
@@ -90,7 +93,7 @@ workflow has finished running (successfully or not), Víðarr will `release` the
 resource so that it can be used again. When Víðarr restarts, any running
 workflows will be called with `recover` to indicate that the resource is being
 used and the resource cannot stop the workflow even if the resource is
-over-capacity. 
+over-capacity.
 
 Consumable resources can request data from the user, if desired. The
 `inputFromSubmitter` can return an empty optional to indicate that no
@@ -107,6 +110,7 @@ numeric statistics that will be available in the `"tracing"` property. Víðarr
 will prefix these variables with the consumable resource's name.
 
 # Input Provisioners
+
 Input provisioners implement `ca.on.oicr.gsi.vidarr.InputProvisionerProvider`
 and `ca.on.oicr.gsi.vidarr.InputProvisioner`. These plugins are responsible for
 taking files from existing workflows or provided by the user and generating a
@@ -125,6 +129,7 @@ These are not the responsibility of the plugin author.
 This plugin type uses the [operations API](#operations-api).
 
 # Output Provisioners
+
 Output provisioners implement `ca.on.oicr.gsi.vidarr.OutputProvisionerProvider`
 and `ca.on.oicr.gsi.vidarr.OutputProvisioner`. These plugins are responsible
 for taking data (files or JSON values) from completed workflows, moving the
@@ -144,6 +149,7 @@ the output provided by the workflow.
 This plugin type uses the [operations API](#operations-api).
 
 # Runtime Provisioners
+
 Runtime provisioners implement `ca.on.oicr.gsi.vidarr.RuntimeProvisionerProvider`
 and `ca.on.oicr.gsi.vidarr.RuntimeProvisioner`. These plugins are responsible for
 extracting non-specific output from a workflow. While output provisioners are
@@ -158,6 +164,7 @@ system administrator.
 This plugin type uses the [operations API](#operations-api).
 
 # Workflow Engine
+
 Workflow engines implement `ca.on.oicr.gsi.vidarr.WorkflowEngineProvider`
 and `ca.on.oicr.gsi.vidarr.WorkflowEngine`. These plugins are responsible for
 running workflows and collecting the output from the workflow. A workflow
@@ -179,6 +186,7 @@ clean-up (and clean-up recovery) methods.
 This plugin type uses the [operations API](#operations-api).
 
 # Unload Filters
+
 Unload filters implement `ca.on.oicr.gsi.vidarr.UnloadFilterProvider` and
 `ca.on.oicr.gsi.vidarr.UnloadFilter`. These plugins allow customisable
 selection of workflows for unloading. For an understanding of unloading
@@ -204,9 +212,10 @@ identifiers associated with that run and then construct a query based on those
 to match workflow runs that use any of those identifiers.
 
 # Priority Consumable Resource Inputs, Formulas, and Scorers
+
 The priority consumable resource takes plugins for the inputs, formulas, and
 scorers. These are used by the [Priority Consumable
-Resource](#priority_consumable_resource).  This follows the same pattern as the
+Resource](#priority_consumable_resource). This follows the same pattern as the
 other plugins: an implementation of `ca.on.oicr.gsi.vidarr.PriorityInput`,
 `ca.on.oicr.gsi.vidarr.PriorityFormula`, or
 `ca.on.oicr.gsi.vidarr.PriorityScorer` for the input, formula, and scorers,
@@ -222,8 +231,14 @@ Each component will be called for every pending workflow run, so the analysis
 should be relatively fast. `PriorityInput` implementations should cache results
 from external services.
 
+<!-- TODO: GP-4801 Delete this notice -->
+Please note that priority formaulae will not be applied when falling back on a default
+priority input value.
+
 <a id="operations-api"></a>
+
 # The Operations API
+
 Multiple plugins use an operations API rather than direct method calls. The API
 is designed to simplify two messy tasks: asynchronous operations and creating a
 recoverable state. The operations API consists of a few classes in
@@ -284,13 +299,16 @@ interfaces Víðarr uses intentionally hide the state type behind a wild card
 cause recovery issues.
 
 # Provided Implementations
+
 This core implementation provides several plugins independent of external
 systems.
 
 ## Consumable Resources
+
 Consumable resources provided in Víðarr core.
 
 ### Manual Override
+
 Allows overriding a consumable resource to permit workflow runs to run even if they
 would hit a limit.
 
@@ -335,6 +353,7 @@ curl -X POST http://vidarr.example.com/api/consumable-resource/global-max/allowe
 ```
 
 ### Max-in-Flight
+
 Set a global maximum number of workflow runs that can be simultaneously
 active.
 
@@ -346,7 +365,9 @@ active.
 ```
 
 <a id="priority_consumable_resource"></a>
+
 ### Priority Consumable Resource
+
 The priority consumable resource operates by computing a number, a priority,
 for each workflow run and then allowing the workflow run to proceed
 based on that number.
@@ -377,11 +398,14 @@ See the other sections for the possible inputs, formulas, and scorers.
 ```
 
 ## Input Provisioners
+
 Input provisioners provided in Víðarr core.
 
 ### One-Of
+
 Allows selecting multiple different input provisioners depending on a `"type"`
 provided in the metadata.
+
 ```
 {
   "type": "oneOf",
@@ -393,6 +417,7 @@ provided in the metadata.
 ```
 
 ### Raw
+
 Allows input to be provided as a string that is assumed to be a path.
 
 ```
@@ -405,11 +430,14 @@ Allows input to be provided as a string that is assumed to be a path.
 This can be limited to a particular input type format.
 
 ## Output Provisioner
+
 Output provisioners provided in Víðarr core.
 
 ### One-Of
+
 Allows selecting multiple different output provisioners depending on a `"type"`
 provided in the metadata.
+
 ```
 {
   "type": "oneOf",
@@ -421,9 +449,11 @@ provided in the metadata.
 ```
 
 ## Priority Input
+
 Priority inputs provided in Víðarr core.
 
 ### JSON Array
+
 Takes input as an index into an array and returns the value in that array. If
 the index is less than zero, `"underflowPriority"` is returned. If the index is
 beyond the end of the array, `"overflowPriority"` is used. The priorities are
@@ -439,6 +469,7 @@ stored in `"file"` which must be a JSON file containing an array of integers.
 ```
 
 ### JSON Dictionary
+
 Takes input as a string and looks up the value of that in a dictionary. If
 the input is not in the dictionary, `"defaultPriority"` is used. The priorities
 are stored in `"file"` which must be a JSON object where all the values are
@@ -453,6 +484,7 @@ integers.
 ```
 
 ### One-Of
+
 Allows the submitter to select one of multiple priority inputs using a tagged
 union.
 
@@ -473,6 +505,7 @@ inputs. If the name provided by the submitter does not match one of the inputs,
 be capitalized for compatibility with Shesmu.
 
 ### Prometheus Input
+
 Reads a variable from Prometheus, filtering on the label set, and returns the
 current value.
 
@@ -501,7 +534,7 @@ The process this input provider uses is as follows:
    label set.
 4. If a matching label set is found, the last recorded value will be used,
    regardless of when Prometheus observed it.
-5. If no matching label set is found, `"defaultPriority"` will be  used.
+5. If no matching label set is found, `"defaultPriority"` will be used.
 
 The label set is constructed from the submission request. For each string in
 `"labels"`, the submitter must provide a string value. These labels and values
@@ -516,6 +549,7 @@ version using `"workflowVersionLabel"`, which will only be used if
 to null.
 
 ### Raw Priority Input
+
 Takes an optional integer from the submission request and returns it raw, or
 `"defaultPriority"` if not provided.
 
@@ -527,6 +561,7 @@ Takes an optional integer from the submission request and returns it raw, or
 ```
 
 ### Remote Input
+
 Takes an arbitrary JSON value and sends it to remote HTTP endpoint for
 evaluation. That endpoint must return a single number. The result will be
 cached. The `"schema"` is a standard Víðarr type that should be requested from
@@ -548,13 +583,13 @@ required on submission. The data provided by the submission will be sent via
 an integer for the priority or null to use the default priority. The result
 will be cached for `"ttl"` minutes before being reattempted.
 
-
 ### Tuple-Wrapping Input
+
 This changes the type of an input provider for compatibility with Shesmu. The
 crux is this: Shesmu's tagged unions are more limited than Víðarr's. Shesmu
 requires that a tagged union have a tuple or object while Víðarr permits either
 of those. When using the _one-of_ input source, this introduces the possibility
-of creating a type that Shesmu cannot process.  This allows wrapping an
+of creating a type that Shesmu cannot process. This allows wrapping an
 priority input's type in a single element tuple, thereby making it compatible
 with Shesmu.
 
@@ -566,9 +601,11 @@ with Shesmu.
 ```
 
 ## Priority Formula
+
 Priority formulas provided in Víðarr core.
 
 ### Constant
+
 Returns a constant value.
 
 ```
@@ -579,6 +616,7 @@ Returns a constant value.
 ```
 
 # Input Variable
+
 Accesses one of the input scores. If no input score has the identifier
 `"name"`, the minimum integer value is used.
 
@@ -590,6 +628,7 @@ Accesses one of the input scores. If no input score has the identifier
 ```
 
 ### Minimum and Maximum
+
 Takes the minimum or maximum of other formulas.
 
 ```
@@ -609,6 +648,7 @@ or
 ```
 
 ### Product
+
 Computes the product of other formulas (_i.e._, multiplies their scores).
 
 ```
@@ -619,6 +659,7 @@ Computes the product of other formulas (_i.e._, multiplies their scores).
 ```
 
 ### Subtraction
+
 Computes the difference between two formulas; the result of `"left"` minus the
 result of `"right"`.
 
@@ -631,6 +672,7 @@ result of `"right"`.
 ```
 
 ### Summation
+
 Computes the summation of other formulas (_i.e._, adds their scores).
 
 ```
@@ -641,6 +683,7 @@ Computes the summation of other formulas (_i.e._, adds their scores).
 ```
 
 # Temporal Escalating with Multiplier
+
 Increases the priority as a workflow run sits around. The duration the workflow
 run has been waiting is looked up in the `"escalation"` object; the keys are an
 [ISO-8601 duration](https://en.wikipedia.org/wiki/ISO_8601#Durations) and the
@@ -662,6 +705,7 @@ priority is provided using the `"base"` formula.
 ```
 
 # Temporal Escalating with Offset
+
 Increases the priority as a workflow run sits around. The duration the workflow
 run has been waiting is looked up in the `"escalation"` object; the keys are an
 [ISO-8601 duration](https://en.wikipedia.org/wiki/ISO_8601#Durations) and the
@@ -683,9 +727,11 @@ priority is provided using the `"base"` formula.
 ```
 
 ## Priority Scorer
+
 Priority scorers provided in Víðarr core.
 
 ### All Of
+
 Checks several priority scorers and allows permits the workflow run to proceed
 if all scorers allow it to proceed.
 
@@ -720,6 +766,7 @@ This would let the top 500 workflow runs to execute as long as they are also
 among the top 20 workflow run in their respective workflow type.
 
 ### Any Of
+
 Checks several priority scorers and allows permits the workflow run to proceed
 if any scorer would allow it to proceed.
 
@@ -731,6 +778,7 @@ if any scorer would allow it to proceed.
 ```
 
 ### Cut-off
+
 Allows the workflow run to start if the score is strictly greater than `"cutoff"`.
 
 ```
@@ -741,6 +789,7 @@ Allows the workflow run to start if the score is strictly greater than `"cutoff"
 ```
 
 ### Ranked Max-in-flight
+
 Ranks workflow runs by score and allows the top ones to run, where the number
 allowed to run is `"maxInFlight"`. This workflow makes a best effort to keep
 the total number running at or below that limit, but various conditions,

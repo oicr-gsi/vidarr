@@ -52,11 +52,12 @@ public abstract sealed class OperationStatefulStep<
      * Try to find the inner state
      *
      * @param clazz the class corresponding to the inner
-     * @return the inner state of the expected type
      * @param <T> the type of the inner state
+     * @return the inner state of the expected type
      */
     <T> T loadInner(Class<T> clazz);
   }
+
   /**
    * A simple mapping function
    *
@@ -115,10 +116,10 @@ public abstract sealed class OperationStatefulStep<
    *
    * @param fetch the transformation to produce debugging information to write to the database.
    *     Vidarr imposes no schema on this data; it is up to the client to interpret it
-   * @return a step to perform write this debugging information
    * @param <State> the current state type
    * @param <OriginalState> the original state type
    * @param <Value> the type of the input value
+   * @return a step to perform write this debugging information
    */
   public static <State extends Record, OriginalState extends Record, Value>
       OperationStatefulStep<State, State, OriginalState, Value, Value> debugInfo(
@@ -131,10 +132,10 @@ public abstract sealed class OperationStatefulStep<
    *
    * @param level the logging level
    * @param message a transformer to generate the log message
-   * @return a step to write this log message
    * @param <State> the current state type
    * @param <OriginalState> the original state type
    * @param <Value> the type of the input value
+   * @return a step to write this log message
    */
   public static <State extends Record, OriginalState extends Record, Value>
       OperationStatefulStep<State, State, OriginalState, Value, Value> log(
@@ -146,11 +147,11 @@ public abstract sealed class OperationStatefulStep<
    * Change the value using a state-aware function
    *
    * @param transformer the function to apply to the input value and state
-   * @return a step to call this function
    * @param <State> the current state type
    * @param <OriginalState> the original state type
    * @param <Input> the type of the input
    * @param <Output> the type of the output
+   * @return a step to call this function
    */
   public static <State extends Record, OriginalState extends Record, Input, Output>
       OperationStatefulStep<State, State, OriginalState, Input, Output> mapping(
@@ -163,11 +164,11 @@ public abstract sealed class OperationStatefulStep<
    *
    * @param clazz the type of the inner state
    * @param transformer the function to apply to the inner state
-   * @return a new function that performs the unwrapping and then calls the provided function
    * @param <State> the outer (wrapped) state
    * @param <InnerState> the inner (unwrapped) state
    * @param <Input> the type of the input
    * @param <Output> the type of the output
+   * @return a new function that performs the unwrapping and then calls the provided function
    */
   public static <State extends Record, InnerState extends Record, Input, Output>
       StatefulTransformer<State, Input, Output> onInnerState(
@@ -187,9 +188,9 @@ public abstract sealed class OperationStatefulStep<
    * fails, the poll will not be reattempted.
    *
    * @param delay the best-effort time to wait between reattempts
-   * @return a step that reattempts the previous steps
    * @param <State> the type of the previous state
    * @param <OriginalState> the original state
+   * @return a step that reattempts the previous steps
    */
   public static <State extends Record, OriginalState extends Record>
       OperationStatefulStep<State, State, OriginalState, PollResult, Void> poll(Duration delay) {
@@ -203,10 +204,10 @@ public abstract sealed class OperationStatefulStep<
    *
    * @param delay the best-effort time to wait between reattempts
    * @param maximumAttempts the maximum number of retries before declaring failure
-   * @return a step that reattempts the previous steps until success
    * @param <State> the type of the previous state
    * @param <OriginalState> the original state
    * @param <Value> the type of the input and (unchanged) output
+   * @return a step that reattempts the previous steps until success
    */
   public static <State extends Record, OriginalState extends Record, Value>
       OperationStatefulStep<State, RepeatCounter<State>, OriginalState, Value, Value>
@@ -220,25 +221,26 @@ public abstract sealed class OperationStatefulStep<
    * @param success the test to determine if the sequence should continue (true) or go into an error
    *     state (false)
    * @param failureMessage the message to display when a failure occurs
-   * @return a step to check this condition
    * @param <State> the type of the previous state
    * @param <OriginalState> the original state
    * @param <Value> the type of the input and (unchanged) output
+   * @return a step to check this condition
    */
   public static <State extends Record, OriginalState extends Record, Value>
       OperationStatefulStep<State, State, OriginalState, Value, Value> require(
           BiPredicate<State, Value> success, String failureMessage) {
     return new OperationStatefulStepRequire<>(success, failureMessage);
   }
+
   /**
    * Change the status of this operation based on the current value and state
    *
    * @param fetch a function that examines the current value and state to produce a corresponding
    *     status
-   * @return a step that changes the status
    * @param <State> the type of the previous state
    * @param <OriginalState> the original state
    * @param <Value> the type of the input and (unchanged) output
+   * @return a step that changes the status
    */
   public static <State extends Record, OriginalState extends Record, Value>
       OperationStatefulStep<State, State, OriginalState, Value, Value> status(
@@ -256,13 +258,13 @@ public abstract sealed class OperationStatefulStep<
    * @param spawn a function which examines the current state and input to produce a new initial
    *     state for the subtask
    * @param subtask the action to perform in the subtask
-   * @return a steps which executes the subtask
    * @param <State> the type of the state of the main steps
    * @param <SubState> the type of the state of the child steps
    * @param <OriginalState> the type of the original state of the main steps
    * @param <OriginalSubState> the type of the original state of the child steps
    * @param <Input> the type of the input information used for creating the child state
    * @param <Output> the type of the output produced by the child task
+   * @return a steps which executes the subtask
    */
   public static <
           State extends Record,

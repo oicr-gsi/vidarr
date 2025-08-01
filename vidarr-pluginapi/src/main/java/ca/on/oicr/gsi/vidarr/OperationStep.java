@@ -20,23 +20,24 @@ import java.util.function.Supplier;
  * Operation steps modify the values being carried by an {@link OperationAction} without changing
  * the state
  *
- * <p>It's reasonable to consider every step as a function that takes an input value and provides
- * an output value. Unlike a normal function, steps can be asynchronous and write information to
+ * <p>It's reasonable to consider every step as a function that takes an input value and provides an
+ * output value. Unlike a normal function, steps can be asynchronous and write information to
  * Vidarr's database.
  *
- * @param <Input>  the parameter type
+ * @param <Input> the parameter type
  * @param <Output> the return type
  */
 public abstract sealed class OperationStep<Input, Output>
     permits OperationStepCompletableFuture,
-    OperationStepDebugInfo,
-    OperationStepLog,
-    OperationStepMapping,
-    OperationStepMonitor,
-    OperationStepRequire,
-    OperationStepSleep,
-    OperationStepStatus,
-    OperationStepThen {
+        OperationStepDebugInfo,
+        OperationStepHandleHttpStatus,
+        OperationStepLog,
+        OperationStepMapping,
+        OperationStepMonitor,
+        OperationStepRequire,
+        OperationStepSleep,
+        OperationStepStatus,
+        OperationStepThen {
 
   /**
    * A simple mapping function
@@ -44,7 +45,7 @@ public abstract sealed class OperationStep<Input, Output>
    * <p>This is analogous to {@link java.util.function.Function}, but it can throw an exception
    * which will be caught and logged to Vidarr's database.
    *
-   * @param <Input>  the parameter type
+   * @param <Input> the parameter type
    * @param <Output> the return type
    */
   public interface Transformer<Input, Output> {
@@ -55,7 +56,7 @@ public abstract sealed class OperationStep<Input, Output>
      * @param input the argument to use
      * @return the transformed value
      * @throws Exception any exceptions will be caught and redirected through Vidarr's logging and
-     *                   operation framework
+     *     operation framework
      */
     Output transform(Input input) throws Exception;
   }
@@ -65,8 +66,8 @@ public abstract sealed class OperationStep<Input, Output>
   /**
    * Write new debugging information for this value
    *
-   * @param fetch   the transformation to produce debugging information to write to the database.
-   *                Vidarr imposes no schema on this data; it is up to the client to interpret it
+   * @param fetch the transformation to produce debugging information to write to the database.
+   *     Vidarr imposes no schema on this data; it is up to the client to interpret it
    * @param <Value> the type of the input value
    * @return a step to perform write this debugging information
    */
@@ -88,7 +89,7 @@ public abstract sealed class OperationStep<Input, Output>
   /**
    * Perform an HTTP request and collect the output
    *
-   * @param body   the handler to extract the body of the HTTP request
+   * @param body the handler to extract the body of the HTTP request
    * @param <Body> the type of the response body
    * @return a step to perform this HTTP request
    */
@@ -96,6 +97,30 @@ public abstract sealed class OperationStep<Input, Output>
     return OperationStep.<HttpRequest, CompletableFuture<HttpResponse<Body>>>mapping(
             httpRequest -> HTTP_CLIENT.sendAsync(httpRequest, body))
         .then(future());
+  }
+
+  public static <Value> OperationStep<Value, Value> handleHttpResponseCode() {
+    return new OperationStepHandleHttpStatus<>();
+  }
+
+  /**
+   * Decode an HTTP response body as JSON
+   *
+   * @param <Body> the type of the HTTP response JSON
+   * @return a step that performs the extraction
+   */
+  public static <Body> OperationStep<HttpResponse<Supplier<Body>>, Body> getJson() {
+    return OperationStep.<Supplier<Body>>getResponseBody().then(mapping(Supplier::get));
+  }
+
+  /**
+   * Get an HTTP response body
+   *
+   * @param <Body> the type of the HTTP response body
+   * @return a step that performs the extraction
+   */
+  public static <Body> OperationStep<HttpResponse<Body>, Body> getResponseBody() {
+    return mapping(HttpResponse::body);
   }
 
   /**
@@ -121,7 +146,7 @@ public abstract sealed class OperationStep<Input, Output>
   /**
    * Log information about the current value
    *
-   * @param level   the logging level
+   * @param level the logging level
    * @param message a transformer to generate the log message
    * @param <Value> the type of the input value
    * @return a step to write this log message
@@ -135,8 +160,8 @@ public abstract sealed class OperationStep<Input, Output>
    * Change the input value using a function
    *
    * @param transformer the function to apply to the input value
-   * @param <Input>     the type of the input
-   * @param <Output>    the type of the output
+   * @param <Input> the type of the input
+   * @param <Output> the type of the output
    * @return a step to call this function
    */
   public static <Input, Output> OperationStep<Input, Output> mapping(
@@ -148,7 +173,7 @@ public abstract sealed class OperationStep<Input, Output>
    * Increment a Prometheus counter
    *
    * @param counter the counter to increment
-   * @param labels  the label values for the counter
+   * @param labels the label values for the counter
    * @param <Value> the type of the input and (unchanged) output
    * @return a step to increment this counter
    */
@@ -161,7 +186,7 @@ public abstract sealed class OperationStep<Input, Output>
    *
    * @param counter the counter to increment
    * @param success a test to determine if the counter should be incremented
-   * @param labels  the label values for the counter
+   * @param labels the label values for the counter
    * @param <Value> the type of the input and (unchanged) output
    * @return a step to increment this counter
    */
@@ -173,10 +198,10 @@ public abstract sealed class OperationStep<Input, Output>
   /**
    * Abort the operation if a condition is not met
    *
-   * @param success        the test to determine if the sequence should continue (true) or go into
-   *                       an error state (false)
+   * @param success the test to determine if the sequence should continue (true) or go into an error
+   *     state (false)
    * @param failureMessage the message to display when a failure occurs
-   * @param <Value>        the type of the input and (unchanged) output
+   * @param <Value> the type of the input and (unchanged) output
    * @return a step to check this condition
    */
   public static <Value> OperationStep<Value, Value> require(
@@ -228,7 +253,7 @@ public abstract sealed class OperationStep<Input, Output>
    * Wait before executing the next steep
    *
    * @param duration the amount of time to wait
-   * @param <Value>  the type of the input and (unchanged) output
+   * @param <Value> the type of the input and (unchanged) output
    * @return a step that waits
    */
   public static <Value> OperationStep<Value, Value> sleep(Duration duration) {
@@ -238,7 +263,7 @@ public abstract sealed class OperationStep<Input, Output>
   /**
    * Unconditionally update the status of the operation
    *
-   * @param status  the status to change to
+   * @param status the status to change to
    * @param <Value> the type of the input and (unchanged) output
    * @return a step that changes the status
    */
@@ -249,7 +274,7 @@ public abstract sealed class OperationStep<Input, Output>
   /**
    * Change the status of this operation based on the current value
    *
-   * @param fetch   a function that examines the current value and produces a corresponding status
+   * @param fetch a function that examines the current value and produces a corresponding status
    * @param <Value> the type of the input and (unchanged) output
    * @return a step that changes the status
    */
@@ -261,7 +286,7 @@ public abstract sealed class OperationStep<Input, Output>
   /**
    * Launch a program on the system <strong>running the Vidarr server</strong>
    *
-   * @param output   the handling of standard output that is desired
+   * @param output the handling of standard output that is desired
    * @param <Output> the data collected from standard output
    * @return a step that runs this process
    */
@@ -308,7 +333,7 @@ public abstract sealed class OperationStep<Input, Output>
    * Normally, the {@link OperationAction#then(OperationStep)} makes for more linear, readable code,
    * but this method can be useful for pre-composing utility steps.
    *
-   * @param step    the following step
+   * @param step the following step
    * @param <Value> the final output after the second step is applied
    * @return a combined step
    */

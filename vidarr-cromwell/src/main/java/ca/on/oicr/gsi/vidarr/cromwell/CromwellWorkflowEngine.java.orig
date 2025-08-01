@@ -140,10 +140,13 @@ public final class CromwellWorkflowEngine implements WorkflowEngine<StateUnstart
                 load(StateStarted.class, (state) -> state.buildCheckRequest(debugInflightRuns))
                     .then(http(new JsonBodyHandler<>(MAPPER, WorkflowMetadataResponse.class)))
                     .then(monitorWhen(CROMWELL_FAILURES, OperationStep::isHttpNotOk, url))
+<<<<<<< Updated upstream
+=======
 //                    .then(handleHttpResponseCode())
 //                    .then(repeatUntilSuccess(Duration.ofMinutes(5), 5))
 //                    .then(mapping(s -> s.state()))
 //                    .then(getJson())
+>>>>>>> Stashed changes
                     .then(requireJsonSuccess())
                     .then(debugInfo(WorkflowMetadataResponse::debugInfo))
                     .then(

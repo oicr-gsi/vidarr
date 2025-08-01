@@ -13,31 +13,31 @@ import java.util.function.BiPredicate;
  * Stateful operation steps modify the values being carried by an {@link OperationAction} and can
  * access and modify the state
  *
- * <p>It's reasonable to consider every step as a function that takes an input value and provides an
- * output value. Unlike a normal function, steps can be asynchronous and write information to
+ * <p>It's reasonable to consider every step as a function that takes an input value and provides
+ * an output value. Unlike a normal function, steps can be asynchronous and write information to
  * Vidarr's database. Stateful steps may need to track additional information and so wrap the
  * original state as necessary to keep track of the correct program flow
  *
- * @param <InputState> the state the operation "gets" from the previous step
+ * @param <InputState>    the state the operation "gets" from the previous step
  * @param <OriginalState> the state that initiated the chain of steps
- * @param <OutputState> the state the operation "provides" to the next step
- * @param <Input> the parameter type
- * @param <Output> the return type
+ * @param <OutputState>   the state the operation "provides" to the next step
+ * @param <Input>         the parameter type
+ * @param <Output>        the return type
  */
 public abstract sealed class OperationStatefulStep<
-        InputState extends Record,
-        OutputState extends Record,
-        OriginalState extends Record,
-        Input,
-        Output>
+    InputState extends Record,
+    OutputState extends Record,
+    OriginalState extends Record,
+    Input,
+    Output>
     permits OperationStatefulStepDebugInfo,
-        OperationStatefulStepLog,
-        OperationStatefulStepMapping,
-        OperationStatefulStepPoll,
-        OperationStatefulStepRepeatUntilSuccess,
-        OperationStatefulStepRequire,
-        OperationStatefulStepStatus,
-        OperationStatefulStepSubStep {
+    OperationStatefulStepLog,
+    OperationStatefulStepMapping,
+    OperationStatefulStepPoll,
+    OperationStatefulStepRepeatUntilSuccess,
+    OperationStatefulStepRequire,
+    OperationStatefulStepStatus,
+    OperationStatefulStepSubStep {
 
   /**
    * A state which can be unwrapped into an inner state
@@ -52,19 +52,20 @@ public abstract sealed class OperationStatefulStep<
      * Try to find the inner state
      *
      * @param clazz the class corresponding to the inner
+     * @param <T>   the type of the inner state
      * @return the inner state of the expected type
-     * @param <T> the type of the inner state
      */
     <T> T loadInner(Class<T> clazz);
   }
+
   /**
    * A simple mapping function
    *
    * <p>This is analogous to {@link java.util.function.BiFunction}, but it can throw an exception
    * which will be caught and logged to Vidarr's database.
    *
-   * @param <State> the state type
-   * @param <Input> the parameter type
+   * @param <State>  the state type
+   * @param <Input>  the parameter type
    * @param <Output> the return type
    */
   public interface StatefulTransformer<State, Input, Output> {
@@ -76,7 +77,7 @@ public abstract sealed class OperationStatefulStep<
      * @param input the argument to use
      * @return the transformed value
      * @throws Exception any exceptions will be caught and redirected through Vidarr's logging and
-     *     operation framework
+     *                   operation framework
      */
     Output transform(State state, Input input) throws Exception;
   }
@@ -84,9 +85,9 @@ public abstract sealed class OperationStatefulStep<
   /**
    * The state for a {@link #subStep(StatefulTransformer, OperationAction)}
    *
-   * @param child the state for the sub-step
-   * @param state the state for the main path
-   * @param <State> the type of the sub-step state
+   * @param child      the state for the sub-step
+   * @param state      the state for the main path
+   * @param <State>    the type of the sub-step state
    * @param <SubState> the type of the main path state
    */
   public record Child<State, SubState>(Optional<SubState> child, State state)
@@ -113,65 +114,66 @@ public abstract sealed class OperationStatefulStep<
   /**
    * Write new debugging information for this value and state
    *
-   * @param fetch the transformation to produce debugging information to write to the database.
-   *     Vidarr imposes no schema on this data; it is up to the client to interpret it
-   * @return a step to perform write this debugging information
-   * @param <State> the current state type
+   * @param fetch           the transformation to produce debugging information to write to the
+   *                        database. Vidarr imposes no schema on this data; it is up to the client
+   *                        to interpret it
+   * @param <State>         the current state type
    * @param <OriginalState> the original state type
-   * @param <Value> the type of the input value
+   * @param <Value>         the type of the input value
+   * @return a step to perform write this debugging information
    */
   public static <State extends Record, OriginalState extends Record, Value>
-      OperationStatefulStep<State, State, OriginalState, Value, Value> debugInfo(
-          StatefulTransformer<State, Value, JsonNode> fetch) {
+  OperationStatefulStep<State, State, OriginalState, Value, Value> debugInfo(
+      StatefulTransformer<State, Value, JsonNode> fetch) {
     return new OperationStatefulStepDebugInfo<>(fetch);
   }
 
   /**
    * Log information about the current value and state
    *
-   * @param level the logging level
-   * @param message a transformer to generate the log message
-   * @return a step to write this log message
-   * @param <State> the current state type
+   * @param level           the logging level
+   * @param message         a transformer to generate the log message
+   * @param <State>         the current state type
    * @param <OriginalState> the original state type
-   * @param <Value> the type of the input value
+   * @param <Value>         the type of the input value
+   * @return a step to write this log message
    */
   public static <State extends Record, OriginalState extends Record, Value>
-      OperationStatefulStep<State, State, OriginalState, Value, Value> log(
-          Level level, StatefulTransformer<State, Value, String> message) {
+  OperationStatefulStep<State, State, OriginalState, Value, Value> log(
+      Level level, StatefulTransformer<State, Value, String> message) {
     return new OperationStatefulStepLog<>(level, message);
   }
 
   /**
    * Change the value using a state-aware function
    *
-   * @param transformer the function to apply to the input value and state
-   * @return a step to call this function
-   * @param <State> the current state type
+   * @param transformer     the function to apply to the input value and state
+   * @param <State>         the current state type
    * @param <OriginalState> the original state type
-   * @param <Input> the type of the input
-   * @param <Output> the type of the output
+   * @param <Input>         the type of the input
+   * @param <Output>        the type of the output
+   * @return a step to call this function
    */
   public static <State extends Record, OriginalState extends Record, Input, Output>
-      OperationStatefulStep<State, State, OriginalState, Input, Output> mapping(
-          StatefulTransformer<State, Input, Output> transformer) {
+  OperationStatefulStep<State, State, OriginalState, Input, Output> mapping(
+      StatefulTransformer<State, Input, Output> transformer) {
     return new OperationStatefulStepMapping<>(transformer);
   }
 
   /**
    * Unwrap a complex state object to access the original inner state
    *
-   * @param clazz the type of the inner state
-   * @param transformer the function to apply to the inner state
-   * @return a new function that performs the unwrapping and then calls the provided function
-   * @param <State> the outer (wrapped) state
+   * @param clazz        the type of the inner state
+   * @param transformer  the function to apply to the inner state
+   * @param <State>      the outer (wrapped) state
    * @param <InnerState> the inner (unwrapped) state
-   * @param <Input> the type of the input
-   * @param <Output> the type of the output
+   * @param <Input>      the type of the input
+   * @param <Output>     the type of the output
+   * @return a new function that performs the unwrapping and then calls the provided function
    */
   public static <State extends Record, InnerState extends Record, Input, Output>
-      StatefulTransformer<State, Input, Output> onInnerState(
-          Class<InnerState> clazz, StatefulTransformer<InnerState, Input, Output> transformer) {
+  StatefulTransformer<State, Input, Output> onInnerState(
+      Class<InnerState> clazz, StatefulTransformer<InnerState, Input, Output> transformer) {
     return (state, input) ->
         transformer.transform(
             state instanceof OperationStatefulStep.InnerState inner
@@ -183,16 +185,16 @@ public abstract sealed class OperationStatefulStep<
   /**
    * Run an operation repeatedly until it completes
    *
-   * <p>This is meant for repeated accessing an external service. Note that if any step in the chain
-   * fails, the poll will not be reattempted.
+   * <p>This is meant for repeated accessing an external service. Note that if any step in the
+   * chain fails, the poll will not be reattempted.
    *
-   * @param delay the best-effort time to wait between reattempts
-   * @return a step that reattempts the previous steps
-   * @param <State> the type of the previous state
+   * @param delay           the best-effort time to wait between reattempts
+   * @param <State>         the type of the previous state
    * @param <OriginalState> the original state
+   * @return a step that reattempts the previous steps
    */
   public static <State extends Record, OriginalState extends Record>
-      OperationStatefulStep<State, State, OriginalState, PollResult, Void> poll(Duration delay) {
+  OperationStatefulStep<State, State, OriginalState, PollResult, Void> poll(Duration delay) {
     return new OperationStatefulStepPoll<>(delay);
   }
 
@@ -201,48 +203,49 @@ public abstract sealed class OperationStatefulStep<
    *
    * <p>Runs an operation multiple time and retries if it fails on any error-producing step.
    *
-   * @param delay the best-effort time to wait between reattempts
+   * @param delay           the best-effort time to wait between reattempts
    * @param maximumAttempts the maximum number of retries before declaring failure
-   * @return a step that reattempts the previous steps until success
-   * @param <State> the type of the previous state
+   * @param <State>         the type of the previous state
    * @param <OriginalState> the original state
-   * @param <Value> the type of the input and (unchanged) output
+   * @param <Value>         the type of the input and (unchanged) output
+   * @return a step that reattempts the previous steps until success
    */
   public static <State extends Record, OriginalState extends Record, Value>
-      OperationStatefulStep<State, RepeatCounter<State>, OriginalState, Value, Value>
-          repeatUntilSuccess(Duration delay, int maximumAttempts) {
+  OperationStatefulStep<State, RepeatCounter<State>, OriginalState, Value, Value>
+  repeatUntilSuccess(Duration delay, int maximumAttempts) {
     return new OperationStatefulStepRepeatUntilSuccess<>(delay, maximumAttempts);
   }
 
   /**
    * Abort the operation if a condition is not met
    *
-   * @param success the test to determine if the sequence should continue (true) or go into an error
-   *     state (false)
-   * @param failureMessage the message to display when a failure occurs
-   * @return a step to check this condition
-   * @param <State> the type of the previous state
+   * @param success         the test to determine if the sequence should continue (true) or go into
+   *                        an error state (false)
+   * @param failureMessage  the message to display when a failure occurs
+   * @param <State>         the type of the previous state
    * @param <OriginalState> the original state
-   * @param <Value> the type of the input and (unchanged) output
+   * @param <Value>         the type of the input and (unchanged) output
+   * @return a step to check this condition
    */
   public static <State extends Record, OriginalState extends Record, Value>
-      OperationStatefulStep<State, State, OriginalState, Value, Value> require(
-          BiPredicate<State, Value> success, String failureMessage) {
+  OperationStatefulStep<State, State, OriginalState, Value, Value> require(
+      BiPredicate<State, Value> success, String failureMessage) {
     return new OperationStatefulStepRequire<>(success, failureMessage);
   }
+
   /**
    * Change the status of this operation based on the current value and state
    *
-   * @param fetch a function that examines the current value and state to produce a corresponding
-   *     status
-   * @return a step that changes the status
-   * @param <State> the type of the previous state
+   * @param fetch           a function that examines the current value and state to produce a
+   *                        corresponding status
+   * @param <State>         the type of the previous state
    * @param <OriginalState> the original state
-   * @param <Value> the type of the input and (unchanged) output
+   * @param <Value>         the type of the input and (unchanged) output
+   * @return a step that changes the status
    */
   public static <State extends Record, OriginalState extends Record, Value>
-      OperationStatefulStep<State, State, OriginalState, Value, Value> status(
-          StatefulTransformer<State, Value, WorkingStatus> fetch) {
+  OperationStatefulStep<State, State, OriginalState, Value, Value> status(
+      StatefulTransformer<State, Value, WorkingStatus> fetch) {
     return new OperationStatefulStepStatus<>(fetch);
   }
 
@@ -253,27 +256,27 @@ public abstract sealed class OperationStatefulStep<
    * this information then run a second sequence of steps. If restarted, it will restart at the
    * checkpoint rather than the beginning.
    *
-   * @param spawn a function which examines the current state and input to produce a new initial
-   *     state for the subtask
-   * @param subtask the action to perform in the subtask
-   * @return a steps which executes the subtask
-   * @param <State> the type of the state of the main steps
-   * @param <SubState> the type of the state of the child steps
-   * @param <OriginalState> the type of the original state of the main steps
+   * @param spawn              a function which examines the current state and input to produce a
+   *                           new initial state for the subtask
+   * @param subtask            the action to perform in the subtask
+   * @param <State>            the type of the state of the main steps
+   * @param <SubState>         the type of the state of the child steps
+   * @param <OriginalState>    the type of the original state of the main steps
    * @param <OriginalSubState> the type of the original state of the child steps
-   * @param <Input> the type of the input information used for creating the child state
-   * @param <Output> the type of the output produced by the child task
+   * @param <Input>            the type of the input information used for creating the child state
+   * @param <Output>           the type of the output produced by the child task
+   * @return a steps which executes the subtask
    */
   public static <
-          State extends Record,
-          SubState extends Record,
-          OriginalState extends Record,
-          OriginalSubState extends Record,
-          Input,
-          Output>
-      OperationStatefulStep<State, Child<State, SubState>, OriginalState, Input, Output> subStep(
-          StatefulTransformer<State, Input, OriginalSubState> spawn,
-          OperationAction<SubState, OriginalSubState, Output> subtask) {
+      State extends Record,
+      SubState extends Record,
+      OriginalState extends Record,
+      OriginalSubState extends Record,
+      Input,
+      Output>
+  OperationStatefulStep<State, Child<State, SubState>, OriginalState, Input, Output> subStep(
+      StatefulTransformer<State, Input, OriginalSubState> spawn,
+      OperationAction<SubState, OriginalSubState, Output> subtask) {
     return new OperationStatefulStepSubStep<>(spawn, subtask);
   }
 

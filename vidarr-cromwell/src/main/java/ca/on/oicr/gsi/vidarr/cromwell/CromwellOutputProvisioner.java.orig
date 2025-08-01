@@ -6,7 +6,6 @@ import static ca.on.oicr.gsi.vidarr.OperationStatefulStep.onInnerState;
 import static ca.on.oicr.gsi.vidarr.OperationStatefulStep.poll;
 import static ca.on.oicr.gsi.vidarr.OperationStatefulStep.repeatUntilSuccess;
 import static ca.on.oicr.gsi.vidarr.OperationStep.debugInfo;
-import static ca.on.oicr.gsi.vidarr.OperationStep.getJson;
 import static ca.on.oicr.gsi.vidarr.OperationStep.handleHttpResponseCode;
 import static ca.on.oicr.gsi.vidarr.OperationStep.http;
 import static ca.on.oicr.gsi.vidarr.OperationStep.log;
@@ -223,11 +222,12 @@ public class CromwellOutputProvisioner
                 load(StateStarted.class, (state) -> state.buildCheckRequest(debugCalls))
                     .then(http(new JsonBodyHandler<>(MAPPER, WorkflowMetadataResponse.class)))
                     .then(monitorWhen(CROMWELL_FAILURES, OperationStep::isHttpNotOk, cromwellUrl))
-                    .then(handleHttpResponseCode())
-                    .then(repeatUntilSuccess(Duration.ofMinutes(2), 5))
-                    //                   .then(requireJsonSuccess())
-                    .then(getJson())
-                    .then(mapping(s -> s))
+<<<<<<< Updated upstream
+=======
+//                    .then(handleHttpResponseCode())
+//                    .then(repeatUntilSuccess(Duration.ofMinutes(2), 5))
+>>>>>>> Stashed changes
+                    .then(requireJsonSuccess())
                     .then(debugInfo(WorkflowMetadataResponse::debugInfo))
                     .then(
                         log(
@@ -241,6 +241,8 @@ public class CromwellOutputProvisioner
                     .then(status(response -> statusFromCromwell(response.getStatus())))
                     .map(WorkflowMetadataResponse::pollStatus)
                     .then(poll(Duration.ofMinutes(5)))
+                    .then(repeatUntilSuccess(Duration.ofMinutes(5), 5))
+                    .reload(OperationStatefulStep.mapping(s -> s.state().buildOutputsRequest()))
                     .reload(StateStarted::buildOutputsRequest)
                     .then(http(new JsonBodyHandler<>(MAPPER, WorkflowOutputResponse.class)))
                     .then(monitorWhen(CROMWELL_FAILURES, OperationStep::isHttpNotOk, cromwellUrl))

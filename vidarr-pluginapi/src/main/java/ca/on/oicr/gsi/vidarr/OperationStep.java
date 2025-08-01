@@ -28,15 +28,9 @@ import java.util.function.Supplier;
  * @param <Output> the return type
  */
 public abstract sealed class OperationStep<Input, Output>
-    permits OperationStepCompletableFuture,
-    OperationStepDebugInfo,
-    OperationStepLog,
-    OperationStepMapping,
-    OperationStepMonitor,
-    OperationStepRequire,
-    OperationStepSleep,
-    OperationStepStatus,
-    OperationStepThen {
+    permits OperationStepCompletableFuture, OperationStepDebugInfo, OperationStepHandleHttpStatus,
+    OperationStepLog, OperationStepMapping, OperationStepMonitor, OperationStepRequire,
+    OperationStepSleep, OperationStepStatus, OperationStepThen {
 
   /**
    * A simple mapping function
@@ -96,6 +90,30 @@ public abstract sealed class OperationStep<Input, Output>
     return OperationStep.<HttpRequest, CompletableFuture<HttpResponse<Body>>>mapping(
             httpRequest -> HTTP_CLIENT.sendAsync(httpRequest, body))
         .then(future());
+  }
+
+  public static <Body> OperationStep<HttpResponse<Body>, HttpResponse<Body>> handleHttpResponseCode() {
+    return new OperationStepHandleHttpStatus<>();
+  }
+
+  /**
+   * Decode an HTTP response body as JSON
+   *
+   * @param <Body> the type of the HTTP response JSON
+   * @return a step that performs the extraction
+   */
+  public static <Body> OperationStep<HttpResponse<Supplier<Body>>, Body> getJson() {
+    return OperationStep.<Supplier<Body>>getResponseBody().then(mapping(Supplier::get));
+  }
+
+  /**
+   * Get an HTTP response body
+   *
+   * @param <Body> the type of the HTTP response body
+   * @return a step that performs the extraction
+   */
+  public static <Body> OperationStep<HttpResponse<Body>, Body> getResponseBody() {
+    return mapping(response -> response.body());
   }
 
   /**

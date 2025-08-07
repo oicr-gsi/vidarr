@@ -92,7 +92,7 @@ public class CardeaCasePriorityInput implements PriorityInput {
         new KeyValueCache<>(resourceName + " " + inputName, ttl, SimpleRecord::new) {
           @Override
           protected Optional<Integer> fetch(String caseId, Instant lastUpdated) throws Exception {
-            if (caseId.isBlank()) {
+            if (null == caseId || caseId.isBlank()) {
               return Optional.of(defaultPriority);
             }
             String fullUrl = new StringBuilder(casesUrl)

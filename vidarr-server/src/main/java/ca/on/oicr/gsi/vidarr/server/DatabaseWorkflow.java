@@ -12,7 +12,6 @@ import ca.on.oicr.gsi.vidarr.core.Target;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.nio.charset.StandardCharsets;
@@ -23,7 +22,6 @@ import java.sql.SQLException;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.*;
-import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongFunction;
 import java.util.stream.Collectors;
@@ -33,7 +31,7 @@ import org.jooq.impl.DSL;
 
 public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLContext> {
 
-  public static DatabaseWorkflow create(
+  public static DatabaseWorkflow createNew(
       String targetName,
       Target target,
       int workflowVersionId,
@@ -75,7 +73,7 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
             .fetchOptional()
             .orElseThrow();
     final long dbId = record.value1();
-    final var created = record.value2().toInstant();
+    final Instant created = record.value2().toInstant();
 
     var idQuery =
         dsl.insertInto(EXTERNAL_ID)
@@ -85,6 +83,38 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
     }
     idQuery.execute();
 
+    return createActive(
+        targetName,
+        target,
+        dbId,
+        workflowName,
+        workflowVersion,
+        vidarrId,
+        arguments,
+        engineParameters,
+        metadata,
+        ids,
+        consumableResources,
+        created,
+        liveness,
+        dsl);
+  }
+
+  public static DatabaseWorkflow createActive(
+      String targetName,
+      Target target,
+      long dbId,
+      String workflowName,
+      String workflowVersion,
+      String vidarrId,
+      JsonNode arguments,
+      JsonNode engineParameters,
+      JsonNode metadata,
+      Set<? extends ExternalId> ids,
+      Map<String, JsonNode> consumableResources,
+      Instant created,
+      LongFunction<AtomicBoolean> liveness,
+      DSLContext dsl) {
     dsl.insertInto(ACTIVE_WORKFLOW_RUN)
         .columns(
             ACTIVE_WORKFLOW_RUN.ID,
@@ -124,96 +154,96 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
         created);
   }
 
-  public static Pair<DatabaseWorkflow, List<DatabaseOperation>> reprovision(Target target,
-      String outputPath, Record record,
-      AtomicBoolean liveness,
-      DSLContext dsl) {
-    final long dbId = record.get(WORKFLOW_RUN.ID);
-    final HashSet<ExternalId> inputIds = new HashSet<>();
-    final HashSet<ExternalId> requestedInputIds = new HashSet<>();
-    List<DatabaseOperation> dbOperations = new LinkedList<>();
-
-    dsl.select(EXTERNAL_ID.asterisk())
-        .from(EXTERNAL_ID)
-        .where(EXTERNAL_ID.WORKFLOW_RUN_ID.eq(dbId))
-        .forEach(
-            externalIdRecord -> {
-              final var externalId =
-                  new ExternalId(
-                      externalIdRecord.get(EXTERNAL_ID.PROVIDER),
-                      externalIdRecord.get(EXTERNAL_ID.EXTERNAL_ID_));
-              inputIds.add(externalId);
-              if (externalIdRecord.get(EXTERNAL_ID.REQUESTED)) {
-                requestedInputIds.add(externalId);
-              }
-            });
-
-    dsl.insertInto(ACTIVE_WORKFLOW_RUN)
-        .columns(
-            ACTIVE_WORKFLOW_RUN.ID,
-            ACTIVE_WORKFLOW_RUN.ENGINE_PHASE,
-            ACTIVE_WORKFLOW_RUN.EXTRA_INPUT_IDS_HANDLED,
-            ACTIVE_WORKFLOW_RUN.PREFLIGHT_OKAY,
-            ACTIVE_WORKFLOW_RUN.TARGET,
-            ACTIVE_WORKFLOW_RUN.CONSUMABLE_RESOURCES)
-        .values(
-            dbId,
-            Phase.PROVISION_OUT,
-            false,
-            true,
-            "reprovision",
-            Main.MAPPER.nullNode())
-        .execute();
-
-    JsonNode metadata = record.get(WORKFLOW_RUN.METADATA);
-    Iterator<Entry<String, JsonNode>> iterator = metadata.fields();
-    while (iterator.hasNext()) {
-      Entry<String, JsonNode> entry = iterator.next();
-      ArrayNode contents = (ArrayNode) entry.getValue().get("contents");
-      Iterator<JsonNode> iterator2 = contents.elements();
-      while (iterator2.hasNext()) {
-        ObjectNode content = (ObjectNode) iterator2.next();
-        if (content.has("outputDirectory")) {
-          // Update metadata outputDirectory to new output path so they provision out there
-          content.put("outputDirectory", outputPath);
-        }
-      }
-    }
-
-    DatabaseWorkflow dbWorkflow = new DatabaseWorkflow(
-        target,
-        dbId,
-        record.get(WORKFLOW_RUN.HASH_ID),
-        0,
-        "reprovision",
-        "1",
-        null,
-        record.get(WORKFLOW_RUN.ENGINE_PARAMETERS),
-        record.get(WORKFLOW_RUN.METADATA),
-        Main.MAPPER.nullNode(),
-        false, // TODO need the actual value here lol
-        inputIds,
-        requestedInputIds,
-        true,
-        Phase.WAITING_FOR_RESOURCES,
-        List.of(),
-        0,
-        liveness,
-        record.get(WORKFLOW_RUN.CREATED).toInstant());
-
-    dsl.update(WORKFLOW_RUN)
-        .set(WORKFLOW_RUN.METADATA, metadata)
-        .where(WORKFLOW_RUN.ID.eq(dbId))
-        .execute();
-
-    return new Pair<>(dbWorkflow,
-        dbWorkflow.phase(
-            Phase.PROVISION_OUT,
-            List.of(),
-            dsl
-        )
-    );
-  }
+//  public static Pair<DatabaseWorkflow, List<DatabaseOperation>> reprovision(Target target,
+//      String outputPath, Record record,
+//      AtomicBoolean liveness,
+//      DSLContext dsl) {
+//    final long dbId = record.get(WORKFLOW_RUN.ID);
+//    final HashSet<ExternalId> inputIds = new HashSet<>();
+//    final HashSet<ExternalId> requestedInputIds = new HashSet<>();
+//    List<DatabaseOperation> dbOperations = new LinkedList<>();
+//
+//    dsl.select(EXTERNAL_ID.asterisk())
+//        .from(EXTERNAL_ID)
+//        .where(EXTERNAL_ID.WORKFLOW_RUN_ID.eq(dbId))
+//        .forEach(
+//            externalIdRecord -> {
+//              final var externalId =
+//                  new ExternalId(
+//                      externalIdRecord.get(EXTERNAL_ID.PROVIDER),
+//                      externalIdRecord.get(EXTERNAL_ID.EXTERNAL_ID_));
+//              inputIds.add(externalId);
+//              if (externalIdRecord.get(EXTERNAL_ID.REQUESTED)) {
+//                requestedInputIds.add(externalId);
+//              }
+//            });
+//
+//    dsl.insertInto(ACTIVE_WORKFLOW_RUN)
+//        .columns(
+//            ACTIVE_WORKFLOW_RUN.ID,
+//            ACTIVE_WORKFLOW_RUN.ENGINE_PHASE,
+//            ACTIVE_WORKFLOW_RUN.EXTRA_INPUT_IDS_HANDLED,
+//            ACTIVE_WORKFLOW_RUN.PREFLIGHT_OKAY,
+//            ACTIVE_WORKFLOW_RUN.TARGET,
+//            ACTIVE_WORKFLOW_RUN.CONSUMABLE_RESOURCES)
+//        .values(
+//            dbId,
+//            Phase.PROVISION_OUT,
+//            false,
+//            true,
+//            "reprovision",
+//            Main.MAPPER.nullNode())
+//        .execute();
+//
+//    JsonNode metadata = record.get(WORKFLOW_RUN.METADATA);
+//    Iterator<Entry<String, JsonNode>> iterator = metadata.fields();
+//    while (iterator.hasNext()) {
+//      Entry<String, JsonNode> entry = iterator.next();
+//      ArrayNode contents = (ArrayNode) entry.getValue().get("contents");
+//      Iterator<JsonNode> iterator2 = contents.elements();
+//      while (iterator2.hasNext()) {
+//        ObjectNode content = (ObjectNode) iterator2.next();
+//        if (content.has("outputDirectory")) {
+//          // Update metadata outputDirectory to new output path so they provision out there
+//          content.put("outputDirectory", outputPath);
+//        }
+//      }
+//    }
+//
+//    DatabaseWorkflow dbWorkflow = new DatabaseWorkflow(
+//        target,
+//        dbId,
+//        record.get(WORKFLOW_RUN.HASH_ID),
+//        0,
+//        "reprovision",
+//        "1",
+//        null,
+//        record.get(WORKFLOW_RUN.ENGINE_PARAMETERS),
+//        record.get(WORKFLOW_RUN.METADATA),
+//        Main.MAPPER.nullNode(),
+//        false, // TODO need the actual value here lol
+//        inputIds,
+//        requestedInputIds,
+//        true,
+//        Phase.WAITING_FOR_RESOURCES,
+//        List.of(),
+//        0,
+//        liveness,
+//        record.get(WORKFLOW_RUN.CREATED).toInstant());
+//
+//    dsl.update(WORKFLOW_RUN)
+//        .set(WORKFLOW_RUN.METADATA, metadata)
+//        .where(WORKFLOW_RUN.ID.eq(dbId))
+//        .execute();
+//
+//    return new Pair<>(dbWorkflow,
+//        dbWorkflow.phase(
+//            Phase.PROVISION_OUT,
+//            List.of(),
+//            dsl
+//        )
+//    );
+//  }
 
   public static JSONB labelsToJson(Map<String, String> labels) {
     final var labelNode = JsonNodeFactory.instance.objectNode();

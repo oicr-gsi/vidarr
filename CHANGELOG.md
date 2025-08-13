@@ -6,6 +6,18 @@ For unreleased changes, see [changes](changes).
 
 -----------------------------------------------------------------------------
 
+## [2.3.0] - 2025-08-13
+
+### Changed
+
+* Move built-in consumable resources to Built-Ins guide
+
+### Fixed
+
+* Handle blank case id
+* Improve error message when file cannot be resolved during input provisioning
+
+
 ## [2.2.0] - 2025-07-04
 
 ### Added

@@ -11,9 +11,7 @@ import static ca.on.oicr.gsi.vidarr.OperationStep.debugInfo;
 import static ca.on.oicr.gsi.vidarr.OperationStep.getJson;
 import static ca.on.oicr.gsi.vidarr.OperationStep.handleHttpResponseCode;
 import static ca.on.oicr.gsi.vidarr.OperationStep.http;
-import static ca.on.oicr.gsi.vidarr.OperationStep.mapping;
 import static ca.on.oicr.gsi.vidarr.OperationStep.monitorWhen;
-import static ca.on.oicr.gsi.vidarr.OperationStep.requireJsonSuccess;
 import static ca.on.oicr.gsi.vidarr.OperationStep.requirePresent;
 import static ca.on.oicr.gsi.vidarr.OperationStep.sleep;
 import static ca.on.oicr.gsi.vidarr.OperationStep.status;
@@ -121,7 +119,7 @@ public final class CromwellWorkflowEngine implements WorkflowEngine<StateUnstart
                         "Got response %d on %s", response.statusCode(), state.cromwellServer())))
         .then(monitorWhen(CROMWELL_FAILURES, OperationStep::isHttpNotOk, url))
         .then(handleHttpResponseCode())
-        .then(repeatUntilSuccess(Duration.ofMinutes(2), 5))
+        .then(repeatUntilSuccess(Duration.ofMinutes(10), 5))
         .then(getJson())
         .map(result -> Optional.ofNullable(result.getId()).filter(id -> !id.equals("null")))
         .then(requirePresent())
@@ -142,7 +140,7 @@ public final class CromwellWorkflowEngine implements WorkflowEngine<StateUnstart
                     .then(http(new JsonBodyHandler<>(MAPPER, WorkflowMetadataResponse.class)))
                     .then(monitorWhen(CROMWELL_FAILURES, OperationStep::isHttpNotOk, url))
                     .then(handleHttpResponseCode())
-                    .then(repeatUntilSuccess(Duration.ofMinutes(5), 5))
+                    .then(repeatUntilSuccess(Duration.ofMinutes(10), 5))
                     .then(getJson())
                     .then(debugInfo(WorkflowMetadataResponse::debugInfo))
                     .then(
@@ -161,7 +159,7 @@ public final class CromwellWorkflowEngine implements WorkflowEngine<StateUnstart
                     .then(http(new JsonBodyHandler<>(MAPPER, WorkflowOutputResponse.class)))
                     .then(monitorWhen(CROMWELL_FAILURES, OperationStep::isHttpNotOk, url))
                     .then(handleHttpResponseCode())
-                    .then(repeatUntilSuccess(Duration.ofMinutes(2), 5))
+                    .then(repeatUntilSuccess(Duration.ofMinutes(10), 5))
                     .then(getJson())
                     .map(
                         (state, output) ->

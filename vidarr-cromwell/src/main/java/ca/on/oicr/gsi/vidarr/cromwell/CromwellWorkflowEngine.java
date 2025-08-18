@@ -33,6 +33,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.prometheus.client.Counter;
 import java.lang.System.Logger.Level;
+import java.lang.Thread.State;
 import java.net.http.HttpClient;
 import java.time.Duration;
 import java.util.Map;
@@ -130,7 +131,8 @@ public final class CromwellWorkflowEngine implements WorkflowEngine<StateUnstart
                 Level.INFO,
                 (state, id) ->
                     String.format(
-                        "Started Cromwell workflow %s on %s", id, state.state().cromwellServer())))
+                        "Started Cromwell workflow %s on %s",
+                        id, state.loadInner(StateStarted.class).cromwellServer())))
         .then(repeatUntilSuccess(Duration.ofMinutes(10), 5))
         .then(sleep(Duration.ofSeconds(30)))
         .then(
@@ -149,13 +151,13 @@ public final class CromwellWorkflowEngine implements WorkflowEngine<StateUnstart
                             (state, response) ->
                                 String.format(
                                     "Status of Cromwell workflow %s on %s: %s",
-                                    state.state().cromwellId(),
-                                    state.state().cromwellServer(),
+                                    state.loadInner(StateStarted.class).cromwellId(),
+                                    state.loadInner(StateStarted.class).cromwellServer(),
                                     response.getStatus())))
                     .then(status(response -> statusFromCromwell(response.getStatus())))
                     .map(WorkflowMetadataResponse::pollStatus)
                     .then(poll(Duration.ofMinutes(5)))
-                    .reload(s -> s.state().buildOutputsRequest())
+                    .reload(s -> s.loadInner(StateStarted.class).buildOutputsRequest())
                     .then(http(new JsonBodyHandler<>(MAPPER, WorkflowOutputResponse.class)))
                     .then(monitorWhen(CROMWELL_FAILURES, OperationStep::isHttpNotOk, url))
                     .then(handleHttpResponseCode())
@@ -165,7 +167,7 @@ public final class CromwellWorkflowEngine implements WorkflowEngine<StateUnstart
                         (state, output) ->
                             new Result<>(
                                 output.getOutputs(),
-                                state.state().state().runtimeProvisionerUrl(),
+                                state.loadInner(StateStarted.class).runtimeProvisionerUrl(),
                                 Optional.empty()))));
   }
 

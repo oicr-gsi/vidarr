@@ -3,6 +3,12 @@ package ca.on.oicr.gsi.vidarr;
 import ca.on.oicr.gsi.vidarr.ActiveOperation.TransactionManager;
 import java.net.http.HttpResponse;
 
+/**
+ * Some external HTTP services may return error codes when overloaded, but reattempting the same
+ * operation later could succeed. This errors gracefuly on 400, 404 and 500 response codes, which
+ * allows for reattempting the requests when chained with e.g. {@link
+ * OperationStatefulStepRepeatUntilSuccess}
+ */
 public final class OperationStepHandleHttpStatus<Value> extends OperationStep<Value, Value> {
 
   public OperationStepHandleHttpStatus() {
@@ -31,9 +37,7 @@ public final class OperationStepHandleHttpStatus<Value> extends OperationStep<Va
                 response.uri(), locationFromRedirect));
       case 400:
       case 404:
-      // In the case of Cromwell, 400-series errors can be recoverable if retried
       case 500:
-        // In the case of Cromwell, 500-series errors can be recoverable if retried
         next.error(
             String.format(
                 "HTTP request to %s failed with status: %d",

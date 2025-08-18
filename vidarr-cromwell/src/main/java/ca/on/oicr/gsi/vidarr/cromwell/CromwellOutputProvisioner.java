@@ -132,7 +132,7 @@ public class CromwellOutputProvisioner
         result.getOutputs().get(checksumTypeField).asText(),
         Long.parseLong(result.getOutputs().get(fileSizeField).asText()),
         EXTENSION_TO_META_TYPE.stream()
-            .filter(p -> state.state().state().fileName().endsWith(p.first()))
+            .filter(p -> state.loadInner(ProvisionState.class).fileName().endsWith(p.first()))
             .findFirst()
             .map(Pair::second)
             .orElseThrow());
@@ -234,19 +234,18 @@ public class CromwellOutputProvisioner
                             (state, response) ->
                                 String.format(
                                     "Status of Cromwell provision-out %s on %s: %s",
-                                    state.state().cromwellId(),
-                                    state.state().cromwellServer(),
+                                    state.loadInner(StateStarted.class).cromwellId(),
+                                    state.loadInner(StateStarted.class).cromwellServer(),
                                     response.getStatus())))
                     .then(status(response -> statusFromCromwell(response.getStatus())))
                     .map(WorkflowMetadataResponse::pollStatus)
                     .then(poll(Duration.ofMinutes(5)))
                     .reload(s -> s.loadInner(StateStarted.class).buildOutputsRequest())
                     .then(http(new JsonBodyHandler<>(MAPPER, WorkflowOutputResponse.class)))
-                    .then(handleHttpResponseCode())
                     .then(monitorWhen(CROMWELL_FAILURES, OperationStep::isHttpNotOk, cromwellUrl))
-                    // haven't been able to get rid of this requireJsonSuccess, as it breaks the
-                    // argument types for the following map() call
-                    .then(requireJsonSuccess())))
+                    .then(handleHttpResponseCode())
+                    .then(repeatUntilSuccess(Duration.ofMinutes(2), 5))
+                    .then(getJson())))
         .map(this::extractOutput);
   }
 

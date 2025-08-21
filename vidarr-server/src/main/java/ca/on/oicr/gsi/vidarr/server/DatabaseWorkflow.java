@@ -97,6 +97,7 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
         consumableResources,
         created,
         liveness,
+        Phase.WAITING_FOR_RESOURCES,
         dsl);
   }
 
@@ -114,6 +115,7 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
       Map<String, JsonNode> consumableResources,
       Instant created,
       LongFunction<AtomicBoolean> liveness,
+      Phase phase,
       DSLContext dsl) {
     dsl.insertInto(ACTIVE_WORKFLOW_RUN)
         .columns(
@@ -125,7 +127,7 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
             ACTIVE_WORKFLOW_RUN.CONSUMABLE_RESOURCES)
         .values(
             dbId,
-            Phase.WAITING_FOR_RESOURCES,
+            phase,
             false,
             true,
             targetName,
@@ -147,7 +149,7 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
         new HashSet<>(ids),
         Collections.emptySet(),
         true,
-        Phase.WAITING_FOR_RESOURCES,
+        phase,
         null,
         0,
         liveness.apply(dbId),

@@ -1071,11 +1071,13 @@ public abstract class DatabaseBackedProcessor
                               Iterator<JsonNode> iterator2 = contents.elements();
                               while (iterator2.hasNext()) {
                                 ObjectNode content = (ObjectNode) iterator2.next();
+                                // TODO these could be nested. How do other parts of the code do it?
                                 if (content.has("outputDirectory")) {
                                   content.put("outputDirectory", outputPath);
                                 }
                               }
                             }
+                            // TODO update the workflow run metadata, unless that'd be preemptive?
                             dsl.update(WORKFLOW_RUN)
                                 .set(WORKFLOW_RUN.COMPLETED,
                                     (OffsetDateTime) null) // Have to cast null to something to resolve ambiguous call lol
@@ -1119,6 +1121,7 @@ public abstract class DatabaseBackedProcessor
                                   Map.of(), //empty consumable resources
                                   record.get(WORKFLOW_RUN.CREATED).toInstant(),
                                   this::liveness,
+                                  Phase.PROVISION_OUT,
                                   dsl
                               );
 
@@ -1148,6 +1151,7 @@ public abstract class DatabaseBackedProcessor
                                           inTransaction(
                                               runTransaction ->
                                                   DatabaseBackedProcessor.this.start(
+                                                      // TODO NO, this starts at Preflight
                                                       // runs when new workflow run submitted
                                                       newTarget, definition.get().definition(),
                                                       dbWorkflow, runTransaction));

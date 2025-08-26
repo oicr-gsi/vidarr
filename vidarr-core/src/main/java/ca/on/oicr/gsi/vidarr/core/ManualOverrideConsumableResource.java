@@ -85,7 +85,7 @@ public final class ManualOverrideConsumableResource implements ConsumableResourc
     return allowList.contains(vidarrId)
         ? ConsumableResourceResponse.AVAILABLE
         : inner.request(
-            workflowName, workflowVersion, vidarrId, createdTime, OptionalInt.empty(), input);
+            workflowName, workflowVersion, vidarrId, createdTime, workflowMaxInFlight, input);
   }
 
   public void setInner(ConsumableResource inner) {

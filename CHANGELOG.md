@@ -6,6 +6,13 @@ For unreleased changes, see [changes](changes).
 
 -----------------------------------------------------------------------------
 
+## [2.3.1] - 2025-08-27
+
+### Fixed
+
+* Fixes bug in manually overriding priority consumable resource
+
+
 ## [2.3.0] - 2025-08-13
 
 ### Changed

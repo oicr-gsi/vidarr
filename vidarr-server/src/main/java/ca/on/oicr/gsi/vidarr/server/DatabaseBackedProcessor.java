@@ -1010,6 +1010,7 @@ public abstract class DatabaseBackedProcessor
     return BadRecoveryTracker.badRecoveryIds;
   }
 
+  // TODO: is it a problem that this only works in server mode? Could we want to single-shot this?
   public <T> Pair<Integer, ReprovisionOutResponse> reprovisionOut(List<String> workflowRunIds,
       OutputProvisioner<?, ?> provisioner,
       String outputPath,
@@ -1049,18 +1050,25 @@ public abstract class DatabaseBackedProcessor
         DSL.using(connection, SQLDialect.POSTGRES)
             .transaction(
                 context -> {
+
+                  // Get the selected workflow runs, along with workflow version and workflow definition information
                   DSLContext dsl = DSL.using(context);
                   dsl.select()
                       .from(
                           WORKFLOW_RUN
+                              .join(ANALYSIS)
+                              .on(WORKFLOW_RUN.ID.eq(ANALYSIS.WORKFLOW_RUN_ID))
                               .join(WORKFLOW_VERSION)
                               .on(WORKFLOW_RUN.WORKFLOW_VERSION_ID.eq(WORKFLOW_VERSION.ID))
                               .join(WORKFLOW_DEFINITION)
                               .on(WORKFLOW_VERSION.WORKFLOW_DEFINITION.eq(WORKFLOW_DEFINITION.ID)))
                       .where(WORKFLOW_RUN.HASH_ID.in(workflowRunIds)
                           .and(WORKFLOW_RUN.COMPLETED.isNotNull()))
+
+                      // For each workflow run record we've selected,
                       .forEach(
                           record -> {
+                            // 1. Update the outputDirectory to our new path
                             // Surely there is a cleaner way to do this
                             // TODO like a million risk of casting errors
                             JsonNode metadata = record.get(WORKFLOW_RUN.METADATA);
@@ -1077,6 +1085,8 @@ public abstract class DatabaseBackedProcessor
                                 }
                               }
                             }
+
+                            // 2. Clear the completed date so vidarr doesn't consider this job done
                             // TODO update the workflow run metadata, unless that'd be preemptive?
                             dsl.update(WORKFLOW_RUN)
                                 .set(WORKFLOW_RUN.COMPLETED,
@@ -1084,6 +1094,7 @@ public abstract class DatabaseBackedProcessor
                                 .where(WORKFLOW_RUN.HASH_ID.eq(record.get(WORKFLOW_RUN.HASH_ID)))
                                 .execute();
 
+                            // 3. Turn db records back into objects
                             Optional<WorkflowInformation> definition;
                             try {
                               definition = getWorkflowByName(
@@ -1106,6 +1117,8 @@ public abstract class DatabaseBackedProcessor
                                               externalIdRecord.get(EXTERNAL_ID.EXTERNAL_ID_));
                                       inputIds.add(externalId);
                                     });
+
+                            // 4. Construct new active_workflow_run and active_operation records
                             try {
                               final DatabaseWorkflow dbWorkflow = DatabaseWorkflow.createActive(
                                   "reprovision",
@@ -1125,6 +1138,7 @@ public abstract class DatabaseBackedProcessor
                                   dsl
                               );
 
+                              // 5. Schedule the jobs for launching
                               handler.launched(record.get(WORKFLOW_RUN.HASH_ID),
                                   new ConsumableResourceChecker(
                                       newTarget,

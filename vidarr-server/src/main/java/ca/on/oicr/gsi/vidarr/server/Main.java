@@ -566,7 +566,7 @@ public final class Main implements ServerConfig {
     //exchange.setStatusCode(response.first());
     exchange.setStatusCode(200);
     if (postCommitAction.get() != null) {
-      postCommitAction.get().run();
+      postCommitAction.get().run(); //TODO is this running on the right threadpool?
     }
     try {
       //exchange.getResponseSender().send(MAPPER.writeValueAsString(response.second()));

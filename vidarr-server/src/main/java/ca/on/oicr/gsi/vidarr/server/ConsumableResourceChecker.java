@@ -157,6 +157,7 @@ final class ConsumableResourceChecker implements Runnable {
     tracing.put("vidarr-waiting", waiting);
     updateBlockedResource(null);
     waitTime.labels(workflow).observe(waiting);
+    waitRounds.remove(vidarrId);
     next.run();
   }
 

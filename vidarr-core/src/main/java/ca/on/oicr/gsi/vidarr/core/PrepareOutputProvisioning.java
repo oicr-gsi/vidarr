@@ -19,9 +19,9 @@ import java.util.stream.StreamSupport;
  * Take the output metadata provided by the caller, the output from the workflow, and create tasks
  * for provisioning out the data
  */
-final class PrepareOutputProvisioning
+public final class PrepareOutputProvisioning
     extends BaseOutputExtractor<
-        Stream<TaskStarter<ProvisionData>>, Stream<TaskStarter<ProvisionData>>> {
+    Stream<TaskStarter<ProvisionData>>, Stream<TaskStarter<ProvisionData>>> {
 
   private static Map<String, String> extractLabels(JsonNode node) {
     final var labels = new TreeMap<String, String>();
@@ -72,21 +72,21 @@ final class PrepareOutputProvisioning
     }
 
     return (switch (format) {
-          case DATAWAREHOUSE_RECORDS, LOGS, FILE, QUALITY_CONTROL -> Stream.of(
-              new Pair<>(output.asText(), Map.<String, String>of()));
-          case FILES -> stream(output, optional)
-              .map(file -> new Pair<>(file.asText(), Map.<String, String>of()));
+      case DATAWAREHOUSE_RECORDS, LOGS, FILE, QUALITY_CONTROL -> Stream.of(
+          new Pair<>(output.asText(), Map.<String, String>of()));
+      case FILES -> stream(output, optional)
+          .map(file -> new Pair<>(file.asText(), Map.<String, String>of()));
 
-          case FILE_WITH_LABELS -> {
-            final var labels = extractLabels(output.get("right"));
-            yield Stream.of(new Pair<>(output.get("left").asText(), labels));
-          }
-          case FILES_WITH_LABELS -> {
-            final var labels = extractLabels(output.get("right"));
-            yield stream(output.get("left"), optional)
-                .map(file -> new Pair<>(file.asText(), labels));
-          }
-        })
+      case FILE_WITH_LABELS -> {
+        final var labels = extractLabels(output.get("right"));
+        yield Stream.of(new Pair<>(output.get("left").asText(), labels));
+      }
+      case FILES_WITH_LABELS -> {
+        final var labels = extractLabels(output.get("right"));
+        yield stream(output.get("left"), optional)
+            .map(file -> new Pair<>(file.asText(), labels));
+      }
+    })
         .map(
             p -> {
               final var data = p.first();

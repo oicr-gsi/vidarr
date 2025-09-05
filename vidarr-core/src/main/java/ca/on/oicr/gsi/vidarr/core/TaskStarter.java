@@ -26,7 +26,8 @@ import java.util.Set;
  *
  * @param <Output> the return type of the operation
  */
-interface TaskStarter<Output> {
+public interface TaskStarter<Output> {
+
   static <OriginalState extends Record> TaskStarter<ProvisionData> launch(
       RuntimeProvisioner<OriginalState> provisioner,
       Set<? extends ExternalId> ids,
@@ -54,11 +55,11 @@ interface TaskStarter<Output> {
   }
 
   static <OriginalState extends Record, Cleanup extends Record>
-      TaskStarter<WorkflowEngine.Result<JsonNode>> launch(
-          WorkflowDefinition definition,
-          ActiveWorkflow<?, ?> activeWorkflow,
-          WorkflowEngine<OriginalState, Cleanup> engine,
-          ObjectNode input) {
+  TaskStarter<WorkflowEngine.Result<JsonNode>> launch(
+      WorkflowDefinition definition,
+      ActiveWorkflow<?, ?> activeWorkflow,
+      WorkflowEngine<OriginalState, Cleanup> engine,
+      ObjectNode input) {
     return of(
         "",
         engine
@@ -144,34 +145,36 @@ interface TaskStarter<Output> {
   }
 
   private static <State extends Record, OriginalState extends Record>
-      OperationAction<Child<OutputProvisionState, State>, OutputProvisionState, ProvisionData>
-          wrapOutputProvisioner(
-              OutputProvisioner<?, OriginalState> provisioner,
-              OperationAction<State, OriginalState, OutputProvisioner.Result> action) {
+  OperationAction<Child<OutputProvisionState, State>, OutputProvisionState, ProvisionData>
+  wrapOutputProvisioner(
+      OutputProvisioner<?, OriginalState> provisioner,
+      OperationAction<State, OriginalState, OutputProvisioner.Result> action) {
     return OperationAction.load(OutputProvisionState.class, OutputProvisionState::workflowRunId)
         .then(
             OperationStatefulStep.subStep(
-                (state, id) -> provisioner.prepareProvisionInput(id, state.data(), state.metadata()), action))
+                (state, id) -> provisioner.prepareProvisionInput(id, state.data(),
+                    state.metadata()), action))
         .map(
             (state, result) ->
                 new ProvisionData(state.state().ids(), state.state().labels(), result));
   }
 
   private static <State extends Record, OriginalState extends Record>
-      OperationAction<Child<RuntimeProvisionState, State>, RuntimeProvisionState, ProvisionData>
-          wrapRuntimeAction(
-              RuntimeProvisioner<OriginalState> provisioner,
-              OperationAction<State, OriginalState, OutputProvisioner.Result> action) {
+  OperationAction<Child<RuntimeProvisionState, State>, RuntimeProvisionState, ProvisionData>
+  wrapRuntimeAction(
+      RuntimeProvisioner<OriginalState> provisioner,
+      OperationAction<State, OriginalState, OutputProvisioner.Result> action) {
     return OperationAction.load(RuntimeProvisionState.class, RuntimeProvisionState::workflowRunUrl)
-        .then(OperationStatefulStep.subStep((state, url) -> provisioner.prepareProvisionInput(url), action))
+        .then(OperationStatefulStep.subStep((state, url) -> provisioner.prepareProvisionInput(url),
+            action))
         .map(
             (state, result) ->
                 new ProvisionData(state.state().ids(), state.state().labels(), result));
   }
 
   static <OriginalState extends Record>
-      OperationAction<?, RuntimeProvisionState, ProvisionData> wrapRuntimeProvisioner(
-          RuntimeProvisioner<OriginalState> provisioner) {
+  OperationAction<?, RuntimeProvisionState, ProvisionData> wrapRuntimeProvisioner(
+      RuntimeProvisioner<OriginalState> provisioner) {
     return wrapRuntimeAction(provisioner, provisioner.build());
   }
 

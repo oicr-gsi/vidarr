@@ -28,6 +28,7 @@ import ca.on.oicr.gsi.vidarr.OutputProvisioner;
 import ca.on.oicr.gsi.vidarr.OutputType;
 import ca.on.oicr.gsi.vidarr.RuntimeProvisioner;
 import ca.on.oicr.gsi.vidarr.WorkflowDefinition;
+import ca.on.oicr.gsi.vidarr.WorkflowDefinition.Output;
 import ca.on.oicr.gsi.vidarr.WorkflowEngine;
 import ca.on.oicr.gsi.vidarr.api.BulkVersionRequest;
 import ca.on.oicr.gsi.vidarr.api.BulkVersionUpdate;
@@ -45,9 +46,12 @@ import ca.on.oicr.gsi.vidarr.core.FileMetadata;
 import ca.on.oicr.gsi.vidarr.core.NoOpWorkflowEngine;
 import ca.on.oicr.gsi.vidarr.core.OutputCompatibility;
 import ca.on.oicr.gsi.vidarr.core.Phase;
+import ca.on.oicr.gsi.vidarr.core.PrepareOutputProvisioning;
+import ca.on.oicr.gsi.vidarr.core.ProvisionData;
 import ca.on.oicr.gsi.vidarr.core.RawInputProvisioner;
 import ca.on.oicr.gsi.vidarr.core.RecoveryType;
 import ca.on.oicr.gsi.vidarr.core.Target;
+import ca.on.oicr.gsi.vidarr.core.TaskStarter;
 import ca.on.oicr.gsi.vidarr.core.ValidateJsonToSimpleType;
 import ca.on.oicr.gsi.vidarr.server.jooq.tables.records.ExternalIdVersionRecord;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -1136,6 +1140,20 @@ public abstract class DatabaseBackedProcessor
                                   this::liveness,
                                   Phase.PROVISION_OUT,
                                   dsl
+                              );
+
+                              List<TaskStarter<ProvisionData>> tasks = new ArrayList<>();
+                              definition.get().definition().outputs().forEach(
+                                  output -> {
+                                    final AtomicBoolean isOk = new AtomicBoolean(true);
+                                    output.type().apply(
+                                        new PrepareOutputProvisioning(
+                                            mapper(),
+                                            newTarget,
+                                            mapper().createObjectNode().put("left",
+                                        )
+                                    );
+                                  }
                               );
 
                               // 5. Schedule the jobs for launching

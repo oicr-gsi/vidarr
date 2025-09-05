@@ -6,8 +6,12 @@ import static ca.on.oicr.gsi.vidarr.OperationStatefulStep.onInnerState;
 import static ca.on.oicr.gsi.vidarr.OperationStatefulStep.poll;
 import static ca.on.oicr.gsi.vidarr.OperationStatefulStep.repeatUntilSuccess;
 import static ca.on.oicr.gsi.vidarr.OperationStep.debugInfo;
+import static ca.on.oicr.gsi.vidarr.OperationStep.getJson;
+import static ca.on.oicr.gsi.vidarr.OperationStep.getResponseBody;
+import static ca.on.oicr.gsi.vidarr.OperationStep.handleHttpResponseCode;
 import static ca.on.oicr.gsi.vidarr.OperationStep.http;
 import static ca.on.oicr.gsi.vidarr.OperationStep.log;
+import static ca.on.oicr.gsi.vidarr.OperationStep.mapping;
 import static ca.on.oicr.gsi.vidarr.OperationStep.monitorWhen;
 import static ca.on.oicr.gsi.vidarr.OperationStep.requireJsonSuccess;
 import static ca.on.oicr.gsi.vidarr.OperationStep.requirePresent;
@@ -97,8 +101,7 @@ public class CromwellOutputProvisioner
   private String workflowSource;
   private String workflowUrl;
 
-  public CromwellOutputProvisioner() {
-  }
+  public CromwellOutputProvisioner() {}
 
   @Override
   public boolean canProvision(OutputProvisionFormat format) {
@@ -129,7 +132,7 @@ public class CromwellOutputProvisioner
         result.getOutputs().get(checksumTypeField).asText(),
         Long.parseLong(result.getOutputs().get(fileSizeField).asText()),
         EXTENSION_TO_META_TYPE.stream()
-            .filter(p -> state.state().state().fileName().endsWith(p.first()))
+            .filter(p -> state.loadInner(ProvisionState.class).fileName().endsWith(p.first()))
             .findFirst()
             .map(Pair::second)
             .orElseThrow());
@@ -189,7 +192,8 @@ public class CromwellOutputProvisioner
   }
 
   @Override
-  public ProvisionState prepareProvisionInput(String workflowRunId, String data, JsonNode metadata) {
+  public ProvisionState prepareProvisionInput(
+      String workflowRunId, String data, JsonNode metadata) {
     return new ProvisionState(cromwellUrl, data, metadata, workflowRunId);
   }
 
@@ -203,7 +207,9 @@ public class CromwellOutputProvisioner
                 (response) ->
                     String.format("Got response %d on %s", response.statusCode(), cromwellUrl)))
         .then(monitorWhen(CROMWELL_FAILURES, OperationStep::isHttpNotOk, cromwellUrl))
-        .then(requireJsonSuccess())
+        .then(handleHttpResponseCode())
+        .then(repeatUntilSuccess(Duration.ofMinutes(10), 5))
+        .then(getJson())
         .map(result -> Optional.ofNullable(result.getId()).filter(id -> !id.equals("null")))
         .then(requirePresent())
         .then(status(WorkingStatus.QUEUED))
@@ -211,14 +217,16 @@ public class CromwellOutputProvisioner
             log(
                 Level.INFO,
                 id -> String.format("Started Cromwell provision-out %s on %s", id, cromwellUrl)))
-        .then(repeatUntilSuccess(Duration.ofMinutes(10), 5))
         .then(sleep(Duration.ofSeconds(30)))
         .then(
             OperationStatefulStep.subStep(
                 onInnerState(ProvisionState.class, ProvisionState::checkTask),
                 load(StateStarted.class, (state) -> state.buildCheckRequest(debugCalls))
                     .then(http(new JsonBodyHandler<>(MAPPER, WorkflowMetadataResponse.class)))
-                    .then(requireJsonSuccess())
+                    .then(monitorWhen(CROMWELL_FAILURES, OperationStep::isHttpNotOk, cromwellUrl))
+                    .then(handleHttpResponseCode())
+                    .then(repeatUntilSuccess(Duration.ofMinutes(10), 5))
+                    .then(getJson())
                     .then(debugInfo(WorkflowMetadataResponse::debugInfo))
                     .then(
                         log(
@@ -226,15 +234,18 @@ public class CromwellOutputProvisioner
                             (state, response) ->
                                 String.format(
                                     "Status of Cromwell provision-out %s on %s: %s",
-                                    state.cromwellId(),
-                                    state.cromwellServer(),
+                                    state.loadInner(StateStarted.class).cromwellId(),
+                                    state.loadInner(StateStarted.class).cromwellServer(),
                                     response.getStatus())))
                     .then(status(response -> statusFromCromwell(response.getStatus())))
                     .map(WorkflowMetadataResponse::pollStatus)
                     .then(poll(Duration.ofMinutes(5)))
-                    .reload(StateStarted::buildOutputsRequest)
+                    .reload(s -> s.loadInner(StateStarted.class).buildOutputsRequest())
                     .then(http(new JsonBodyHandler<>(MAPPER, WorkflowOutputResponse.class)))
-                    .then(requireJsonSuccess())))
+                    .then(monitorWhen(CROMWELL_FAILURES, OperationStep::isHttpNotOk, cromwellUrl))
+                    .then(handleHttpResponseCode())
+                    .then(repeatUntilSuccess(Duration.ofMinutes(10), 5))
+                    .then(getJson())))
         .map(this::extractOutput);
   }
 

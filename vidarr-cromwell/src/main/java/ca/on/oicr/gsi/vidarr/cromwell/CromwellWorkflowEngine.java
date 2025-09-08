@@ -139,7 +139,7 @@ public final class CromwellWorkflowEngine implements WorkflowEngine<StateUnstart
                     .then(http(new JsonBodyHandler<>(MAPPER, WorkflowMetadataResponse.class)))
                     .then(monitorWhen(CROMWELL_FAILURES, OperationStep::isHttpNotOk, url))
                     .then(handleHttpResponseCode())
-                    .then(repeatUntilSuccess(Duration.ofMinutes(10), 5))
+                    .then(repeatUntilSuccess(Duration.ofMinutes(5), 5))
                     .then(getJson())
                     .then(debugInfo(WorkflowMetadataResponse::debugInfo))
                     .then(
@@ -158,7 +158,7 @@ public final class CromwellWorkflowEngine implements WorkflowEngine<StateUnstart
                     .then(http(new JsonBodyHandler<>(MAPPER, WorkflowOutputResponse.class)))
                     .then(monitorWhen(CROMWELL_FAILURES, OperationStep::isHttpNotOk, url))
                     .then(handleHttpResponseCode())
-                    .then(repeatUntilSuccess(Duration.ofMinutes(10), 5))
+                    .then(repeatUntilSuccess(Duration.ofMinutes(5), 5))
                     .then(getJson())
                     .map(
                         (state, output) ->

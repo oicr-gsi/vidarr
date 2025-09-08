@@ -12,6 +12,7 @@ import static ca.on.oicr.gsi.vidarr.OperationStep.getJson;
 import static ca.on.oicr.gsi.vidarr.OperationStep.handleHttpResponseCode;
 import static ca.on.oicr.gsi.vidarr.OperationStep.http;
 import static ca.on.oicr.gsi.vidarr.OperationStep.monitorWhen;
+import static ca.on.oicr.gsi.vidarr.OperationStep.requireJsonSuccess;
 import static ca.on.oicr.gsi.vidarr.OperationStep.requirePresent;
 import static ca.on.oicr.gsi.vidarr.OperationStep.sleep;
 import static ca.on.oicr.gsi.vidarr.OperationStep.status;
@@ -118,9 +119,8 @@ public final class CromwellWorkflowEngine implements WorkflowEngine<StateUnstart
                     String.format(
                         "Got response %d on %s", response.statusCode(), state.cromwellServer())))
         .then(monitorWhen(CROMWELL_FAILURES, OperationStep::isHttpNotOk, url))
-        .then(handleHttpResponseCode())
-        .then(repeatUntilSuccess(Duration.ofMinutes(10), 5))
-        .then(getJson())
+        .then(requireJsonSuccess()) // If we get back a 400- or 500-series error, fail fast as it
+        // might be a bad workflow and there's no workflow run data to rescue
         .map(result -> Optional.ofNullable(result.getId()).filter(id -> !id.equals("null")))
         .then(requirePresent())
         .then(status(WorkingStatus.QUEUED))
@@ -129,8 +129,7 @@ public final class CromwellWorkflowEngine implements WorkflowEngine<StateUnstart
                 Level.INFO,
                 (state, id) ->
                     String.format(
-                        "Started Cromwell workflow %s on %s",
-                        id, state.loadInner(StateStarted.class).cromwellServer())))
+                        "Started Cromwell workflow %s on %s", id, state.cromwellServer())))
         .then(repeatUntilSuccess(Duration.ofMinutes(10), 5))
         .then(sleep(Duration.ofSeconds(30)))
         .then(

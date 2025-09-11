@@ -6,6 +6,27 @@ For unreleased changes, see [changes](changes).
 
 -----------------------------------------------------------------------------
 
+## [2.4.0] - 2025-09-11
+
+### Added
+
+* new OperationStep for handling HTTP status codes.
+  
+  * 301 throws a non-recoverable error
+  * 400, 404, 500 call the error method and could be reattempted
+
+### Fixed
+
+* Workflow run labels will now drop from the waiting rounds metric after launch
+  
+
+### Upgrade Notes
+
+* The new HTTP handling step is used in the CromwellWorkflowEngine and CromwellOutputProvisioner and these changes are not compatible with existing workflow runs.
+  
+  Any existing workflow runs that were in RUNNING or PROVISION_OUT will be unrecoverable once this upgrade completes.
+
+
 ## [2.3.1] - 2025-08-27
 
 ### Fixed

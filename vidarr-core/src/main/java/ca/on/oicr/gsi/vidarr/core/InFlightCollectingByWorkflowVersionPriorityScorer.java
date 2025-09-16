@@ -9,6 +9,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public final class InFlightCollectingByWorkflowVersionPriorityScorer
     extends BaseInFlightCollectingPriorityScorer {
+
   private final Map<Pair<String, String>, SortedSet<WorkflowRunScore>> active =
       new ConcurrentHashMap<>();
   private boolean useCustom;
@@ -25,6 +26,16 @@ public final class InFlightCollectingByWorkflowVersionPriorityScorer
       int maxInFlight,
       OptionalInt workflowMaxInFlight) {
     return useCustom ? workflowMaxInFlight.orElse(maxInFlight) : maxInFlight;
+  }
+
+  @Override
+  protected void preprocessActive(int limit) {
+    // Do nothing
+  }
+
+  @Override
+  protected void postprocessActive() {
+    // Do nothing
   }
 
   public boolean isUseCustom() {

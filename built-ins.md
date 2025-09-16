@@ -523,7 +523,8 @@ limit with per-workflow limits. For example:
   "scorers": [
     {
       "maxInFlight": 500,
-      "type": "ranked-max-in-flight"
+      "type": "ranked-max-in-flight",
+      "hogFactor": 3
     },
     {
       "maxInFlight": 20,
@@ -583,10 +584,17 @@ However, `"ranked-max-in-flight-by-workflow"` and
 created, as is visible through the `/api/max-in-flight` endpoint. In that case
 `"maxInFlight"` is treated as a fallback.
 
+`"ranked-max-in-flight"` has an additional property `"hogFactor"`, which is defined as the maximum
+number of unique workflows that may occupy the priority queue before the scorer is forced to allow
+a lower-priority workflow to run. This is meant to provide some relief when one or a few workflows
+with a low by-workflow max-in-flight and a high number of waiting workflow runs cause the
+ranked-max-in-flight to become underutilized. Values of 0 or lower disable this feature.
+
 ```
 {
   "type": "ranked-max-in-flight",
-  "maxInFlight": 500
+  "maxInFlight": 500,
+  "hogFactor": 3
 }
 ```
 

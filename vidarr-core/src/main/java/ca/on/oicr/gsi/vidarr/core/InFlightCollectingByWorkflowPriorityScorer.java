@@ -26,6 +26,16 @@ public final class InFlightCollectingByWorkflowPriorityScorer
     return useCustom ? workflowMaxInFlight.orElse(maxInFlight) : maxInFlight;
   }
 
+  @Override
+  protected void preprocessActive(int limit) {
+    // Do nothing
+  }
+
+  @Override
+  protected void postprocessActive() {
+    // Do nothing
+  }
+
   public boolean isUseCustom() {
     return useCustom;
   }

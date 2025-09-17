@@ -214,16 +214,13 @@ public abstract class DatabaseBackedProcessor
                                       .and(ACTIVE_OPERATION.STATUS.eq(OperationStatus.FAILED))))));
 
   public static final TypeReference<SortedMap<String, BasicType>> LABELS_JSON_TYPE =
-      new TypeReference<>() {
-      };
+      new TypeReference<>() {};
   // Jdk8Module is a compatibility fix for de/serializing Optionals
   static final ObjectMapper MAPPER = new ObjectMapper().registerModule(new Jdk8Module());
   public static final TypeReference<Map<String, OutputType>> OUTPUT_JSON_TYPE =
-      new TypeReference<>() {
-      };
+      new TypeReference<>() {};
   public static final TypeReference<Map<String, InputType>> PARAMETER_JSON_TYPE =
-      new TypeReference<>() {
-      };
+      new TypeReference<>() {};
 
   private static WorkflowDefinition buildDefinitionFromRecord(
       DSLContext context, org.jooq.Record record) {
@@ -261,11 +258,11 @@ public abstract class DatabaseBackedProcessor
     }
     return consumableResources.containsKey(resource.first())
         ? resource
-        .second()
-        .apply(
-            new ValidateJsonToSimpleType(
-                "Consumable resource: " + resource.first(),
-                consumableResources.get(resource.first())))
+            .second()
+            .apply(
+                new ValidateJsonToSimpleType(
+                    "Consumable resource: " + resource.first(),
+                    consumableResources.get(resource.first())))
         : Stream.of(String.format("Missing required consumable resource %s", resource.first()));
   }
 
@@ -280,30 +277,33 @@ public abstract class DatabaseBackedProcessor
       digest.update(name.getBytes(StandardCharsets.UTF_8));
       for (final String id : inputIds) {
         final byte[] idBytes = hashFromAnalysisId(id).getBytes(StandardCharsets.UTF_8);
-        digest.update(new byte[]{0});
+        digest.update(new byte[] {0});
         digest.update(idBytes);
       }
       final ArrayList<? extends ExternalId> sortedExternalIds = new ArrayList<>(externalIds);
       sortedExternalIds.sort(
           Comparator.comparing(ExternalId::getProvider).thenComparing(ExternalId::getId));
       for (final ExternalId id : sortedExternalIds) {
-        digest.update(new byte[]{0});
-        digest.update(new byte[]{0});
+        digest.update(new byte[] {0});
+        digest.update(new byte[] {0});
         digest.update(id.getProvider().getBytes(StandardCharsets.UTF_8));
-        digest.update(new byte[]{0});
+        digest.update(new byte[] {0});
         digest.update(id.getId().getBytes(StandardCharsets.UTF_8));
-        digest.update(new byte[]{0});
+        digest.update(new byte[] {0});
       }
 
       // The client may submit any number of workflow labels, but this hashing/matching only
       // takes into account the labels that the workflow is configured with.
       for (final String label : labelsFromWorkflow) {
-        digest.update(new byte[]{0});
+        digest.update(new byte[] {0});
         digest.update(label.getBytes(StandardCharsets.UTF_8));
-        digest.update(new byte[]{0});
+        digest.update(new byte[] {0});
         digest.update(MAPPER.writeValueAsBytes(labelsFromClient.get(label)));
-	// Note that if the .get(label) value is a string, writeValueAsBytes will also encode the literal (escaped) quote marks around the value.
-	// This means that if you are generating a workflow run hash outside of vidarr, if your label value is a string then you need to surround it with literal (escaped) quotes when hashing
+        // Note that if the .get(label) value is a string, writeValueAsBytes will also encode the
+        // literal (escaped) quote marks around the value.
+        // This means that if you are generating a workflow run hash outside of vidarr, if your
+        // label value is a string then you need to surround it with literal (escaped) quotes when
+        // hashing
       }
 
       return hexDigits(digest.digest());
@@ -314,6 +314,7 @@ public abstract class DatabaseBackedProcessor
 
   /**
    * Sanity check an individual workflow run's labels against the workflow definition's labels
+   *
    * @param providedLabels labels from an individual workflow run
    * @param expectedLabels labels from the workflow definition
    * @return Stream of label errors
@@ -330,7 +331,8 @@ public abstract class DatabaseBackedProcessor
     }
     if (providedCount != expectedLabelCount) {
       return Stream.of(
-          String.format("%d labels are provided but %d are expected.", providedCount, expectedLabelCount));
+          String.format(
+              "%d labels are provided but %d are expected.", providedCount, expectedLabelCount));
     }
 
     // For every expected label, see if that label is in the provided labels
@@ -444,7 +446,8 @@ public abstract class DatabaseBackedProcessor
                     .map(
                         (id_and_dead) -> {
                           if (id_and_dead.component2()) {
-                            final SoftReference<AtomicBoolean> oldLiveness = liveness.remove(id_and_dead.component1());
+                            final SoftReference<AtomicBoolean> oldLiveness =
+                                liveness.remove(id_and_dead.component1());
                             if (oldLiveness != null) {
                               final AtomicBoolean oldLivenessLock = oldLiveness.get();
                               if (oldLivenessLock != null) {
@@ -516,17 +519,17 @@ public abstract class DatabaseBackedProcessor
             p ->
                 arguments.has(p.name())
                     ? p.type()
-                    .apply(
-                        new ExtractInputExternalIds(
-                            MAPPER,
-                            arguments.get(p.name()),
-                            id -> {
-                              final Optional<FileMetadata> result = pathForId(id);
-                              if (result.isEmpty()) {
-                                unresolvedIds.add(id);
-                              }
-                              return result;
-                            }))
+                        .apply(
+                            new ExtractInputExternalIds(
+                                MAPPER,
+                                arguments.get(p.name()),
+                                id -> {
+                                  final Optional<FileMetadata> result = pathForId(id);
+                                  if (result.isEmpty()) {
+                                    unresolvedIds.add(id);
+                                  }
+                                  return result;
+                                }))
                     : Stream.empty())
         .collect(
             Collectors.toCollection(
@@ -742,22 +745,33 @@ public abstract class DatabaseBackedProcessor
                         .collect(
                             Collectors.groupingBy(
                                 r -> r.get(ACTIVE_OPERATION.WORKFLOW_RUN_ID),
-                                collectingAndThen(toList(), ops -> {
-                                  Phase maxEnginePhase = ops.stream()
-                                      .map(r -> r.get(ACTIVE_OPERATION.ENGINE_PHASE))
-                                      .filter(Objects::nonNull)
-                                      .max(Comparator.comparing(Phase::ordinal))
-                                      .orElse(null);
-                                  // all operations are required to have an engine phase so this will never be null
+                                collectingAndThen(
+                                    toList(),
+                                    ops -> {
+                                      Phase maxEnginePhase =
+                                          ops.stream()
+                                              .map(r -> r.get(ACTIVE_OPERATION.ENGINE_PHASE))
+                                              .filter(Objects::nonNull)
+                                              .max(Comparator.comparing(Phase::ordinal))
+                                              .orElse(null);
+                                      // all operations are required to have an engine phase so this
+                                      // will never be null
 
-                                  // select the operations with max engine phase as recovery only operates on one phase
-                                  return ops.stream()
-                                      .filter(r -> r.get(ACTIVE_OPERATION.ENGINE_PHASE)
-                                          .equals(maxEnginePhase))
-                                      .map(r -> DatabaseOperation.recover(r,
-                                          liveness(r.get(ACTIVE_OPERATION.WORKFLOW_RUN_ID))))
-                                      .collect(Collectors.toList());
-                                })));
+                                      // select the operations with max engine phase as recovery
+                                      // only operates on one phase
+                                      return ops.stream()
+                                          .filter(
+                                              r ->
+                                                  r.get(ACTIVE_OPERATION.ENGINE_PHASE)
+                                                      .equals(maxEnginePhase))
+                                          .map(
+                                              r ->
+                                                  DatabaseOperation.recover(
+                                                      r,
+                                                      liveness(
+                                                          r.get(ACTIVE_OPERATION.WORKFLOW_RUN_ID))))
+                                          .collect(Collectors.toList());
+                                    })));
                 dsl.select()
                     .from(
                         ACTIVE_WORKFLOW_RUN
@@ -787,15 +801,15 @@ public abstract class DatabaseBackedProcessor
                                                   record,
                                                   liveness(record.get(ACTIVE_WORKFLOW_RUN.ID)),
                                                   dsl);
-                                          for (final DatabaseOperation operation : activeOperations) {
+                                          for (final DatabaseOperation operation :
+                                              activeOperations) {
                                             operation.linkTo(workflow);
                                           }
                                           final Map<String, JsonNode> consumableResources =
                                               MAPPER.convertValue(
                                                   record.get(
                                                       ACTIVE_WORKFLOW_RUN.CONSUMABLE_RESOURCES),
-                                                  new TypeReference<>() {
-                                                  });
+                                                  new TypeReference<>() {});
                                           startRaw.accept(
                                               new ConsumableResourceChecker(
                                                   target,
@@ -842,7 +856,8 @@ public abstract class DatabaseBackedProcessor
                                           final List<DatabaseOperation> activeOperations =
                                               operations.getOrDefault(
                                                   record.get(ACTIVE_WORKFLOW_RUN.ID), List.of());
-                                          for (final DatabaseOperation operation : activeOperations) {
+                                          for (final DatabaseOperation operation :
+                                              activeOperations) {
                                             operation.linkTo(workflow);
                                           }
                                           recover(
@@ -1200,37 +1215,44 @@ public abstract class DatabaseBackedProcessor
                                                     .collect(Collectors.toSet());
 
                                             if (externalIds.size() != externalKeys.size()) {
-                                              return handler.externalIdMismatch(String.format(
-                                                  "%d External IDs found (%s) but %d External Keys found (%s)!",
-                                                  externalIds.size(),
-                                                  externalIds, externalKeys.size(), externalKeys));
+                                              return handler.externalIdMismatch(
+                                                  String.format(
+                                                      "%d External IDs found (%s) but %d External Keys found (%s)!",
+                                                      externalIds.size(),
+                                                      externalIds,
+                                                      externalKeys.size(),
+                                                      externalKeys));
                                             }
                                             if (requiredOutputKeys.size() != externalKeys.size()) {
-                                              return handler.externalIdMismatch(String.format(
-                                                  "%d required Output Keys found (%s) but %d External Keys found (%s)!",
-                                                  requiredOutputKeys.size(), requiredOutputKeys,
-                                                  externalKeys.size(), externalKeys));
+                                              return handler.externalIdMismatch(
+                                                  String.format(
+                                                      "%d required Output Keys found (%s) but %d External Keys found (%s)!",
+                                                      requiredOutputKeys.size(),
+                                                      requiredOutputKeys,
+                                                      externalKeys.size(),
+                                                      externalKeys));
                                             }
                                             if (!requiredOutputKeys.equals(externalKeyIds)) {
-                                              return handler.externalIdMismatch(String.format(
-                                                  "Set of Required Output Keys (%s) does not match set of External Keys (%s)!",
-                                                  requiredOutputKeys, externalKeys));
+                                              return handler.externalIdMismatch(
+                                                  String.format(
+                                                      "Set of Required Output Keys (%s) does not match set of External Keys (%s)!",
+                                                      requiredOutputKeys, externalKeys));
                                             }
                                             if (!externalKeyIds.containsAll(optionalOutputKeys)) {
-                                              return handler.externalIdMismatch(String.format(
-                                                  "Set of External Key IDs (%s) does not contain all of the Optional Output Keys (%s)!",
-                                                  externalKeyIds, optionalOutputKeys));
+                                              return handler.externalIdMismatch(
+                                                  String.format(
+                                                      "Set of External Key IDs (%s) does not contain all of the Optional Output Keys (%s)!",
+                                                      externalKeyIds, optionalOutputKeys));
                                             }
                                             if (!externalKeyIds.equals(
                                                 externalIds.stream()
                                                     .map(
-                                                        k ->
-                                                            new Pair<>(
-                                                                k.getProvider(), k.getId()))
+                                                        k -> new Pair<>(k.getProvider(), k.getId()))
                                                     .collect(Collectors.toSet()))) {
-                                              return handler.externalIdMismatch(String.format(
-                                                  "Unable to map External Key IDs (%s) to External ID by (Provider, ID): %s",
-                                                  externalKeyIds, externalIds));
+                                              return handler.externalIdMismatch(
+                                                  String.format(
+                                                      "Unable to map External Key IDs (%s) to External ID by (Provider, ID): %s",
+                                                      externalKeyIds, externalIds));
                                             }
                                             try {
                                               final String candidateId =
@@ -1282,8 +1304,8 @@ public abstract class DatabaseBackedProcessor
                                                 }
                                               } else if (candidates.size() == 1) {
                                                 final long workflowRunId = candidates.get(0).id();
-                                                final HashMap<Pair<String, String>, List<String>> knownMatches =
-                                                    new HashMap<>();
+                                                final HashMap<Pair<String, String>, List<String>>
+                                                    knownMatches = new HashMap<>();
                                                 final ArrayList<ExternalKey> missingKeys =
                                                     new ArrayList<>();
                                                 for (final ExternalKey externalKey : externalKeys) {
@@ -1318,41 +1340,45 @@ public abstract class DatabaseBackedProcessor
                                                     transaction,
                                                     workflowRunId,
                                                     knownMatches);
+
+                                                updateLastAccessed(context.dsl(), candidateId);
+
                                                 // If this workflow is active, but failed, and the
                                                 // attempt number is higher or this is a different
                                                 // workflow version, we should restart it.
                                                 if (context
-                                                    .dsl()
-                                                    .selectCount()
-                                                    .from(
-                                                        ACTIVE_WORKFLOW_RUN
-                                                            .join(WORKFLOW_RUN)
-                                                            .on(
-                                                                WORKFLOW_RUN.ID.eq(
-                                                                    ACTIVE_WORKFLOW_RUN.ID)))
-                                                    .where(
-                                                        WORKFLOW_RUN
-                                                            .ID
-                                                            .eq(workflowRunId)
-                                                            .and(IS_DEAD)
-                                                            .and(
-                                                                ACTIVE_WORKFLOW_RUN
-                                                                    .ATTEMPT
-                                                                    .eq(attempt - 1)
-                                                                    .or(
-                                                                        WORKFLOW_RUN
-                                                                            .WORKFLOW_VERSION_ID
-                                                                            .ne(
-                                                                                workflow
-                                                                                    .id()))))
-                                                    .fetchOptional()
-                                                    .map(Record1::value1)
-                                                    .orElse(0)
+                                                        .dsl()
+                                                        .selectCount()
+                                                        .from(
+                                                            ACTIVE_WORKFLOW_RUN
+                                                                .join(WORKFLOW_RUN)
+                                                                .on(
+                                                                    WORKFLOW_RUN.ID.eq(
+                                                                        ACTIVE_WORKFLOW_RUN.ID)))
+                                                        .where(
+                                                            WORKFLOW_RUN
+                                                                .ID
+                                                                .eq(workflowRunId)
+                                                                .and(IS_DEAD)
+                                                                .and(
+                                                                    ACTIVE_WORKFLOW_RUN
+                                                                        .ATTEMPT
+                                                                        .eq(attempt - 1)
+                                                                        .or(
+                                                                            WORKFLOW_RUN
+                                                                                .WORKFLOW_VERSION_ID
+                                                                                .ne(
+                                                                                    workflow
+                                                                                        .id()))))
+                                                        .fetchOptional()
+                                                        .map(Record1::value1)
+                                                        .orElse(0)
                                                     > 0) {
                                                   final SoftReference<AtomicBoolean> oldLiveness =
                                                       liveness.remove(workflowRunId);
                                                   if (oldLiveness != null) {
-                                                    final AtomicBoolean oldLivenessLock = oldLiveness.get();
+                                                    final AtomicBoolean oldLivenessLock =
+                                                        oldLiveness.get();
                                                     if (oldLivenessLock != null) {
                                                       oldLivenessLock.set(false);
                                                     }
@@ -1441,6 +1467,18 @@ public abstract class DatabaseBackedProcessor
   }
 
   protected abstract Optional<Target> targetByName(String name);
+
+  protected void updateLastAccessed(DSLContext context, String workflowRunHashId) {
+    context
+        .update(WORKFLOW_RUN)
+        .set(WORKFLOW_RUN.LAST_ACCESSED, OffsetDateTime.now())
+        .where(WORKFLOW_RUN.HASH_ID.eq(workflowRunHashId))
+        .execute();
+  }
+
+  protected void updateLastAccessed(String workflowRunHashId) {
+    inTransaction(context -> updateLastAccessed(context, workflowRunHashId));
+  }
 
   int updateVersions(BulkVersionRequest request) {
     final AtomicInteger counter = new AtomicInteger();

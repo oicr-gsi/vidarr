@@ -617,3 +617,25 @@ or
   "maxInFlight": 50
 }
 ```
+
+### Resource-Optimizing
+
+The `"resource-optimizing"` priority scorer operates like a combination of ranked-max-in-flight and
+ranked-max-in-flight-by-workflow-version. It trends overall towards launching workflow runs by
+their priority, however when a workflow reaches its max-in-flight, its waiting workflow runs are
+deprioritized in order to let a workflow with room to run launch its highest-priority workflow runs.
+Therefore, workflow runs with an overall lower priority may launch ahead of workflow runs with an
+overall high priority if the latter has reached its max-in-flight-by-workflow-version.
+
+The property `"useCustom"` will cause the scorer to use the max-in-flight values set when a workflow
+is created for its max-in-flight-by-workflow-version if true. If false, all workflow versions will
+be given the max-in-flight set in `"maxInFlightPerWorkflow"`.
+
+```
+{
+  "type": "resource-optimizing",
+  "useCustom": true,
+  "globalMaxInFlight": 500,
+  "maxInFlightPerWorkflow": 50
+}
+```

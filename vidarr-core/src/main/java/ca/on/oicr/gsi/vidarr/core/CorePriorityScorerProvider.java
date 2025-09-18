@@ -18,6 +18,9 @@ public class CorePriorityScorerProvider implements PriorityScorerProvider {
             "ranked-max-in-flight-by-workflow", InFlightCollectingByWorkflowPriorityScorer.class),
         new Pair<>(
             "ranked-max-in-flight-by-workflow-version",
-            InFlightCollectingByWorkflowVersionPriorityScorer.class));
+            InFlightCollectingByWorkflowVersionPriorityScorer.class),
+        new Pair<>(
+            "resource-optimizing", ResourceOptimizingPriorityScorer.class)
+    );
   }
 }

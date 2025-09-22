@@ -11,7 +11,7 @@ import java.util.stream.Collectors;
 
 public class ResourceOptimizingPriorityScorer implements PriorityScorer {
 
-  protected record WorkflowRunScore(String workflowName, String workflowVersion, String vidarrId,
+  protected record WorkflowRunScore(String workflowName, String vidarrId,
                                     int currentPriority, int originalPriority) implements
       Comparable<WorkflowRunScore> {
 
@@ -28,7 +28,6 @@ public class ResourceOptimizingPriorityScorer implements PriorityScorer {
   private final SortedSet<WorkflowRunScore> active = new TreeSet<>();
   private boolean useCustom;
   private int globalMaxInFlight, maxInFlightPerWorkflow;
-  // TODO 'mode' setting for workflow vs workflow version?
 
   @Override
   public boolean compute(String workflowName, String workflowVersion, String vidarrId,
@@ -65,7 +64,7 @@ public class ResourceOptimizingPriorityScorer implements PriorityScorer {
       // Existing was not present or score has changed so score was removed, re-evaluate.
       // Checking that an existing record was present ensures that we don't allow first-come low
       // priority jobs to take all the tokens
-      final WorkflowRunScore wfrScore = new WorkflowRunScore(workflowName, workflowVersion,
+      final WorkflowRunScore wfrScore = new WorkflowRunScore(workflowName,
           vidarrId, score, score);
       active.add(wfrScore);
       if (existing.isPresent()) {
@@ -86,8 +85,7 @@ public class ResourceOptimizingPriorityScorer implements PriorityScorer {
     if (globalRunningRoom) {
       // Check if there is per-workflow max in flight running room
       final boolean workflowRunningRoom =
-          getActiveByWorkflowVersion(workflowRunScore.workflowName(),
-              workflowRunScore.workflowVersion()).stream()
+          getActiveByWorkflow(workflowRunScore.workflowName()).stream()
               .filter(e -> e.currentPriority() > finalScore).count()
               < workflowMaxInFlight;
       if (workflowRunningRoom) {
@@ -95,23 +93,20 @@ public class ResourceOptimizingPriorityScorer implements PriorityScorer {
         active.remove(workflowRunScore);
         active.add(
             new WorkflowRunScore(workflowRunScore.workflowName(),
-                workflowRunScore.workflowVersion(),
                 workflowRunScore.vidarrId(), Integer.MAX_VALUE,
                 finalScore));
 
         // Recalculate per-workflow inflight after this change. If this workflow has hit its
         // max in flight, set all non-inflight priorities to 0.
-        if (getActiveByWorkflowVersion(workflowRunScore.workflowName(),
-            workflowRunScore.workflowVersion()).stream()
+        if (getActiveByWorkflow(workflowRunScore.workflowName()).stream()
             .filter(e -> e.currentPriority() == Integer.MAX_VALUE).count()
             == workflowMaxInFlight) {
-          for (WorkflowRunScore wrs : new TreeSet<>(getActiveByWorkflowVersion(
-              workflowRunScore.workflowName(),
-              workflowRunScore.workflowVersion()))) {
+          for (WorkflowRunScore wrs : new TreeSet<>(getActiveByWorkflow(
+              workflowRunScore.workflowName()))) {
             if (wrs.currentPriority != Integer.MAX_VALUE) {
               active.remove(wrs);
               active.add(
-                  new WorkflowRunScore(wrs.workflowName, wrs.workflowVersion, wrs.vidarrId, 0,
+                  new WorkflowRunScore(wrs.workflowName, wrs.vidarrId, 0,
                       wrs.originalPriority));
             }
           }
@@ -142,7 +137,7 @@ public class ResourceOptimizingPriorityScorer implements PriorityScorer {
   public void recover(String workflowName, String workflowVersion, String vidarrId) {
     synchronized (active) {
       active.removeIf(a -> a.vidarrId().equals(vidarrId));
-      active.add(new WorkflowRunScore(workflowName, workflowVersion, vidarrId, Integer.MAX_VALUE,
+      active.add(new WorkflowRunScore(workflowName, vidarrId, Integer.MAX_VALUE,
           Integer.MAX_VALUE));
     }
   }
@@ -151,7 +146,7 @@ public class ResourceOptimizingPriorityScorer implements PriorityScorer {
   public void complete(String workflowName, String workflowVersion, String vidarrId) {
     synchronized (active) {
       active.removeIf(a -> a.vidarrId().equals(vidarrId));
-      resetWorkflowQueue(workflowName, workflowVersion);
+      resetWorkflowQueue(workflowName);
     }
   }
 
@@ -163,25 +158,24 @@ public class ResourceOptimizingPriorityScorer implements PriorityScorer {
       if (wfrScoreMaybe.isPresent()) {
         WorkflowRunScore wfrScore = wfrScoreMaybe.get();
         active.remove(wfrScore);
-        active.add(new WorkflowRunScore(workflowName, workflowVersion, vidarrId,
+        active.add(new WorkflowRunScore(workflowName, vidarrId,
             wfrScore.originalPriority(),
             wfrScore.originalPriority()));
 
-        resetWorkflowQueue(workflowName, workflowVersion);
+        resetWorkflowQueue(workflowName);
       } // else do nothing - but this shouldn't happen
     }
   }
 
-  private void resetWorkflowQueue(String workflowName, String workflowVersion) {
+  private void resetWorkflowQueue(String workflowName) {
     // Reset all of this workflow's waiting runs to their original priority. We don't know
     // the per-workflow max in flight here, so we have to do this every time :(
-    SortedSet<WorkflowRunScore> workflowActive = getActiveByWorkflowVersion(workflowName,
-        workflowVersion);
+    SortedSet<WorkflowRunScore> workflowActive = getActiveByWorkflow(workflowName);
     for (WorkflowRunScore score : workflowActive) {
       if (score.currentPriority() != Integer.MAX_VALUE) {
         active.remove(score);
         active.add(
-            new WorkflowRunScore(score.workflowName(), score.workflowVersion(), score.vidarrId(),
+            new WorkflowRunScore(score.workflowName(), score.vidarrId(),
                 score.originalPriority(), score.originalPriority()));
       }
     }
@@ -193,11 +187,9 @@ public class ResourceOptimizingPriorityScorer implements PriorityScorer {
     // Do nothing
   }
 
-  private SortedSet<WorkflowRunScore> getActiveByWorkflowVersion(String workflowName,
-      String workflowVersion) {
+  private SortedSet<WorkflowRunScore> getActiveByWorkflow(String workflowName) {
     return active.stream().filter(
-            s -> s.workflowName.equals(workflowName)
-                && s.workflowVersion.equals(workflowVersion))
+            s -> s.workflowName.equals(workflowName))
         .collect(Collectors.toCollection(TreeSet::new));
   }
 

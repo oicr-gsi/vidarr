@@ -49,14 +49,16 @@ public class ResourceOptimizingPriorityScorer implements PriorityScorer {
         // If you're already inflight, we can't rescind the resource
         if (existingPriority == Integer.MAX_VALUE) {
           return true;
+        }
 
-          // We recognize you and know you've been scored correctly.
-        } else if (existingPriority == score) {
+        // We recognize you and know you've been scored correctly.
+        else if (existingPriority == score) {
           // return whether this workflow run may launch
           return attemptLaunch(existing.get(), workflowLimit, finalScore);
+        }
 
-          // Your score has changed, so we need to re-evaluate you below.
-        } else {
+        // Your score has changed, so we need to re-evaluate you below.
+        else {
           active.remove(existing.get());
         }
       }
@@ -114,15 +116,17 @@ public class ResourceOptimizingPriorityScorer implements PriorityScorer {
 
         // Either way, it's in flight now, this resource is passing.
         return true;
-
-        // Even though there is global running room, this workflow has hit its max in flight,
-        // so you can't run.
-      } else {
-        return false;
       }
 
-      // Global max in flight has been hit, you can't run.
-    } else {
+      // Even though there is global running room, this workflow has hit its max in flight,
+      // so you can't run.
+      else {
+        return false;
+      }
+    }
+
+    // Global max in flight has been hit, you can't run.
+    else {
       return false;
     }
   }

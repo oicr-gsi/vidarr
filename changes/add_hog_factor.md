@@ -1,1 +1,0 @@
-`hogFactor` config for ranked-max-in-flight (global priority) 

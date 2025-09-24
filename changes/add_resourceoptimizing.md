@@ -1,1 +1,0 @@
-Resource-optimizing priority scorer

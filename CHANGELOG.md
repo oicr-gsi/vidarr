@@ -6,6 +6,18 @@ For unreleased changes, see [changes](changes).
 
 -----------------------------------------------------------------------------
 
+## [2.5.0] - 2025-09-24
+
+### Added
+
+* `hogFactor` config for ranked-max-in-flight (global priority)
+* Resource-optimizing priority scorer
+
+### Changed
+
+* Update workflow run lastAccessed timestamp when workflow run is submitted or its status is checked
+
+
 ## [2.4.0] - 2025-09-11
 
 ### Added

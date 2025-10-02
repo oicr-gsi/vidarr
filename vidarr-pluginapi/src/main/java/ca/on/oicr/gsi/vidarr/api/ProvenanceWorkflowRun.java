@@ -21,6 +21,7 @@ public final class ProvenanceWorkflowRun<K extends ExternalId> {
   private List<String> inputFiles;
   private String instanceName;
   private ObjectNode labels;
+  private ZonedDateTime lastAccessed;
   private ObjectNode metadata;
   private ZonedDateTime modified;
   private ZonedDateTime started;
@@ -65,6 +66,10 @@ public final class ProvenanceWorkflowRun<K extends ExternalId> {
 
   public ObjectNode getLabels() {
     return labels;
+  }
+
+  public ZonedDateTime getLastAccessed() {
+    return lastAccessed;
   }
 
   public ObjectNode getMetadata() {
@@ -129,6 +134,10 @@ public final class ProvenanceWorkflowRun<K extends ExternalId> {
 
   public void setLabels(ObjectNode labels) {
     this.labels = labels;
+  }
+
+  public void setLastAccessed(ZonedDateTime lastAccessed) {
+    this.lastAccessed = lastAccessed;
   }
 
   public void setMetadata(ObjectNode metadata) {

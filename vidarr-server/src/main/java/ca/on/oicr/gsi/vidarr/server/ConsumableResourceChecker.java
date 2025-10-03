@@ -147,7 +147,7 @@ final class ConsumableResourceChecker implements Runnable {
                     });
       } catch (Exception e) {
         evaluationExceptions.labels(resourceName, e.getClass().getName()).inc();
-        System.err.println(Arrays.toString(e.getStackTrace()));
+        e.printStackTrace(System.err);
         error = Optional.of(
             String.format("Evaluating %s threw exception %s", resourceName, e.getMessage()));
       }

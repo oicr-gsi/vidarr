@@ -44,6 +44,12 @@ final class ConsumableResourceChecker implements Runnable {
               "How many rounds a workflow run had to wait for"
           ).labelNames("id")
           .register();
+
+  private static final Counter evaluationExceptions =
+      Counter.build(
+              "vidarr_consumable_resource_evaluation_exceptions",
+              "How many exceptions thrown during resource evaluation")
+          .labelNames("resource", "exception").register();
   private final Map<String, JsonNode> consumableResources;
   private final Instant createdTime;
   private final HikariDataSource dataSource;
@@ -141,6 +147,7 @@ final class ConsumableResourceChecker implements Runnable {
                       }
                     });
       } catch (Exception e) {
+        evaluationExceptions.labels(resourceName, e.getClass().getName()).inc();
         System.err.println(Arrays.toString(e.getStackTrace()));
         error = Optional.of(
             String.format("Evaluating %s threw exception %s", resourceName, e.getMessage()));

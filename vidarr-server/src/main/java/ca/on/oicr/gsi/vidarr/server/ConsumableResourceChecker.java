@@ -3,7 +3,6 @@ package ca.on.oicr.gsi.vidarr.server;
 import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.ACTIVE_WORKFLOW_RUN;
 
 import ca.on.oicr.gsi.Pair;
-import ca.on.oicr.gsi.cache.InitialCachePopulationException;
 import ca.on.oicr.gsi.vidarr.ConsumableResource;
 import ca.on.oicr.gsi.vidarr.ConsumableResourceResponse.Visitor;
 import ca.on.oicr.gsi.vidarr.core.Target;

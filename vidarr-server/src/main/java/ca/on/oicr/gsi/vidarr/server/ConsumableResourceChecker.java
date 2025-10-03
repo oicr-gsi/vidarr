@@ -3,6 +3,7 @@ package ca.on.oicr.gsi.vidarr.server;
 import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.ACTIVE_WORKFLOW_RUN;
 
 import ca.on.oicr.gsi.Pair;
+import ca.on.oicr.gsi.cache.InitialCachePopulationException;
 import ca.on.oicr.gsi.vidarr.ConsumableResource;
 import ca.on.oicr.gsi.vidarr.ConsumableResourceResponse.Visitor;
 import ca.on.oicr.gsi.vidarr.core.Target;
@@ -15,6 +16,7 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -94,48 +96,55 @@ final class ConsumableResourceChecker implements Runnable {
     for (i = 0; i < resourceBrokers.size(); i++) {
       final String resourceName = resourceBrokers.get(i).first();
       final ConsumableResource broker = resourceBrokers.get(i).second();
-      final Optional<String> error =
-          broker
-              .request(
-                  workflow,
-                  workflowVersion,
-                  vidarrId,
-                  createdTime,
-                  maxInFlightByWorkflow.getMaximumFor(workflow),
-                  broker.inputFromSubmitter().map(def -> consumableResources.get(def.first())))
-              .apply(
-                  new Visitor<Optional<String>>() {
+      Optional<String> error = Optional.empty();
+      try {
+        error =
+            broker
+                .request(
+                    workflow,
+                    workflowVersion,
+                    vidarrId,
+                    createdTime,
+                    maxInFlightByWorkflow.getMaximumFor(workflow),
+                    broker.inputFromSubmitter().map(def -> consumableResources.get(def.first())))
+                .apply(
+                    new Visitor<Optional<String>>() {
 
-                    @Override
-                    public Optional<String> available() {
-                      return Optional.empty();
-                    }
+                      @Override
+                      public Optional<String> available() {
+                        return Optional.empty();
+                      }
 
-                    @Override
-                    public void clear(String name) {
-                      tracing.remove(nameForVariable(name));
-                    }
+                      @Override
+                      public void clear(String name) {
+                        tracing.remove(nameForVariable(name));
+                      }
 
-                    @Override
-                    public Optional<String> error(String message) {
-                      return Optional.of(message);
-                    }
+                      @Override
+                      public Optional<String> error(String message) {
+                        return Optional.of(message);
+                      }
 
-                    private String nameForVariable(String name) {
-                      return String.format("vidarr-resource-%s-%s", resourceName, name);
-                    }
+                      private String nameForVariable(String name) {
+                        return String.format("vidarr-resource-%s-%s", resourceName, name);
+                      }
 
-                    @Override
-                    public void set(String name, long value) {
-                      tracing.put(nameForVariable(name), value);
-                    }
+                      @Override
+                      public void set(String name, long value) {
+                        tracing.put(nameForVariable(name), value);
+                      }
 
-                    @Override
-                    public Optional<String> unavailable() {
-                      return Optional.of(
-                          String.format("Resource %s is not available", resourceName));
-                    }
-                  });
+                      @Override
+                      public Optional<String> unavailable() {
+                        return Optional.of(
+                            String.format("Resource %s is not available", resourceName));
+                      }
+                    });
+      } catch (Exception e) {
+        System.err.println(Arrays.toString(e.getStackTrace()));
+        error = Optional.of(
+            String.format("Evaluating %s threw exception %s", resourceName, e.getMessage()));
+      }
       if (error.isPresent()) {
         updateBlockedResource(error.get());
         // Each resource performs a check and only releases resources if they've been acquired

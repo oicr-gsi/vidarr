@@ -6,6 +6,13 @@ For unreleased changes, see [changes](changes).
 
 -----------------------------------------------------------------------------
 
+## [2.5.1] - 2025-10-03
+
+### Fixed
+
+* Catching exceptions thrown during consumable resource evaluation
+
+
 ## [2.5.0] - 2025-09-24
 
 ### Added

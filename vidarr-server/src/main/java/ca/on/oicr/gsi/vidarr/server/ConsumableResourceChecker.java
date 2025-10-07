@@ -163,9 +163,7 @@ final class ConsumableResourceChecker implements Runnable {
                   vidarrId,
                   b.second().inputFromSubmitter().map(def -> consumableResources.get(def.first())));
         }
-        // Must balance hammering vidarr with requests and adding significant delay to workflow
-        // runtime
-        executor.schedule(this, 5, TimeUnit.MINUTES);
+        executor.schedule(this, 1, TimeUnit.MINUTES);
         return;
       }
     }

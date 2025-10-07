@@ -1,0 +1,1 @@
+Consumable Resources re-check every 1 minute instead of 5

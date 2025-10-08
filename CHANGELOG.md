@@ -6,6 +6,13 @@ For unreleased changes, see [changes](changes).
 
 -----------------------------------------------------------------------------
 
+## [2.6.0] - 2025-10-08
+
+### Changed
+
+* Consumable Resources re-check every 1 minute instead of 5
+
+
 ## [2.5.1] - 2025-10-03
 
 ### Fixed

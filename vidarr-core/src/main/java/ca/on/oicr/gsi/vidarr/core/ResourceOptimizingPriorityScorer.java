@@ -8,6 +8,7 @@ import java.util.OptionalInt;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class ResourceOptimizingPriorityScorer implements PriorityScorer {
 
@@ -99,7 +100,7 @@ public class ResourceOptimizingPriorityScorer implements PriorityScorer {
     if (globalRunningRoom) {
       // Check if there is per-workflow max in flight running room
       final boolean workflowRunningRoom =
-          getActiveByWorkflow(workflowRunScore.workflowName()).stream()
+          getActiveByWorkflow(workflowRunScore.workflowName())
               .filter(e -> e.currentPriority() > finalScore).count()
               < workflowMaxInFlight;
       if (workflowRunningRoom) {
@@ -112,18 +113,17 @@ public class ResourceOptimizingPriorityScorer implements PriorityScorer {
 
         // Recalculate per-workflow inflight after this change. If this workflow has hit its
         // max in flight, set all non-inflight priorities to 0.
-        if (getActiveByWorkflow(workflowRunScore.workflowName()).stream()
+        if (getActiveByWorkflow(workflowRunScore.workflowName())
             .filter(e -> e.currentPriority() == Integer.MAX_VALUE).count()
             == workflowMaxInFlight) {
-          for (WorkflowRunScore wrs : new TreeSet<>(getActiveByWorkflow(
-              workflowRunScore.workflowName()))) {
+          getActiveByWorkflow(workflowRunScore.workflowName()).forEach(wrs -> {
             if (wrs.currentPriority != Integer.MAX_VALUE) {
               active.remove(wrs);
               active.add(
                   new WorkflowRunScore(wrs.workflowName, wrs.vidarrId, 0,
                       wrs.originalPriority));
             }
-          }
+          });
         }
 
         // Either way, it's in flight now, this resource is passing.
@@ -197,15 +197,14 @@ public class ResourceOptimizingPriorityScorer implements PriorityScorer {
   }
 
   private void resetWorkflowQueue(String workflowName) {
-    SortedSet<WorkflowRunScore> workflowActive = getActiveByWorkflow(workflowName);
-    for (WorkflowRunScore score : workflowActive) {
+    getActiveByWorkflow(workflowName).forEach(score -> {
       if (score.currentPriority() != Integer.MAX_VALUE) {
         active.remove(score);
         active.add(
             new WorkflowRunScore(score.workflowName(), score.vidarrId(),
                 score.originalPriority(), score.originalPriority()));
       }
-    }
+    });
   }
 
 
@@ -214,10 +213,9 @@ public class ResourceOptimizingPriorityScorer implements PriorityScorer {
     // Do nothing
   }
 
-  private SortedSet<WorkflowRunScore> getActiveByWorkflow(String workflowName) {
+  private Stream<WorkflowRunScore> getActiveByWorkflow(String workflowName) {
     return active.stream().filter(
-            s -> s.workflowName.equals(workflowName))
-        .collect(Collectors.toCollection(TreeSet::new));
+        s -> s.workflowName.equals(workflowName));
   }
 
 

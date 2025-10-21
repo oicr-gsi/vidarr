@@ -44,7 +44,7 @@ public class ResourceOptimizingPriorityScorer implements PriorityScorer {
       final Optional<WorkflowRunScore> existing = active.stream()
           .filter(e -> e.vidarrId().equals(vidarrId)).findFirst();
       if (existing.isPresent()) {
-        final int existingPriority = existing.get().currentPriority();
+        final int existingPriority = existing.get().originalPriority();
 
         // If you're already inflight, we can't rescind the resource
         if (existingPriority == Integer.MAX_VALUE) {

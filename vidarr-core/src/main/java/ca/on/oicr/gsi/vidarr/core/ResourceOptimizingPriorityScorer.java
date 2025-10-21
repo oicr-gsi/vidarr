@@ -190,7 +190,6 @@ public class ResourceOptimizingPriorityScorer implements PriorityScorer {
     }
   }
 
-  // FIXME this would break in the case of manual overriding. but that's pretty rare
   private void resetWorkflowQueue(String workflowName) {
     SortedSet<WorkflowRunScore> workflowActive = getActiveByWorkflow(workflowName);
     for (WorkflowRunScore score : workflowActive) {

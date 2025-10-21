@@ -116,13 +116,12 @@ public class ResourceOptimizingPriorityScorer implements PriorityScorer {
         if (getActiveByWorkflow(workflowRunScore.workflowName())
             .filter(e -> e.currentPriority() == Integer.MAX_VALUE).count()
             == workflowMaxInFlight) {
-          getActiveByWorkflow(workflowRunScore.workflowName()).forEach(wrs -> {
-            if (wrs.currentPriority != Integer.MAX_VALUE) {
-              active.remove(wrs);
-              active.add(
-                  new WorkflowRunScore(wrs.workflowName, wrs.vidarrId, 0,
-                      wrs.originalPriority));
-            }
+          getActiveByWorkflow(workflowRunScore.workflowName()).filter(
+              wrs -> wrs.currentPriority() != Integer.MAX_VALUE).forEach(wrs -> {
+            active.remove(wrs);
+            active.add(
+                new WorkflowRunScore(wrs.workflowName, wrs.vidarrId, 0,
+                    wrs.originalPriority));
           });
         }
 
@@ -197,14 +196,13 @@ public class ResourceOptimizingPriorityScorer implements PriorityScorer {
   }
 
   private void resetWorkflowQueue(String workflowName) {
-    getActiveByWorkflow(workflowName).forEach(score -> {
-      if (score.currentPriority() != Integer.MAX_VALUE) {
-        active.remove(score);
-        active.add(
-            new WorkflowRunScore(score.workflowName(), score.vidarrId(),
-                score.originalPriority(), score.originalPriority()));
-      }
-    });
+    getActiveByWorkflow(workflowName).filter(wrs -> wrs.currentPriority() != Integer.MAX_VALUE)
+        .forEach(score -> {
+          active.remove(score);
+          active.add(
+              new WorkflowRunScore(score.workflowName(), score.vidarrId(),
+                  score.originalPriority(), score.originalPriority()));
+        });
   }
 
 

@@ -44,15 +44,21 @@ public class ResourceOptimizingPriorityScorer implements PriorityScorer {
       final Optional<WorkflowRunScore> existing = active.stream()
           .filter(e -> e.vidarrId().equals(vidarrId)).findFirst();
       if (existing.isPresent()) {
-        final int existingPriority = existing.get().originalPriority();
+        final int existingOriginalPriority = existing.get().originalPriority();
+        final int existingCurrentPriority = existing.get().currentPriority();
+
+        // If your priority is 0, skip all this complicated stuff downstream
+        if (existingCurrentPriority == 0) {
+          return false;
+        }
 
         // If you're already inflight, we can't rescind the resource
-        if (existingPriority == Integer.MAX_VALUE) {
+        if (existingCurrentPriority == Integer.MAX_VALUE) {
           return true;
         }
 
         // We recognize you and know you've been scored correctly.
-        else if (existingPriority == score) {
+        else if (existingOriginalPriority == score) {
           // return whether this workflow run may launch
           return attemptLaunch(existing.get(), workflowLimit, finalScore);
         }
@@ -184,6 +190,7 @@ public class ResourceOptimizingPriorityScorer implements PriorityScorer {
     }
   }
 
+  // FIXME this would break in the case of manual overriding. but that's pretty rare
   private void resetWorkflowQueue(String workflowName) {
     SortedSet<WorkflowRunScore> workflowActive = getActiveByWorkflow(workflowName);
     for (WorkflowRunScore score : workflowActive) {

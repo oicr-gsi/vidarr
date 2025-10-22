@@ -53,7 +53,7 @@ public class ResourceOptimizingPriorityScorer implements PriorityScorer {
         }
 
         // If you're already inflight, we can't rescind the resource
-        if (existingCurrentPriority == Integer.MAX_VALUE) {
+        else if (existingCurrentPriority == Integer.MAX_VALUE) {
           return true;
         }
 

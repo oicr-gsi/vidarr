@@ -48,7 +48,13 @@ public class ResourceOptimizingPriorityScorer implements PriorityScorer {
         final int existingCurrentPriority = existing.get().currentPriority();
 
         // If your priority is 0, skip all this complicated stuff downstream
+        // but still update originalPriority if score has changed, for when we eventually reset
         if (existingCurrentPriority == 0) {
+          if (existingOriginalPriority != score) {
+            active.remove(existing.get());
+            active.add(
+                new WorkflowRunScore(workflowName, vidarrId, existingCurrentPriority, score));
+          }
           return false;
         }
 

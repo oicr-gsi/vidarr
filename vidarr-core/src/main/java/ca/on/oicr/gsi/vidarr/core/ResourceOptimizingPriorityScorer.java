@@ -182,9 +182,9 @@ public class ResourceOptimizingPriorityScorer implements PriorityScorer {
         // If this scorer approved running this job, but some other scorer didn't, we may have
         // set the waiting priorities to 0, reset that only in this case, keep them otherwise
         // so, if we're resetting a job that we put in the running state,
-        if (getActiveByWorkflow(workflowName).contains(
+        if (getActiveByWorkflow(workflowName).anyMatch(wrs -> wrs.equals(
             new WorkflowRunScore(workflowName, vidarrId, Integer.MAX_VALUE,
-                wfrScore.originalPriority()))) {
+                wfrScore.originalPriority())))) {
           // and we hit the max in flight (ie the rest of the priorities are 0 or inflight)
           if (active.stream().filter(wrs -> wrs.workflowName().equals(workflowName)).allMatch(
               wrs -> wrs.currentPriority() == 0 || wrs.currentPriority() == Integer.MAX_VALUE)) {

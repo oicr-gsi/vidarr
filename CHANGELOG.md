@@ -6,6 +6,18 @@ For unreleased changes, see [changes](changes).
 
 -----------------------------------------------------------------------------
 
+## [2.7.0] - 2025-10-22
+
+### Added
+
+* `lastAccessed` field to `ProvenanceWorkflowRun` API class
+
+### Fixed
+
+* Fix premature queue reset in aggregate priority scoring
+* Fix incorrect priority comparison when launching jobs that have had their priorities lowered
+
+
 ## [2.6.0] - 2025-10-08
 
 ### Changed

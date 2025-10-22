@@ -116,13 +116,16 @@ public class ResourceOptimizingPriorityScorer implements PriorityScorer {
         if (getActiveByWorkflow(workflowRunScore.workflowName())
             .filter(e -> e.currentPriority() == Integer.MAX_VALUE).count()
             == workflowMaxInFlight) {
+          SortedSet<WorkflowRunScore> toRemove = new TreeSet<>(), toAdd = new TreeSet<>();
           getActiveByWorkflow(workflowRunScore.workflowName()).filter(
               wrs -> wrs.currentPriority() != Integer.MAX_VALUE).forEach(wrs -> {
-            active.remove(wrs);
-            active.add(
+            toRemove.add(wrs);
+            toAdd.add(
                 new WorkflowRunScore(wrs.workflowName, wrs.vidarrId, 0,
                     wrs.originalPriority));
           });
+          active.removeAll(toRemove);
+          active.addAll(toAdd);
         }
 
         // Either way, it's in flight now, this resource is passing.
@@ -196,13 +199,16 @@ public class ResourceOptimizingPriorityScorer implements PriorityScorer {
   }
 
   private void resetWorkflowQueue(String workflowName) {
+    SortedSet<WorkflowRunScore> toRemove = new TreeSet<>(), toAdd = new TreeSet<>();
     getActiveByWorkflow(workflowName).filter(wrs -> wrs.currentPriority() != Integer.MAX_VALUE)
         .forEach(score -> {
-          active.remove(score);
-          active.add(
+          toRemove.add(score);
+          toAdd.add(
               new WorkflowRunScore(score.workflowName(), score.vidarrId(),
                   score.originalPriority(), score.originalPriority()));
         });
+    active.removeAll(toRemove);
+    active.addAll(toAdd);
   }
 
 

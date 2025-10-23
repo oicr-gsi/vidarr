@@ -1452,7 +1452,6 @@ public final class Main implements ServerConfig {
     try (final Connection connection = dataSource.getConnection()) {
       final String vidarrId =
           exchange.getAttachment(PathTemplateMatch.ATTACHMENT_KEY).getParameters().get("hash");
-      processor.updateLastAccessed(vidarrId);
       exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_JSON);
       DSL.using(connection, SQLDialect.POSTGRES)
           .select(DSL.field(ACTIVE_WORKFLOW_RUN.ID.isNull()))

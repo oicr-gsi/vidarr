@@ -1492,7 +1492,7 @@
         ]
       },
       "get": {
-        "description": "Get the information about a workflow run that is not yet completed",
+        "description": "Get the information about a workflow run that is not yet completed. This also updates the workflow run's lastAccessed time.",
         "operationId": "getWorkflowRunStatus",
         "parameters": [
           {

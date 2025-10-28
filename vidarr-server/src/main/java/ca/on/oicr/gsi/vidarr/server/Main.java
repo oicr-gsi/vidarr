@@ -139,6 +139,7 @@ import org.jooq.JSONEntry;
 import org.jooq.JSONObjectNullStep;
 import org.jooq.Record;
 import org.jooq.Record1;
+import org.jooq.Record4;
 import org.jooq.Result;
 import org.jooq.SQLDialect;
 import org.jooq.Table;
@@ -2484,6 +2485,9 @@ public final class Main implements ServerConfig {
                   dumpUnloadDataToJson(tx, ids, output);
                 }
 
+                // store this so we can release any consumable resource holds if the unload succeeds
+                Result<Record4<String, String, String, String>> crArgs =
+                    processor.getArgsForConsumableResourceRelease(tx.dsl(), ids);
                 tx.dsl()
                     .delete(ANALYSIS_EXTERNAL_ID)
                     .where(
@@ -2518,6 +2522,8 @@ public final class Main implements ServerConfig {
                 UnloadResponse res = new UnloadResponse();
                 res.setFilename(filename);
                 res.setDeletedWorkflowRuns(hashes);
+                processor.releaseConsumableResources(targets, crArgs);
+
                 epoch = time.toEpochMilli();
                 return res;
               });

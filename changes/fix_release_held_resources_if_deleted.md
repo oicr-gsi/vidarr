@@ -1,1 +1,1 @@
-Release any held consumable resources when workflow run is deleted
+Release any held consumable resources when WAITING workflow run is deleted or unloaded

@@ -15,7 +15,6 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -23,6 +22,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
+import org.jooq.Record1;
 import org.jooq.SQLDialect;
 import org.jooq.impl.DSL;
 
@@ -40,15 +40,16 @@ final class ConsumableResourceChecker implements Runnable {
   private static final Counter waitRounds =
       Counter.build(
               "vidarr_consumable_resource_wait_rounds",
-              "How many rounds a workflow run had to wait for"
-          ).labelNames("id")
+              "How many rounds a workflow run had to wait for")
+          .labelNames("id")
           .register();
 
   private static final Counter evaluationExceptions =
       Counter.build(
               "vidarr_consumable_resource_evaluation_exceptions",
               "How many exceptions thrown during resource evaluation")
-          .labelNames("resource", "exception").register();
+          .labelNames("resource", "exception")
+          .register();
   private final Map<String, JsonNode> consumableResources;
   private final Instant createdTime;
   private final HikariDataSource dataSource;
@@ -92,12 +93,13 @@ final class ConsumableResourceChecker implements Runnable {
 
   @Override
   public void run() {
-    if (!isLive.get()) {
+    if (!isLive.get() || !isWorkflowRunStillPresent()) {
+      waitRounds.remove(vidarrId);
       return;
     }
     int i = 0;
-    final List<Pair<String, ConsumableResource>> resourceBrokers = target.consumableResources()
-        .collect(Collectors.toList());
+    final List<Pair<String, ConsumableResource>> resourceBrokers =
+        target.consumableResources().collect(Collectors.toList());
     for (i = 0; i < resourceBrokers.size(); i++) {
       final String resourceName = resourceBrokers.get(i).first();
       final ConsumableResource broker = resourceBrokers.get(i).second();
@@ -148,9 +150,10 @@ final class ConsumableResourceChecker implements Runnable {
       } catch (Exception e) {
         evaluationExceptions.labels(resourceName, e.getClass().getName()).inc();
         e.printStackTrace(System.err);
-        error = Optional.of(
-            String.format("Evaluating %s threw exception %s", resourceName,
-                e.getClass().getName()));
+        error =
+            Optional.of(
+                String.format(
+                    "Evaluating %s threw exception %s", resourceName, e.getClass().getName()));
       }
       if (error.isPresent()) {
         updateBlockedResource(error.get());
@@ -176,20 +179,52 @@ final class ConsumableResourceChecker implements Runnable {
   }
 
   private void updateBlockedResource(String error) {
-    waitRounds.labels(vidarrId).inc();
     try (final Connection connection = dataSource.getConnection()) {
       DSL.using(connection, SQLDialect.POSTGRES)
           .transaction(
-              configuration ->
-                  DSL.using(configuration)
-                      .update(ACTIVE_WORKFLOW_RUN)
-                      .set(ACTIVE_WORKFLOW_RUN.WAITING_RESOURCE, error)
-                      .set(ACTIVE_WORKFLOW_RUN.TRACING, tracing)
-                      .where(ACTIVE_WORKFLOW_RUN.ID.eq(dbId))
-                      .execute());
-
+              configuration -> {
+                int count =
+                    DSL.using(configuration)
+                        .update(ACTIVE_WORKFLOW_RUN)
+                        .set(ACTIVE_WORKFLOW_RUN.WAITING_RESOURCE, error)
+                        .set(ACTIVE_WORKFLOW_RUN.TRACING, tracing)
+                        .where(ACTIVE_WORKFLOW_RUN.ID.eq(dbId))
+                        .execute();
+                if (count == 0) {
+                  // the workflow run has been deleted
+                  isLive.set(false);
+                }
+              });
     } catch (SQLException ex) {
       ex.printStackTrace();
+    }
+    if (isLive.get()) {
+      waitRounds.labels(vidarrId).inc();
+    } else {
+      waitRounds.remove(vidarrId);
+    }
+  }
+
+  /**
+   * Confirm that the workflow run is still tracked in the database (may have been deleted via the
+   * API)
+   *
+   * @return boolean whether the active workflow run is still tracked in the database
+   */
+  private boolean isWorkflowRunStillPresent() {
+    try (final Connection connection = dataSource.getConnection()) {
+      return DSL.using(connection, SQLDialect.POSTGRES)
+          .transactionResult(
+              configuration ->
+                  DSL.using(configuration)
+                      .select(ACTIVE_WORKFLOW_RUN.ID)
+                      .from(ACTIVE_WORKFLOW_RUN)
+                      .where(ACTIVE_WORKFLOW_RUN.ID.eq(dbId))
+                      .fetchOptional()
+                      .isPresent());
+    } catch (SQLException ex) {
+      ex.printStackTrace();
+      return false;
     }
   }
 }

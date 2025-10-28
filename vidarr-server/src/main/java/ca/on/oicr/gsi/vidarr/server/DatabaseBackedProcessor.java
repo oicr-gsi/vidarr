@@ -38,6 +38,7 @@ import ca.on.oicr.gsi.vidarr.core.Phase;
 import ca.on.oicr.gsi.vidarr.core.RecoveryType;
 import ca.on.oicr.gsi.vidarr.core.Target;
 import ca.on.oicr.gsi.vidarr.core.ValidateJsonToSimpleType;
+import ca.on.oicr.gsi.vidarr.server.jooq.Tables;
 import ca.on.oicr.gsi.vidarr.server.jooq.tables.records.ExternalIdVersionRecord;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -88,6 +89,7 @@ import org.jooq.DSLContext;
 import org.jooq.InsertValuesStep3;
 import org.jooq.Record1;
 import org.jooq.Record2;
+import org.jooq.Record3;
 import org.jooq.SQLDialect;
 import org.jooq.impl.DSL;
 
@@ -429,12 +431,33 @@ public abstract class DatabaseBackedProcessor
     externalVersionInsert.execute();
   }
 
-  protected final <T> T delete(String workflowRunId, DeleteResultHandler<T> handler) {
+  protected final <T> T delete(
+      String workflowRunId, Map<String, Target> targets, DeleteResultHandler<T> handler) {
     try (final Connection connection = dataSource.getConnection()) {
       return DSL.using(connection, SQLDialect.POSTGRES)
           .transactionResult(
               context -> {
                 final DSLContext transaction = DSL.using(context);
+                Optional<Record3<String, String, String>> workflowNameVersionTarget =
+                    transaction
+                        .select(
+                            WORKFLOW_VERSION.NAME,
+                            WORKFLOW_VERSION.VERSION,
+                            ACTIVE_WORKFLOW_RUN.TARGET)
+                        .from(WORKFLOW_VERSION)
+                        .join(WORKFLOW_RUN)
+                        .on(WORKFLOW_VERSION.ID.eq(WORKFLOW_RUN.WORKFLOW_VERSION_ID))
+                        .join(ACTIVE_WORKFLOW_RUN)
+                        .on(WORKFLOW_RUN.ID.eq(ACTIVE_WORKFLOW_RUN.ID))
+                        .where(WORKFLOW_RUN.HASH_ID.eq(workflowRunId))
+                        .fetchOptional();
+                if (workflowNameVersionTarget.isEmpty()) {
+                  // workflow run must already have been deleted
+                  return null;
+                }
+                final String workflowName = workflowNameVersionTarget.get().value1();
+                final String workflowVersion = workflowNameVersionTarget.get().value2();
+                final String workflowRunTarget = workflowNameVersionTarget.get().value3();
                 return transaction
                     .select(ACTIVE_WORKFLOW_RUN.ID, DSL.field(IS_DEAD))
                     .from(
@@ -497,6 +520,17 @@ public abstract class DatabaseBackedProcessor
                                 .where(WORKFLOW_RUN.ID.eq(id_and_dead.component1()))
                                 .execute();
                             BadRecoveryTracker.remove(workflowRunId);
+                            targets
+                                .get(workflowRunTarget)
+                                .consumableResources()
+                                .forEach(
+                                    (b) ->
+                                        b.second()
+                                            .release(
+                                                workflowName,
+                                                workflowVersion,
+                                                workflowRunId,
+                                                Optional.empty()));
                             return handler.deleted();
                           } else {
                             return handler.stillActive();

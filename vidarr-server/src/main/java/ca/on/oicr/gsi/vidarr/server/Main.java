@@ -1147,6 +1147,7 @@ public final class Main implements ServerConfig {
     exchange.setStatusCode(
         processor.delete(
             vidarrId,
+            targets,
             new DeleteResultHandler<>() {
               @Override
               public Integer deleted() {

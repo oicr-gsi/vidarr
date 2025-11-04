@@ -93,8 +93,23 @@ final class ConsumableResourceChecker implements Runnable {
 
   @Override
   public void run() {
-    if (!isLive.get() || !isWorkflowRunStillPresent()) {
+    if (!isLive.get()) {
       waitRounds.remove(vidarrId);
+      // Each resource performs a check and only releases resources if they've been acquired
+      target
+          .consumableResources()
+          .forEach(
+              (b) -> {
+                //      for (final Pair<String, ConsumableResource> b : resourceBrokers) {
+                b.second()
+                    .release(
+                        workflow,
+                        workflowVersion,
+                        vidarrId,
+                        b.second()
+                            .inputFromSubmitter()
+                            .map(def -> consumableResources.get(def.first())));
+              });
       return;
     }
     int i = 0;
@@ -202,29 +217,6 @@ final class ConsumableResourceChecker implements Runnable {
       waitRounds.labels(vidarrId).inc();
     } else {
       waitRounds.remove(vidarrId);
-    }
-  }
-
-  /**
-   * Confirm that the workflow run is still tracked in the database (may have been deleted via the
-   * API)
-   *
-   * @return boolean whether the active workflow run is still tracked in the database
-   */
-  private boolean isWorkflowRunStillPresent() {
-    try (final Connection connection = dataSource.getConnection()) {
-      return DSL.using(connection, SQLDialect.POSTGRES)
-          .transactionResult(
-              configuration ->
-                  DSL.using(configuration)
-                      .select(ACTIVE_WORKFLOW_RUN.ID)
-                      .from(ACTIVE_WORKFLOW_RUN)
-                      .where(ACTIVE_WORKFLOW_RUN.ID.eq(dbId))
-                      .fetchOptional()
-                      .isPresent());
-    } catch (SQLException ex) {
-      ex.printStackTrace();
-      return false;
     }
   }
 }

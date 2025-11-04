@@ -1147,7 +1147,6 @@ public final class Main implements ServerConfig {
     exchange.setStatusCode(
         processor.delete(
             vidarrId,
-            targets,
             new DeleteResultHandler<>() {
               @Override
               public Integer deleted() {
@@ -2518,10 +2517,6 @@ public final class Main implements ServerConfig {
                 UnloadResponse res = new UnloadResponse();
                 res.setFilename(filename);
                 res.setDeletedWorkflowRuns(hashes);
-                // TODO: when we implement unloading queued workflow runs, their consumable
-                // resources will also need to be released with
-                // processor.releaseConsumableResources()
-
                 epoch = time.toEpochMilli();
                 return res;
               });

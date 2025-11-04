@@ -2485,9 +2485,6 @@ public final class Main implements ServerConfig {
                   dumpUnloadDataToJson(tx, ids, output);
                 }
 
-                // store this so we can release any consumable resource holds if the unload succeeds
-                Result<Record4<String, String, String, String>> crArgs =
-                    processor.getArgsForConsumableResourceRelease(tx.dsl(), ids);
                 tx.dsl()
                     .delete(ANALYSIS_EXTERNAL_ID)
                     .where(
@@ -2522,7 +2519,9 @@ public final class Main implements ServerConfig {
                 UnloadResponse res = new UnloadResponse();
                 res.setFilename(filename);
                 res.setDeletedWorkflowRuns(hashes);
-                processor.releaseConsumableResources(targets, crArgs);
+                // TODO: when we implement unloading queued workflow runs, their consumable
+                // resources will also need to be released with
+                // processor.releaseConsumableResources()
 
                 epoch = time.toEpochMilli();
                 return res;

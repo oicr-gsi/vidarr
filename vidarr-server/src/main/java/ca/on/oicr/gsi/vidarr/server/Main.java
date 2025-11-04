@@ -139,7 +139,6 @@ import org.jooq.JSONEntry;
 import org.jooq.JSONObjectNullStep;
 import org.jooq.Record;
 import org.jooq.Record1;
-import org.jooq.Record4;
 import org.jooq.Result;
 import org.jooq.SQLDialect;
 import org.jooq.Table;

@@ -99,17 +99,15 @@ final class ConsumableResourceChecker implements Runnable {
       target
           .consumableResources()
           .forEach(
-              (b) -> {
-                //      for (final Pair<String, ConsumableResource> b : resourceBrokers) {
-                b.second()
-                    .release(
-                        workflow,
-                        workflowVersion,
-                        vidarrId,
-                        b.second()
-                            .inputFromSubmitter()
-                            .map(def -> consumableResources.get(def.first())));
-              });
+              (b) ->
+                  b.second()
+                      .release(
+                          workflow,
+                          workflowVersion,
+                          vidarrId,
+                          b.second()
+                              .inputFromSubmitter()
+                              .map(def -> consumableResources.get(def.first()))));
       return;
     }
     int i = 0;
@@ -194,29 +192,20 @@ final class ConsumableResourceChecker implements Runnable {
   }
 
   private void updateBlockedResource(String error) {
+    waitRounds.labels(vidarrId).inc();
     try (final Connection connection = dataSource.getConnection()) {
       DSL.using(connection, SQLDialect.POSTGRES)
           .transaction(
               configuration -> {
-                int count =
-                    DSL.using(configuration)
-                        .update(ACTIVE_WORKFLOW_RUN)
-                        .set(ACTIVE_WORKFLOW_RUN.WAITING_RESOURCE, error)
-                        .set(ACTIVE_WORKFLOW_RUN.TRACING, tracing)
-                        .where(ACTIVE_WORKFLOW_RUN.ID.eq(dbId))
-                        .execute();
-                if (count == 0) {
-                  // the workflow run has been deleted
-                  isLive.set(false);
-                }
+                DSL.using(configuration)
+                    .update(ACTIVE_WORKFLOW_RUN)
+                    .set(ACTIVE_WORKFLOW_RUN.WAITING_RESOURCE, error)
+                    .set(ACTIVE_WORKFLOW_RUN.TRACING, tracing)
+                    .where(ACTIVE_WORKFLOW_RUN.ID.eq(dbId))
+                    .execute();
               });
     } catch (SQLException ex) {
       ex.printStackTrace();
-    }
-    if (isLive.get()) {
-      waitRounds.labels(vidarrId).inc();
-    } else {
-      waitRounds.remove(vidarrId);
     }
   }
 }

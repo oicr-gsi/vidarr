@@ -88,8 +88,6 @@ import org.jooq.DSLContext;
 import org.jooq.InsertValuesStep3;
 import org.jooq.Record1;
 import org.jooq.Record2;
-import org.jooq.Record4;
-import org.jooq.Result;
 import org.jooq.SQLDialect;
 import org.jooq.impl.DSL;
 
@@ -431,78 +429,12 @@ public abstract class DatabaseBackedProcessor
     externalVersionInsert.execute();
   }
 
-  protected final Result<Record4<String, String, String, String>>
-      getArgsForConsumableResourceRelease(DSLContext transaction, List<String> workflowRunHashIds) {
-    Long[] workflowRunIds =
-        transaction
-            .select(WORKFLOW_RUN.ID)
-            .from(WORKFLOW_RUN)
-            .where(WORKFLOW_RUN.HASH_ID.in(workflowRunHashIds))
-            .fetchArray(WORKFLOW_RUN.ID);
-    return getArgsForConsumableResourceRelease(transaction, workflowRunIds);
-  }
-
-  protected final Result<Record4<String, String, String, String>>
-      getArgsForConsumableResourceRelease(DSLContext transaction, Long[] workflowRunIds) {
-    return transaction
-        .select(
-            WORKFLOW_RUN.HASH_ID,
-            WORKFLOW_VERSION.NAME,
-            WORKFLOW_VERSION.VERSION,
-            ACTIVE_WORKFLOW_RUN.TARGET)
-        .from(WORKFLOW_VERSION)
-        .join(WORKFLOW_RUN)
-        .on(WORKFLOW_VERSION.ID.eq(WORKFLOW_RUN.WORKFLOW_VERSION_ID))
-        .join(ACTIVE_WORKFLOW_RUN)
-        .on(WORKFLOW_RUN.ID.eq(ACTIVE_WORKFLOW_RUN.ID))
-        .where(
-            WORKFLOW_RUN
-                .ID
-                .in(workflowRunIds)
-                .and(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE.eq(Phase.WAITING_FOR_RESOURCES)))
-        .fetch();
-  }
-
-  protected final void releaseConsumableResources(
-      Map<String, Target> targets, Result<Record4<String, String, String, String>> args) {
-    args.forEach(
-        record -> {
-          final String workflowRunHashId = record.value1();
-          final String workflowName = record.value2();
-          final String workflowVersion = record.value3();
-          final String workflowRunTarget = record.value4();
-
-          targets
-              .get(workflowRunTarget)
-              .consumableResources()
-              .forEach(
-                  (b) ->
-                      b.second()
-                          .release(
-                              workflowName, workflowVersion, workflowRunHashId, Optional.empty()));
-        });
-  }
-
-  protected final <T> T delete(
-      String workflowRunId, Map<String, Target> targets, DeleteResultHandler<T> handler) {
+  protected final <T> T delete(String workflowRunId, DeleteResultHandler<T> handler) {
     try (final Connection connection = dataSource.getConnection()) {
       return DSL.using(connection, SQLDialect.POSTGRES)
           .transactionResult(
               context -> {
                 final DSLContext transaction = DSL.using(context);
-                Result<Record4<String, String, String, String>> crArgs =
-                    getArgsForConsumableResourceRelease(
-                        context.dsl(), Collections.singletonList(workflowRunId));
-                transaction
-                    .select(
-                        WORKFLOW_VERSION.NAME, WORKFLOW_VERSION.VERSION, ACTIVE_WORKFLOW_RUN.TARGET)
-                    .from(WORKFLOW_VERSION)
-                    .join(WORKFLOW_RUN)
-                    .on(WORKFLOW_VERSION.ID.eq(WORKFLOW_RUN.WORKFLOW_VERSION_ID))
-                    .join(ACTIVE_WORKFLOW_RUN)
-                    .on(WORKFLOW_RUN.ID.eq(ACTIVE_WORKFLOW_RUN.ID))
-                    .where(WORKFLOW_RUN.HASH_ID.eq(workflowRunId))
-                    .fetchOptional();
                 return transaction
                     .select(ACTIVE_WORKFLOW_RUN.ID, DSL.field(IS_DEAD))
                     .from(
@@ -565,7 +497,6 @@ public abstract class DatabaseBackedProcessor
                                 .where(WORKFLOW_RUN.ID.eq(id_and_dead.component1()))
                                 .execute();
                             BadRecoveryTracker.remove(workflowRunId);
-                            releaseConsumableResources(targets, crArgs);
                             return handler.deleted();
                           } else {
                             return handler.stillActive();

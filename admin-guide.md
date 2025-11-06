@@ -150,6 +150,10 @@ names will be visible to clients.
           "workflowEngine": "local-cromwell"
         }
       },
+
+There is also an optional field, `canSubmit`. If this field is absent or set to
+true, then Vidarr will accept workflow run submissions. If this field is set to
+false, then Vidarr will not accept workflow run submissions.
  
 Once configured, Víðarr should be able to start. On an empty database, it will
 automatically install its schema.

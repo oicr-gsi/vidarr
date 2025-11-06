@@ -476,6 +476,7 @@ public final class Main implements ServerConfig {
     };
   }
 
+  private boolean canSubmit = true;
   private final Map<String, HttpHandler> consumableResources = new TreeMap<>();
   private final HikariDataSource dataSource;
   private long epoch = ManagementFactory.getRuntimeMXBean().getStartTime();
@@ -555,6 +556,7 @@ public final class Main implements ServerConfig {
       };
 
   Main(ServerConfiguration configuration) throws SQLException {
+    canSubmit = configuration.getCanSubmit();
     selfUrl = configuration.getUrl();
     selfName = configuration.getName();
     port = configuration.getPort();
@@ -2335,118 +2337,127 @@ public final class Main implements ServerConfig {
 
   private void submit(HttpServerExchange exchange, SubmitWorkflowRequest body) {
     final AtomicReference<Runnable> postCommitAction = new AtomicReference<>();
-    final Pair<Integer, SubmitWorkflowResponse> response =
-        processor.submit(
-            body.getTarget(),
-            body.getWorkflow(),
-            body.getWorkflowVersion(),
-            body.getLabels(),
-            body.getArguments(),
-            body.getEngineParameters(),
-            body.getMetadata(),
-            body.getExternalKeys(),
-            body.getConsumableResources(),
-            body.getAttempt(),
-            this.maxInFlightPerWorkflow,
-            new DatabaseBackedProcessor.SubmissionResultHandler<>() {
-              @Override
-              public boolean allowLaunch() {
-                return body.getMode() == SubmitMode.RUN;
-              }
+    final Pair<Integer, SubmitWorkflowResponse> response;
+    if (!canSubmit) {
+      response =
+          new Pair<>(
+              400, new SubmitWorkflowResponseFailure("This Vidarr does not allow submissions"));
+    } else {
+      response =
+          processor.submit(
+              body.getTarget(),
+              body.getWorkflow(),
+              body.getWorkflowVersion(),
+              body.getLabels(),
+              body.getArguments(),
+              body.getEngineParameters(),
+              body.getMetadata(),
+              body.getExternalKeys(),
+              body.getConsumableResources(),
+              body.getAttempt(),
+              this.maxInFlightPerWorkflow,
+              new DatabaseBackedProcessor.SubmissionResultHandler<>() {
+                @Override
+                public boolean allowLaunch() {
+                  return body.getMode() == SubmitMode.RUN;
+                }
 
-              @Override
-              public Pair<Integer, SubmitWorkflowResponse> dryRunResult() {
-                return new Pair<>(StatusCodes.OK, new SubmitWorkflowResponseDryRun());
-              }
+                @Override
+                public Pair<Integer, SubmitWorkflowResponse> dryRunResult() {
+                  return new Pair<>(StatusCodes.OK, new SubmitWorkflowResponseDryRun());
+                }
 
-              @Override
-              public Pair<Integer, SubmitWorkflowResponse> externalIdMismatch(String error) {
-                return new Pair<>(
-                    StatusCodes.BAD_REQUEST,
-                    new SubmitWorkflowResponseFailure("External IDs do not match: " + error));
-              }
+                @Override
+                public Pair<Integer, SubmitWorkflowResponse> externalIdMismatch(String error) {
+                  return new Pair<>(
+                      StatusCodes.BAD_REQUEST,
+                      new SubmitWorkflowResponseFailure("External IDs do not match: " + error));
+                }
 
-              @Override
-              public Pair<Integer, SubmitWorkflowResponse> internalError(Exception e) {
-                e.printStackTrace();
-                return new Pair<>(
-                    StatusCodes.INTERNAL_SERVER_ERROR,
-                    new SubmitWorkflowResponseFailure(e.getMessage()));
-              }
+                @Override
+                public Pair<Integer, SubmitWorkflowResponse> internalError(Exception e) {
+                  e.printStackTrace();
+                  return new Pair<>(
+                      StatusCodes.INTERNAL_SERVER_ERROR,
+                      new SubmitWorkflowResponseFailure(e.getMessage()));
+                }
 
-              @Override
-              public Pair<Integer, SubmitWorkflowResponse> invalidWorkflow(Set<String> errors) {
-                return new Pair<>(
-                    StatusCodes.BAD_REQUEST, new SubmitWorkflowResponseFailure(errors));
-              }
+                @Override
+                public Pair<Integer, SubmitWorkflowResponse> invalidWorkflow(Set<String> errors) {
+                  return new Pair<>(
+                      StatusCodes.BAD_REQUEST, new SubmitWorkflowResponseFailure(errors));
+                }
 
-              @Override
-              public Pair<Integer, SubmitWorkflowResponse> launched(
-                  String vidarrId, Runnable start) {
-                postCommitAction.set(start);
-                return new Pair<>(StatusCodes.OK, new SubmitWorkflowResponseSuccess(vidarrId));
-              }
+                @Override
+                public Pair<Integer, SubmitWorkflowResponse> launched(
+                    String vidarrId, Runnable start) {
+                  postCommitAction.set(start);
+                  return new Pair<>(StatusCodes.OK, new SubmitWorkflowResponseSuccess(vidarrId));
+                }
 
-              @Override
-              public Pair<Integer, SubmitWorkflowResponse> matchExisting(String vidarrId) {
-                return new Pair<>(StatusCodes.OK, new SubmitWorkflowResponseSuccess(vidarrId));
-              }
+                @Override
+                public Pair<Integer, SubmitWorkflowResponse> matchExisting(String vidarrId) {
+                  return new Pair<>(StatusCodes.OK, new SubmitWorkflowResponseSuccess(vidarrId));
+                }
 
-              @Override
-              public Pair<Integer, SubmitWorkflowResponse> missingExternalIdVersion() {
-                return new Pair<>(
-                    StatusCodes.BAD_REQUEST,
-                    new SubmitWorkflowResponseFailure("External IDs do not have versions set."));
-              }
+                @Override
+                public Pair<Integer, SubmitWorkflowResponse> missingExternalIdVersion() {
+                  return new Pair<>(
+                      StatusCodes.BAD_REQUEST,
+                      new SubmitWorkflowResponseFailure("External IDs do not have versions set."));
+                }
 
-              @Override
-              public Pair<Integer, SubmitWorkflowResponse> missingExternalKeyVersions(
-                  String vidarrId, List<ExternalKey> missingKeys) {
-                return new Pair<>(
-                    StatusCodes.BAD_REQUEST,
-                    new SubmitWorkflowResponseMissingKeyVersions(vidarrId, missingKeys));
-              }
+                @Override
+                public Pair<Integer, SubmitWorkflowResponse> missingExternalKeyVersions(
+                    String vidarrId, List<ExternalKey> missingKeys) {
+                  return new Pair<>(
+                      StatusCodes.BAD_REQUEST,
+                      new SubmitWorkflowResponseMissingKeyVersions(vidarrId, missingKeys));
+                }
 
-              @Override
-              public Pair<Integer, SubmitWorkflowResponse> multipleMatches(List<String> matchIds) {
-                return new Pair<>(
-                    StatusCodes.CONFLICT, new SubmitWorkflowResponseConflict(matchIds));
-              }
+                @Override
+                public Pair<Integer, SubmitWorkflowResponse> multipleMatches(
+                    List<String> matchIds) {
+                  return new Pair<>(
+                      StatusCodes.CONFLICT, new SubmitWorkflowResponseConflict(matchIds));
+                }
 
-              @Override
-              public Pair<Integer, SubmitWorkflowResponse> reinitialise(
-                  String vidarrId, Runnable start) {
-                postCommitAction.set(start);
-                return new Pair<>(StatusCodes.OK, new SubmitWorkflowResponseSuccess(vidarrId));
-              }
+                @Override
+                public Pair<Integer, SubmitWorkflowResponse> reinitialise(
+                    String vidarrId, Runnable start) {
+                  postCommitAction.set(start);
+                  return new Pair<>(StatusCodes.OK, new SubmitWorkflowResponseSuccess(vidarrId));
+                }
 
-              @Override
-              public Pair<Integer, SubmitWorkflowResponse> unknownTarget(String targetName) {
-                return new Pair<>(
-                    StatusCodes.BAD_REQUEST,
-                    new SubmitWorkflowResponseFailure(
-                        String.format("Target %s is unknown", targetName)));
-              }
+                @Override
+                public Pair<Integer, SubmitWorkflowResponse> unknownTarget(String targetName) {
+                  return new Pair<>(
+                      StatusCodes.BAD_REQUEST,
+                      new SubmitWorkflowResponseFailure(
+                          String.format("Target %s is unknown", targetName)));
+                }
 
-              @Override
-              public Pair<Integer, SubmitWorkflowResponse> unknownWorkflow(
-                  String name, String version) {
-                return new Pair<>(
-                    StatusCodes.BAD_REQUEST,
-                    new SubmitWorkflowResponseFailure(
-                        String.format("Workflow %s (%s) is unknown", name, version)));
-              }
+                @Override
+                public Pair<Integer, SubmitWorkflowResponse> unknownWorkflow(
+                    String name, String version) {
+                  return new Pair<>(
+                      StatusCodes.BAD_REQUEST,
+                      new SubmitWorkflowResponseFailure(
+                          String.format("Workflow %s (%s) is unknown", name, version)));
+                }
 
-              @Override
-              public Pair<Integer, SubmitWorkflowResponse> unresolvedIds(TreeSet<String> inputId) {
-                return new Pair<>(
-                    StatusCodes.BAD_REQUEST,
-                    new SubmitWorkflowResponseFailure(
-                        inputId.stream()
-                            .map(id -> String.format("Input ID %s cannot be resolved", id))
-                            .collect(Collectors.toList())));
-              }
-            });
+                @Override
+                public Pair<Integer, SubmitWorkflowResponse> unresolvedIds(
+                    TreeSet<String> inputId) {
+                  return new Pair<>(
+                      StatusCodes.BAD_REQUEST,
+                      new SubmitWorkflowResponseFailure(
+                          inputId.stream()
+                              .map(id -> String.format("Input ID %s cannot be resolved", id))
+                              .collect(Collectors.toList())));
+                }
+              });
+    }
     exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_JSON);
     exchange.setStatusCode(response.first());
     if (postCommitAction.get() != null) {

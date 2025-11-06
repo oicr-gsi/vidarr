@@ -12,6 +12,7 @@ import java.util.Map;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public final class ServerConfiguration {
 
+  private boolean canSubmit = true;
   private Map<String, ConsumableResource> consumableResources = Collections.emptyMap();
   private String dbHost;
   private String dbName;
@@ -28,6 +29,10 @@ public final class ServerConfiguration {
   private String unloadDirectory = ".";
   private String url;
   private Map<String, WorkflowEngine<?, ?>> workflowEngines;
+
+  public boolean getCanSubmit() {
+    return canSubmit;
+  }
 
   public Map<String, ConsumableResource> getConsumableResources() {
     return consumableResources;
@@ -91,6 +96,10 @@ public final class ServerConfiguration {
 
   public Map<String, WorkflowEngine<?, ?>> getWorkflowEngines() {
     return workflowEngines;
+  }
+
+  public void setCanSubmit(boolean canSubmit) {
+    this.canSubmit = canSubmit;
   }
 
   public void setConsumableResources(Map<String, ConsumableResource> consumableResources) {

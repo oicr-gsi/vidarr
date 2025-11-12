@@ -6,6 +6,23 @@ For unreleased changes, see [changes](changes).
 
 -----------------------------------------------------------------------------
 
+## [2.8.0] - 2025-11-12
+
+### Added
+
+* config field to indicate whether this Vidarr accepts workflow run submissions (set to true if field is not present)
+
+### Changed
+
+* Add `consumable_resources` JSON field to workflow run `/api/status` response
+
+### Fixed
+
+* run `lastAccessed` is no longer updated when `/api/run` endpoint is accessed
+* Release any held consumable resources when WAITING workflow run is deleted
+* Stop tracking `waitRounds` when workflow run is deleted
+
+
 ## [2.7.0] - 2025-10-22
 
 ### Added

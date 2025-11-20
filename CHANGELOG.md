@@ -6,6 +6,13 @@ For unreleased changes, see [changes](changes).
 
 -----------------------------------------------------------------------------
 
+## [2.8.1] - 2025-11-20
+
+### Fixed
+
+* Correct case for consumableResources field in workflow run response
+
+
 ## [2.8.0] - 2025-11-12
 
 ### Added

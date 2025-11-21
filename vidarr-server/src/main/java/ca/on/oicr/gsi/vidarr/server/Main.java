@@ -188,6 +188,8 @@ public final class Main implements ServerConfig {
   static {
     MAPPER.registerModule(new JavaTimeModule());
     MAPPER.configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true);
+
+    // STATUS_FIELDS populate the WorkflowRunStatusResponse API class
     STATUS_FIELDS.add(literalJsonEntry("completed", WORKFLOW_RUN.COMPLETED));
     STATUS_FIELDS.add(
         literalJsonEntry(

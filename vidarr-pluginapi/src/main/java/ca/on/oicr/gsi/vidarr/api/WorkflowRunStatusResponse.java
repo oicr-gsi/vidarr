@@ -13,6 +13,7 @@ public class WorkflowRunStatusResponse {
   private ObjectNode arguments;
   private int attempt;
   private ZonedDateTime completed;
+  private JsonNode consumableResources;
   private ZonedDateTime created;
   private JsonNode engineParameters;
   private String enginePhase;
@@ -40,6 +41,10 @@ public class WorkflowRunStatusResponse {
 
   public ZonedDateTime getCompleted() {
     return completed;
+  }
+
+  public JsonNode getConsumableResources() {
+    return consumableResources;
   }
 
   public ZonedDateTime getCreated() {
@@ -116,6 +121,10 @@ public class WorkflowRunStatusResponse {
 
   public void setCompleted(ZonedDateTime completed) {
     this.completed = completed;
+  }
+
+  public void setConsumableResources(JsonNode consumableResources) {
+    this.consumableResources = consumableResources;
   }
 
   public void setCreated(ZonedDateTime created) {

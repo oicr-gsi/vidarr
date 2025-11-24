@@ -5,6 +5,7 @@ import ca.on.oicr.gsi.vidarr.ActiveOperation;
 import ca.on.oicr.gsi.vidarr.api.ExternalId;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Set;
 
@@ -15,7 +16,7 @@ import java.util.Set;
  * @param <TX> the type of a transaction for the workflow
  */
 public interface ActiveWorkflow<O extends ActiveOperation<TX>, TX>
-    extends OutputProvisioningHandler<TX> {
+    extends OutputProvisioningHandler<TX>, ReprovisioningHandler<TX> {
 
   /** Get the caller-supplied arguments to the workflow run */
   JsonNode arguments();
@@ -136,4 +137,13 @@ public interface ActiveWorkflow<O extends ActiveOperation<TX>, TX>
    * @param transaction the transaction to update the information in
    */
   void succeeded(TX transaction);
+
+  /**
+   * Indicate that the entire workflow run was successful and it can be exported to analysis
+   * provenance
+   *
+   * @param completed   new completed time.
+   * @param transaction the transaction to update the information in
+   */
+  void succeeded(OffsetDateTime completed, TX transaction);
 }

@@ -400,6 +400,12 @@ public final class Main implements ServerConfig {
                                 MAPPER,
                                 RetryProvisionOutRequest.class,
                                 server::retryProvisionOut))))
+                .post("/api/reprovision-out",
+                    monitor(new BlockingHandler(
+                        JsonPost.parse(
+                            MAPPER,
+                            ReprovisionOutRequest.class,
+                            server::reprovisionOut))))
                 .delete(
                     "/api/status/{hash}", monitor(new BlockingHandler(server::deleteWorkflowRun)))
                 .post(
@@ -453,6 +459,131 @@ public final class Main implements ServerConfig {
             .build();
     undertow.start();
     server.recover();
+  }
+
+  private void reprovisionOut(HttpServerExchange exchange,
+      ReprovisionOutRequest reprovisionOutRequest) {
+    if (!reprovisionOutRequest.check()) {
+      exchange.setStatusCode(400);
+      return;
+    }
+    OutputProvisioner<?, ?> provisioner = outputProvisioners.get(
+        reprovisionOutRequest.getOutputProvisionerName());
+    final AtomicReference<Runnable> postCommitAction = new AtomicReference<>();
+    final Pair<Integer, ReprovisionOutResponse> response = processor.reprovisionOut(
+        reprovisionOutRequest.getWorkflowRunHashIds(), provisioner,
+        reprovisionOutRequest.getOutputPath(),
+        new DatabaseBackedProcessor.SubmissionResultHandler<>() {
+          @Override
+          public boolean allowLaunch() {
+            return true;
+          }
+
+          @Override
+          public Pair<Integer, SubmitWorkflowResponse> dryRunResult() {
+            return new Pair<>(StatusCodes.OK, new SubmitWorkflowResponseDryRun());
+          }
+
+          @Override
+          public Pair<Integer, SubmitWorkflowResponse> externalIdMismatch(String error) {
+            return new Pair<>(
+                StatusCodes.BAD_REQUEST,
+                new SubmitWorkflowResponseFailure("External IDs do not match: " + error));
+          }
+
+          @Override
+          public Pair<Integer, SubmitWorkflowResponse> internalError(Exception e) {
+            e.printStackTrace();
+            return new Pair<>(
+                StatusCodes.INTERNAL_SERVER_ERROR,
+                new SubmitWorkflowResponseFailure(e.getMessage()));
+          }
+
+          @Override
+          public Pair<Integer, SubmitWorkflowResponse> invalidWorkflow(Set<String> errors) {
+            return new Pair<>(
+                StatusCodes.BAD_REQUEST, new SubmitWorkflowResponseFailure(errors));
+          }
+
+          @Override
+          public Pair<Integer, SubmitWorkflowResponse> launched(
+              String vidarrId, Runnable start) {
+            postCommitAction.set(start);
+            return new Pair<>(StatusCodes.OK, new SubmitWorkflowResponseSuccess(vidarrId));
+          }
+
+          @Override
+          public Pair<Integer, SubmitWorkflowResponse> matchExisting(String vidarrId) {
+            return new Pair<>(StatusCodes.OK, new SubmitWorkflowResponseSuccess(vidarrId));
+          }
+
+          @Override
+          public Pair<Integer, SubmitWorkflowResponse> missingExternalIdVersion() {
+            return new Pair<>(
+                StatusCodes.BAD_REQUEST,
+                new SubmitWorkflowResponseFailure("External IDs do not have versions set."));
+          }
+
+          @Override
+          public Pair<Integer, SubmitWorkflowResponse> missingExternalKeyVersions(
+              String vidarrId, List<ExternalKey> missingKeys) {
+            return new Pair<>(
+                StatusCodes.BAD_REQUEST,
+                new SubmitWorkflowResponseMissingKeyVersions(vidarrId, missingKeys));
+          }
+
+          @Override
+          public Pair<Integer, SubmitWorkflowResponse> multipleMatches(List<String> matchIds) {
+            return new Pair<>(
+                StatusCodes.CONFLICT, new SubmitWorkflowResponseConflict(matchIds));
+          }
+
+          @Override
+          public Pair<Integer, SubmitWorkflowResponse> reinitialise(
+              String vidarrId, Runnable start) {
+            postCommitAction.set(start);
+            return new Pair<>(StatusCodes.OK, new SubmitWorkflowResponseSuccess(vidarrId));
+          }
+
+          @Override
+          public Pair<Integer, SubmitWorkflowResponse> unknownTarget(String targetName) {
+            return new Pair<>(
+                StatusCodes.BAD_REQUEST,
+                new SubmitWorkflowResponseFailure(
+                    String.format("Target %s is unknown", targetName)));
+          }
+
+          @Override
+          public Pair<Integer, SubmitWorkflowResponse> unknownWorkflow(
+              String name, String version) {
+            return new Pair<>(
+                StatusCodes.BAD_REQUEST,
+                new SubmitWorkflowResponseFailure(
+                    String.format("Workflow %s (%s) is unknown", name, version)));
+          }
+
+          @Override
+          public Pair<Integer, SubmitWorkflowResponse> unresolvedIds(TreeSet<String> inputId) {
+            return new Pair<>(
+                StatusCodes.BAD_REQUEST,
+                new SubmitWorkflowResponseFailure(
+                    inputId.stream()
+                        .map(id -> String.format("Input ID %s cannot be resolved", id))
+                        .collect(Collectors.toList())));
+          }
+        });
+    exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_JSON);
+    //exchange.setStatusCode(response.first());
+    exchange.setStatusCode(200);
+    if (postCommitAction.get() != null) {
+      postCommitAction.get().run();
+    }
+    try {
+      //exchange.getResponseSender().send(MAPPER.writeValueAsString(response.second()));
+      exchange.getResponseSender().send(MAPPER.writeValueAsString(new ReprovisionOutResponse()));
+    } catch (JsonProcessingException e) {
+      internalServerErrorResponse(exchange, e);
+    }
   }
 
   private static void metrics(HttpServerExchange exchange) {

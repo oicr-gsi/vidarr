@@ -6,4 +6,4 @@ import java.util.Map;
 import java.util.Set;
 
 public record ProvisionData(
-    Set<? extends ExternalId> ids, Map<String, String> labels, Result result) {}
+    Set<? extends ExternalId> ids, Map<String, String> labels, Result result, String data) {}

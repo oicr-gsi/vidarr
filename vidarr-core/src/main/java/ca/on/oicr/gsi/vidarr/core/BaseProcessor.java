@@ -11,17 +11,20 @@ import ca.on.oicr.gsi.vidarr.WorkflowDefinition;
 import ca.on.oicr.gsi.vidarr.WorkflowEngine;
 import ca.on.oicr.gsi.vidarr.WorkflowEngine.Result;
 import ca.on.oicr.gsi.vidarr.api.ExternalId;
+import ca.on.oicr.gsi.vidarr.api.ProvenanceAnalysisRecord;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.lang.System.Logger.Level;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Semaphore;
@@ -721,6 +724,115 @@ public abstract class BaseProcessor<
     }
   }
 
+  private class BonusPhaseReprovision implements PhaseManager<W, ProvisionData, Void, PO> {
+
+    private final W activeWorkflow;
+    private final WorkflowDefinition definition;
+    private final AtomicInteger size;
+    private final Target target;
+    private final OffsetDateTime originalCompleted;
+
+    public BonusPhaseReprovision(
+        Target target, WorkflowDefinition definition, int size, W activeWorkflow,
+        OffsetDateTime originalCompleted) {
+      this.target = target;
+      this.definition = definition;
+      this.size = new AtomicInteger(size);
+      this.activeWorkflow = activeWorkflow;
+      this.originalCompleted = originalCompleted;
+    }
+
+    @Override
+    public TerminalHandler<ProvisionData> createTerminal(PO operation) {
+      return new TerminalHandler<>() {
+        @Override
+        public void failed() {
+          // TODO probably do something here
+        }
+
+        @Override
+        public JsonNode serialize(ProvisionData result) {
+          final var node = mapper().createObjectNode();
+          final var info = node.putObject("info");
+          info.putPOJO("ids", result.ids());
+          info.putPOJO("labels", result.labels());
+          result
+              .result()
+              .visit(
+                  new ResultVisitor() {
+                    @Override
+                    public void file(String storagePath, String checksum, String checksumType,
+                        long size, String metatype) {
+                      final var file = node.putObject("result");
+                      file.put("path", storagePath);
+                      file.put("checksum", checksum);
+                      file.put("checksumType", checksumType);
+                      file.put("size", size);
+                      file.put("metatype", metatype);
+                    }
+
+                    @Override
+                    public void url(String url, Map<String, String> labels) {
+                      final var entry = node.putObject("result");
+                      entry.putPOJO("url", url);
+                      entry.putPOJO("labels", labels);
+                    }
+                  });
+          return node;
+        }
+
+        @Override
+        public void succeeded(ProvisionData result) {
+          inTransaction(
+              transaction -> {
+                result
+                    .result()
+                    .visit(
+                        new ResultVisitor() {
+                          @Override
+                          public void file(
+                              String storagePath, String checksum, String checksumType, long size,
+                              String metatype) {
+                            workflow()
+                                .reprovisionFile(
+                                    result.data(),
+                                    storagePath,
+                                    transaction);
+                          }
+
+                          @Override
+                          public void url(String url, Map<String, String> labels) {
+                            workflow()
+                                .provisionUrl(result.ids(), url, result.labels(), transaction);
+                          }
+                        });
+                activeWorkflow.succeeded(originalCompleted, transaction);
+              });
+        }
+      };
+    }
+
+    @Override
+    public WorkflowDefinition definition() {
+      return definition;
+    }
+
+    @Override
+    public Phase phase() {
+      return Phase.REPROVISION;
+    }
+
+    @Override
+    public PhaseManager<W, Void, ?, PO> startNext(int size) {
+      throw new IllegalStateException();
+    }
+
+    @Override
+    public W workflow() {
+      return activeWorkflow;
+    }
+  }
+
   public static final Pattern ANALYSIS_RECORD_ID =
       Pattern.compile(
           "vidarr:(?<instance>[a-z][a-z0-9_-]*|_)/(?:workflow/(?<name>[a-z][a-zA-Z0-9_]*)/(?<version>[0-9]+(?:\\.[0-9]+)*(?:-[0-9]+)?)/(?<workflowhash>[0-9a-fA-F]+)/run/)?(?<type>file|url)/(?<hash>[0-9a-fA-F]+)");
@@ -1015,6 +1127,50 @@ public abstract class BaseProcessor<
         throw new UnsupportedOperationException();
     }
   }
+
+  protected void reprovision(Target target, WorkflowDefinition definition, W workflow,
+      Map<ProvenanceAnalysisRecord<ExternalId>, JsonNode> analysisInfo,
+      OffsetDateTime originalCompleted,
+      TX transaction) {
+    final var tasks = new ArrayList<TaskStarter<ProvisionData>>();
+    final var allIds = workflow.inputIds();
+
+    for (Entry<ProvenanceAnalysisRecord<ExternalId>, JsonNode> analysis : analysisInfo.entrySet()) {
+      final var isOk = new AtomicBoolean(true);
+      // URL not supported
+      // `data` is literally just the path of the original file, metadata is `{outputDirectory: target path}`
+      if (analysis.getKey().getType().equals("file")) {
+        tasks.add(TaskStarter.launch(OutputProvisionFormat.FILES,
+            target.provisionerFor(OutputProvisionFormat.FILES),
+            new HashSet<>(analysis.getKey().getExternalKeys()),
+            analysis.getKey().getLabels(),
+            analysis.getKey().getWorkflowRun(),
+            analysis.getKey().getPath(),
+            analysis.getValue()
+        ));
+      }
+    }
+
+    if (tasks.isEmpty()) {
+      workflow.phase(Phase.FAILED, Collections.emptyList(), transaction);
+      return;
+    }
+    final var initialStates = tasks.stream().map((starter) -> TaskStarter.toPair(starter, mapper()))
+        .toList();
+    final var phaseManager = new BonusPhaseReprovision(target, definition, tasks.size(), workflow,
+        originalCompleted);
+    final var operations = workflow.phase(Phase.REPROVISION, initialStates, transaction);
+    if (operations.size() != tasks.size()) {
+      // The backing store has decided to abandon this workflow run
+      return;
+    }
+    for (int i = 0; i < tasks.size(); i++) {
+      final var operation = operations.get(i);
+      tasks.get(i).start(this, operation, phaseManager.createTerminal(operation));
+    }
+  }
+
+
 
   protected void start(Target target, WorkflowDefinition definition, W workflow, TX transaction) {
     final var preflightSteps = new ArrayList<TaskStarter<Boolean>>();

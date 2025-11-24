@@ -17,15 +17,24 @@ import static org.jooq.impl.DSL.trueCondition;
 
 import ca.on.oicr.gsi.Pair;
 import ca.on.oicr.gsi.vidarr.BasicType;
+import ca.on.oicr.gsi.vidarr.ConsumableResource;
+import ca.on.oicr.gsi.vidarr.InputProvisionFormat;
+import ca.on.oicr.gsi.vidarr.InputProvisioner;
 import ca.on.oicr.gsi.vidarr.InputType;
 import ca.on.oicr.gsi.vidarr.OperationStatus;
+import ca.on.oicr.gsi.vidarr.OutputProvisionFormat;
+import ca.on.oicr.gsi.vidarr.OutputProvisioner;
 import ca.on.oicr.gsi.vidarr.OutputType;
+import ca.on.oicr.gsi.vidarr.RuntimeProvisioner;
 import ca.on.oicr.gsi.vidarr.WorkflowDefinition;
+import ca.on.oicr.gsi.vidarr.WorkflowEngine;
 import ca.on.oicr.gsi.vidarr.api.BulkVersionRequest;
 import ca.on.oicr.gsi.vidarr.api.BulkVersionUpdate;
 import ca.on.oicr.gsi.vidarr.api.ExternalId;
 import ca.on.oicr.gsi.vidarr.api.ExternalKey;
 import ca.on.oicr.gsi.vidarr.api.ExternalMultiVersionKey;
+import ca.on.oicr.gsi.vidarr.api.ProvenanceAnalysisRecord;
+import ca.on.oicr.gsi.vidarr.api.ReprovisionOutResponse;
 import ca.on.oicr.gsi.vidarr.core.BaseProcessor;
 import ca.on.oicr.gsi.vidarr.core.CheckOutputCompatibility;
 import ca.on.oicr.gsi.vidarr.core.ExtractInputExternalIds;
@@ -33,8 +42,10 @@ import ca.on.oicr.gsi.vidarr.core.ExtractInputVidarrIds;
 import ca.on.oicr.gsi.vidarr.core.ExtractOutputKeys;
 import ca.on.oicr.gsi.vidarr.core.ExtractRetryValues;
 import ca.on.oicr.gsi.vidarr.core.FileMetadata;
+import ca.on.oicr.gsi.vidarr.core.NoOpWorkflowEngine;
 import ca.on.oicr.gsi.vidarr.core.OutputCompatibility;
 import ca.on.oicr.gsi.vidarr.core.Phase;
+import ca.on.oicr.gsi.vidarr.core.RawInputProvisioner;
 import ca.on.oicr.gsi.vidarr.core.RecoveryType;
 import ca.on.oicr.gsi.vidarr.core.Target;
 import ca.on.oicr.gsi.vidarr.core.ValidateJsonToSimpleType;
@@ -43,6 +54,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import com.zaxxer.hikari.HikariDataSource;
@@ -629,7 +641,7 @@ public abstract class DatabaseBackedProcessor
       String candidateId)
       throws SQLException {
     final DatabaseWorkflow dbWorkflow =
-        DatabaseWorkflow.create(
+        DatabaseWorkflow.createNew(
             targetName,
             target,
             workflow.id(),
@@ -1006,6 +1018,222 @@ public abstract class DatabaseBackedProcessor
 
   protected final Set<String> recoveryFailures() {
     return BadRecoveryTracker.badRecoveryIds;
+  }
+
+  public <T> Pair<Integer, ReprovisionOutResponse> reprovisionOut(List<String> workflowRunIds,
+      OutputProvisioner<?, ?> provisioner,
+      String outputPath,
+      SubmissionResultHandler<T> handler) {
+    // New target to aim the new job at
+    // TODO is this going to be a problem for recovery?
+    Target newTarget = new Target() {
+      @Override
+      public Stream<Pair<String, ConsumableResource>> consumableResources() {
+        return Stream.empty();
+      }
+
+      @Override
+      public WorkflowEngine<?, ?> engine() {
+        return new NoOpWorkflowEngine();
+      }
+
+      @Override
+      public InputProvisioner<?> provisionerFor(InputProvisionFormat type) {
+        return new RawInputProvisioner();
+      }
+
+      @Override
+      public OutputProvisioner<?, ?> provisionerFor(OutputProvisionFormat type) {
+        return provisioner;
+      }
+
+      @Override
+      public Stream<RuntimeProvisioner<?>> runtimeProvisioners() {
+        return Stream.empty();
+      }
+    };
+
+    // Create a new active_workflow_runs from the existing and finished workflow_runs
+    try {
+      try (final Connection connection = dataSource.getConnection()) {
+        DSL.using(connection, SQLDialect.POSTGRES)
+            .transaction(
+                context -> {
+                  DSLContext dsl = DSL.using(context);
+                  dsl.select()
+                      .from(
+                          WORKFLOW_RUN
+                              .join(WORKFLOW_VERSION)
+                              .on(WORKFLOW_RUN.WORKFLOW_VERSION_ID.eq(WORKFLOW_VERSION.ID))
+                              .join(WORKFLOW_DEFINITION)
+                              .on(WORKFLOW_VERSION.WORKFLOW_DEFINITION.eq(WORKFLOW_DEFINITION.ID)))
+                      .where(WORKFLOW_RUN.HASH_ID.in(workflowRunIds)
+                          .and(WORKFLOW_RUN.COMPLETED.isNotNull()))
+                      .forEach(
+                          record -> {
+                            // Surely there is a cleaner way to do this
+                            // TODO like a million risk of casting errors
+                            JsonNode metadata = record.get(WORKFLOW_RUN.METADATA);
+                            OffsetDateTime originalCompleted = record.get(WORKFLOW_RUN.COMPLETED);
+                            Iterator<Entry<String, JsonNode>> iterator = metadata.fields();
+                            while (iterator.hasNext()) {
+                              Entry<String, JsonNode> entry = iterator.next();
+                              ArrayNode contents = (ArrayNode) entry.getValue().get("contents");
+                              Iterator<JsonNode> iterator2 = contents.elements();
+                              while (iterator2.hasNext()) {
+                                ObjectNode content = (ObjectNode) iterator2.next();
+                                if (content.has("outputDirectory")) {
+                                  content.set("originalDirectory", content.get("outputDirectory"));
+                                  content.put("outputDirectory", outputPath);
+                                }
+                              }
+                            }
+                            dsl.update(WORKFLOW_RUN)
+                                .set(WORKFLOW_RUN.COMPLETED,
+                                    (OffsetDateTime) null) // Have to cast null to something to resolve ambiguous call lol
+                                .set(WORKFLOW_RUN.METADATA, metadata)
+                                .where(WORKFLOW_RUN.HASH_ID.eq(record.get(WORKFLOW_RUN.HASH_ID)))
+                                .execute();
+
+                            Optional<WorkflowInformation> definition;
+                            try {
+                              definition = getWorkflowByName(
+                                  record.get(WORKFLOW_VERSION.NAME),
+                                  record.get(WORKFLOW_VERSION.VERSION), dsl);
+                            } catch (SQLException e) {
+                              throw new RuntimeException(e);
+                            }
+
+                            // Get the analysis, and also the external ids
+                            // TODO this could probably be so much more optimized
+                            Map<ProvenanceAnalysisRecord<ExternalId>, JsonNode> analysis = new HashMap<>();
+                            Map<Integer, Set<ExternalId>> externalIds = new HashMap<>();
+                            dsl.select()
+                                .from(ANALYSIS)
+                                .where(ANALYSIS.WORKFLOW_RUN_ID.eq(record.get(WORKFLOW_RUN.ID)))
+                                .forEach(r -> {
+                                  ProvenanceAnalysisRecord<ExternalId> temp = new ProvenanceAnalysisRecord<>();
+                                  temp.setId(r.get(ANALYSIS.HASH_ID));
+                                  temp.setType(r.get(ANALYSIS.ANALYSIS_TYPE));
+                                  temp.setChecksum(r.get(ANALYSIS.FILE_CHECKSUM));
+                                  temp.setChecksumType(r.get(ANALYSIS.FILE_CHECKSUM_TYPE));
+                                  temp.setMetatype(r.get(ANALYSIS.FILE_METATYPE));
+                                  temp.setPath(r.get(ANALYSIS.FILE_PATH));
+                                  temp.setSize(r.get(ANALYSIS.FILE_SIZE));
+
+                                  // TODO ew
+                                  temp.setLabels(
+                                      mapper().convertValue(new PostgresJSONBBinding().converter()
+                                          .from(r.get(ANALYSIS.LABELS)), new TypeReference<>() {
+                                      }));
+                                  temp.setWorkflowRun(record.get(WORKFLOW_RUN.HASH_ID));
+                                  temp.setCreated(r.get(ANALYSIS.CREATED).toZonedDateTime());
+
+                                  Integer analysisId = r.get(ANALYSIS.ID);
+                                  dsl.select()
+                                      .from(EXTERNAL_ID)
+                                      .join(ANALYSIS_EXTERNAL_ID)
+                                      .on(EXTERNAL_ID.ID.eq(ANALYSIS_EXTERNAL_ID.EXTERNAL_ID_ID))
+                                      .where(ANALYSIS_EXTERNAL_ID.ANALYSIS_ID.eq(analysisId))
+                                      .forEach(r2 -> {
+                                            Set<ExternalId> tempSet =
+                                                externalIds.containsKey(analysisId) ? externalIds.get(
+                                                    analysisId)
+                                                    : new HashSet<>();
+                                            tempSet.add(new ExternalId(r2.get(EXTERNAL_ID.PROVIDER),
+                                                r2.get(EXTERNAL_ID.EXTERNAL_ID_)));
+                                            externalIds.put(analysisId, tempSet);
+                                          }
+                                      );
+                                  temp.setExternalKeys(
+                                      externalIds.get(analysisId).stream().toList());
+
+                                  JsonNode tempMetadata = null;
+                                  // wish I could stream a json, but no
+                                  var metadataIterator = metadata.iterator();
+                                  while (metadataIterator.hasNext()) {
+                                    var metadatum = metadataIterator.next();
+                                    ArrayNode contents = (ArrayNode) metadatum.get("contents");
+                                    var contentsIterator = contents.elements();
+                                    while (contentsIterator.hasNext()) {
+                                      var content = contentsIterator.next();
+                                      if (content.has("originalDirectory") && temp.getPath()
+                                          .startsWith(content.get(
+                                              "originalDirectory").textValue())) {
+                                        tempMetadata = content;
+                                        break;
+                                      }
+                                    }
+                                  }
+
+                                  analysis.put(temp, tempMetadata);
+                                });
+
+                            try {
+                              final DatabaseWorkflow dbWorkflow = DatabaseWorkflow.createActive(
+                                  "reprovision",
+                                  newTarget,
+                                  record.get(WORKFLOW_RUN.ID),
+                                  "reprovision", //record.get(WORKFLOW_VERSION.NAME),
+                                  "1", // record.get(WORKFLOW_VERSION.VERSION),
+                                  record.get(WORKFLOW_RUN.HASH_ID),
+                                  record.get(WORKFLOW_RUN.ARGUMENTS),
+                                  record.get(WORKFLOW_RUN.ENGINE_PARAMETERS),
+                                  metadata,
+                                  externalIds.values().stream().flatMap(Collection::stream).collect(
+                                      Collectors.toSet()),
+                                  Map.of(), //empty consumable resources
+                                  record.get(WORKFLOW_RUN.CREATED).toInstant(),
+                                  this::liveness,
+                                  dsl,
+                                  Phase.REPROVISION
+                              );
+
+                              handler.launched(record.get(WORKFLOW_RUN.HASH_ID),
+                                  new ConsumableResourceChecker(
+                                      newTarget,
+                                      dataSource,
+                                      executor(),
+                                      dbWorkflow.dbId(),
+                                      liveness(dbWorkflow.dbId()),
+                                      new MaxInFlightByWorkflow(), // TODO probably will break
+                                      "reprovision",
+                                      "1",
+                                      record.get(WORKFLOW_RUN.HASH_ID),
+                                      Map.of(),
+                                      record.get(WORKFLOW_RUN.CREATED).toInstant(),
+                                      new Runnable() {
+                                        private boolean launched;
+
+                                        @Override
+                                        public void run() {
+                                          if (launched) {
+                                            throw new IllegalStateException(
+                                                "Workflow has already been" + " launched");
+                                          }
+                                          launched = true;
+                                          inTransaction(
+                                              runTransaction ->
+                                                  DatabaseBackedProcessor.this.reprovision(
+                                                      // runs when new workflow run submitted
+                                                      newTarget, definition.get().definition(),
+                                                      dbWorkflow, analysis, originalCompleted,
+                                                      runTransaction));
+                                        }
+                                      }));
+                            } catch (Exception e) {
+                              throw new RuntimeException(e);
+                            }
+
+
+                          });
+                });
+      }
+    } catch (SQLException e) {
+      throw new RuntimeException(e);
+    }
+    // TODO No!!
+    return null;
   }
 
   protected final Optional<FileMetadata> resolveInDatabase(String inputId) {

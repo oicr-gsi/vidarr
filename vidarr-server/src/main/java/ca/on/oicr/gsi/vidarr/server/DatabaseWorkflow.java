@@ -30,7 +30,7 @@ import org.jooq.Record;
 import org.jooq.impl.DSL;
 
 public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLContext> {
-  public static DatabaseWorkflow create(
+  public static DatabaseWorkflow createNew(
       String targetName,
       Target target,
       int workflowVersionId,
@@ -82,6 +82,40 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
     }
     idQuery.execute();
 
+    return createActive(
+        targetName,
+        target,
+        dbId,
+        workflowName,
+        workflowVersion,
+        vidarrId,
+        arguments,
+        engineParameters,
+        metadata,
+        ids,
+        consumableResources,
+        created,
+        liveness,
+        dsl,
+        Phase.WAITING_FOR_RESOURCES);
+  }
+
+  public static DatabaseWorkflow createActive(
+      String targetName,
+      Target target,
+      long dbId,
+      String workflowName,
+      String workflowVersion,
+      String vidarrId,
+      JsonNode arguments,
+      JsonNode engineParameters,
+      JsonNode metadata,
+      Set<? extends ExternalId> ids,
+      Map<String, JsonNode> consumableResources,
+      Instant created,
+      LongFunction<AtomicBoolean> liveness,
+      DSLContext dsl,
+      Phase phase) {
     dsl.insertInto(ACTIVE_WORKFLOW_RUN)
         .columns(
             ACTIVE_WORKFLOW_RUN.ID,
@@ -92,7 +126,7 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
             ACTIVE_WORKFLOW_RUN.CONSUMABLE_RESOURCES)
         .values(
             dbId,
-            Phase.WAITING_FOR_RESOURCES,
+            phase,
             false,
             true,
             targetName,
@@ -114,7 +148,7 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
         new HashSet<>(ids),
         Collections.emptySet(),
         true,
-        Phase.WAITING_FOR_RESOURCES,
+        phase,
         null,
         0,
         liveness.apply(dbId),
@@ -562,6 +596,15 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
   }
 
   @Override
+  public void reprovisionFile(String originalPath, String newPath,
+      DSLContext dsl) {
+    dsl.update(ANALYSIS)
+        .set(ANALYSIS.FILE_PATH, newPath)
+        .where(ANALYSIS.FILE_PATH.eq(originalPath))
+        .execute();
+  }
+
+  @Override
   public void requestedExternalIds(Set<ExternalId> requiredExternalIds, DSLContext dsl) {
     this.requestedInputIds = requiredExternalIds;
     requiredExternalIds.stream()
@@ -591,7 +634,12 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
 
   @Override
   public void succeeded(DSLContext transaction) {
-    updateMainField(WORKFLOW_RUN.COMPLETED, OffsetDateTime.now(), transaction);
+    succeeded(OffsetDateTime.now(), transaction);
+  }
+
+  @Override
+  public void succeeded(OffsetDateTime completed, DSLContext transaction) {
+    updateMainField(WORKFLOW_RUN.COMPLETED, completed, transaction);
     transaction
         .deleteFrom(ACTIVE_OPERATION)
         .where(ACTIVE_OPERATION.WORKFLOW_RUN_ID.eq(id))

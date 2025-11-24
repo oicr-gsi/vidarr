@@ -154,7 +154,10 @@ interface TaskStarter<Output> {
                 (state, id) -> provisioner.prepareProvisionInput(id, state.data(), state.metadata()), action))
         .map(
             (state, result) ->
-                new ProvisionData(state.state().ids(), state.state().labels(), result));
+                new ProvisionData(state.state().ids(),
+                    state.state().labels(),
+                    result,
+                    state.state().data()));
   }
 
   private static <State extends Record, OriginalState extends Record>
@@ -166,7 +169,7 @@ interface TaskStarter<Output> {
         .then(OperationStatefulStep.subStep((state, url) -> provisioner.prepareProvisionInput(url), action))
         .map(
             (state, result) ->
-                new ProvisionData(state.state().ids(), state.state().labels(), result));
+                new ProvisionData(state.state().ids(), state.state().labels(), result, null));
   }
 
   static <OriginalState extends Record>

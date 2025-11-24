@@ -6,6 +6,7 @@ import ca.on.oicr.gsi.vidarr.core.*;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.time.Instant;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -180,6 +181,12 @@ final class SingleShotWorkflow implements ActiveWorkflow<SingleShotOperation, Vo
   }
 
   @Override
+  public void reprovisionFile(String originalPath, String newPath,
+      Void transaction) {
+    // With no records, no need to write anything when reprovisioning, and file has already moved.
+  }
+
+  @Override
   public void requestedExternalIds(Set<ExternalId> requiredExternalIds, Void transaction) {
     externalIds = requiredExternalIds;
   }
@@ -190,5 +197,10 @@ final class SingleShotWorkflow implements ActiveWorkflow<SingleShotOperation, Vo
   @Override
   public void succeeded(Void transaction) {
     future.complete(true);
+  }
+
+  @Override
+  public void succeeded(OffsetDateTime completed, Void transaction) {
+    succeeded(transaction);
   }
 }

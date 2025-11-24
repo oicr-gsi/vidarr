@@ -15,5 +15,6 @@ public enum Phase {
   RUNNING,
   PROVISION_OUT,
   CLEANUP,
-  FAILED;
+  FAILED,
+  REPROVISION
 }

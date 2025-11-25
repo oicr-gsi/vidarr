@@ -1409,11 +1409,8 @@
             "application/json": {
               "schema": {
                 "properties": {
-                  "workflowRunHashIds": {
-                    "items": {
-                      "type": "string"
-                    },
-                    "type": "array"
+                  "workflowRunHashId": {
+                    "type": "string"
                   },
                   "outputProvisionerName": {
                     "type": "string"

@@ -473,7 +473,7 @@ public final class Main implements ServerConfig {
         reprovisionOutRequest.getOutputProvisionerName());
     final AtomicReference<Runnable> postCommitAction = new AtomicReference<>();
     final Pair<Integer, ReprovisionOutResponse> response = processor.reprovisionOut(
-        reprovisionOutRequest.getWorkflowRunHashIds(), provisioner,
+        reprovisionOutRequest.getWorkflowRunHashId(), provisioner,
         reprovisionOutRequest.getOutputPath(),
         new DatabaseBackedProcessor.SubmissionResultHandler<>() {
           @Override
@@ -575,14 +575,12 @@ public final class Main implements ServerConfig {
           }
         });
     exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_JSON);
-    //exchange.setStatusCode(response.first());
-    exchange.setStatusCode(200);
+    exchange.setStatusCode(response.first());
     if (postCommitAction.get() != null) {
       postCommitAction.get().run();
     }
     try {
-      //exchange.getResponseSender().send(MAPPER.writeValueAsString(response.second()));
-      exchange.getResponseSender().send(MAPPER.writeValueAsString(new ReprovisionOutResponse()));
+      exchange.getResponseSender().send(MAPPER.writeValueAsString(response.second()));
     } catch (JsonProcessingException e) {
       internalServerErrorResponse(exchange, e);
     }

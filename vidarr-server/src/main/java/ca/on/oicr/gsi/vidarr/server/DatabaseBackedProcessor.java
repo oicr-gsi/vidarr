@@ -1020,7 +1020,7 @@ public abstract class DatabaseBackedProcessor
     return BadRecoveryTracker.badRecoveryIds;
   }
 
-  public <T> Pair<Integer, ReprovisionOutResponse> reprovisionOut(List<String> workflowRunIds,
+  public <T> Pair<Integer, ReprovisionOutResponse> reprovisionOut(String workflowRunId,
       OutputProvisioner<?, ?> provisioner,
       String outputPath,
       SubmissionResultHandler<T> handler) {
@@ -1067,7 +1067,7 @@ public abstract class DatabaseBackedProcessor
                               .on(WORKFLOW_RUN.WORKFLOW_VERSION_ID.eq(WORKFLOW_VERSION.ID))
                               .join(WORKFLOW_DEFINITION)
                               .on(WORKFLOW_VERSION.WORKFLOW_DEFINITION.eq(WORKFLOW_DEFINITION.ID)))
-                      .where(WORKFLOW_RUN.HASH_ID.in(workflowRunIds)
+                      .where(WORKFLOW_RUN.HASH_ID.eq(workflowRunId)
                           .and(WORKFLOW_RUN.COMPLETED.isNotNull()))
                       .forEach(
                           record -> {

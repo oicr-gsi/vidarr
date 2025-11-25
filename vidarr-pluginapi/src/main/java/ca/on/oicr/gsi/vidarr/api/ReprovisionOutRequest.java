@@ -6,7 +6,7 @@ import java.util.List;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class ReprovisionOutRequest {
 
-  private List<String> workflowRunHashIds;
+  private String workflowRunHashId;
   private String outputProvisionerName;
   private String outputPath;
 
@@ -14,8 +14,8 @@ public class ReprovisionOutRequest {
     return outputPath;
   }
 
-  public List<String> getWorkflowRunHashIds() {
-    return workflowRunHashIds;
+  public String getWorkflowRunHashId() {
+    return workflowRunHashId;
   }
 
   public String getOutputProvisionerName() {
@@ -26,8 +26,8 @@ public class ReprovisionOutRequest {
     this.outputPath = outputPath;
   }
 
-  public void setWorkflowRunHashIds(List<String> workflowRunHashIds) {
-    this.workflowRunHashIds = workflowRunHashIds;
+  public void setWorkflowRunHashId(String workflowRunHashId) {
+    this.workflowRunHashId = workflowRunHashId;
   }
 
   public void setOutputProvisionerName(String outputProvisionerName) {
@@ -36,10 +36,10 @@ public class ReprovisionOutRequest {
 
   // TODO looks like the handler has an Invalid Request method for itself?
   public boolean check() {
-    return null != workflowRunHashIds
+    return null != workflowRunHashId
         && null != outputProvisionerName
         && null != outputPath
-        && !workflowRunHashIds.isEmpty()
+        && !workflowRunHashId.isBlank()
         && !outputProvisionerName.isBlank()
         && !outputPath.isBlank();
   }

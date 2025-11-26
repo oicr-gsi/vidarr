@@ -6,6 +6,13 @@ For unreleased changes, see [changes](changes).
 
 -----------------------------------------------------------------------------
 
+## [2.9.0] - 2025-11-26
+
+### Added
+
+* `consumableResources` field to WorkflowRunStatusResponse
+
+
 ## [2.8.1] - 2025-11-20
 
 ### Fixed

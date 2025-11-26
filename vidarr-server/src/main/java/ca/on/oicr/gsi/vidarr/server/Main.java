@@ -470,7 +470,7 @@ public final class Main implements ServerConfig {
     OutputProvisioner<?, ?> provisioner = outputProvisioners.get(
         reprovisionOutRequest.getOutputProvisionerName());
     final AtomicReference<Runnable> postCommitAction = new AtomicReference<>();
-    final Pair<Integer, ReprovisionOutResponse> response = processor.reprovisionOut(
+    final Pair<Integer, SubmitWorkflowResponse> response = processor.reprovisionOut(
         reprovisionOutRequest.getWorkflowRunHashId(), provisioner,
         reprovisionOutRequest.getOutputPath(),
         new DatabaseBackedProcessor.SubmissionResultHandler<>() {

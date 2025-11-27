@@ -11,6 +11,7 @@ module ca.on.oicr.gsi.vidarr.cromwell {
   requires java.xml;
   requires java.net.http;
   requires simpleclient;
+  requires com.fasterxml.jackson.annotation;
 
   opens ca.on.oicr.gsi.vidarr.cromwell to
       com.fasterxml.jackson.databind;

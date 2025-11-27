@@ -1024,7 +1024,7 @@ public abstract class DatabaseBackedProcessor
     return BadRecoveryTracker.badRecoveryIds;
   }
 
-  // T = Pair<Integer, SubmitWorkflowResponse>
+  // TODO: case where reprovision is called twice in a row
   public <T> T reprovisionOut(String workflowRunId,
       OutputProvisioner<?, ?> provisioner,
       String outputPath,

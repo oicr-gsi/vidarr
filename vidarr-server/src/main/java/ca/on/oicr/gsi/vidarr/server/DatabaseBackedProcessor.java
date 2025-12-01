@@ -1070,9 +1070,7 @@ public abstract class DatabaseBackedProcessor
                       .from(
                           WORKFLOW_RUN
                               .join(WORKFLOW_VERSION)
-                              .on(WORKFLOW_RUN.WORKFLOW_VERSION_ID.eq(WORKFLOW_VERSION.ID))
-                              .join(WORKFLOW_DEFINITION)
-                              .on(WORKFLOW_VERSION.WORKFLOW_DEFINITION.eq(WORKFLOW_DEFINITION.ID)))
+                              .on(WORKFLOW_RUN.WORKFLOW_VERSION_ID.eq(WORKFLOW_VERSION.ID)))
                       .where(WORKFLOW_RUN.HASH_ID.eq(workflowRunId)
                           .and(WORKFLOW_RUN.COMPLETED.isNotNull()))
                       .fetch();

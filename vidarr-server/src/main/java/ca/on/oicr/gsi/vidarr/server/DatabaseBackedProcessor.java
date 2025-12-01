@@ -1094,8 +1094,7 @@ public abstract class DatabaseBackedProcessor
                       }
                     }
                     dsl.update(WORKFLOW_RUN)
-                        .set(WORKFLOW_RUN.COMPLETED,
-                            (OffsetDateTime) null) // Have to cast null to something to resolve ambiguous call lol
+                        .setNull(WORKFLOW_RUN.COMPLETED)
                         .set(WORKFLOW_RUN.METADATA, metadata)
                         .where(WORKFLOW_RUN.HASH_ID.eq(record.get(WORKFLOW_RUN.HASH_ID)))
                         .execute();

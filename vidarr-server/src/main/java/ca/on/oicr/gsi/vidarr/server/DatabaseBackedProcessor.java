@@ -728,7 +728,8 @@ public abstract class DatabaseBackedProcessor
     return MAPPER;
   }
 
-  final void recover(Consumer<Runnable> startRaw, MaxInFlightByWorkflow maxInflightByWorkflow)
+  final void recover(Consumer<Runnable> startRaw, MaxInFlightByWorkflow maxInflightByWorkflow,
+      Map<String, OutputProvisioner<?, ?>> outputProvisioners)
       throws SQLException {
     try (final Connection connection = dataSource.getConnection()) {
       DSL.using(connection, SQLDialect.POSTGRES)
@@ -799,7 +800,58 @@ public abstract class DatabaseBackedProcessor
                             .on(WORKFLOW_VERSION.WORKFLOW_DEFINITION.eq(WORKFLOW_DEFINITION.ID)))
                     .where(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE.ne(Phase.FAILED))
                     .forEach(
-                        record ->
+                        record -> {
+                          if (record.get(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE).equals(Phase.REPROVISION)) {
+                            System.err.printf("Recovering reprovisioning task for %s...%n", record.get(WORKFLOW_RUN.HASH_ID));
+
+
+                            // TODO refactor me, repeat code w/ below
+                            final List<DatabaseOperation> activeOperations =
+                                operations.getOrDefault(
+                                    record.get(ACTIVE_WORKFLOW_RUN.ID), List.of());
+                            if(activeOperations.isEmpty()){
+                              //TODO error!!! Need at least one operation
+                              return;
+                            }
+
+                            // Get recovery state back
+                            // TODO what if any one of these doesn't exist
+                            JsonNode recoveryState = activeOperations.get(0).recoveryState().get("state").get("metadata");
+
+                            if(!recoveryState.has("outputReprovisioner")){
+                              // TODO error! copy from catch block below
+                              return;
+                            }
+
+                            // Recreate Target with the output provisioner name
+                            OutputProvisioner<?, ?> outputReprovisioner = outputProvisioners.get(
+                                recoveryState.get("outputReprovisioner").textValue());
+                            if(null == outputReprovisioner){
+                              // TODO error!! copy from catch block below
+                              return;
+                            }
+                            Target newTarget = makeReprovisionTarget(outputReprovisioner);
+
+                            final DatabaseWorkflow workflow =
+                                DatabaseWorkflow.recover(
+                                    newTarget,
+                                    record,
+                                    liveness(record.get(ACTIVE_WORKFLOW_RUN.ID)),
+                                    dsl);
+
+                            for (final DatabaseOperation operation :
+                                activeOperations) {
+                              operation.linkTo(workflow);
+                            }
+
+                            recover(
+                                newTarget,
+                                buildDefinitionFromRecord(context.dsl(), record),
+                                workflow,
+                                activeOperations,
+                                RecoveryType.RECOVER);
+
+                          } else {
                             targetByName(record.get(ACTIVE_WORKFLOW_RUN.TARGET))
                                 .ifPresent(
                                     target -> {
@@ -892,7 +944,10 @@ public abstract class DatabaseBackedProcessor
                                         System.err.println(
                                             "Continuing recovery on next record in database if one exists.");
                                       }
-                                    }));
+                                    }
+                                );
+                          }
+                        });
               });
       connection.commit();
     }
@@ -1024,15 +1079,8 @@ public abstract class DatabaseBackedProcessor
     return BadRecoveryTracker.badRecoveryIds;
   }
 
-  // TODO: case where reprovision is called twice in a row
-  public <T> T reprovisionOut(String workflowRunId,
-      OutputProvisioner<?, ?> provisioner,
-      String outputPath,
-      SubmissionResultHandler<T> handler) {
-    AtomicReference<T> ret = new AtomicReference<>();
-    // New target to aim the new job at
-    // TODO is this going to be a problem for recovery?
-    Target newTarget = new Target() {
+  private Target makeReprovisionTarget(OutputProvisioner<?, ?> provisioner){
+    return new Target() {
       @Override
       public Stream<Pair<String, ConsumableResource>> consumableResources() {
         return Stream.empty();
@@ -1058,6 +1106,17 @@ public abstract class DatabaseBackedProcessor
         return Stream.empty();
       }
     };
+  }
+
+  // TODO: case where reprovision is called twice in a row
+  public <T> T reprovisionOut(String workflowRunId,
+      String provisionerName,
+      OutputProvisioner<?, ?> provisioner,
+      String outputPath,
+      SubmissionResultHandler<T> handler) {
+    AtomicReference<T> ret = new AtomicReference<>();
+    // New target to aim the new job at
+    Target newTarget = makeReprovisionTarget(provisioner);
 
     // Create a new active_workflow_runs from the existing and finished workflow_runs
     try {
@@ -1091,6 +1150,9 @@ public abstract class DatabaseBackedProcessor
                           content.set("originalDirectory", content.get("outputDirectory"));
                           content.put("outputDirectory", outputPath);
                         }
+                        content.put("outputReprovisioner", provisionerName);
+                        content.put("originalCompleted", originalCompleted.toInstant().getEpochSecond());
+                        content.put("originalCompletedOffset", originalCompleted.getOffset().toString());
                       }
                     }
                     dsl.update(WORKFLOW_RUN)
@@ -1128,8 +1190,7 @@ public abstract class DatabaseBackedProcessor
                           // TODO ew
                           temp.setLabels(
                               mapper().convertValue(new PostgresJSONBBinding().converter()
-                                  .from(r.get(ANALYSIS.LABELS)), new TypeReference<>() {
-                              }));
+                                  .from(r.get(ANALYSIS.LABELS)), new TypeReference<>() {}));
                           temp.setWorkflowRun(record.get(WORKFLOW_RUN.HASH_ID));
                           temp.setCreated(r.get(ANALYSIS.CREATED).toZonedDateTime());
 

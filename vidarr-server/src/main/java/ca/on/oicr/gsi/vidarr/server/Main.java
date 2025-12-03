@@ -464,14 +464,21 @@ public final class Main implements ServerConfig {
   private void reprovisionOut(HttpServerExchange exchange,
       ReprovisionOutRequest reprovisionOutRequest) {
     if (!reprovisionOutRequest.check()) {
+      // TODO error msg
       exchange.setStatusCode(400);
       return;
     }
+    String provisionerName = reprovisionOutRequest.getOutputProvisionerName();
     OutputProvisioner<?, ?> provisioner = outputProvisioners.get(
-        reprovisionOutRequest.getOutputProvisionerName());
+        provisionerName);
+    if(null == provisioner){
+      // TODO error msg
+      exchange.setStatusCode(400);
+      return;
+    }
     final AtomicReference<Runnable> postCommitAction = new AtomicReference<>();
     final Pair<Integer, SubmitWorkflowResponse> response = processor.reprovisionOut(
-        reprovisionOutRequest.getWorkflowRunHashId(), provisioner,
+        reprovisionOutRequest.getWorkflowRunHashId(), provisionerName, provisioner,
         reprovisionOutRequest.getOutputPath(),
         new DatabaseBackedProcessor.SubmissionResultHandler<>() {
           @Override
@@ -2438,7 +2445,7 @@ public final class Main implements ServerConfig {
 
   private void recover() throws SQLException {
     final ArrayList<Runnable> recoveredWorkflows = new ArrayList<>();
-    processor.recover(recoveredWorkflows::add, this.maxInFlightPerWorkflow);
+    processor.recover(recoveredWorkflows::add, this.maxInFlightPerWorkflow, outputProvisioners);
     if (recoveredWorkflows.isEmpty()) {
       System.err.println("No unstarted workflows in the database. Resuming normal operation.");
     } else {

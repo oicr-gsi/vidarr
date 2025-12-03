@@ -18,7 +18,9 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.lang.System.Logger.Level;
+import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -1120,6 +1122,48 @@ public abstract class BaseProcessor<
           for (final var operation : activeOperations) {
             TaskStarter.of("", target.engine().cleanup().recover(operation.recoveryState()))
                 .start(this, operation, p5.createTerminal(operation));
+          }
+        }
+        break;
+      case REPROVISION:
+        // Can use the first record because the completed time info will be the same for all
+        JsonNode metadata = activeOperations.get(0)
+            .recoveryState()
+            .get("state")
+            .get("metadata");
+        final OffsetDateTime originalCompleted = OffsetDateTime.ofInstant(
+            Instant.ofEpochSecond(metadata.get("originalCompleted").asInt()), ZoneId.of(metadata.get("originalCompletedOffset").textValue()));
+        final var bonusPhase =
+            new BonusPhaseReprovision(target, definition, activeOperations.size(), workflow, originalCompleted);
+        if (activeOperations.stream().allMatch(o -> o.status().equals(OperationStatus.SUCCEEDED))) {
+          // SUCCEEDED means we've already created the file entries in the db, so all that's left to do is clean up
+          inTransaction(
+              transaction -> {
+                final var cleanup = workflow.cleanup();
+                if (cleanup == null) {
+                  workflow.succeeded(transaction);
+                } else {
+                  startNextPhase(
+                      bonusPhase,
+                      List.of(TaskStarter.launchCleanup(target.engine(), cleanup)),
+                      transaction
+                  );
+                }
+              });
+        } else {
+          for (final var operation : activeOperations) {
+            if (operation.status().equals(OperationStatus.SUCCEEDED)) {
+              // update the count of outstanding operations
+              bonusPhase.size.decrementAndGet();
+              continue;
+            }
+              TaskStarter.of(
+                      operation.type(),
+                      recoverType.prepare(
+                          TaskStarter.wrapOutputProvisioner(
+                              target.provisionerFor(OutputProvisionFormat.valueOf(operation.type()))),
+                          operation.recoveryState()))
+                  .start(this, operation, bonusPhase.createTerminal(operation));
           }
         }
         break;

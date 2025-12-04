@@ -1108,7 +1108,6 @@ public abstract class DatabaseBackedProcessor
     };
   }
 
-  // TODO: case where reprovision is called twice in a row
   public <T> T reprovisionOut(String workflowRunId,
       String provisionerName,
       OutputProvisioner<?, ?> provisioner,
@@ -1171,7 +1170,6 @@ public abstract class DatabaseBackedProcessor
                     }
 
                     // Get the analysis, and also the external ids
-                    // TODO this could probably be so much more optimized
                     Map<ProvenanceAnalysisRecord<ExternalId>, JsonNode> analysis = new HashMap<>();
                     Map<Integer, Set<ExternalId>> externalIds = new HashMap<>();
                     dsl.select()
@@ -1187,7 +1185,6 @@ public abstract class DatabaseBackedProcessor
                           temp.setPath(r.get(ANALYSIS.FILE_PATH));
                           temp.setSize(r.get(ANALYSIS.FILE_SIZE));
 
-                          // TODO ew
                           temp.setLabels(
                               mapper().convertValue(new PostgresJSONBBinding().converter()
                                   .from(r.get(ANALYSIS.LABELS)), new TypeReference<>() {}));
@@ -1261,7 +1258,7 @@ public abstract class DatabaseBackedProcessor
                               executor(),
                               dbWorkflow.dbId(),
                               liveness(dbWorkflow.dbId()),
-                              new MaxInFlightByWorkflow(), // TODO probably will break
+                              new MaxInFlightByWorkflow(),
                               "reprovision",
                               "1",
                               record.get(WORKFLOW_RUN.HASH_ID),

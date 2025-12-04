@@ -114,6 +114,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Semaphore;
@@ -463,6 +464,16 @@ public final class Main implements ServerConfig {
 
   private void reprovisionOut(HttpServerExchange exchange,
       ReprovisionOutRequest reprovisionOutRequest) {
+    Semaphore s = reprovisionCounter.getOrDefault(reprovisionOutRequest.getWorkflowRunHashId(), new Semaphore(1));
+    if(!s.tryAcquire()){
+      exchange.setStatusCode(StatusCodes.INSUFFICIENT_STORAGE);
+      exchange
+          .getResponseSender()
+          .send(
+              "There is already a reprovision request on this hash id right now. Please try again later.");
+      return;
+    }
+    reprovisionCounter.put(reprovisionOutRequest.getWorkflowRunHashId(), s);
     if (!reprovisionOutRequest.check()) {
       // TODO error msg
       exchange.setStatusCode(400);
@@ -583,6 +594,7 @@ public final class Main implements ServerConfig {
     exchange.setStatusCode(response.first());
     if (postCommitAction.get() != null) {
       postCommitAction.get().run();
+      reprovisionCounter.get(reprovisionOutRequest.getWorkflowRunHashId()).release();
     }
     try {
       exchange.getResponseSender().send(MAPPER.writeValueAsString(response.second()));
@@ -621,6 +633,7 @@ public final class Main implements ServerConfig {
       Executors.newScheduledThreadPool(Runtime.getRuntime().availableProcessors());
   private final Map<String, InputProvisioner<?>> inputProvisioners;
   private final Semaphore loadCounter = new Semaphore(3);
+  private Map<String, Semaphore> reprovisionCounter = new ConcurrentHashMap<>();
   private final MaxInFlightByWorkflow maxInFlightPerWorkflow = new MaxInFlightByWorkflow();
   private final ManualOverrideConsumableResource overridableMaxInFlightPerWorkflow =
       new ManualOverrideConsumableResource();

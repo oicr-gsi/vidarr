@@ -1436,7 +1436,19 @@
                 }
               }
             },
-            "description": "TODO WRITE ME."
+            "description": "Reprovisioning successfully submitted."
+          },
+          "400": {
+            "description": "Malformed request."
+          },
+          "409": {
+            "description": "Workflow run ID matches multiple runs."
+          },
+          "500": {
+            "description": "Internal server error."
+          },
+          "507": {
+            "description": "There is already a reprovision underway for this workflow run."
           }
         },
         "summary": "Redoes provisioning out with a new provisioner",

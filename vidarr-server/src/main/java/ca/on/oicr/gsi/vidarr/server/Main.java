@@ -472,7 +472,7 @@ public final class Main implements ServerConfig {
       exchange
           .getResponseSender()
           .send(
-              "There is already a reprovision request on this hash id right now. Please try again later.");
+              "There is already a reprovision request on this workflow run right now. Please try again later.");
       return;
     }
     reprovisionCounter.put(reprovisionOutRequest.getWorkflowRunHashId(), s);
@@ -596,8 +596,8 @@ public final class Main implements ServerConfig {
     exchange.setStatusCode(response.first());
     if (postCommitAction.get() != null) {
       postCommitAction.get().run();
-      reprovisionCounter.get(reprovisionOutRequest.getWorkflowRunHashId()).release();
     }
+    reprovisionCounter.get(reprovisionOutRequest.getWorkflowRunHashId()).release();
     try {
       exchange.getResponseSender().send(MAPPER.writeValueAsString(response.second()));
     } catch (JsonProcessingException e) {

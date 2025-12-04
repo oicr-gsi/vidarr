@@ -477,16 +477,22 @@ public final class Main implements ServerConfig {
     }
     reprovisionCounter.put(reprovisionOutRequest.getWorkflowRunHashId(), s);
     if (!reprovisionOutRequest.check()) {
-      // TODO error msg
-      exchange.setStatusCode(400);
+      exchange.setStatusCode(StatusCodes.BAD_REQUEST);
+      exchange
+          .getResponseSender()
+          .send(
+              "Malformed request.");
       return;
     }
     String provisionerName = reprovisionOutRequest.getOutputProvisionerName();
     OutputProvisioner<?, ?> provisioner = outputProvisioners.get(
         provisionerName);
     if(null == provisioner){
-      // TODO error msg
-      exchange.setStatusCode(400);
+      exchange.setStatusCode(StatusCodes.BAD_REQUEST);
+      exchange
+          .getResponseSender()
+          .send(
+              "No output provisioner known as " + provisionerName);
       return;
     }
     final AtomicReference<Runnable> postCommitAction = new AtomicReference<>();

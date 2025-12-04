@@ -802,16 +802,16 @@ public abstract class DatabaseBackedProcessor
                     .forEach(
                         record -> {
                           if (record.get(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE).equals(Phase.REPROVISION)) {
+                            try{
                             System.err.printf("Recovering reprovisioning task for %s...%n", record.get(WORKFLOW_RUN.HASH_ID));
-
 
                             // TODO refactor me, repeat code w/ below
                             final List<DatabaseOperation> activeOperations =
                                 operations.getOrDefault(
                                     record.get(ACTIVE_WORKFLOW_RUN.ID), List.of());
                             if(activeOperations.isEmpty()){
-                              //TODO error!!! Need at least one operation
-                              return;
+                              //TODO I think actually we can make a new one and go ahead?
+//                              throw new Exception(String.format("Workflow run %s does not have any active operations", record.get(WORKFLOW_RUN.HASH_ID)));
                             }
 
                             // Get recovery state back
@@ -819,16 +819,18 @@ public abstract class DatabaseBackedProcessor
                             JsonNode recoveryState = activeOperations.get(0).recoveryState().get("state").get("metadata");
 
                             if(!recoveryState.has("outputReprovisioner")){
-                              // TODO error! copy from catch block below
-                              return;
+                              throw new Exception(
+                                  String.format("Reprovisioning for %s lacks outputReprovisioner metadata field.",
+                                      record.get(WORKFLOW_RUN.HASH_ID)
+                                  ));
                             }
 
                             // Recreate Target with the output provisioner name
                             OutputProvisioner<?, ?> outputReprovisioner = outputProvisioners.get(
                                 recoveryState.get("outputReprovisioner").textValue());
                             if(null == outputReprovisioner){
-                              // TODO error!! copy from catch block below
-                              return;
+                              throw new Exception(String.format("outputReprovisioner %s is not represented in config.",
+                                  recoveryState.get("outputReprovisioner").textValue()));
                             }
                             Target newTarget = makeReprovisionTarget(outputReprovisioner);
 
@@ -850,7 +852,15 @@ public abstract class DatabaseBackedProcessor
                                 workflow,
                                 activeOperations,
                                 RecoveryType.RECOVER);
-
+                            } catch (Exception e) {
+                              String erroneousHash = record.get(WORKFLOW_RUN.HASH_ID);
+                              System.err.printf(
+                                  "Error recovering reprovisioning %s: \n", erroneousHash);
+                              e.printStackTrace();
+                              BadRecoveryTracker.add(erroneousHash);
+                              System.err.println(
+                                  "Continuing recovery on next record in database if one exists.");
+                            }
                           } else {
                             targetByName(record.get(ACTIVE_WORKFLOW_RUN.TARGET))
                                 .ifPresent(

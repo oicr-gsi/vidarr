@@ -815,7 +815,6 @@ public abstract class DatabaseBackedProcessor
                             }
 
                             // Get recovery state back
-                            // TODO what if any one of these doesn't exist
                             JsonNode recoveryState = activeOperations.get(0).recoveryState().get("state").get("metadata");
 
                             if(!recoveryState.has("outputReprovisioner")){

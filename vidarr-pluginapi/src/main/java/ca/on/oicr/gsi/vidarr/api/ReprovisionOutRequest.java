@@ -34,7 +34,6 @@ public class ReprovisionOutRequest {
     this.outputProvisionerName = outputProvisionerName;
   }
 
-  // TODO looks like the handler has an Invalid Request method for itself?
   public boolean check() {
     return null != workflowRunHashId
         && null != outputProvisionerName

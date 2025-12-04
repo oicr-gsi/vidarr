@@ -805,7 +805,6 @@ public abstract class DatabaseBackedProcessor
                             try{
                             System.err.printf("Recovering reprovisioning task for %s...%n", record.get(WORKFLOW_RUN.HASH_ID));
 
-                            // TODO refactor me, repeat code w/ below
                             final List<DatabaseOperation> activeOperations =
                                 operations.getOrDefault(
                                     record.get(ACTIVE_WORKFLOW_RUN.ID), List.of());
@@ -1143,8 +1142,6 @@ public abstract class DatabaseBackedProcessor
                       .fetch();
                   if (result.isNotEmpty() && result.size() == 1) {
                     Record record = result.get(0);
-                    // Surely there is a cleaner way to do this
-                    // TODO like a million risk of casting errors
                     JsonNode metadata = record.get(WORKFLOW_RUN.METADATA);
                     OffsetDateTime originalCompleted = record.get(WORKFLOW_RUN.COMPLETED);
                     Iterator<Entry<String, JsonNode>> iterator = metadata.fields();

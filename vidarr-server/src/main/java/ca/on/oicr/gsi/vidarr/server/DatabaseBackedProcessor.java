@@ -808,9 +808,8 @@ public abstract class DatabaseBackedProcessor
                             final List<DatabaseOperation> activeOperations =
                                 operations.getOrDefault(
                                     record.get(ACTIVE_WORKFLOW_RUN.ID), List.of());
-                            if(activeOperations.isEmpty()){
-                              //TODO I think actually we can make a new one and go ahead?
-//                              throw new Exception(String.format("Workflow run %s does not have any active operations", record.get(WORKFLOW_RUN.HASH_ID)));
+                            if (activeOperations.isEmpty()){
+                              throw new Exception(String.format("Workflow run %s does not have any active operations, insufficient information for recovery.", record.get(WORKFLOW_RUN.HASH_ID)));
                             }
 
                             // Get recovery state back

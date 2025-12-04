@@ -749,7 +749,8 @@ public abstract class BaseProcessor<
       return new TerminalHandler<>() {
         @Override
         public void failed() {
-          // TODO probably do something here
+          // Vanilla output provisioning does nothing here so it's probably ok to do nothing here
+          // too
         }
 
         @Override

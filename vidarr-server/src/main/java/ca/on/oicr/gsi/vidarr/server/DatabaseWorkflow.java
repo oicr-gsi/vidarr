@@ -9,6 +9,9 @@ import ca.on.oicr.gsi.vidarr.core.ActiveWorkflow;
 import ca.on.oicr.gsi.vidarr.core.BaseProcessor;
 import ca.on.oicr.gsi.vidarr.core.Phase;
 import ca.on.oicr.gsi.vidarr.core.Target;
+import ca.on.oicr.gsi.vidarr.server.jooq.tables.records.AnalysisExternalIdRecord;
+import ca.on.oicr.gsi.vidarr.server.jooq.tables.records.ExternalIdRecord;
+import ca.on.oicr.gsi.vidarr.server.jooq.tables.records.ExternalIdVersionRecord;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -22,6 +25,7 @@ import java.sql.SQLException;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.*;
+import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongFunction;
 import java.util.stream.Collectors;
@@ -48,7 +52,7 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
       DSLContext dsl)
       throws SQLException {
 
-    final var record =
+    final Record2<Long, OffsetDateTime> record =
         dsl.insertInto(WORKFLOW_RUN)
             .columns(
                 WORKFLOW_RUN.ARGUMENTS,
@@ -72,12 +76,12 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
             .fetchOptional()
             .orElseThrow();
     final long dbId = record.value1();
-    final var created = record.value2().toInstant();
+    final Instant created = record.value2().toInstant();
 
-    var idQuery =
+    InsertValuesStep3<ExternalIdRecord, Long, String, String> idQuery =
         dsl.insertInto(EXTERNAL_ID)
             .columns(EXTERNAL_ID.WORKFLOW_RUN_ID, EXTERNAL_ID.PROVIDER, EXTERNAL_ID.EXTERNAL_ID_);
-    for (final var id : ids) {
+    for (final ExternalId id : ids) {
       idQuery = idQuery.values(dbId, id.getProvider(), id.getId());
     }
     idQuery.execute();
@@ -156,8 +160,8 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
   }
 
   public static JSONB labelsToJson(Map<String, String> labels) {
-    final var labelNode = JsonNodeFactory.instance.objectNode();
-    for (final var label : labels.entrySet()) {
+    final ObjectNode labelNode = JsonNodeFactory.instance.objectNode();
+    for (final Entry<String, String> label : labels.entrySet()) {
       labelNode.put(label.getKey(), label.getValue());
     }
     try {
@@ -177,14 +181,14 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
 
   public static DatabaseWorkflow recover(
       Target target, Record record, AtomicBoolean liveness, DSLContext dsl) {
-    final var inputIds = new HashSet<ExternalId>();
-    final var requestedInputIds = new HashSet<ExternalId>();
+    final HashSet<ExternalId> inputIds = new HashSet<>();
+    final HashSet<ExternalId> requestedInputIds = new HashSet<>();
     dsl.select(EXTERNAL_ID.asterisk())
         .from(EXTERNAL_ID)
         .where(EXTERNAL_ID.WORKFLOW_RUN_ID.eq(record.get(ACTIVE_WORKFLOW_RUN.ID)))
         .forEach(
             externalIdRecord -> {
-              final var externalId =
+              final ExternalId externalId =
                   new ExternalId(
                       externalIdRecord.get(EXTERNAL_ID.PROVIDER),
                       externalIdRecord.get(EXTERNAL_ID.EXTERNAL_ID_));
@@ -236,7 +240,7 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
       Map<String, JsonNode> consumableResources,
       DSLContext dsl)
       throws SQLException {
-    final var attempt =
+    final Integer attempt =
         dsl.update(ACTIVE_WORKFLOW_RUN)
             .set(ACTIVE_WORKFLOW_RUN.ATTEMPT, ACTIVE_WORKFLOW_RUN.ATTEMPT.plus(1))
             .set(
@@ -274,14 +278,14 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
                 DSL.select(EXTERNAL_ID.ID)
                     .from(EXTERNAL_ID)
                     .where(EXTERNAL_ID.WORKFLOW_RUN_ID.eq(dbId))));
-    var externalVersionsInsert =
+    InsertValuesStep3<ExternalIdVersionRecord, Integer, String, String> externalVersionsInsert =
         dsl.insertInto(EXTERNAL_ID_VERSION)
             .columns(
                 EXTERNAL_ID_VERSION.EXTERNAL_ID_ID,
                 EXTERNAL_ID_VERSION.KEY,
                 EXTERNAL_ID_VERSION.VALUE);
-    for (final var externalKey : keys) {
-      for (final var version : externalKey.getVersions().entrySet()) {
+    for (final ExternalKey externalKey : keys) {
+      for (final Entry<String, String> version : externalKey.getVersions().entrySet()) {
         externalVersionsInsert =
             externalVersionsInsert.values(
                 DSL.field(
@@ -388,11 +392,11 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
 
   public void attachExternalIds(
       org.jooq.DSLContext dsl, int recordId, Set<? extends ExternalId> ids) {
-    var insertStatement =
+    InsertValuesStep2<AnalysisExternalIdRecord, Integer, Integer> insertStatement =
         dsl.insertInto(ANALYSIS_EXTERNAL_ID)
             .columns(ANALYSIS_EXTERNAL_ID.ANALYSIS_ID, ANALYSIS_EXTERNAL_ID.EXTERNAL_ID_ID);
 
-    for (final var id : ids) {
+    for (final ExternalId id : ids) {
       insertStatement =
           insertStatement.values(
               DSL.val(recordId),
@@ -519,12 +523,12 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
       DSLContext dsl) {
     if (liveness.get()) {
       try {
-        final var digest = MessageDigest.getInstance("SHA-256");
+        final MessageDigest digest = MessageDigest.getInstance("SHA-256");
         digest.update(vidarrId.getBytes(StandardCharsets.UTF_8));
         digest.update(
             Path.of(storagePath).getFileName().toString().getBytes(StandardCharsets.UTF_8));
 
-        final var recordId =
+        final Integer recordId =
             dsl.insertInto(ANALYSIS)
                 .set(ANALYSIS.ANALYSIS_TYPE, "file")
                 .set(ANALYSIS.FILE_CHECKSUM, checksum)
@@ -551,10 +555,10 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
       Set<? extends ExternalId> ids, String url, Map<String, String> labels, DSLContext dsl) {
     if (liveness.get()) {
       try {
-        final var digest = MessageDigest.getInstance("SHA-256");
+        final MessageDigest digest = MessageDigest.getInstance("SHA-256");
         digest.update(vidarrId.getBytes(StandardCharsets.UTF_8));
         digest.update(url.getBytes(StandardCharsets.UTF_8));
-        final var recordId =
+        final Integer recordId =
             dsl.insertInto(ANALYSIS)
                 .set(ANALYSIS.ANALYSIS_TYPE, "url")
                 .set(ANALYSIS.FILE_PATH, url)

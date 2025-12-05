@@ -1,5 +1,6 @@
 package ca.on.oicr.gsi.vidarr.core;
 
+import ca.on.oicr.gsi.Pair;
 import ca.on.oicr.gsi.vidarr.ActiveOperation;
 import ca.on.oicr.gsi.vidarr.ActiveOperation.TransactionManager;
 import ca.on.oicr.gsi.vidarr.InputProvisionFormat;
@@ -229,7 +230,7 @@ public abstract class BaseProcessor<
             }
             if (outstanding.decrementAndGet() == 0) {
               if (ok) {
-                final var provisionInTasks = new ArrayList<TaskStarter<JsonMutation>>();
+                final ArrayList<TaskStarter<JsonMutation>> provisionInTasks = new ArrayList<>();
                 final Map<Integer, List<Consumer<ObjectNode>>> retryModifications =
                     definition
                         .parameters()
@@ -243,7 +244,7 @@ public abstract class BaseProcessor<
                                     : Stream.empty())
                         .distinct()
                         .collect(Collectors.toMap(Function.identity(), i -> new ArrayList<>()));
-                final var realInput = mapper().createObjectNode();
+                final ObjectNode realInput = mapper().createObjectNode();
                 definition
                     .parameters()
                     .forEach(
@@ -267,23 +268,23 @@ public abstract class BaseProcessor<
                                 String.format("Missing required parameter: %s", parameter.name()));
                           }
                         });
-                final var realInputs = new ArrayList<ObjectNode>();
+                final ArrayList<ObjectNode> realInputs = new ArrayList<>();
                 while (realInputs.size() < retryModifications.size() - 1) {
                   realInputs.add(realInput.deepCopy());
                 }
                 realInputs.add(realInput);
-                for (final var entry : retryModifications.entrySet()) {
-                  final var input = realInputs.get(entry.getKey());
-                  for (final var modification : entry.getValue()) {
+                for (final Entry<Integer, List<Consumer<ObjectNode>>> entry : retryModifications.entrySet()) {
+                  final ObjectNode input = realInputs.get(entry.getKey());
+                  for (final Consumer<ObjectNode> modification : entry.getValue()) {
                     modification.accept(input);
                   }
                 }
                 activeWorkflow.realInput(realInputs, transaction);
-                final var outputRequestedExternalIds =
+                final HashSet<ExternalId> outputRequestedExternalIds =
                     new HashSet<>(activeWorkflow.requestedExternalIds());
                 // In the case of EXTERNAL ids, pass to ExtractInputExternalIds which knows how to
                 // make sense of whatever non-vidarr id we pass it
-                final var discoveredExternalIds =
+                final Set<ExternalId> discoveredExternalIds =
                     definition
                         .parameters()
                         .flatMap(
@@ -300,7 +301,7 @@ public abstract class BaseProcessor<
                         .map(
                             ei ->
                                 new ExternalId(
-                                    ((ExternalId) ei).getProvider(), ((ExternalId) ei).getId()))
+                                    ((ExternalId)ei).getProvider(), ((ExternalId)ei).getId()))
                         .collect(Collectors.toSet());
                 if (activeWorkflow
                     .extraInputIdsHandled() // Set to true when in Remaining or All case
@@ -309,7 +310,7 @@ public abstract class BaseProcessor<
                     : discoveredExternalIds.equals(outputRequestedExternalIds)) {
                   startNextPhase(this, provisionInTasks, transaction);
                 } else {
-                  var disjoint = discoveredExternalIds.removeAll(outputRequestedExternalIds);
+                  boolean disjoint = discoveredExternalIds.removeAll(outputRequestedExternalIds);
                   activeWorkflow.phase(Phase.FAILED, Collections.emptyList(), transaction);
                   throw new IllegalArgumentException(
                       String.format(
@@ -373,11 +374,11 @@ public abstract class BaseProcessor<
           semaphore.acquireUninterruptibly();
           inTransaction(
               transaction -> {
-                final var inputs = activeWorkflow.realInputs();
-                for (final var input : inputs) {
-                  final var path = result.getPath();
+                final List<ObjectNode> inputs = activeWorkflow.realInputs();
+                for (final ObjectNode input : inputs) {
+                  final List<JsonPath> path = result.getPath();
                   JsonNode current = input;
-                  for (var i = 0; i < path.size() - 1; i++) {
+                  for (int i = 0; i < path.size() - 1; i++) {
                     current = path.get(i).get(current);
                   }
                   path.get(path.size() - 1).set(current, result.getResult());
@@ -439,16 +440,16 @@ public abstract class BaseProcessor<
       return new TerminalHandler<>() {
         @Override
         public void failed() {
-          final var realInputs = activeWorkflow.realInputs();
+          final List<ObjectNode> realInputs = activeWorkflow.realInputs();
           inTransaction(
               tx -> {
-                final var index = activeWorkflow.realInputTryNext(tx);
+                final int index = activeWorkflow.realInputTryNext(tx);
                 if (index < realInputs.size()) {
-                  final var relaunch =
+                  final TaskStarter<Result<JsonNode>> relaunch =
                       TaskStarter.launch(
                           definition, activeWorkflow, target.engine(), realInputs.get(index));
-                  final var nextPhaseManager = new Phase3Run(target, definition, 1, activeWorkflow);
-                  final var operations =
+                  final Phase3Run nextPhaseManager = new Phase3Run(target, definition, 1, activeWorkflow);
+                  final List<PO> operations =
                       workflow()
                           .phase(
                               nextPhaseManager.phase(),
@@ -468,7 +469,7 @@ public abstract class BaseProcessor<
 
         @Override
         public JsonNode serialize(Result<JsonNode> result) {
-          final var output = mapper().createObjectNode();
+          final ObjectNode output = mapper().createObjectNode();
           output.set("output", result.output());
           output.set("cleanupState", result.cleanupState().orElse(NullNode.getInstance()));
           output.put("workflowRunUrl", result.workflowRunUrl());
@@ -490,9 +491,9 @@ public abstract class BaseProcessor<
               transaction -> {
                 result.cleanupState().ifPresent(c -> workflow().cleanup(c, transaction));
                 workflow().runUrl(result.workflowRunUrl(), transaction);
-                final var tasks = new ArrayList<TaskStarter<ProvisionData>>();
-                final var allIds = workflow().inputIds();
-                final var remainingIds = new HashSet<>(allIds);
+                final ArrayList<TaskStarter<ProvisionData>> tasks = new ArrayList<>();
+                final Set<ExternalId> allIds = workflow().inputIds();
+                final HashSet<ExternalId> remainingIds = new HashSet<>(allIds);
                 remainingIds.removeAll(workflow().requestedExternalIds());
                 target
                     .runtimeProvisioners()
@@ -504,7 +505,7 @@ public abstract class BaseProcessor<
                     .outputs()
                     .allMatch(
                         output -> {
-                          final var isOk = new AtomicBoolean(true);
+                          final AtomicBoolean isOk = new AtomicBoolean(true);
                           if (result.output().has(output.name())) {
                             output
                                 .type()
@@ -580,8 +581,8 @@ public abstract class BaseProcessor<
 
         @Override
         public JsonNode serialize(ProvisionData result) {
-          final var node = mapper().createObjectNode();
-          final var info = node.putObject("info");
+          final ObjectNode node = mapper().createObjectNode();
+          final ObjectNode info = node.putObject("info");
           info.putPOJO("ids", result.ids());
           info.putPOJO("labels", result.labels());
           result
@@ -591,7 +592,7 @@ public abstract class BaseProcessor<
                     @Override
                     public void file(String storagePath, String checksum, String checksumType,
                         long size, String metatype) {
-                      final var file = node.putObject("result");
+                      final ObjectNode file = node.putObject("result");
                       file.put("path", storagePath);
                       file.put("checksum", checksum);
                       file.put("checksumType", checksumType);
@@ -601,7 +602,7 @@ public abstract class BaseProcessor<
 
                     @Override
                     public void url(String url, Map<String, String> labels) {
-                      final var entry = node.putObject("result");
+                      final ObjectNode entry = node.putObject("result");
                       entry.putPOJO("url", url);
                       entry.putPOJO("labels", labels);
                     }
@@ -640,7 +641,7 @@ public abstract class BaseProcessor<
                           }
                         });
                 if (size.decrementAndGet() == 0) {
-                  final var cleanup = activeWorkflow.cleanup();
+                  final JsonNode cleanup = activeWorkflow.cleanup();
                   if (cleanup == null) {
                     workflow().succeeded(transaction);
                   } else {
@@ -755,8 +756,8 @@ public abstract class BaseProcessor<
 
         @Override
         public JsonNode serialize(ProvisionData result) {
-          final var node = mapper().createObjectNode();
-          final var info = node.putObject("info");
+          final ObjectNode node = mapper().createObjectNode();
+          final ObjectNode info = node.putObject("info");
           info.putPOJO("ids", result.ids());
           info.putPOJO("labels", result.labels());
           result
@@ -766,7 +767,7 @@ public abstract class BaseProcessor<
                     @Override
                     public void file(String storagePath, String checksum, String checksumType,
                         long size, String metatype) {
-                      final var file = node.putObject("result");
+                      final ObjectNode file = node.putObject("result");
                       file.put("path", storagePath);
                       file.put("checksum", checksum);
                       file.put("checksumType", checksumType);
@@ -776,7 +777,7 @@ public abstract class BaseProcessor<
 
                     @Override
                     public void url(String url, Map<String, String> labels) {
-                      final var entry = node.putObject("result");
+                      final ObjectNode entry = node.putObject("result");
                       entry.putPOJO("url", url);
                       entry.putPOJO("labels", labels);
                     }
@@ -856,8 +857,8 @@ public abstract class BaseProcessor<
   }
 
   public static String hexDigits(byte[] bytes) {
-    final var buffer = new StringBuilder();
-    for (final var b : bytes) {
+    final StringBuilder buffer = new StringBuilder();
+    for (final byte b : bytes) {
       buffer.append(String.format("%02x", b));
     }
     return buffer.toString();
@@ -951,10 +952,10 @@ public abstract class BaseProcessor<
         inTransaction(transaction -> start(target, definition, workflow, transaction));
         break;
       case PREFLIGHT:
-        final var p1 =
+        final Phase1Preflight p1 =
             new Phase1Preflight(
                 target, activeOperations.size(), workflow, definition, workflow.isPreflightOkay());
-        for (final var operation : activeOperations) {
+        for (final PO operation : activeOperations) {
           if (operation.status().equals(OperationStatus.SUCCEEDED) || operation.status()
               .equals(OperationStatus.FAILED)) {
             p1.release(operation.status().equals(OperationStatus.SUCCEEDED));
@@ -970,7 +971,7 @@ public abstract class BaseProcessor<
         }
         break;
       case PROVISION_IN:
-        final var p2 = new Phase2ProvisionIn(target, activeOperations.size(), definition, workflow);
+        final Phase2ProvisionIn p2 = new Phase2ProvisionIn(target, activeOperations.size(), definition, workflow);
         if (activeOperations.stream().allMatch(o -> o.status().equals(OperationStatus.SUCCEEDED))) {
           inTransaction(
               transaction -> {
@@ -979,7 +980,7 @@ public abstract class BaseProcessor<
               }
           );
         } else {
-          for (final var operation : activeOperations) {
+          for (final PO operation : activeOperations) {
             if (operation.status().equals(OperationStatus.SUCCEEDED)) {
               // update the count of outstanding operations
               p2.size.decrementAndGet();
@@ -998,7 +999,7 @@ public abstract class BaseProcessor<
         /*
          * The constructor of Phase3Run enforces that activeOperations.size() >1 is illegal
          */
-        final var p3 = new Phase3Run(target, definition, activeOperations.size(), workflow);
+        final Phase3Run p3 = new Phase3Run(target, definition, activeOperations.size(), workflow);
         if (activeOperations.stream().allMatch(o -> o.status().equals(OperationStatus.SUCCEEDED))) {
           inTransaction(
               transaction -> {
@@ -1055,7 +1056,7 @@ public abstract class BaseProcessor<
               }
           );
         } else {
-          for (final var operation : activeOperations) {
+          for (final PO operation : activeOperations) {
             TaskStarter.of(
                     "",
                     target
@@ -1068,13 +1069,13 @@ public abstract class BaseProcessor<
         }
         break;
       case PROVISION_OUT:
-        final var p4 =
+        final Phase4ProvisionOut p4 =
             new Phase4ProvisionOut(target, definition, activeOperations.size(), workflow);
         if (activeOperations.stream().allMatch(o -> o.status().equals(OperationStatus.SUCCEEDED))) {
           // SUCCEEDED means we've already created the file entries in the db, so all that's left to do is clean up
           inTransaction(
               transaction -> {
-                final var cleanup = workflow.cleanup();
+                final JsonNode cleanup = workflow.cleanup();
                 if (cleanup == null) {
                   workflow.succeeded(transaction);
                 } else {
@@ -1086,7 +1087,7 @@ public abstract class BaseProcessor<
                 }
               });
         } else {
-          for (final var operation : activeOperations) {
+          for (final PO operation : activeOperations) {
             if (operation.status().equals(OperationStatus.SUCCEEDED)) {
               // update the count of outstanding operations
               p4.size.decrementAndGet();
@@ -1117,11 +1118,11 @@ public abstract class BaseProcessor<
         }
         break;
       case CLEANUP:
-        final var p5 = new Phase5Cleanup(definition, workflow);
+        final Phase5Cleanup p5 = new Phase5Cleanup(definition, workflow);
         if (activeOperations.stream().allMatch(o -> o.status().equals(OperationStatus.SUCCEEDED))) {
           inTransaction(workflow::succeeded);
         } else {
-          for (final var operation : activeOperations) {
+          for (final PO operation : activeOperations) {
             TaskStarter.of("", target.engine().cleanup().recover(operation.recoveryState()))
                 .start(this, operation, p5.createTerminal(operation));
           }
@@ -1135,13 +1136,13 @@ public abstract class BaseProcessor<
             .get("metadata");
         final OffsetDateTime originalCompleted = OffsetDateTime.ofInstant(
             Instant.ofEpochSecond(metadata.get("originalCompleted").asInt()), ZoneId.of(metadata.get("originalCompletedOffset").textValue()));
-        final var bonusPhase =
+        final BonusPhaseReprovision bonusPhase =
             new BonusPhaseReprovision(target, definition, activeOperations.size(), workflow, originalCompleted);
         if (activeOperations.stream().allMatch(o -> o.status().equals(OperationStatus.SUCCEEDED))) {
           // SUCCEEDED means we've already created the file entries in the db, so all that's left to do is clean up
           inTransaction(
               transaction -> {
-                final var cleanup = workflow.cleanup();
+                final JsonNode cleanup = workflow.cleanup();
                 if (cleanup == null) {
                   workflow.succeeded(transaction);
                 } else {
@@ -1153,7 +1154,7 @@ public abstract class BaseProcessor<
                 }
               });
         } else {
-          for (final var operation : activeOperations) {
+          for (final PO operation : activeOperations) {
             if (operation.status().equals(OperationStatus.SUCCEEDED)) {
               // update the count of outstanding operations
               bonusPhase.size.decrementAndGet();
@@ -1178,11 +1179,11 @@ public abstract class BaseProcessor<
       Map<ProvenanceAnalysisRecord<ExternalId>, JsonNode> analysisInfo,
       OffsetDateTime originalCompleted,
       TX transaction) {
-    final var tasks = new ArrayList<TaskStarter<ProvisionData>>();
-    final var allIds = workflow.inputIds();
+    final ArrayList<TaskStarter<ProvisionData>> tasks = new ArrayList<>();
+    final Set<ExternalId> allIds = workflow.inputIds();
 
     for (Entry<ProvenanceAnalysisRecord<ExternalId>, JsonNode> analysis : analysisInfo.entrySet()) {
-      final var isOk = new AtomicBoolean(true);
+      final AtomicBoolean isOk = new AtomicBoolean(true);
       // URL not supported
       // `data` is literally just the path of the original file, metadata is `{outputDirectory: target path}`
       if (analysis.getKey().getType().equals("file")) {
@@ -1201,17 +1202,17 @@ public abstract class BaseProcessor<
       workflow.phase(Phase.FAILED, Collections.emptyList(), transaction);
       return;
     }
-    final var initialStates = tasks.stream().map((starter) -> TaskStarter.toPair(starter, mapper()))
+    final List<Pair<String, JsonNode>> initialStates = tasks.stream().map((starter) -> TaskStarter.toPair(starter, mapper()))
         .toList();
-    final var phaseManager = new BonusPhaseReprovision(target, definition, tasks.size(), workflow,
+    final BonusPhaseReprovision phaseManager = new BonusPhaseReprovision(target, definition, tasks.size(), workflow,
         originalCompleted);
-    final var operations = workflow.phase(Phase.REPROVISION, initialStates, transaction);
+    final List<PO> operations = workflow.phase(Phase.REPROVISION, initialStates, transaction);
     if (operations.size() != tasks.size()) {
       // The backing store has decided to abandon this workflow run
       return;
     }
     for (int i = 0; i < tasks.size(); i++) {
-      final var operation = operations.get(i);
+      final PO operation = operations.get(i);
       tasks.get(i).start(this, operation, phaseManager.createTerminal(operation));
     }
   }
@@ -1219,9 +1220,9 @@ public abstract class BaseProcessor<
 
 
   protected void start(Target target, WorkflowDefinition definition, W workflow, TX transaction) {
-    final var preflightSteps = new ArrayList<TaskStarter<Boolean>>();
-    final var requestedExternalIds = new HashSet<ExternalId>();
-    final var extraInputIdsHandled = new AtomicBoolean();
+    final ArrayList<TaskStarter<Boolean>> preflightSteps = new ArrayList<>();
+    final HashSet<ExternalId> requestedExternalIds = new HashSet<>();
+    final AtomicBoolean extraInputIdsHandled = new AtomicBoolean();
     if (definition
         .outputs()
         .allMatch(
@@ -1256,17 +1257,17 @@ public abstract class BaseProcessor<
       currentPhase.workflow().phase(Phase.FAILED, Collections.emptyList(), transaction);
       return;
     }
-    final var initialStates =
+    final List<Pair<String, JsonNode>> initialStates =
         nextPhaseSteps.stream().map((starter) -> TaskStarter.toPair(starter, mapper())).toList();
-    final var nextPhaseManager = currentPhase.startNext(initialStates.size());
-    final var operations =
+    final PhaseManager<W, R, ?, PO> nextPhaseManager = currentPhase.startNext(initialStates.size());
+    final List<PO> operations =
         currentPhase.workflow().phase(nextPhaseManager.phase(), initialStates, transaction);
     if (operations.size() != nextPhaseSteps.size()) {
       // The backing store has decided to abandon this workflow run.
       return;
     }
-    for (var index = 0; index < nextPhaseSteps.size(); index++) {
-      final var operation = operations.get(index);
+    for (int index = 0; index < nextPhaseSteps.size(); index++) {
+      final PO operation = operations.get(index);
       nextPhaseSteps.get(index).start(this, operation, nextPhaseManager.createTerminal(operation));
     }
   }

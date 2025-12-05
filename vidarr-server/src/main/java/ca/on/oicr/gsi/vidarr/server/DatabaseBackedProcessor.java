@@ -1242,13 +1242,13 @@ public abstract class DatabaseBackedProcessor
                           // just get the first workflow run metadatum available.
                           // No writing is done with this information, so it's ok.
                           JsonNode workflowRunMetadataPart = null;
-                          var metadataIterator = metadata.iterator();
+                          Iterator<JsonNode> metadataIterator = metadata.iterator();
                           while (metadataIterator.hasNext() && null == workflowRunMetadataPart) {
-                            var metadatum = metadataIterator.next();
+                            JsonNode metadatum = metadataIterator.next();
                             ArrayNode contents = (ArrayNode) metadatum.get("contents");
-                            var contentsIterator = contents.elements();
+                            Iterator<JsonNode> contentsIterator = contents.elements();
                             while (contentsIterator.hasNext()) {
-                              var content = contentsIterator.next();
+                              JsonNode content = contentsIterator.next();
                               if (content.has("originalDirectory")) {
                                 workflowRunMetadataPart = content;
                                 break;

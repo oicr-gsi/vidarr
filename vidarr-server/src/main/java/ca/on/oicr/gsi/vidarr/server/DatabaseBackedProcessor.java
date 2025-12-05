@@ -61,6 +61,7 @@ import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import com.zaxxer.hikari.HikariDataSource;
 import io.prometheus.client.Counter;
 import io.prometheus.client.Gauge;
+import io.undertow.util.StatusCodes;
 import java.io.IOError;
 import java.lang.ref.SoftReference;
 import java.nio.charset.StandardCharsets;
@@ -729,7 +730,8 @@ public abstract class DatabaseBackedProcessor
   }
 
   final void recover(Consumer<Runnable> startRaw, MaxInFlightByWorkflow maxInflightByWorkflow,
-      Map<String, OutputProvisioner<?, ?>> outputProvisioners)
+      Map<String, OutputProvisioner<?, ?>> outputProvisioners,
+      Map<String, Semaphore> reprovisionCounter)
       throws SQLException {
     try (final Connection connection = dataSource.getConnection()) {
       DSL.using(connection, SQLDialect.POSTGRES)
@@ -805,6 +807,11 @@ public abstract class DatabaseBackedProcessor
                             try{
                             System.err.printf("Recovering reprovisioning task for %s...%n", record.get(WORKFLOW_RUN.HASH_ID));
 
+                              Semaphore s = reprovisionCounter.getOrDefault(record.get(WORKFLOW_RUN.HASH_ID), new Semaphore(1));
+                              if(!s.tryAcquire()){
+                                throw new Exception("There is already a reprovision request on this workflow run right now. Please try again later.");
+                              }
+                              reprovisionCounter.put(record.get(WORKFLOW_RUN.HASH_ID), s);
                             final List<DatabaseOperation> activeOperations =
                                 operations.getOrDefault(
                                     record.get(ACTIVE_WORKFLOW_RUN.ID), List.of());
@@ -849,6 +856,7 @@ public abstract class DatabaseBackedProcessor
                                 workflow,
                                 activeOperations,
                                 RecoveryType.RECOVER);
+                              reprovisionCounter.get(record.get(WORKFLOW_RUN.HASH_ID)).release();
                             } catch (Exception e) {
                               String erroneousHash = record.get(WORKFLOW_RUN.HASH_ID);
                               System.err.printf(

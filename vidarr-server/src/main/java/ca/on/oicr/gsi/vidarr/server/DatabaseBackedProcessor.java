@@ -1236,27 +1236,35 @@ public abstract class DatabaseBackedProcessor
                           analysisObject.setExternalKeys(
                               externalIdsByAnalysis.get(analysisId).stream().toList());
 
-                          // Workflow run metadata is split up by analysis file, but we cannot
-                          // get them by name because that information is lost. We must use the
-                          // path instead.
-                          // Check that the workflow run metadata's `originalDirectory` corresponds
-                          // to the paths already set on the analysis object, then associate
-                          // just that part of the metadata
+                          // Associate the analysis object with some metadata
+                          // We have to get this from the workflow run, but because in normal
+                          // operation there is only ever 1 outputDirectory for a run, we can
+                          // just get the first workflow run metadatum available.
+                          // No writing is done with this information, so it's ok.
                           JsonNode workflowRunMetadataPart = null;
                           var metadataIterator = metadata.iterator();
-                          while (metadataIterator.hasNext()) {
+                          while (metadataIterator.hasNext() && null == workflowRunMetadataPart) {
                             var metadatum = metadataIterator.next();
                             ArrayNode contents = (ArrayNode) metadatum.get("contents");
                             var contentsIterator = contents.elements();
                             while (contentsIterator.hasNext()) {
                               var content = contentsIterator.next();
-                              if (content.has("originalDirectory") && analysisObject.getPath()
-                                  .startsWith(content.get(
-                                      "originalDirectory").textValue())) {
+                              if (content.has("originalDirectory")) {
                                 workflowRunMetadataPart = content;
                                 break;
                               }
                             }
+                          }
+                          if(null == workflowRunMetadataPart){
+                            handler.invalidWorkflow(Set.of(
+                              String.format("Unable to correlate workflow run %s with metadata %s to analysis %s with path %s%n",
+                                  workflowRunId,
+                                  metadata.textValue(),
+                                  analysisId,
+                                  analysisObject.getPath()
+                                  )
+                              )
+                            );
                           }
                           analysis.put(analysisObject, workflowRunMetadataPart);
                         });

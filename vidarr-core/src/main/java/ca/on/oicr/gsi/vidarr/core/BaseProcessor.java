@@ -805,8 +805,7 @@ public abstract class BaseProcessor<
 
                           @Override
                           public void url(String url, Map<String, String> labels) {
-                            workflow()
-                                .provisionUrl(result.ids(), url, result.labels(), transaction);
+                            throw new UnsupportedOperationException("Cannot reprovision URLs at this time.");
                           }
                         });
                 activeWorkflow.succeeded(originalCompleted, transaction);

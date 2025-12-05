@@ -1124,7 +1124,7 @@ public abstract class DatabaseBackedProcessor
     // New target to aim the new job at
     Target newTarget = makeReprovisionTarget(provisioner);
 
-    // Create a new active_workflow_runs from the existing and finished workflow_runs
+    // Create a new active_workflow_run from the existing and finished workflow_run
     try {
       try (final Connection connection = dataSource.getConnection()) {
         DSL.using(connection, SQLDialect.POSTGRES)
@@ -1137,7 +1137,9 @@ public abstract class DatabaseBackedProcessor
                               .join(WORKFLOW_VERSION)
                               .on(WORKFLOW_RUN.WORKFLOW_VERSION_ID.eq(WORKFLOW_VERSION.ID)))
                       .where(WORKFLOW_RUN.HASH_ID.eq(workflowRunId)
-                          .and(WORKFLOW_RUN.COMPLETED.isNotNull()))
+                          .and(WORKFLOW_RUN.ID.notIn(
+                              dsl.select(ACTIVE_WORKFLOW_RUN.ID)
+                                  .from(ACTIVE_WORKFLOW_RUN))))
                       .fetch();
                   if (result.isNotEmpty() && result.size() == 1) {
                     Record record = result.get(0);
@@ -1214,7 +1216,7 @@ public abstract class DatabaseBackedProcessor
                               );
                           temp.setExternalKeys(
                               externalIds.get(analysisId).stream().toList());
-
+                          // sanity check
                           JsonNode tempMetadata = null;
                           // wish I could stream a json, but no
                           var metadataIterator = metadata.iterator();
@@ -1282,7 +1284,6 @@ public abstract class DatabaseBackedProcessor
                                   inTransaction(
                                       runTransaction ->
                                           DatabaseBackedProcessor.this.reprovision(
-                                              // runs when new workflow run submitted
                                               newTarget, definition.get().definition(),
                                               dbWorkflow, analysis, originalCompleted,
                                               runTransaction));

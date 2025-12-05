@@ -808,7 +808,9 @@ public abstract class BaseProcessor<
                             throw new UnsupportedOperationException("Cannot reprovision URLs at this time.");
                           }
                         });
-                activeWorkflow.succeeded(originalCompleted, transaction);
+                if (size.decrementAndGet() == 0){
+                  activeWorkflow.succeeded(originalCompleted, transaction);
+                }
               });
         }
       };

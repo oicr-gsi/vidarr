@@ -1150,6 +1150,8 @@ public abstract class DatabaseBackedProcessor
                                   .from(ACTIVE_WORKFLOW_RUN))))
                       .fetch();
                   if (result.isNotEmpty() && result.size() == 1) {
+                    // Populate the workflow run metadata with information will we need
+                    // for reprovisioning or recovery
                     Record record = result.get(0);
                     JsonNode metadata = record.get(WORKFLOW_RUN.METADATA);
                     OffsetDateTime originalCompleted = record.get(WORKFLOW_RUN.COMPLETED);
@@ -1163,18 +1165,21 @@ public abstract class DatabaseBackedProcessor
                         if (content.has("outputDirectory")) {
                           content.set("originalDirectory", content.get("outputDirectory"));
                           content.put("outputDirectory", outputPath);
-                        }
-                        content.put("outputReprovisioner", provisionerName);
-                        content.put("originalCompleted", originalCompleted.toInstant().getEpochSecond());
-                        content.put("originalCompletedOffset", originalCompleted.getOffset().toString());
+                          content.put("outputReprovisioner", provisionerName);
+                          content.put("originalCompleted", originalCompleted.toInstant().getEpochSecond());
+                          content.put("originalCompletedOffset", originalCompleted.getOffset().toString());
+                        } // else there's some other kind of content here, maybe the next one
                       }
                     }
+
+                    // Null out Completed time in database if it wasn't already
                     dsl.update(WORKFLOW_RUN)
                         .setNull(WORKFLOW_RUN.COMPLETED)
                         .set(WORKFLOW_RUN.METADATA, metadata)
                         .where(WORKFLOW_RUN.HASH_ID.eq(record.get(WORKFLOW_RUN.HASH_ID)))
                         .execute();
 
+                    // Get workflow definition needed downstream
                     Optional<WorkflowInformation> definition;
                     try {
                       definition = getWorkflowByName(
@@ -1184,49 +1189,60 @@ public abstract class DatabaseBackedProcessor
                       throw new RuntimeException(e);
                     }
 
-                    // Get the analysis, and also the external ids
+                    // Get the analysis, and also the external ids for those analysis records
                     Map<ProvenanceAnalysisRecord<ExternalId>, JsonNode> analysis = new HashMap<>();
-                    Map<Integer, Set<ExternalId>> externalIds = new HashMap<>();
+                    Map<Integer, Set<ExternalId>> externalIdsByAnalysis = new HashMap<>();
                     dsl.select()
                         .from(ANALYSIS)
                         .where(ANALYSIS.WORKFLOW_RUN_ID.eq(record.get(WORKFLOW_RUN.ID)))
-                        .forEach(r -> {
-                          ProvenanceAnalysisRecord<ExternalId> temp = new ProvenanceAnalysisRecord<>();
-                          temp.setId(r.get(ANALYSIS.HASH_ID));
-                          temp.setType(r.get(ANALYSIS.ANALYSIS_TYPE));
-                          temp.setChecksum(r.get(ANALYSIS.FILE_CHECKSUM));
-                          temp.setChecksumType(r.get(ANALYSIS.FILE_CHECKSUM_TYPE));
-                          temp.setMetatype(r.get(ANALYSIS.FILE_METATYPE));
-                          temp.setPath(r.get(ANALYSIS.FILE_PATH));
-                          temp.setSize(r.get(ANALYSIS.FILE_SIZE));
 
-                          temp.setLabels(
+                        // For every analysis record associated with this workflow run, create
+                        // an object for use downstream
+                        .forEach(analysisDbRecord -> {
+                          ProvenanceAnalysisRecord<ExternalId> analysisObject = new ProvenanceAnalysisRecord<>();
+                          analysisObject.setId(analysisDbRecord.get(ANALYSIS.HASH_ID));
+                          analysisObject.setType(analysisDbRecord.get(ANALYSIS.ANALYSIS_TYPE));
+                          analysisObject.setChecksum(analysisDbRecord.get(ANALYSIS.FILE_CHECKSUM));
+                          analysisObject.setChecksumType(analysisDbRecord.get(ANALYSIS.FILE_CHECKSUM_TYPE));
+                          analysisObject.setMetatype(analysisDbRecord.get(ANALYSIS.FILE_METATYPE));
+                          analysisObject.setPath(analysisDbRecord.get(ANALYSIS.FILE_PATH));
+                          analysisObject.setSize(analysisDbRecord.get(ANALYSIS.FILE_SIZE));
+
+                          analysisObject.setLabels(
                               mapper().convertValue(new PostgresJSONBBinding().converter()
-                                  .from(r.get(ANALYSIS.LABELS)), new TypeReference<>() {}));
-                          temp.setWorkflowRun(record.get(WORKFLOW_RUN.HASH_ID));
-                          temp.setCreated(r.get(ANALYSIS.CREATED).toZonedDateTime());
+                                  .from(analysisDbRecord.get(ANALYSIS.LABELS)), new TypeReference<>() {}));
+                          analysisObject.setWorkflowRun(record.get(WORKFLOW_RUN.HASH_ID));
+                          analysisObject.setCreated(analysisDbRecord.get(ANALYSIS.CREATED).toZonedDateTime());
 
-                          Integer analysisId = r.get(ANALYSIS.ID);
+                          // Get the external IDs associated with this analysis record
+                          Integer analysisId = analysisDbRecord.get(ANALYSIS.ID);
                           dsl.select()
                               .from(EXTERNAL_ID)
                               .join(ANALYSIS_EXTERNAL_ID)
                               .on(EXTERNAL_ID.ID.eq(ANALYSIS_EXTERNAL_ID.EXTERNAL_ID_ID))
                               .where(ANALYSIS_EXTERNAL_ID.ANALYSIS_ID.eq(analysisId))
-                              .forEach(r2 -> {
-                                    Set<ExternalId> tempSet =
-                                        externalIds.containsKey(analysisId) ? externalIds.get(
+
+                              // Build a set of external ids and associate it to the analysis id
+                              .forEach(externalIdDbRecord -> {
+                                    Set<ExternalId> externalIdsForAnalysisRecord =
+                                        externalIdsByAnalysis.containsKey(analysisId) ? externalIdsByAnalysis.get(
                                             analysisId)
                                             : new HashSet<>();
-                                    tempSet.add(new ExternalId(r2.get(EXTERNAL_ID.PROVIDER),
-                                        r2.get(EXTERNAL_ID.EXTERNAL_ID_)));
-                                    externalIds.put(analysisId, tempSet);
+                                    externalIdsForAnalysisRecord.add(new ExternalId(externalIdDbRecord.get(EXTERNAL_ID.PROVIDER),
+                                        externalIdDbRecord.get(EXTERNAL_ID.EXTERNAL_ID_)));
+                                    externalIdsByAnalysis.put(analysisId, externalIdsForAnalysisRecord);
                                   }
                               );
-                          temp.setExternalKeys(
-                              externalIds.get(analysisId).stream().toList());
-                          // sanity check
-                          JsonNode tempMetadata = null;
-                          // wish I could stream a json, but no
+                          analysisObject.setExternalKeys(
+                              externalIdsByAnalysis.get(analysisId).stream().toList());
+
+                          // Workflow run metadata is split up by analysis file, but we cannot
+                          // get them by name because that information is lost. We must use the
+                          // path instead.
+                          // Check that the workflow run metadata's `originalDirectory` corresponds
+                          // to the paths already set on the analysis object, then associate
+                          // just that part of the metadata
+                          JsonNode workflowRunMetadataPart = null;
                           var metadataIterator = metadata.iterator();
                           while (metadataIterator.hasNext()) {
                             var metadatum = metadataIterator.next();
@@ -1234,16 +1250,15 @@ public abstract class DatabaseBackedProcessor
                             var contentsIterator = contents.elements();
                             while (contentsIterator.hasNext()) {
                               var content = contentsIterator.next();
-                              if (content.has("originalDirectory") && temp.getPath()
+                              if (content.has("originalDirectory") && analysisObject.getPath()
                                   .startsWith(content.get(
                                       "originalDirectory").textValue())) {
-                                tempMetadata = content;
+                                workflowRunMetadataPart = content;
                                 break;
                               }
                             }
                           }
-
-                          analysis.put(temp, tempMetadata);
+                          analysis.put(analysisObject, workflowRunMetadataPart);
                         });
 
                     try {
@@ -1257,7 +1272,7 @@ public abstract class DatabaseBackedProcessor
                           record.get(WORKFLOW_RUN.ARGUMENTS),
                           record.get(WORKFLOW_RUN.ENGINE_PARAMETERS),
                           metadata,
-                          externalIds.values().stream().flatMap(Collection::stream).collect(
+                          externalIdsByAnalysis.values().stream().flatMap(Collection::stream).collect(
                               Collectors.toSet()),
                           Map.of(), //empty consumable resources
                           record.get(WORKFLOW_RUN.CREATED).toInstant(),

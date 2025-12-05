@@ -1332,7 +1332,10 @@ public abstract class DatabaseBackedProcessor
                     ret.set(handler.invalidWorkflow(
                         Set.of(
                             String.format(
-                                "No record for workflow run hash id %s%n",
+                                "No record for workflow run hash id %s. Either the workflow run "
+                                    + "doesn't exist, or it does exist and is actively running - "
+                                    + "reprovisioning can only be performed on completed workflow "
+                                    + "runs%n",
                                 workflowRunId))));
                   }
                 });

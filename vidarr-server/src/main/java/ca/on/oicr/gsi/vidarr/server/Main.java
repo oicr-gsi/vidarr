@@ -2466,7 +2466,7 @@ public final class Main implements ServerConfig {
 
   private void recover() throws SQLException {
     final ArrayList<Runnable> recoveredWorkflows = new ArrayList<>();
-    processor.recover(recoveredWorkflows::add, this.maxInFlightPerWorkflow, outputProvisioners);
+    processor.recover(recoveredWorkflows::add, this.maxInFlightPerWorkflow, outputProvisioners, reprovisionCounter);
     if (recoveredWorkflows.isEmpty()) {
       System.err.println("No unstarted workflows in the database. Resuming normal operation.");
     } else {

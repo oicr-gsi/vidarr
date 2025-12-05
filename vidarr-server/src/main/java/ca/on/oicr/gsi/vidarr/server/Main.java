@@ -409,6 +409,7 @@ public final class Main implements ServerConfig {
                             MAPPER,
                             ReprovisionOutRequest.class,
                             server::reprovisionOut))))
+                .post("/api/import", monitor(new BlockingHandler(JsonPost.parse(MAPPER, ImportRequest.class, server::importRun))))
                 .delete(
                     "/api/status/{hash}", monitor(new BlockingHandler(server::deleteWorkflowRun)))
                 .post(
@@ -462,6 +463,18 @@ public final class Main implements ServerConfig {
             .build();
     undertow.start();
     server.recover();
+  }
+
+  private void importRun(HttpServerExchange httpServerExchange, ImportRequest importRequest) {
+    if(importRequest.getWorkflowRuns().isEmpty()){
+      // TODO bad
+    } else if (importRequest.getWorkflowRuns().size() > 1){
+      // TODO not supported
+    }
+    String hash = importRequest.getWorkflowRuns().get(0).getId();
+    load(httpServerExchange, importRequest, false);
+    // TODO if exchange's status is not 200, bail
+    reprovisionOut(httpServerExchange, importRequest.reprovision(hash));
   }
 
   private void reprovisionOut(HttpServerExchange exchange,

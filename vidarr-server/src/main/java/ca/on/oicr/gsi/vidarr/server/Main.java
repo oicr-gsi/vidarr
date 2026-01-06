@@ -465,6 +465,14 @@ public final class Main implements ServerConfig {
     server.recover();
   }
 
+  /**
+   * Takes a request which is a combination of a load request and a reprovision request.
+   * Does an unverified load and gets the hash back from the unverified loading process,
+   * then reprovisions files from the workflow run to the location specified in the request.
+   *
+   * @param httpServerExchange
+   * @param importRequest
+   */
   private void importRun(HttpServerExchange httpServerExchange, ImportRequest importRequest) {
     try {
       if (importRequest.getWorkflowRuns().isEmpty()) {

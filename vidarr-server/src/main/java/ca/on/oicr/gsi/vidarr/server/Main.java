@@ -386,7 +386,7 @@ public final class Main implements ServerConfig {
                             JsonPost.parse(
                                 MAPPER,
                                 UnloadedData.class,
-                                (exchange, data) -> server.load(exchange, data, true)))))
+                                (exchange, data) -> server.load(exchange, data, true, true)))))
                 .post(
                     "/api/load-injected",
                     monitor(
@@ -394,7 +394,7 @@ public final class Main implements ServerConfig {
                             JsonPost.parse(
                                 MAPPER,
                                 UnloadedData.class,
-                                (exchange, data) -> server.load(exchange, data, false)))))
+                                (exchange, data) -> server.load(exchange, data, false, true)))))
                 .post(
                     "/api/retry-provision-out",
                     monitor(
@@ -466,15 +466,28 @@ public final class Main implements ServerConfig {
   }
 
   private void importRun(HttpServerExchange httpServerExchange, ImportRequest importRequest) {
-    if(importRequest.getWorkflowRuns().isEmpty()){
-      // TODO bad
-    } else if (importRequest.getWorkflowRuns().size() > 1){
-      // TODO not supported
+    try {
+      if (importRequest.getWorkflowRuns().isEmpty()) {
+        throw new Exception("Import request missing workflow runs.");
+      } else if (importRequest.getWorkflowRuns().size() > 1) {
+        throw new Exception("Importing >1 workflow runs not supported at this time.");
+      }
+      String hash = importRequest.getWorkflowRuns().get(0).getId();
+      load(httpServerExchange, importRequest, false, false);
+
+      // If loading fails, then the exchange will be terminated, pop out
+      if (httpServerExchange.isComplete()){
+        return;
+      }
+
+      // Should never happen - status code setting methods will terminate the exchange if bad
+      if (httpServerExchange.getStatusCode() / 100 != 2){
+        internalServerErrorResponse(httpServerExchange, new Exception("Unknown error"));
+      }
+      reprovisionOut(httpServerExchange, importRequest.reprovision(hash));
+    } catch (Exception e) {
+      internalServerErrorResponse(httpServerExchange, e);
     }
-    String hash = importRequest.getWorkflowRuns().get(0).getId();
-    load(httpServerExchange, importRequest, false);
-    // TODO if exchange's status is not 200, bail
-    reprovisionOut(httpServerExchange, importRequest.reprovision(hash));
   }
 
   private void reprovisionOut(HttpServerExchange exchange,
@@ -2069,7 +2082,7 @@ public final class Main implements ServerConfig {
         .fetchOptional();
   }
 
-  private void load(HttpServerExchange exchange, UnloadedData unloadedData, boolean verify) {
+  private void load(HttpServerExchange exchange, UnloadedData unloadedData, boolean verify, boolean send) {
     try {
       // We have to hold a very expensive lock to load data in the database, so we're going to do an
       // offline validation of the data to make sure it's self-consistent, then acquire the lock and
@@ -2341,7 +2354,7 @@ public final class Main implements ServerConfig {
         DSL.using(connection, SQLDialect.POSTGRES)
             .transaction(
                 configuration -> loadDataIntoDatabase(unloadedData, workflowInfo, configuration));
-        okEmptyResponse(exchange);
+        okEmptyResponse(exchange, send);
       } catch (IllegalArgumentException e) {
         badRequestResponse(exchange, e.getMessage());
       } catch (Exception e) {
@@ -3000,23 +3013,42 @@ public final class Main implements ServerConfig {
     return records.getValues(getIdsForDownstreamWorkflowRuns.WFR_ID);
   }
 
+  /*
+   Good responses - use `send` = false to chain methods together
+   */
   private void okEmptyResponse(HttpServerExchange exchange) {
+    okEmptyResponse(exchange, true);
+  }
+
+  private void okEmptyResponse(HttpServerExchange exchange, boolean send) {
     exchange.setStatusCode(StatusCodes.OK);
     exchange.getResponseHeaders().put(Headers.CONTENT_LENGTH, 0);
-    exchange.getResponseSender().send("");
+    if (send) exchange.getResponseSender().send("");
   }
 
   private void okJsonResponse(HttpServerExchange exchange, String json) {
-    exchange.setStatusCode(StatusCodes.OK);
-    exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_JSON);
-    exchange.getResponseSender().send(json);
+    okJsonResponse(exchange, json, true);
   }
 
-  private void createdResponse(HttpServerExchange exchange) {
+  private void okJsonResponse(HttpServerExchange exchange, String json, boolean send) {
+    exchange.setStatusCode(StatusCodes.OK);
+    exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_JSON);
+    if (send) exchange.getResponseSender().send(json);
+  }
+
+  private void createdResponse(HttpServerExchange exchange){
+    createdResponse(exchange, true);
+  }
+
+  private void createdResponse(HttpServerExchange exchange, boolean send) {
     exchange.setStatusCode(StatusCodes.CREATED);
     exchange.getResponseHeaders().put(Headers.CONTENT_LENGTH, 0);
-    exchange.getResponseSender().send("");
+    if (send) exchange.getResponseSender().send("");
   }
+
+  /*
+  Bad responses - must interrupt processing by sending the response
+   */
 
   private void badRequestResponse(HttpServerExchange exchange, String message) {
     exchange.setStatusCode(StatusCodes.BAD_REQUEST);

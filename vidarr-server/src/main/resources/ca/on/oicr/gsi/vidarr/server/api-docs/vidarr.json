@@ -1157,6 +1157,138 @@
         ]
       }
     },
+    "/api/import":{
+      "post": {
+        "description": "Add workflow and workflow run data to the Vidarr database without workflow run or analysis hashes, then provision-out the output files.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "workflowRuns": {
+                    "items": {
+                      "$ref": "#/components/schemas/WorkflowRun"
+                    },
+                    "type": "array"
+                  },
+                  "workflowVersions": {
+                    "items": {
+                      "description": "Workflow versions that match the items in the filter",
+                      "properties": {
+                        "accessoryFiles": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "description": "Any supplemental files required by the workflow (e.g. other workflows that are imported or included by the main workflow",
+                          "type": "object"
+                        },
+                        "language": {
+                          "$ref": "#/components/schemas/WorkflowLanguage"
+                        },
+                        "name": {
+                          "description": "The name of the workflow associated with this workflow version",
+                          "type": "string"
+                        },
+                        "outputs": {
+                          "additionalProperties": {
+                            "$ref": "#/components/schemas/OutputProvisionType"
+                          },
+                          "description": "The outputs from the workflow that should be provisioned by Víðarr.",
+                          "type": "object"
+                        },
+                        "parameters": {
+                          "additionalProperties": {
+                            "$ref": "#/components/schemas/InputType"
+                          },
+                          "description": "The user-defined labels that must be supplied with this job. This cannot be modified after the initial creation of the workflow.",
+                          "type": "object"
+                        },
+                        "version": {
+                          "description": "Version of the workflow",
+                          "type": "string"
+                        },
+                        "workflow": {
+                          "description": "Instructions of what to run with the workflow, written in the WorkflowLanguage",
+                          "type": "string"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "workflows": {
+                    "items": {
+                      "description": "Workflows that match the items in the filter",
+                      "properties": {
+                        "labels": {
+                          "additionalProperties": {
+                            "$ref": "#/components/schemas/SimpleType"
+                          },
+                          "type": "object"
+                        },
+                        "name": {
+                          "type": "string"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "workflowRunHashId": {
+                    "type": "string"
+                  },
+                  "outputProvisionerName": {
+                    "type": "string"
+                  },
+                  "outputPath": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Import successful."
+          },
+          "400": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Workflows, workflow versions, or workflow runs are malformed or in conflict with existing data"
+          },
+          "409": {
+            "description": "Workflow run ID matches multiple runs."
+          },
+          "500": {
+            "description": "Internal server error."
+          },
+          "507": {
+            "description": "There is already a reprovision underway for this workflow run."
+          }
+        },
+        "summary": "Loads a vidarr workflow run and reprovisions files",
+        "tags": [
+          "workflow-run"
+        ]
+      }
+    },
     "/api/load": {
       "post": {
         "description": "Add workflow and workflow run data to the Vidarr database.",

@@ -480,7 +480,6 @@ public final class Main implements ServerConfig {
       } else if (importRequest.getWorkflowRuns().size() > 1) {
         throw new Exception("Importing >1 workflow runs not supported at this time.");
       }
-      String hash = importRequest.getWorkflowRuns().get(0).getId();
       load(httpServerExchange, importRequest, false, false);
 
       // If loading fails, then the exchange will be terminated, pop out
@@ -492,7 +491,8 @@ public final class Main implements ServerConfig {
       if (httpServerExchange.getStatusCode() / 100 != 2){
         internalServerErrorResponse(httpServerExchange, new Exception("Unknown error"));
       }
-      reprovisionOut(httpServerExchange, importRequest.reprovision(hash));
+      reprovisionOut(httpServerExchange,
+          importRequest.reprovision(importRequest.getWorkflowRuns().get(0).getId()));
     } catch (Exception e) {
       internalServerErrorResponse(httpServerExchange, e);
     }

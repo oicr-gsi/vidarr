@@ -36,13 +36,6 @@ final class ConsumableResourceChecker implements Runnable {
           .labelNames("workflow")
           .register();
 
-  private static final Counter waitRounds =
-      Counter.build(
-              "vidarr_consumable_resource_wait_rounds",
-              "How many rounds a workflow run had to wait for")
-          .labelNames("id")
-          .register();
-
   private static final Counter evaluationExceptions =
       Counter.build(
               "vidarr_consumable_resource_evaluation_exceptions",
@@ -93,7 +86,6 @@ final class ConsumableResourceChecker implements Runnable {
   @Override
   public void run() {
     if (!isLive.get()) {
-      waitRounds.remove(vidarrId);
       // Each resource performs a check and only releases resources if they've been acquired
       target
           .consumableResources()
@@ -186,12 +178,10 @@ final class ConsumableResourceChecker implements Runnable {
     tracing.put("vidarr-waiting", waiting);
     updateBlockedResource(null);
     waitTime.labels(workflow).observe(waiting);
-    waitRounds.remove(vidarrId);
     next.run();
   }
 
   private void updateBlockedResource(String error) {
-    waitRounds.labels(vidarrId).inc();
     try (final Connection connection = dataSource.getConnection()) {
       DSL.using(connection, SQLDialect.POSTGRES)
           .transaction(

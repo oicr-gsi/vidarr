@@ -78,6 +78,7 @@ import io.undertow.server.handlers.ExceptionHandler;
 import io.undertow.server.handlers.PathHandler;
 import io.undertow.server.handlers.resource.ClassPathResourceManager;
 import io.undertow.server.handlers.resource.ResourceHandler;
+import io.undertow.util.AttachmentKey;
 import io.undertow.util.Headers;
 import io.undertow.util.PathTemplateMatch;
 import io.undertow.util.StatusCodes;
@@ -480,6 +481,7 @@ public final class Main implements ServerConfig {
       } else if (importRequest.getWorkflowRuns().size() > 1) {
         throw new Exception("Importing >1 workflow runs not supported at this time.");
       }
+      // verify = false causes load() to generate a new hash and apply it to the workflow run object
       load(httpServerExchange, importRequest, false, false);
 
       // If loading fails, then the exchange will be terminated, pop out
@@ -491,6 +493,8 @@ public final class Main implements ServerConfig {
       if (httpServerExchange.getStatusCode() / 100 != 2){
         internalServerErrorResponse(httpServerExchange, new Exception("Unknown error"));
       }
+
+      // Use hash id generated during load()
       reprovisionOut(httpServerExchange,
           importRequest.reprovision(importRequest.getWorkflowRuns().get(0).getId()));
     } catch (Exception e) {
@@ -3021,42 +3025,82 @@ public final class Main implements ServerConfig {
     return records.getValues(getIdsForDownstreamWorkflowRuns.WFR_ID);
   }
 
-  /*
-   Good responses - use `send` = false to chain methods together
+  // Good responses - use `send` = false to chain methods together
+
+  /**
+   * Complete the http server exchange with an OK status code.
+   *
+   * @param exchange http server exchange object
    */
   private void okEmptyResponse(HttpServerExchange exchange) {
     okEmptyResponse(exchange, true);
   }
 
+  /**
+   * Set the http server exchange with an OK status code and potentially complete the exchange.
+   *
+   * @param exchange http server exchange object
+   * @param send whether to send the response (thus completing the exchange)
+   */
   private void okEmptyResponse(HttpServerExchange exchange, boolean send) {
     exchange.setStatusCode(StatusCodes.OK);
     exchange.getResponseHeaders().put(Headers.CONTENT_LENGTH, 0);
     if (send) exchange.getResponseSender().send("");
   }
 
+  /**
+   * Complete the http server exchange with an OK status code and a json response body.
+   *
+   * @param exchange http server exchange object
+   * @param json response body as string
+   */
   private void okJsonResponse(HttpServerExchange exchange, String json) {
     okJsonResponse(exchange, json, true);
   }
 
+  /**
+   * Set the http server exchange with an OK status code and a json response body and
+   * potentially complete the exchange.
+   * If the json is not sent, it is attached to the exchange.
+   *
+   * @param exchange http server exchange object
+   * @param json response body as string
+   * @param send whether to send the response (thus completing the exchange). if false, json is
+   *             attached to the exchange.
+   */
   private void okJsonResponse(HttpServerExchange exchange, String json, boolean send) {
     exchange.setStatusCode(StatusCodes.OK);
     exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_JSON);
-    if (send) exchange.getResponseSender().send(json);
+    if (send) {
+      exchange.getResponseSender().send(json);
+    } else {
+      exchange.putAttachment(AttachmentKey.create(String.class), json);
+    }
   }
 
+  /**
+   * Complete the http server exchange with a CREATED status code.
+   *
+   * @param exchange http server exchange object
+   */
   private void createdResponse(HttpServerExchange exchange){
     createdResponse(exchange, true);
   }
 
+  /**
+   * Set the http server exchange with a CREATED status code and potentially complete the
+   * exchange.
+   *
+   * @param exchange http server exchange object
+   * @param send whether to send the response (thus completing the exchange)
+   */
   private void createdResponse(HttpServerExchange exchange, boolean send) {
     exchange.setStatusCode(StatusCodes.CREATED);
     exchange.getResponseHeaders().put(Headers.CONTENT_LENGTH, 0);
     if (send) exchange.getResponseSender().send("");
   }
 
-  /*
-  Bad responses - must interrupt processing by sending the response
-   */
+  // Bad responses - must interrupt processing by sending the response
 
   private void badRequestResponse(HttpServerExchange exchange, String message) {
     exchange.setStatusCode(StatusCodes.BAD_REQUEST);

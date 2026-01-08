@@ -1177,14 +1177,14 @@
                   },
                   "workflowVersions": {
                     "items": {
-                      "description": "Workflow versions that match the items in the filter",
+                      "description": "Workflow version for the workflow run",
                       "$ref": "#/components/schemas/WorkflowVersion"
                     },
                     "type": "array"
                   },
                   "workflows": {
                     "items": {
-                      "description": "Workflows that match the items in the filter",
+                      "description": "Workflow definition for the workflow run",
                       "$ref": "#/components/schemas/Workflow"
                     },
                     "type": "array"

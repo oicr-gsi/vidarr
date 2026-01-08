@@ -1159,7 +1159,7 @@
     },
     "/api/import":{
       "post": {
-        "description": "Add workflow and workflow run data to the Vidarr database without workflow run or analysis hashes, then provision-out the output files.",
+        "description": "Add workflow and workflow run data without workflow run or analysis hashes to the Vidarr database with new hashes, then provision-out the output files.",
         "requestBody": {
           "content": {
             "application/json": {
@@ -1255,7 +1255,8 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Workflow run hash id"
                   },
                   "type": "array"
                 }
@@ -1323,7 +1324,7 @@
     },
     "/api/load-injected": {
       "post": {
-        "description": "Add workflow and workflow run data to the Vidarr database without workflow run or analysis hashes.",
+        "description": "Add workflow and workflow run data without workflow run or analysis hashes to the Vidarr database with new hashes.",
         "requestBody": {
           "content": {
             "application/json": {

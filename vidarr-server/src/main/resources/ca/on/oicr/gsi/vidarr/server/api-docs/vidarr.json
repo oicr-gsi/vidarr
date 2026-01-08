@@ -41,18 +41,7 @@
           "workflows": {
             "items": {
               "description": "Workflows that match the items in the filter",
-              "properties": {
-                "labels": {
-                  "additionalProperties": {
-                    "$ref": "#/components/schemas/SimpleType"
-                  },
-                  "type": "object"
-                },
-                "name": {
-                  "type": "string"
-                }
-              },
-              "type": "object"
+              "$ref": "#/components/schemas/Workflow"
             },
             "type": "array"
           }
@@ -879,6 +868,19 @@
           }
         ]
       },
+      "Workflow": {
+        "properties": {
+          "labels": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SimpleType"
+            },
+            "type": "object"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
       "WorkflowLanguage": {
         "enum": [
           "UNIX_SHELL",
@@ -1183,18 +1185,7 @@
                   "workflows": {
                     "items": {
                       "description": "Workflows that match the items in the filter",
-                      "properties": {
-                        "labels": {
-                          "additionalProperties": {
-                            "$ref": "#/components/schemas/SimpleType"
-                          },
-                          "type": "object"
-                        },
-                        "name": {
-                          "type": "string"
-                        }
-                      },
-                      "type": "object"
+                      "$ref": "#/components/schemas/Workflow"
                     },
                     "type": "array"
                   },

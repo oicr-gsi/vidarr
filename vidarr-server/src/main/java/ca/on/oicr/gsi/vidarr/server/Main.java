@@ -3059,9 +3059,10 @@ public final class Main implements ServerConfig {
   }
 
   /**
-   * Set the http server exchange with an OK status code and a json response body and
-   * potentially complete the exchange.
-   * If the json is not sent, it is attached to the exchange.
+   * Set the http server exchange with an OK status code and potentially complete the exchange with
+   * a json response body.
+   * If the exchange is not completed, json is attached to the exchange instead of set as the
+   * response body.
    *
    * @param exchange http server exchange object
    * @param json response body as string

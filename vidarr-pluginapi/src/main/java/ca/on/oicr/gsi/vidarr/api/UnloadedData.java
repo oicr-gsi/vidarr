@@ -2,6 +2,7 @@ package ca.on.oicr.gsi.vidarr.api;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.util.List;
+import java.util.Objects;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class UnloadedData {
@@ -32,5 +33,21 @@ public class UnloadedData {
 
   public void setWorkflows(List<UnloadedWorkflow> workflows) {
     this.workflows = workflows;
+  }
+
+  @Override
+  public boolean equals(Object o){
+    if (this == o) return true;
+    if (null == o || this.getClass() != o.getClass()) return false;
+
+    UnloadedData other = (UnloadedData) o;
+    return Objects.deepEquals(this.workflowRuns, other.workflowRuns)
+        && Objects.deepEquals(this.workflows, other.workflows)
+        && Objects.deepEquals(this.workflowVersions, other.workflowVersions);
+  }
+
+  @Override
+  public int hashCode(){
+    return Objects.hash(workflowRuns, workflows, workflowVersions);
   }
 }

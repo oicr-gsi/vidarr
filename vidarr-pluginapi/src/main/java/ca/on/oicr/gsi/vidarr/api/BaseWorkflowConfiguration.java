@@ -5,6 +5,7 @@ import ca.on.oicr.gsi.vidarr.OutputType;
 import ca.on.oicr.gsi.vidarr.WorkflowLanguage;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Objects;
 
 /** JSON representation of a workflow definition */
 public abstract class BaseWorkflowConfiguration {
@@ -53,5 +54,22 @@ public abstract class BaseWorkflowConfiguration {
 
   public final void setWorkflow(String workflow) {
     this.workflow = workflow;
+  }
+
+  @Override
+  public boolean equals(Object o){
+    if (this == o) return true;
+    if (null == o || this.getClass() != o.getClass()) return false;
+    BaseWorkflowConfiguration other = (BaseWorkflowConfiguration) o;
+    return Objects.deepEquals(this.accessoryFiles, other.accessoryFiles)
+        && Objects.equals(this.language, other.language)
+        && Objects.deepEquals(this.outputs, other.outputs)
+        && Objects.deepEquals(this.parameters, other.parameters)
+        && Objects.equals(this.workflow, other.workflow);
+  }
+
+  @Override
+  public int hashCode(){
+    return Objects.hash(accessoryFiles, language, outputs, parameters, workflow);
   }
 }

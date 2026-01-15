@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.time.ZonedDateTime;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Stream;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -158,5 +159,37 @@ public final class ProvenanceWorkflowRun<K extends ExternalId> {
 
   public void setWorkflowVersion(String workflowVersion) {
     this.workflowVersion = workflowVersion;
+  }
+
+  @Override
+  public boolean equals(Object o){
+    if (this == o) return true;
+    if (null == o || getClass() != o.getClass()) return false;
+    ProvenanceWorkflowRun<K> other = (ProvenanceWorkflowRun<K>) o;
+
+    return Objects.deepEquals(this.analysis, other.analysis)
+        && Objects.equals(this.arguments, other.arguments)
+        && Objects.equals(this.completed, other.completed)
+        && Objects.equals(this.created, other.created)
+        && Objects.equals(this.engineParameters, this.engineParameters)
+        && Objects.deepEquals(this.externalKeys, other.externalKeys)
+        && Objects.equals(this.id, other.id)
+        && Objects.deepEquals(this.inputFiles, other.inputFiles)
+        && Objects.equals(this.instanceName, other.instanceName)
+        && Objects.equals(this.labels, other.labels)
+        && Objects.equals(this.lastAccessed, other.lastAccessed)
+        && Objects.equals(this.metadata, other.metadata)
+        && Objects.equals(this.modified, other.modified) // TODO or maybe not?
+        && Objects.equals(this.started, other.started)
+        && Objects.equals(this.workflowName, other.workflowName)
+        && Objects.equals(this.workflowVersion, other.workflowVersion);
+  }
+
+  @Override
+  public int hashCode(){
+    // TODO again, maybe not the modified time?
+    return Objects.hash(analysis, arguments, completed, created, engineParameters, externalKeys,
+        id, inputFiles, instanceName, labels, lastAccessed, metadata, modified, started,
+        workflowName, workflowVersion);
   }
 }

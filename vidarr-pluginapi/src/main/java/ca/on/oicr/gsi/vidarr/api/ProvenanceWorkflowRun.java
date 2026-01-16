@@ -1,7 +1,6 @@
 package ca.on.oicr.gsi.vidarr.api;
 
 import ca.on.oicr.gsi.Pair;
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -171,15 +170,13 @@ public final class ProvenanceWorkflowRun<K extends ExternalId> {
         && Objects.equals(this.arguments, other.arguments)
         && Objects.equals(this.completed, other.completed)
         && Objects.equals(this.created, other.created)
-        && Objects.equals(this.engineParameters, this.engineParameters)
+        && Objects.equals(this.engineParameters, other.engineParameters)
         && Objects.deepEquals(this.externalKeys, other.externalKeys)
         && Objects.equals(this.id, other.id)
         && Objects.deepEquals(this.inputFiles, other.inputFiles)
         && Objects.equals(this.instanceName, other.instanceName)
         && Objects.equals(this.labels, other.labels)
-        && Objects.equals(this.lastAccessed, other.lastAccessed)
         && Objects.equals(this.metadata, other.metadata)
-        && Objects.equals(this.modified, other.modified) // TODO or maybe not?
         && Objects.equals(this.started, other.started)
         && Objects.equals(this.workflowName, other.workflowName)
         && Objects.equals(this.workflowVersion, other.workflowVersion);
@@ -187,9 +184,8 @@ public final class ProvenanceWorkflowRun<K extends ExternalId> {
 
   @Override
   public int hashCode(){
-    // TODO again, maybe not the modified time?
     return Objects.hash(analysis, arguments, completed, created, engineParameters, externalKeys,
-        id, inputFiles, instanceName, labels, lastAccessed, metadata, modified, started,
+        id, inputFiles, instanceName, labels, metadata, started,
         workflowName, workflowVersion);
   }
 }

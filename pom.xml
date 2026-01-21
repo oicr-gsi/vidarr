@@ -69,6 +69,11 @@
         <version>2.3.21.Final</version>
       </dependency>
       <dependency>
+        <groupId>org.jboss.threads</groupId>
+        <artifactId>jboss-threads</artifactId>
+	<version>3.5.1.Final</version> <!-- using the undertow-core dependency version of 3.7.0 causes a runtime error, so pin this here -->
+      </dependency>
+      <dependency>
         <groupId>ca.on.oicr.gsi.vidarr</groupId>
         <artifactId>vidarr-pluginapi</artifactId>
         <version>${project.version}</version>

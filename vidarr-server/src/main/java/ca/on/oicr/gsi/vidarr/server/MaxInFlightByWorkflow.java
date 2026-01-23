@@ -32,6 +32,12 @@ final class MaxInFlightByWorkflow implements ConsumableResource {
               "The maximum number of workflows that can be run simultaneously.")
           .labelNames("workflow")
           .register();
+  private static final Gauge badWorkflowStateCount =
+      Gauge.build(
+              "vidarr_in_flight_per_workflow_bad_state_count",
+              "The number of times the in-flight-per-workflow got into a bad state")
+          .labelNames("workflow")
+          .register();
   private final Map<String, MaxState> workflows = new ConcurrentHashMap<>();
 
   /** Get summary information for each workflow: workflowName -> (currentInFlight, maxInFlight) */
@@ -79,7 +85,9 @@ final class MaxInFlightByWorkflow implements ConsumableResource {
       String workflowName, String workflowVersion, String vidarrId, Optional<JsonNode> input) {
     synchronized (workflows) {
       final var state = workflows.get(workflowName);
-      if (state != null) {
+      if (state == null) {
+        badWorkflowStateCount.labels(workflowName).inc();
+      } else {
         state.running.remove(vidarrId);
         currentInFlightCount.labels(workflowName).set(state.running.size());
       }
@@ -97,6 +105,7 @@ final class MaxInFlightByWorkflow implements ConsumableResource {
     synchronized (workflows) {
       final var state = workflows.get(workflowName);
       if (state == null) {
+        badWorkflowStateCount.labels(workflowName).inc();
         return ConsumableResourceResponse.error(
             "Internal Vidarr error: max in flight has not been configured despite being in the"
                 + " database.");

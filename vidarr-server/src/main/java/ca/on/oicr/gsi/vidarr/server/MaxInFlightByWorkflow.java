@@ -66,19 +66,23 @@ final class MaxInFlightByWorkflow implements ConsumableResource {
       String workflowVersion,
       String vidarrId,
       Optional<JsonNode> resourceJson) {
-    final var stateRunning = workflows.computeIfAbsent(workflowName, k -> new MaxState()).running;
-    // since we just created it if it doesn't exist, no need for null check here
-    stateRunning.add(vidarrId);
-    currentInFlightCount.labels(workflowName).set(stateRunning.size());
+    synchronized (workflows) {
+      final var stateRunning = workflows.computeIfAbsent(workflowName, k -> new MaxState()).running;
+      // since we just created it if it doesn't exist, no need for null check here
+      stateRunning.add(vidarrId);
+      currentInFlightCount.labels(workflowName).set(stateRunning.size());
+    }
   }
 
   @Override
   public void release(
       String workflowName, String workflowVersion, String vidarrId, Optional<JsonNode> input) {
-    final var state = workflows.get(workflowName);
-    if (state != null) {
-      state.running.remove(vidarrId);
-      currentInFlightCount.labels(workflowName).set(state.running.size());
+    synchronized (workflows) {
+      final var state = workflows.get(workflowName);
+      if (state != null) {
+        state.running.remove(vidarrId);
+        currentInFlightCount.labels(workflowName).set(state.running.size());
+      }
     }
   }
 
@@ -90,19 +94,21 @@ final class MaxInFlightByWorkflow implements ConsumableResource {
       Instant createdTime,
       OptionalInt workflowMaxInFlight,
       Optional<JsonNode> input) {
-    final var state = workflows.get(workflowName);
-    if (state == null) {
-      return ConsumableResourceResponse.error(
-          "Internal Vidarr error: max in flight has not been configured despite being in the"
-              + " database.");
-    } else {
-      if (state.maximum > state.running.size()) {
-        state.running.add(vidarrId);
-        currentInFlightCount.labels(workflowName).set(state.running.size());
-        return ConsumableResourceResponse.AVAILABLE;
-      } else {
+    synchronized (workflows) {
+      final var state = workflows.get(workflowName);
+      if (state == null) {
         return ConsumableResourceResponse.error(
-            String.format("The maximum number of %s workflows has been reached.", workflowName));
+            "Internal Vidarr error: max in flight has not been configured despite being in the"
+                + " database.");
+      } else {
+        if (state.maximum > state.running.size()) {
+          state.running.add(vidarrId);
+          currentInFlightCount.labels(workflowName).set(state.running.size());
+          return ConsumableResourceResponse.AVAILABLE;
+        } else {
+          return ConsumableResourceResponse.error(
+              String.format("The maximum number of %s workflows has been reached.", workflowName));
+        }
       }
     }
   }

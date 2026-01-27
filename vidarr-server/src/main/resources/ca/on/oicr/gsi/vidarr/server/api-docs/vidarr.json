@@ -1189,9 +1189,6 @@
                     },
                     "type": "array"
                   },
-                  "workflowRunHashId": {
-                    "type": "string"
-                  },
                   "outputProvisionerName": {
                     "type": "string"
                   },

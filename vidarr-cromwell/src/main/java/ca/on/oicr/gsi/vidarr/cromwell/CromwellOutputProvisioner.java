@@ -93,6 +93,8 @@ public class CromwellOutputProvisioner
   private String fileField;
   private String fileSizeField;
   private String checksumField;
+  private String inputChecksumField;
+  private String inputChecksumTypeField;
   private String checksumTypeField;
   private String outputPrefixField;
   private String storagePathField;
@@ -111,6 +113,8 @@ public class CromwellOutputProvisioner
   @Override
   public void configuration(SectionRenderer sectionRenderer) {
     sectionRenderer.line("Input Parameter for File Path", fileField);
+    sectionRenderer.line("Input Parameter for Checksum", inputChecksumField);
+    sectionRenderer.line("Input Parameter for Checksum Type", inputChecksumTypeField);
     sectionRenderer.line("Output Parameter for File Size", fileSizeField);
     sectionRenderer.line("Output Parameter for Final Storage Path", storagePathField);
     sectionRenderer.line("Output Parameter for Checksum", checksumField);
@@ -160,6 +164,14 @@ public class CromwellOutputProvisioner
 
   public String getFileSizeField() {
     return fileSizeField;
+  }
+
+  public String getInputChecksumField() {
+    return inputChecksumField;
+  }
+
+  public String getInputChecksumTypeField() {
+    return inputChecksumTypeField;
   }
 
   public String getOutputPrefixField() {
@@ -280,6 +292,14 @@ public class CromwellOutputProvisioner
 
   public void setFileSizeField(String fileSizeField) {
     this.fileSizeField = fileSizeField;
+  }
+
+  public void setInputChecksumField(String inputChecksumField) {
+    this.inputChecksumField = inputChecksumField;
+  }
+
+  public void setInputChecksumTypeField(String inputChecksumTypeField) {
+    this.inputChecksumTypeField = inputChecksumTypeField;
   }
 
   public void setOutputPrefixField(String outputPrefixField) {

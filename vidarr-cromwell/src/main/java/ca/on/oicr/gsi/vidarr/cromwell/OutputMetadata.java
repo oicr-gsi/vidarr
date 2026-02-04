@@ -7,6 +7,8 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public final class OutputMetadata {
   private String outputDirectory;
+  private String fileChecksum;
+  private String fileChecksumType;
 
   public String getOutputDirectory() {
     return outputDirectory;
@@ -14,5 +16,21 @@ public final class OutputMetadata {
 
   public void setOutputDirectory(String outputDirectory) {
     this.outputDirectory = outputDirectory;
+  }
+
+  public String getFileChecksum() {
+    return fileChecksum;
+  }
+
+  public void setFileChecksum(String fileChecksum) {
+    this.fileChecksum = fileChecksum;
+  }
+
+  public String getFileChecksumType() {
+    return fileChecksumType;
+  }
+
+  public void setFileChecksumType(String fileChecksumType) {
+    this.fileChecksumType = fileChecksumType;
   }
 }

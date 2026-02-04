@@ -10,6 +10,7 @@ import java.net.http.HttpRequest;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 /** The current provisioning state, to be recorded in the database */
@@ -33,6 +34,17 @@ public record ProvisionState(
     }
 
     final String outputPrefix = path.resolve(vidarrId).toString();
+    final String fileChecksum = outputMetadata.getFileChecksum();
+    final String fileChecksumType = outputMetadata.getFileChecksumType();
+
+    Map<String, String> workflowInputs = new HashMap<>();
+    workflowInputs.put(provisioner.getFileField(), fileName);
+    workflowInputs.put(provisioner.getOutputPrefixField(), outputPrefix);
+
+    if (fileChecksum != null && fileChecksumType != null) {
+      workflowInputs.put(provisioner.getInputChecksumField(), fileChecksum);
+      workflowInputs.put(provisioner.getInputChecksumTypeField(), fileChecksumType);
+    }
 
     final MultiPartBodyPublisher body =
         new MultiPartBodyPublisher()
@@ -50,12 +62,7 @@ public record ProvisionState(
                         "vidarr-id", vidarrId.substring(Math.max(0, vidarrId.length() - 255)))))
             .addPart(
                 "workflowInputs",
-                MAPPER.writeValueAsString(
-                    Map.of(
-                        provisioner.getFileField(),
-                        fileName,
-                        provisioner.getOutputPrefixField(),
-                        outputPrefix)))
+                MAPPER.writeValueAsString(workflowInputs))
             .addPart(
                 "workflowOptions", MAPPER.writeValueAsString(provisioner.getWorkflowOptions()));
     return HttpRequest.newBuilder()

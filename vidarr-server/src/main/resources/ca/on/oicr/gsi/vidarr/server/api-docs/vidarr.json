@@ -7,8 +7,8 @@
             "format": "date-time",
             "type": "string"
           },
-          "externalIds": {
-            "$ref": "#/components/schemas/ExternalKey"
+          "externalKeys": {
+            "$ref": "#/components/schemas/ExternalId"
           },
           "id": {
             "type": "string"
@@ -61,6 +61,20 @@
             "type": "boolean"
           }
         }
+      },
+      "ExternalId": {
+        "items": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "provider": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "type": "array"
       },
       "ExternalKey": {
         "items": {

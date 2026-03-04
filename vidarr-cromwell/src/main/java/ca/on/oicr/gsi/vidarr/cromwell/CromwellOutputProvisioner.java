@@ -89,10 +89,10 @@ public class CromwellOutputProvisioner
   private boolean debugCalls;
   private String fileField;
   private String fileSizeField;
-  private String checksumField;
   private String inputChecksumField;
   private String inputChecksumTypeField;
-  private String checksumTypeField;
+  private String outputChecksumField;
+  private String outputChecksumTypeField;
   private String outputPrefixField;
   private String storagePathField;
   private String wdlVersion;
@@ -114,8 +114,8 @@ public class CromwellOutputProvisioner
     sectionRenderer.line("Input Parameter for Checksum Type", inputChecksumTypeField);
     sectionRenderer.line("Output Parameter for File Size", fileSizeField);
     sectionRenderer.line("Output Parameter for Final Storage Path", storagePathField);
-    sectionRenderer.line("Output Parameter for Checksum", checksumField);
-    sectionRenderer.line("Output Parameter for Checksum Type", checksumTypeField);
+    sectionRenderer.line("Output Parameter for Checksum", outputChecksumField);
+    sectionRenderer.line("Output Parameter for Checksum Type", outputChecksumTypeField);
     sectionRenderer.line("Provision Out WDL Workflow Version", wdlVersion);
     sectionRenderer.link("Cromwell Instance", cromwellUrl, cromwellUrl);
     if (workflowSource == null) {
@@ -129,8 +129,8 @@ public class CromwellOutputProvisioner
       Child<RepeatCounter<ProvisionState>, ?> state, WorkflowOutputResponse result) {
     return Result.file(
         result.getOutputs().get(storagePathField).asText(),
-        result.getOutputs().get(checksumField).asText(),
-        result.getOutputs().get(checksumTypeField).asText(),
+        result.getOutputs().get(outputChecksumField).asText(),
+        result.getOutputs().get(outputChecksumTypeField).asText(),
         Long.parseLong(result.getOutputs().get(fileSizeField).asText()),
         EXTENSION_TO_META_TYPE.stream()
             .filter(p -> state.loadInner(ProvisionState.class).fileName().endsWith(p.first()))
@@ -139,12 +139,12 @@ public class CromwellOutputProvisioner
             .orElseThrow());
   }
 
-  public String getChecksumField() {
-    return checksumField;
+  public String getOutputChecksumField() {
+    return outputChecksumField;
   }
 
-  public String getChecksumTypeField() {
-    return checksumTypeField;
+  public String getOutputChecksumTypeField() {
+    return outputChecksumTypeField;
   }
 
   public int[] getChunks() {
@@ -263,12 +263,12 @@ public class CromwellOutputProvisioner
     return OperationAction.value(PreflightState.class, true);
   }
 
-  public void setChecksumField(String checksumField) {
-    this.checksumField = checksumField;
+  public void setOutputChecksumField(String outputChecksumField) {
+    this.outputChecksumField = outputChecksumField;
   }
 
-  public void setChecksumTypeField(String checksumTypeField) {
-    this.checksumTypeField = checksumTypeField;
+  public void setOutputChecksumTypeField(String outputChecksumTypeField) {
+    this.outputChecksumTypeField = outputChecksumTypeField;
   }
 
   public void setChunks(int[] chunks) {

@@ -30,10 +30,37 @@ The `"cromwellUrl"` is the Cromwell server that will handle these requests. The
 workflow can be given by URL through `"workflowUrl"` or inline as a string
 using `"workflowSource"`. `"workflowOptions"` is the workflow options Cromwell
 requires. Although Cromwell is given the entire workflow, it still needs to
-know the WDL version, provided as `"wdlVersion"`. The workflow will be called
-with two arguments, the file to copy (which will be provided as the argument
+know the WDL version, provided as `"wdlVersion"`. 
+
+The workflow will be called with two arguments, the file to copy (which will be provided as the argument
 (`"fileField"`)) and the submitter-provided archive directory
-(`"outputPrefixField"`). Once the workflow has completed, the plugin will
+(`"outputPrefixField"`). You may also provide two additional arguments if the workflow
+does checksum verification: the expected checksum of the file to copy (`inputFileChecksum`) 
+and the type of the expected checksum (`inputFileChecksumType`). See the Cromwell Output Provisioner 
+config below if your workflow provides all four arguments.
+
+    {
+      "cromwellUrl": "http://cromwell-output.example.com:8000",
+      "chunks": [ 2, 4 ],
+      "debugCalls": false,
+      "fileField": "reprovisionFileOut.inputFilePath",
+      "inputChecksumField": "reprovisionFileOut.inputFileChecksum",
+      "inputChecksumTypeField": "reprovisionFileOut.inputFileChecksumType",
+      "fileSizeField": "reprovisionFileOut.fileSizeBytes",
+      "checksumField": "reprovisionFileOut.fileChecksum",
+      "checksumTypeField": "reprovisionFileOut.fileChecksumType",
+      "outputPrefixField": "reprovisionFileOut.outputDirectory",
+      "storagePathField": "reprovisionFileOut.fileOutputPath",
+      "type": "cromwell",
+      "wdlVersion": "1.0",
+      "workflowOptions": {
+        "read_from_cache": false,
+        "write_to_cache": false
+      },
+      "workflowUrl": "http://example.com/reprovisionFileOut.wdl"
+    }
+
+Once the workflow has completed, the plugin will
 collect the permanent location for the file (`"storagePathField"`), the checksum
 (`"checksumField"`), the checksum algorithm (`"checksumTypeField"`) 
 and the file size (`"fileSizeField"`).
@@ -121,6 +148,135 @@ Here is an example WDL script to do provisioning out that uses rsync to do the f
       runtime {
         memory: "1 GB"
         timeout: "1"
+      }
+    }
+
+Here is an example WDL script to do provisioning out that verifies the input checksum of the file and uses hard linking:
+
+    version 1.0
+    workflow reprovisionFileOut {
+      input {
+        String inputFilePath
+        String outputDirectory
+        String inputFileChecksumType
+        String inputFileChecksum
+      }
+      
+      call verify_checksum {
+        input:
+          inputFilePath=inputFilePath,
+          inputFileChecksumType=inputFileChecksumType,
+          inputFileChecksum=inputFileChecksum
+      }
+    
+      call hardlink_file {
+        input:
+          inputFilePath=verify_checksum.filePath,
+          outputDirectory=outputDirectory
+      }
+    
+      output {
+        String fileChecksum = inputFileChecksum
+        String fileChecksumType = inputFileChecksumType
+        String fileSizeBytes = hardlink_file.fileSizeBytes
+        String fileOutputPath = hardlink_file.fileOutputPath
+      }
+    }
+    
+    task verify_checksum {
+      input {
+        String inputFilePath
+        String inputFileChecksumType
+        String inputFileChecksum
+      }
+    
+      command <<<
+      set -euo pipefail
+    
+      CRC32_CHECKSUM_TYPE="crc32"
+      INPUT_FILE="~{inputFilePath}"
+      FILE_CHECKSUM_TYPE="~{inputFileChecksumType}"
+      EXPECTED_FILE_CHECKSUM="~{inputFileChecksum}"
+    
+      if [ "${FILE_CHECKSUM_TYPE}" == "${CRC32_CHECKSUM_TYPE}" ]; then
+        # The crc32 tool may contain a "GOOD" or "BAD" string if it detects a hexidecimal in the input file path
+        # because it interprets the hexidecimal as an expected checksum to perform a comparison against.
+        # https://unix.stackexchange.com/questions/481141/why-does-crc32-say-some-of-my-files-are-bad
+        # Thus, take the first whitespace-delimited field, which is the calculated checksum
+        CALCULATED_FILE_CHECKSUM=$(crc32 "${INPUT_FILE}" | awk '{print $1}')
+      else
+        echo "File checksum type ${FILE_CHECKSUM_TYPE} is not supported" >&2
+        exit 1
+      fi
+    
+      if [ "${CALCULATED_FILE_CHECKSUM}" != "${EXPECTED_FILE_CHECKSUM}" ]; then
+        echo "The calculated ${FILE_CHECKSUM_TYPE} file checksum ${CALCULATED_FILE_CHECKSUM} does not match the expected file checksum ${EXPECTED_FILE_CHECKSUM}" >&2
+        exit 1
+      fi
+    
+      echo "Verified that the calculated file checksum ${CALCULATED_FILE_CHECKSUM} matches the expected file checksum ${EXPECTED_FILE_CHECKSUM}"
+      >>>
+    
+      output {
+        String filePath = "~{inputFilePath}"
+      }
+    
+      runtime {
+        memory: if ceil(size(inputFilePath)/(2.0*1024*1024*1024)) < 4 then "4 GB"
+                else if ceil(size(inputFilePath)/(2.0*1024*1024*1024)) > 64 then "64 GB"
+                else ceil(size(inputFilePath)/(2.0*1024*1024*1024)) + " GB"
+        timeout: ceil(size(inputFilePath)/(2.5*1024*1024)/60/60)+4
+        io_slots: if size(inputFilePath) >= (64.0*1024*1024*1024) then 6
+                  else floor((6.0 - 1.0) * size(inputFilePath)/(64.0*1024*1024*1024) + 1.0)
+      }
+    }
+    
+    task hardlink_file {
+      input {
+        String inputFilePath
+        String outputDirectory
+      }
+    
+      command <<<
+      set -euo pipefail
+    
+      INPUT_FILE="~{inputFilePath}"
+      OUTPUT_DIRECTORY="~{outputDirectory}"
+      OUTPUT_FILE_PATH="${OUTPUT_DIRECTORY%%/}/$(basename ${INPUT_FILE})"
+      GSI_USER=$(whoami)
+    
+      test -d "${OUTPUT_DIRECTORY}" || mkdir -p "${OUTPUT_DIRECTORY}"
+    
+      if [ ! -f "${INPUT_FILE}" ]; then
+        echo "${INPUT_FILE} not a file or not accessible" >&2
+        exit 1
+      fi
+    
+      if [ -f "${OUTPUT_FILE_PATH}" ]; then
+        echo "${OUTPUT_FILE_PATH} already exists" >&2
+        exit 1
+      fi
+    
+      echo "Changing ownership of ${INPUT_FILE} to ${GSI_USER}:gsi"
+      if ! sudo -n /usr/bin/chown "${GSI_USER}":gsi "${INPUT_FILE}"; then
+        echo "Insufficient permissions to change ownership of file ${INPUT_FILE}" >&2
+        exit 1
+      fi
+    
+      ln "${INPUT_FILE}" "${OUTPUT_FILE_PATH}"
+      echo "Created a hard link from ${INPUT_FILE} to ${OUTPUT_FILE_PATH}"
+    
+      stat --printf="%s" "${OUTPUT_FILE_PATH}" > size.out
+      echo "${OUTPUT_FILE_PATH}" > filePath.out
+      >>>
+    
+      output {
+        String fileSizeBytes = read_string("size.out")
+        String fileOutputPath = read_string("filePath.out")
+      }
+    
+      runtime {
+        backend: "Local"
       }
     }
 

@@ -1,0 +1,1 @@
+new input fields `inputChecksumField` and `inputChecksumTypeField` to CromwellOutputProvisioner

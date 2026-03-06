@@ -34,12 +34,22 @@ public class ReprovisionOutRequest {
     this.outputProvisionerName = outputProvisionerName;
   }
 
-  public boolean check() {
-    return null != workflowRunHashId
-        && null != outputProvisionerName
-        && null != outputPath
-        && !workflowRunHashId.isBlank()
-        && !outputProvisionerName.isBlank()
-        && !outputPath.isBlank();
+  public void check() throws Exception {
+    boolean ok = true;
+    StringBuilder error = new StringBuilder("Malformed reprovision-out request: ");
+    if (null == workflowRunHashId || workflowRunHashId.isBlank()) {
+      error.append("workflowRunHashId is empty. ");
+      ok = false;
+    }
+    if (null == outputPath || outputPath.isBlank()) {
+      error.append("outputPath is empty. ");
+      ok = false;
+    }
+    if (null == outputProvisionerName || outputProvisionerName.isBlank()) {
+      error.append("outputProvisionerName is empty. ");
+      ok = false;
+    }
+    if (!ok)
+      throw new Exception(error.toString());
   }
 }

@@ -6,6 +6,24 @@ For unreleased changes, see [changes](changes).
 
 -----------------------------------------------------------------------------
 
+## [2.10.0] - 2026-03-06
+
+### Added
+
+* Add reprovision-out endpoint. This endpoint takes a finished workflow run and launches
+  output provisioning on its analysis files to move or otherwise reprocess the files.
+* 'import' endpoint that combines load-injected and reprovision
+* new input fields `inputChecksumField` and `inputChecksumTypeField` to CromwellOutputProvisioner
+
+### Removed
+
+* `vidarr_consumable_resource_wait_rounds` metric as it is very high cardinality
+
+### Fixed
+
+* synchronize access to max-in-flight by workflow state
+
+
 ## [2.9.0] - 2025-11-26
 
 ### Added

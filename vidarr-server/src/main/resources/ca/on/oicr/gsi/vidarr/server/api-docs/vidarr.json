@@ -1183,25 +1183,16 @@
             "application/json": {
               "schema": {
                 "properties": {
-                  "workflowRuns": {
-                    "items": {
+                  "workflowRun": {
                       "$ref": "#/components/schemas/WorkflowRun"
-                    },
-                    "type": "array"
                   },
-                  "workflowVersions": {
-                    "items": {
+                  "workflowVersion": {
                       "description": "Workflow version for the workflow run",
                       "$ref": "#/components/schemas/WorkflowVersion"
-                    },
-                    "type": "array"
                   },
-                  "workflows": {
-                    "items": {
+                  "workflow": {
                       "description": "Workflow definition for the workflow run",
                       "$ref": "#/components/schemas/Workflow"
-                    },
-                    "type": "array"
                   },
                   "outputProvisionerName": {
                     "type": "string"

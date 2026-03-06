@@ -476,13 +476,9 @@ public final class Main implements ServerConfig {
    */
   private void importRun(HttpServerExchange httpServerExchange, ImportRequest importRequest) {
     try {
-      if (importRequest.getWorkflowRuns().isEmpty()) {
-        throw new Exception("Import request missing workflow runs.");
-      } else if (importRequest.getWorkflowRuns().size() > 1) {
-        throw new Exception("Importing >1 workflow runs not supported at this time.");
-      }
+      importRequest.check();
       // verify = false causes load() to generate a new hash and apply it to the workflow run object
-      load(httpServerExchange, importRequest, false, false);
+      load(httpServerExchange, importRequest.load(), false, false);
 
       // If loading fails, then the exchange will be terminated, pop out
       if (httpServerExchange.isComplete()){
@@ -496,7 +492,7 @@ public final class Main implements ServerConfig {
 
       // Use hash id generated during load()
       reprovisionOut(httpServerExchange,
-          importRequest.reprovision(importRequest.getWorkflowRuns().get(0).getId()));
+          importRequest.reprovision(importRequest.getWorkflowRun().getId()));
     } catch (Exception e) {
       internalServerErrorResponse(httpServerExchange, e);
     }
@@ -514,13 +510,10 @@ public final class Main implements ServerConfig {
       return;
     }
     reprovisionCounter.put(reprovisionOutRequest.getWorkflowRunHashId(), s);
-    if (!reprovisionOutRequest.check()) {
-      exchange.setStatusCode(StatusCodes.BAD_REQUEST);
-      exchange
-          .getResponseSender()
-          .send(
-              "Malformed request.");
-      return;
+    try{
+      reprovisionOutRequest.check();
+    } catch (Exception e){
+      internalServerErrorResponse(exchange, e);
     }
     String provisionerName = reprovisionOutRequest.getOutputProvisionerName();
     OutputProvisioner<?, ?> provisioner = outputProvisioners.get(

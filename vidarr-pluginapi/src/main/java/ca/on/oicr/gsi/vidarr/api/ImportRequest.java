@@ -1,8 +1,11 @@
 package ca.on.oicr.gsi.vidarr.api;
-
+import java.util.List;
 import java.util.Objects;
 
-public class ImportRequest extends UnloadedData {
+public class ImportRequest {
+  private ProvenanceWorkflowRun<ExternalMultiVersionKey> workflowRun;
+  private UnloadedWorkflowVersion workflowVersion;
+  private UnloadedWorkflow workflow;
   private String outputProvisionerName;
   private String outputPath;
 
@@ -12,6 +15,18 @@ public class ImportRequest extends UnloadedData {
 
   public String getOutputProvisionerName() {
     return outputProvisionerName;
+  }
+
+  public UnloadedWorkflow getWorkflow() {
+    return workflow;
+  }
+
+  public ProvenanceWorkflowRun<ExternalMultiVersionKey> getWorkflowRun() {
+    return workflowRun;
+  }
+
+  public UnloadedWorkflowVersion getWorkflowVersion() {
+    return workflowVersion;
   }
 
   public void setOutputPath(String outputPath) {
@@ -30,19 +45,68 @@ public class ImportRequest extends UnloadedData {
     return ret;
   }
 
+  public UnloadedData load(){
+    UnloadedData ret = new UnloadedData();
+    ret.setWorkflows(List.of(workflow));
+    ret.setWorkflowVersions(List.of(workflowVersion));
+    ret.setWorkflowRuns(List.of(workflowRun));
+    return ret;
+  }
+
+  public void check() throws Exception {
+    boolean ok = true;
+    StringBuilder error = new StringBuilder("Malformed import request: ");
+    if (null == outputPath || outputPath.isBlank()){
+      error.append("outputPath is empty. ");
+      ok = false;
+    }
+    if (null == outputProvisionerName || outputProvisionerName.isBlank()){
+      error.append("outputProvisionerName is empty. ");
+      ok = false;
+    }
+    if (null == workflow){
+      error.append("workflow is empty. ");
+      ok = false;
+    }
+    if (null == workflowRun) {
+      error.append("workflowRun is empty. ");
+      ok = false;
+    }
+    if (null == workflowVersion){
+      error.append("workflowVersion is empty. ");
+      ok = false;
+    }
+    if (!ok) throw new Exception(error.toString());
+  }
+
   @Override
   public boolean equals(Object o){
     if (this == o) return true;
     if (null == o || this.getClass() != o.getClass()) return false;
 
     ImportRequest other = (ImportRequest) o;
-    return super.equals(other)
-        && Objects.equals(this.outputPath, other.outputPath)
-        && Objects.equals(this.outputProvisionerName, other.outputProvisionerName);
+    return Objects.equals(this.outputPath, other.outputPath)
+        && Objects.equals(this.outputProvisionerName, other.outputProvisionerName)
+        && Objects.equals(this.workflowRun, other.workflowRun)
+        && Objects.equals(this.workflow, other.workflow)
+        && Objects.equals(this.workflowVersion, other.workflowVersion);
   }
 
   @Override
   public int hashCode(){
-    return Objects.hash(super.hashCode(), outputPath, outputProvisionerName);
+    return Objects.hash(outputPath, outputProvisionerName, workflowRun, workflowVersion, workflow);
+  }
+
+  public void setWorkflow(UnloadedWorkflow workflow) {
+    this.workflow = workflow;
+  }
+
+  public void setWorkflowRun(
+      ProvenanceWorkflowRun<ExternalMultiVersionKey> workflowRun) {
+    this.workflowRun = workflowRun;
+  }
+
+  public void setWorkflowVersion(UnloadedWorkflowVersion workflowVersion) {
+    this.workflowVersion = workflowVersion;
   }
 }

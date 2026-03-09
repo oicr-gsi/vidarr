@@ -907,14 +907,7 @@
         "properties": {
           "analysis": {
             "items": {
-              "oneOf": [
-                {
-                  "$ref": "#/components/schemas/FileMetadata"
-                },
-                {
-                  "$ref": "#/components/schemas/UrlMetadata"
-                }
-              ]
+              "$ref": "#/components/schemas/FileMetadata"
             },
             "type": "array"
           },

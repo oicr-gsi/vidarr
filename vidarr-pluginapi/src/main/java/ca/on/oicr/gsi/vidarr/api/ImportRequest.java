@@ -9,6 +9,33 @@ public class ImportRequest {
   private String outputProvisionerName;
   private String outputPath;
 
+  public static ImportRequest fromDeclaration(WorkflowDeclaration declaration){
+    ImportRequest request = new ImportRequest();
+
+    UnloadedWorkflow adaptedWorkflow = new UnloadedWorkflow();
+    adaptedWorkflow.setName(declaration.getName());
+    adaptedWorkflow.setLabels(declaration.getLabels());
+    request.setWorkflow(adaptedWorkflow);
+
+    UnloadedWorkflowVersion adaptedVersion = new UnloadedWorkflowVersion();
+    adaptedVersion.setName(declaration.getName());
+    adaptedVersion.setVersion(declaration.getVersion());
+    adaptedVersion.setWorkflow(declaration.getName());
+
+    // TODO I don't know what to do about this one!
+    // adaptedVersion.setAccessoryFiles();
+
+    adaptedVersion.setLanguage(declaration.getLanguage());
+    adaptedVersion.setOutputs(declaration.getMetadata());
+    adaptedVersion.setParameters(declaration.getParameters());
+
+    request.setWorkflowVersion(adaptedVersion);
+
+    request.setWorkflowRun(new ProvenanceWorkflowRun<>());
+
+    return request;
+  }
+
   public String getOutputPath() {
     return outputPath;
   }

@@ -71,6 +71,7 @@ import io.prometheus.client.exporter.common.TextFormat;
 import io.prometheus.client.hotspot.DefaultExports;
 import io.undertow.Handlers;
 import io.undertow.Undertow;
+import io.undertow.UndertowOptions;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.HttpServerExchange;
 import io.undertow.server.handlers.BlockingHandler;
@@ -458,6 +459,7 @@ public final class Main implements ServerConfig {
         Undertow.builder()
             .addHttpListener(server.port, "0.0.0.0")
             .setWorkerThreads(server.dataSource.getMaximumPoolSize())
+            .setServerOption(UndertowOptions.MAX_ENTITY_SIZE, server.maxEntitySize)
             .setHandler(
                 Handlers.exceptionHandler(routes)
                     .addExceptionHandler(Exception.class, Main::handleException))
@@ -688,6 +690,7 @@ public final class Main implements ServerConfig {
   private final int port;
   private final DatabaseBackedProcessor processor;
   private final Map<String, RuntimeProvisioner<?>> runtimeProvisioners;
+  private final long maxEntitySize;
   private final String selfName;
   private final String selfUrl;
   private final Map<String, Target> targets;
@@ -753,6 +756,7 @@ public final class Main implements ServerConfig {
   Main(ServerConfiguration configuration) throws SQLException {
     canSubmit = configuration.getCanSubmit();
     selfUrl = configuration.getUrl();
+    maxEntitySize = configuration.getMaxInputSize();
     selfName = configuration.getName();
     port = configuration.getPort();
     otherServers = configuration.getOtherServers();

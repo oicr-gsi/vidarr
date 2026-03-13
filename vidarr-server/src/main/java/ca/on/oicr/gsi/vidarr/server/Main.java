@@ -2142,7 +2142,7 @@ public final class Main implements ServerConfig {
           return;
         }
 
-        // 2. Can't have a duplicate workflow version
+        // 2. Can't have duplicate workflow versions in the request
         if (info.second().containsKey(workflowVersion.getVersion())) {
           badRequestResponse(
               exchange,
@@ -2175,7 +2175,7 @@ public final class Main implements ServerConfig {
       for (final ProvenanceWorkflowRun<ExternalMultiVersionKey> workflowRun :
           unloadedData.getWorkflowRuns()) {
 
-        // All workflow runs must be of installed workflows
+        // All workflow runs must be of included workflows
         final Pair<UnloadedWorkflow, Map<String, Pair<String, UnloadedWorkflowVersion>>> info =
             workflowInfo.get(workflowRun.getWorkflowName());
         if (info == null) {
@@ -2187,7 +2187,7 @@ public final class Main implements ServerConfig {
           return;
         }
 
-        // All workflow runs must be of installed workflow versions
+        // All workflow runs must be of included workflow versions
         final Pair<String, UnloadedWorkflowVersion> versionInfo =
             info.second().get(workflowRun.getWorkflowVersion());
         if (versionInfo == null) {

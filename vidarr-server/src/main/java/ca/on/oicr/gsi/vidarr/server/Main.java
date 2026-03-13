@@ -757,7 +757,7 @@ public final class Main implements ServerConfig {
   Main(ServerConfiguration configuration) throws SQLException {
     canSubmit = configuration.getCanSubmit();
     selfUrl = configuration.getUrl();
-    maxEntitySize = configuration.getMaxInputSize();
+    maxEntitySize = configuration.getMaxEntitySize();
     selfName = configuration.getName();
     port = configuration.getPort();
     otherServers = configuration.getOtherServers();

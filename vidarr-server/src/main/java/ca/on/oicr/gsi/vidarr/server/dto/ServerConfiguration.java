@@ -20,7 +20,7 @@ public final class ServerConfiguration {
   private int dbPort;
   private String dbUser;
   private Map<String, InputProvisioner<?>> inputProvisioners;
-  private long maxInputSize;
+  private long maxEntitySize;
   private String name;
   private Map<String, String> otherServers;
   private Map<String, OutputProvisioner<?, ?>> outputProvisioners;
@@ -63,8 +63,8 @@ public final class ServerConfiguration {
     return inputProvisioners;
   }
 
-  public long getMaxInputSize() {
-    return maxInputSize;
+  public long getMaxEntitySize() {
+    return maxEntitySize;
   }
 
   public String getName() {
@@ -135,8 +135,8 @@ public final class ServerConfiguration {
     this.inputProvisioners = inputProvisioners;
   }
 
-  public void setMaxInputSize(long maxInputSize) {
-    this.maxInputSize = maxInputSize;
+  public void setMaxEntitySize(long maxEntitySize) {
+    this.maxEntitySize = maxEntitySize;
   }
 
   public void setName(String name) {

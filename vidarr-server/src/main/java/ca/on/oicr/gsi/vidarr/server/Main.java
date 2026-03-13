@@ -1870,25 +1870,16 @@ public final class Main implements ServerConfig {
                 DSL.inline(JSON.json("{}")))));
   }
 
-  private void fetchWorkflowVersion(HttpServerExchange exchange) {
-    final String name =
-        exchange.getAttachment(PathTemplateMatch.ATTACHMENT_KEY).getParameters().get("name");
-    final String version =
-        exchange.getAttachment(PathTemplateMatch.ATTACHMENT_KEY).getParameters().get("version");
-    final Boolean includeWorkflowDefinitions =
-        Arrays.stream(exchange.getQueryString().split("\\&"))
-            .map(q -> q.split("="))
-            .filter(q -> "includeDefinitions".equals(q[0]))
-            .map(q -> q[1])
-            .map(Boolean::parseBoolean)
-            .findAny()
-            .orElse(false);
+  // todo why string...
+  private Optional<String> fetchWorkflowVersion(String name, String version, boolean includeWorkflowDefinitions)
+      throws SQLException {
+    final Optional<String> result;
     try (final Connection connection = dataSource.getConnection()) {
       JSONObjectNullStep<JSON> fields =
           (includeWorkflowDefinitions
               ? workflowVersionWithDefinitionFields()
               : workflowVersionFields());
-      final Optional<String> result =
+      result =
           DSL
               .using(connection, SQLDialect.POSTGRES)
               .select(fields)
@@ -1912,6 +1903,26 @@ public final class Main implements ServerConfig {
                   })
               .filter(Objects::nonNull)
               .findFirst();
+    }
+    return result;
+  }
+
+  private void fetchWorkflowVersion(HttpServerExchange exchange) {
+    final String name =
+        exchange.getAttachment(PathTemplateMatch.ATTACHMENT_KEY).getParameters().get("name");
+    final String version =
+        exchange.getAttachment(PathTemplateMatch.ATTACHMENT_KEY).getParameters().get("version");
+    final Boolean includeWorkflowDefinitions =
+        Arrays.stream(exchange.getQueryString().split("\\&"))
+            .map(q -> q.split("="))
+            .filter(q -> "includeDefinitions".equals(q[0]))
+            .map(q -> q[1])
+            .map(Boolean::parseBoolean)
+            .findAny()
+            .orElse(false);
+    Optional<String> result = null;
+    try {
+      result = fetchWorkflowVersion(name, version, includeWorkflowDefinitions);
       if (result.isPresent()) {
         okJsonResponse(exchange, result.get());
       } else {

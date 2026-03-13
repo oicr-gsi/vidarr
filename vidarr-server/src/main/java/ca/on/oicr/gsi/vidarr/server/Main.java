@@ -455,11 +455,12 @@ public final class Main implements ServerConfig {
     routes.addPrefixPath(
         "/consumable-resource/max-in-flight-by-workflow",
         server.overridableMaxInFlightPerWorkflow.httpHandler().get());
+    final long undertowEntitySize = server.maxEntitySize * 1024L * 1024L; //undertow requires bytes
     final Undertow undertow =
         Undertow.builder()
             .addHttpListener(server.port, "0.0.0.0")
             .setWorkerThreads(server.dataSource.getMaximumPoolSize())
-            .setServerOption(UndertowOptions.MAX_ENTITY_SIZE, server.maxEntitySize)
+            .setServerOption(UndertowOptions.MAX_ENTITY_SIZE, undertowEntitySize)
             .setHandler(
                 Handlers.exceptionHandler(routes)
                     .addExceptionHandler(Exception.class, Main::handleException))

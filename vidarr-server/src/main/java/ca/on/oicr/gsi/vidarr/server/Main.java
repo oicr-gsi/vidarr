@@ -1865,7 +1865,6 @@ public final class Main implements ServerConfig {
                 DSL.inline(JSON.json("{}")))));
   }
 
-  // todo why string...
   private Optional<String> fetchWorkflowVersion(String name, String version, boolean includeWorkflowDefinitions)
       throws SQLException {
     final Optional<String> result;
@@ -1915,9 +1914,8 @@ public final class Main implements ServerConfig {
             .map(Boolean::parseBoolean)
             .findAny()
             .orElse(false);
-    Optional<String> result = null;
     try {
-      result = fetchWorkflowVersion(name, version, includeWorkflowDefinitions);
+      Optional<String> result = fetchWorkflowVersion(name, version, includeWorkflowDefinitions);
       if (result.isPresent()) {
         okJsonResponse(exchange, result.get());
       } else {
@@ -2369,7 +2367,7 @@ public final class Main implements ServerConfig {
       try (final Connection connection = dataSource.getConnection()) {
         DSL.using(connection, SQLDialect.POSTGRES)
             .transaction(
-                configuration -> loadDataIntoDatabase(unloadedData, workflowInfo, configuration));
+                configuration -> loadDataIntoDatabase(unloadedData, workflowInfo, configuration, !verify));
         okEmptyResponse(exchange, send);
       } catch (IllegalArgumentException e) {
         badRequestResponse(exchange, e.getMessage());
@@ -2397,9 +2395,11 @@ public final class Main implements ServerConfig {
   /**
    * Perform additional validation and insert into database
    *
-   * @param unloadedData
-   * @param workflowInfo
-   * @param configuration
+   *
+   * @param unloadedData json from load request
+   * @param workflowInfo verified info built in load()
+   * @param configuration database configuration
+   * @param workflowVersionFromDb whether we permit using the installed workflow version in case of conflict
    * @throws JsonProcessingException
    * @throws NoSuchAlgorithmException
    */
@@ -2407,8 +2407,9 @@ public final class Main implements ServerConfig {
       UnloadedData unloadedData,
       TreeMap<String, Pair<UnloadedWorkflow, Map<String, Pair<String, UnloadedWorkflowVersion>>>>
           workflowInfo,
-      Configuration configuration)
-      throws JsonProcessingException, NoSuchAlgorithmException {
+      Configuration configuration,
+      boolean workflowVersionFromDb)
+      throws JsonProcessingException, NoSuchAlgorithmException, SQLException {
     // Map of Workflow Name to Workflow Version IDs (UnloadedWorkflowVersion.version to
     // id.get.value1??)
     final TreeMap<String, Map<String, Integer>> workflowId = new TreeMap<>();
@@ -2449,7 +2450,8 @@ public final class Main implements ServerConfig {
                 workflowVersion,
                 outputs,
                 parameters);
-        // We will have no ID from the insert if it already there
+        // We will have no ID from the insert if it already there,
+        // so if id is present then it was inserted
         if (id.isPresent()) {
           workflowVersionIds.put(workflowVersion, id.get().value1());
           for (final Entry<String, String> accessory :
@@ -2461,7 +2463,16 @@ public final class Main implements ServerConfig {
             associateDefinitionAsAccessory(
                 configuration, id.get().value1(), accessory.getKey(), accessoryWorkflowHash);
           }
-        } else {
+        }
+        // No ID from database because it is already installed, and we want to use that version
+        // because we may have incomplete information in the load request.
+        else if (workflowVersionFromDb) {
+          ObjectNode installedVersion = MAPPER.readValue(fetchWorkflowVersion(workflowName, workflowVersion, true).orElseThrow(), ObjectNode.class);
+          workflowVersionIds.put(workflowVersion, installedVersion.get("id").intValue());
+        }
+        // No ID from database because it is already installed, and we want to ensure we have
+        // the same version
+        else {
           workflowVersionIds.put(
               workflowVersion,
               DSL.using(configuration)

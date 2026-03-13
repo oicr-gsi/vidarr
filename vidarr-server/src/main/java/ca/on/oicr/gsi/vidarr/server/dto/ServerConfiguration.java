@@ -20,6 +20,7 @@ public final class ServerConfiguration {
   private int dbPort;
   private String dbUser;
   private Map<String, InputProvisioner<?>> inputProvisioners;
+  private long maxInputSize;
   private String name;
   private Map<String, String> otherServers;
   private Map<String, OutputProvisioner<?, ?>> outputProvisioners;
@@ -60,6 +61,10 @@ public final class ServerConfiguration {
 
   public Map<String, InputProvisioner<?>> getInputProvisioners() {
     return inputProvisioners;
+  }
+
+  public long getMaxInputSize() {
+    return maxInputSize;
   }
 
   public String getName() {
@@ -128,6 +133,10 @@ public final class ServerConfiguration {
 
   public void setInputProvisioners(Map<String, InputProvisioner<?>> inputProvisioners) {
     this.inputProvisioners = inputProvisioners;
+  }
+
+  public void setMaxInputSize(long maxInputSize) {
+    this.maxInputSize = maxInputSize;
   }
 
   public void setName(String name) {

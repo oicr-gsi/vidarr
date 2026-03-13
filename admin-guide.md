@@ -70,6 +70,7 @@ Now prepare the JSON configuration file `/srv/vidarr/config` as follows:
       "dbPort": 5432,
       "dbUser": "pg_db_user",
       "inputProvisioners": {},
+      "maxInputSize": 3145728
       "name": "my_instance",
       "otherServers": {},
       "outputProvisioners": {},
@@ -88,6 +89,9 @@ run. Choose something appropriate, especially if using a reverse proxy.
 
 `"url"` should be set to the URL this Víðarr server is accessible on, after 
 reverse proxying; Víðarr will use this to generate any self-referential URLs. 
+
+"maxInputSize" should be set to the maximum request size in bytes that is allowed to be sent
+Víðarr
 
 Víðarr also operates in a federated fashion so `"name"` should be set to a 
 unique identifier for this server independent of its URL. 

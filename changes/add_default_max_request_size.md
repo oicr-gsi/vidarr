@@ -1,2 +1,2 @@
-Default max request size corresponding to the newly added undertow default:
-https://github.com/undertow-io/undertow/pull/1856
+Add configuration option for max request entity size, as default is now 2MB: https://github.com/undertow-io/undertow/pull/1856
+

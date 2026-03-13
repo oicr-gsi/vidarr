@@ -1,5 +1,6 @@
 package ca.on.oicr.gsi.vidarr.api;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 public class ImportRequest {
@@ -9,6 +10,15 @@ public class ImportRequest {
   private String outputProvisionerName;
   private String outputPath;
 
+  /**
+   * Do preliminary setup from a WorkflowDeclaration.
+   * Does not set: workflow version's `workflow` (ie the full text of the shell script,
+   * WDL workflow, etc.), 'accessory files' even if a workflow version has them,
+   * anything about the workflow run.
+   *
+   * @param declaration
+   * @return partially set up ImportRequest
+   */
   public static ImportRequest fromDeclaration(WorkflowDeclaration declaration){
     ImportRequest request = new ImportRequest();
 
@@ -20,11 +30,7 @@ public class ImportRequest {
     UnloadedWorkflowVersion adaptedVersion = new UnloadedWorkflowVersion();
     adaptedVersion.setName(declaration.getName());
     adaptedVersion.setVersion(declaration.getVersion());
-    adaptedVersion.setWorkflow(declaration.getName());
-
-    // TODO I don't know what to do about this one!
-    // adaptedVersion.setAccessoryFiles();
-
+    adaptedVersion.setAccessoryFiles(Map.of());
     adaptedVersion.setLanguage(declaration.getLanguage());
     adaptedVersion.setOutputs(declaration.getMetadata());
     adaptedVersion.setParameters(declaration.getParameters());

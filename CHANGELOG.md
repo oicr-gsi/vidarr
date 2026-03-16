@@ -6,6 +6,18 @@ For unreleased changes, see [changes](changes).
 
 -----------------------------------------------------------------------------
 
+## [2.11.0] - 2026-03-16
+
+### Added
+
+* Add configuration option (maxEntitySize) for max request entity size, as default is now 2MB: https://github.com/undertow-io/undertow/pull/1856
+  
+
+### Changed
+
+* /import request now locked to a single workflow run, API changes to reflect this
+
+
 ## [2.10.0] - 2026-03-06
 
 ### Added

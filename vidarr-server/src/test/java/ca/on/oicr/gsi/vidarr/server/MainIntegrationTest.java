@@ -29,6 +29,7 @@ import java.text.ParseException;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -1249,6 +1250,57 @@ public class MainIntegrationTest {
   }
 
   @Test
+  public void whenUnloadByEmptyExternalId_thenNoWorkflowRunsAreDeletedFromVidarr() {
+    ObjectNode unloadFilter = getUnloadWorkflowFilterByExternalId("pinery-miso", Arrays.asList());
+
+    var res =
+        given()
+            .contentType(ContentType.JSON)
+            .body(unloadFilter)
+            .when()
+            .post("/api/unload")
+            .then()
+            .assertThat()
+            .statusCode(200)
+            .and()
+            .extract()
+            .jsonPath();
+    var unloadFileName = res.get("filename").toString();
+    var unloadedFilePath = unloadDirectory.getRoot().getAbsolutePath() + "/" + unloadFileName;
+    var unloaded = JsonPath.from(new File(unloadedFilePath));
+
+    assertThat(unloaded.getList("workflowRuns").size(), equalTo(0));
+  }
+
+  @Test
+  public void whenUnloadByExternalId_thenWorkflowRunsAreDeletedFromVidarr() {
+    ObjectNode unloadFilter = getUnloadWorkflowFilterByExternalId("pinery-miso",
+        Arrays.asList("4141_1_LDI41414", "does_not_exist"));
+
+    var res =
+        given()
+            .contentType(ContentType.JSON)
+            .body(unloadFilter)
+            .when()
+            .post("/api/unload")
+            .then()
+            .assertThat()
+            .statusCode(200)
+            .and()
+            .extract()
+            .jsonPath();
+    var unloadFileName = res.get("filename").toString();
+    var unloadedFilePath = unloadDirectory.getRoot().getAbsolutePath() + "/" + unloadFileName;
+    var unloaded = JsonPath.from(new File(unloadedFilePath));
+
+    assertThat(unloaded.getList("workflowRuns").size(), equalTo(3));
+    assertThat(unloaded.getList("workflowRuns.id"),
+        containsInAnyOrder("6a3f7102a71043c7717f9f0bdc656ef14b35c92d3cf0df9e9095afa0f9a7acab",
+            "e268e7206776f44a1b438a650bbc4b26bfec46448c4825043b2cf15270f5fffc",
+            "66a6c5f02112ba6faf2f3ef8ee2a9076ae2a46b2368035fddb72202b555f1fb9"));
+  }
+
+  @Test
   public void whenUnloadUpstreamWorkflowRun_thenDownstreamWorkflowRunsAreUnloaded() {
     var bcl2fastqWorkflowRunId1 =
         "6a3f7102a71043c7717f9f0bdc656ef14b35c92d3cf0df9e9095afa0f9a7acab";
@@ -1529,6 +1581,18 @@ public class MainIntegrationTest {
     ObjectNode filterType = MAPPER.createObjectNode();
     filterType.put("type", "vidarr-workflow-name");
     filterType.put("name", workflowName);
+    unloadFilter.set("filter", filterType);
+    return unloadFilter;
+  }
+
+  private ObjectNode getUnloadWorkflowFilterByExternalId(String provider, List<String> externalIds) {
+    ObjectNode unloadFilter = MAPPER.createObjectNode();
+    unloadFilter.put("recursive", true);
+    ObjectNode filterType = MAPPER.createObjectNode();
+    filterType.put("type", "vidarr-external-id");
+    filterType.put("provider", provider);
+    var idsNode = filterType.putArray("id");
+    externalIds.forEach(idsNode::add);
     unloadFilter.set("filter", filterType);
     return unloadFilter;
   }

@@ -12,6 +12,7 @@ import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.WORKFLOW_DEFINITION;
 import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.WORKFLOW_RUN;
 import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.WORKFLOW_VERSION;
 import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.WORKFLOW_VERSION_ACCESSORY;
+import static org.jooq.impl.DSL.jsonObject;
 import static org.jooq.impl.DSL.param;
 
 import ca.on.oicr.gsi.Pair;
@@ -1814,42 +1815,46 @@ public final class Main implements ServerConfig {
     }
   }
 
-  private JSONObjectNullStep<JSON> workflowVersionFields() {
-    return DSL.jsonObject(
-        literalJsonEntry("name", WORKFLOW_VERSION.NAME),
-        literalJsonEntry("version", WORKFLOW_VERSION.VERSION),
-        literalJsonEntry("id", WORKFLOW_VERSION.HASH_ID),
-        literalJsonEntry("metadata", WORKFLOW_VERSION.METADATA),
-        literalJsonEntry("parameters", WORKFLOW_VERSION.PARAMETERS),
-        literalJsonEntry(
-            "labels",
-            DSL.field(
-                DSL.select(WORKFLOW.LABELS)
-                    .from(WORKFLOW)
-                    .where(WORKFLOW.NAME.eq(WORKFLOW_VERSION.NAME)))),
-        literalJsonEntry("language", WORKFLOW_DEFINITION.WORKFLOW_LANGUAGE),
-        literalJsonEntry("outputs", WORKFLOW_VERSION.METADATA));
+  private JSONObjectNullStep<JSON> workflowVersionFields(boolean includeDbId) {
+    List<JSONEntry<?>> entries = new ArrayList<>();
+    entries.add(literalJsonEntry("name", WORKFLOW_VERSION.NAME));
+    entries.add(literalJsonEntry("version", WORKFLOW_VERSION.VERSION));
+    entries.add(literalJsonEntry("id", WORKFLOW_VERSION.HASH_ID));
+    entries.add(literalJsonEntry("metadata", WORKFLOW_VERSION.METADATA));
+    entries.add(literalJsonEntry("parameters", WORKFLOW_VERSION.PARAMETERS));
+    entries.add(literalJsonEntry(
+        "labels",
+        DSL.field(
+            DSL.select(WORKFLOW.LABELS)
+                .from(WORKFLOW)
+                .where(WORKFLOW.NAME.eq(WORKFLOW_VERSION.NAME)))));
+    entries.add(literalJsonEntry("language", WORKFLOW_DEFINITION.WORKFLOW_LANGUAGE));
+    entries.add(literalJsonEntry("outputs", WORKFLOW_VERSION.METADATA));
+    if (includeDbId) {
+      entries.add(literalJsonEntry("dbId", WORKFLOW_VERSION.ID));
+    }
+    return jsonObject(entries);
   }
 
-  private JSONObjectNullStep<JSON> workflowVersionWithDefinitionFields() {
+  private JSONObjectNullStep<JSON> workflowVersionWithDefinitionFields(boolean includeDbId) {
+    List<JSONEntry<?>> entries = new ArrayList<>();
     final WorkflowDefinition accessoryDefinition =
         WORKFLOW_DEFINITION.as("accessoryWorkflowDefinition");
-    return DSL.jsonObject(
-        literalJsonEntry("name", WORKFLOW_VERSION.NAME),
-        literalJsonEntry("version", WORKFLOW_VERSION.VERSION),
-        literalJsonEntry("id", WORKFLOW_VERSION.HASH_ID),
-        literalJsonEntry("metadata", WORKFLOW_VERSION.METADATA),
-        literalJsonEntry("parameters", WORKFLOW_VERSION.PARAMETERS),
-        literalJsonEntry(
+        entries.add(literalJsonEntry("name", WORKFLOW_VERSION.NAME));
+    entries.add(literalJsonEntry("version", WORKFLOW_VERSION.VERSION));
+    entries.add(literalJsonEntry("id", WORKFLOW_VERSION.HASH_ID));
+    entries.add(literalJsonEntry("metadata", WORKFLOW_VERSION.METADATA));
+    entries.add(literalJsonEntry("parameters", WORKFLOW_VERSION.PARAMETERS));
+    entries.add(literalJsonEntry(
             "labels",
             DSL.field(
                 DSL.select(WORKFLOW.LABELS)
                     .from(WORKFLOW)
-                    .where(WORKFLOW.NAME.eq(WORKFLOW_VERSION.NAME)))),
-        literalJsonEntry("language", WORKFLOW_DEFINITION.WORKFLOW_LANGUAGE),
-        literalJsonEntry("outputs", WORKFLOW_VERSION.METADATA),
-        literalJsonEntry("workflow", WORKFLOW_DEFINITION.WORKFLOW_FILE),
-        literalJsonEntry(
+                    .where(WORKFLOW.NAME.eq(WORKFLOW_VERSION.NAME)))));
+    entries.add(literalJsonEntry("language", WORKFLOW_DEFINITION.WORKFLOW_LANGUAGE));
+    entries.add(literalJsonEntry("outputs", WORKFLOW_VERSION.METADATA));
+    entries.add(literalJsonEntry("workflow", WORKFLOW_DEFINITION.WORKFLOW_FILE));
+    entries.add(literalJsonEntry(
             "accessoryFiles",
             DSL.coalesce(
                 DSL.field(
@@ -1868,16 +1873,24 @@ public final class Main implements ServerConfig {
                                     WORKFLOW_VERSION_ACCESSORY.WORKFLOW_VERSION.eq(
                                         WORKFLOW_VERSION.ID)))),
                 DSL.inline(JSON.json("{}")))));
+
+    if(includeDbId) entries.add(literalJsonEntry("dbId", WORKFLOW_VERSION.ID));
+    return DSL.jsonObject(entries);
   }
 
   private Optional<String> fetchWorkflowVersion(String name, String version, boolean includeWorkflowDefinitions)
+      throws SQLException {
+    return fetchWorkflowVersion(name, version, includeWorkflowDefinitions, false);
+  }
+
+  private Optional<String> fetchWorkflowVersion(String name, String version, boolean includeWorkflowDefinitions, boolean includeDbId)
       throws SQLException {
     final Optional<String> result;
     try (final Connection connection = dataSource.getConnection()) {
       JSONObjectNullStep<JSON> fields =
           (includeWorkflowDefinitions
-              ? workflowVersionWithDefinitionFields()
-              : workflowVersionFields());
+              ? workflowVersionWithDefinitionFields(includeDbId)
+              : workflowVersionFields(includeDbId));
       result =
           DSL
               .using(connection, SQLDialect.POSTGRES)
@@ -2472,8 +2485,8 @@ public final class Main implements ServerConfig {
         // No ID from database because it is already installed, and we want to use that version
         // because we may have incomplete information in the load request.
         else if (workflowVersionFromDb) {
-          ObjectNode installedVersion = MAPPER.readValue(fetchWorkflowVersion(workflowName, workflowVersion, true).orElseThrow(), ObjectNode.class);
-          workflowVersionIds.put(workflowVersion, installedVersion.get("id").intValue());
+          ObjectNode installedVersion = MAPPER.readValue(fetchWorkflowVersion(workflowName, workflowVersion, true, true).orElseThrow(), ObjectNode.class);
+          workflowVersionIds.put(workflowVersion, installedVersion.get("dbId").intValue());
         }
         // No ID from database because it is already installed, and we want to ensure we have
         // the same version

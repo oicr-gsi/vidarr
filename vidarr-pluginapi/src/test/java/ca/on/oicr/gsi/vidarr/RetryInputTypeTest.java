@@ -1,5 +1,6 @@
 package ca.on.oicr.gsi.vidarr;
 
+import java.util.Map.Entry;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.function.ThrowingRunnable;
@@ -10,7 +11,7 @@ public class RetryInputTypeTest extends InputTypeTest {
 
   @Override
   public void testSerialize() {
-    for (final var type : BasicTypeTest.primitiveTypes.entrySet()) {
+    for (final Entry<BasicType, String> type : BasicTypeTest.primitiveTypes.entrySet()) {
       serializeTester(String.format(RETRY_TYPE, type.getValue()), InputType.retry(type.getKey()));
     }
   }
@@ -23,7 +24,7 @@ public class RetryInputTypeTest extends InputTypeTest {
 
   @Override
   public void testDeserialize() {
-    for (final var type : BasicTypeTest.primitiveTypes.entrySet()) {
+    for (final Entry<BasicType, String> type : BasicTypeTest.primitiveTypes.entrySet()) {
       deserializeTester(InputType.retry(type.getKey()), String.format(RETRY_TYPE, type.getValue()));
     }
   }

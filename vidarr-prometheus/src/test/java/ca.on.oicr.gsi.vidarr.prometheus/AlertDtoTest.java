@@ -4,6 +4,7 @@ import static org.junit.Assert.assertEquals;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -25,7 +26,7 @@ public class AlertDtoTest {
     labels.put("alertname", "AutoInhibit");
     sut.setLabels(labels);
 
-    var matches =
+    List<String> matches =
         sut.matches(autoInhibit, "testing", configLabels, Stream.of("vidarr-clinical", "bamqc4"))
             .toList();
     assertEquals(1, matches.size());
@@ -42,7 +43,7 @@ public class AlertDtoTest {
     labels.put("alertname", "AutoInhibit");
     sut.setLabels(labels);
 
-    var matches =
+    List<String> matches =
         sut.matches(autoInhibit, "testing", configLabels, Stream.of("vidarr-clinical", "bamqc4"))
             .toList();
     assertEquals(1, matches.size());
@@ -59,7 +60,7 @@ public class AlertDtoTest {
     labels.put("alertname", "AutoInhibit");
     sut.setLabels(labels);
 
-    var matches =
+    List<String> matches =
         sut.matches(autoInhibit, "testing", configLabels, Stream.of("vidarr-clinical", "bamqc4"))
             .toList();
     assertEquals(1, matches.size());
@@ -76,7 +77,7 @@ public class AlertDtoTest {
     labels.put("alertname", "AutoInhibit");
     sut.setLabels(labels);
 
-    var matches =
+    List<String> matches =
         sut.matches(autoInhibit, "testing", configLabels, Stream.of("vidarr-clinical", "bamqc4"))
             .toList();
     assertEquals(0, matches.size());
@@ -93,7 +94,7 @@ public class AlertDtoTest {
     labels.put("alertname", "FullSpeedAhead");
     sut.setLabels(labels);
 
-    var matches =
+    List<String> matches =
         sut.matches(autoInhibit, "testing", configLabels, Stream.of("vidarr-clinical", "bamqc4"))
             .toList();
     assertEquals(0, matches.size());
@@ -110,7 +111,7 @@ public class AlertDtoTest {
     labels.put("alertname", "AutoInhibit");
     sut.setLabels(labels);
 
-    var matches =
+    List<String> matches =
         sut.matches(autoInhibit, "testing", configLabels, Stream.of("vidarr-clinical", "615ed228fad3ae6193d5279dc689e83fa4225cd69c929e266dd84ef2ed96e719"))
             .toList();
     assertEquals(1, matches.size());

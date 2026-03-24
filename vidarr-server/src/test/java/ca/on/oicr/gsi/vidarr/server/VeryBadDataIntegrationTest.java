@@ -7,6 +7,7 @@ import static org.hamcrest.Matchers.equalTo;
 import ca.on.oicr.gsi.vidarr.server.dto.ServerConfiguration;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.rasklaad.blns.NaughtyStrings;
@@ -21,6 +22,7 @@ import java.util.TimeZone;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.flywaydb.core.Flyway;
+import org.flywaydb.core.api.configuration.FluentConfiguration;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
@@ -60,13 +62,13 @@ public class VeryBadDataIntegrationTest {
 
   @Before
   public void cleanAndMigrateDB() {
-    final var simpleConnection = new PGSimpleDataSource();
+    final PGSimpleDataSource simpleConnection = new PGSimpleDataSource();
     simpleConnection.setServerNames(new String[] {config.getDbHost()});
     simpleConnection.setPortNumbers(new int[] {config.getDbPort()});
     simpleConnection.setDatabaseName(config.getDbName());
     simpleConnection.setUser(config.getDbUser());
     simpleConnection.setPassword(config.getDbPass());
-    var fw = Flyway.configure().dataSource(simpleConnection).cleanDisabled(false);
+    FluentConfiguration fw = Flyway.configure().dataSource(simpleConnection).cleanDisabled(false);
     fw.load().clean();
     fw.locations("classpath:db/migration").load().migrate();
     // we do this in a separate step because Flyway on its own isn't finding the test data, and it dies when you
@@ -117,7 +119,7 @@ public class VeryBadDataIntegrationTest {
   @Test(expected = IllegalArgumentException.class)
   public void addWorkflow() throws JsonProcessingException {
     List<String> filteredBlns = getNaughtyStringList();
-    var noParamWorkflow = MAPPER.writeValueAsString(new HashMap<>());
+    String noParamWorkflow = MAPPER.writeValueAsString(new HashMap<>());
 
     // Vidarr doesn't actually have any restrictions on the name of a workflow so all of these will
     // succeed
@@ -157,9 +159,9 @@ public class VeryBadDataIntegrationTest {
     List<String> filteredBlns = getNaughtyStringList();
     filteredBlns.forEach(
         (naughtyString) -> {
-          var body = MAPPER.createObjectNode();
-          var outputs = MAPPER.createObjectNode();
-          var parameters = MAPPER.createObjectNode();
+          ObjectNode body = MAPPER.createObjectNode();
+          ObjectNode outputs = MAPPER.createObjectNode();
+          ObjectNode parameters = MAPPER.createObjectNode();
           outputs.put("fastqs", "files");
           parameters.put("test", "boolean");
           body.put("language", "NIASSA");

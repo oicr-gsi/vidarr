@@ -7,6 +7,7 @@ import ca.on.oicr.gsi.vidarr.api.ExternalId;
 import ca.on.oicr.gsi.vidarr.api.ExternalMultiVersionKey;
 import ca.on.oicr.gsi.vidarr.core.FileMetadata;
 import ca.on.oicr.gsi.vidarr.core.Target;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import java.util.Collection;
@@ -22,6 +23,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.flywaydb.core.Flyway;
+import org.flywaydb.core.api.configuration.FluentConfiguration;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
@@ -54,13 +56,13 @@ public class DatabaseBackedProcessorTest {
 
   @Before
   public void cleanAndMigrateDb() {
-    final var simpleConnection = new PGSimpleDataSource();
+    final PGSimpleDataSource simpleConnection = new PGSimpleDataSource();
     simpleConnection.setServerNames(new String[] {pg.getHost()});
     simpleConnection.setPortNumbers(new int[] {pg.getFirstMappedPort()});
     simpleConnection.setDatabaseName(pg.getDatabaseName());
     simpleConnection.setUser(pg.getUsername());
     simpleConnection.setPassword(pg.getPassword());
-    var fw = Flyway.configure().dataSource(simpleConnection).cleanDisabled(false);
+    FluentConfiguration fw = Flyway.configure().dataSource(simpleConnection).cleanDisabled(false);
     fw.load().clean();
     fw.locations("classpath:db/migration", "classpath:db/testdata").load().migrate();
 
@@ -84,88 +86,88 @@ public class DatabaseBackedProcessorTest {
 
   @Test
   public void testValidateLabels_validLabels() {
-    var providedLabels = sut.mapper().createObjectNode();
+    ObjectNode providedLabels = sut.mapper().createObjectNode();
     providedLabels.put("reference", "hg38");
     providedLabels.put("tumor_group", "first");
-    var expectedLabels = new HashMap<String, BasicType>();
+    HashMap<String, BasicType> expectedLabels = new HashMap<>();
     expectedLabels.put("reference", BasicType.STRING);
     expectedLabels.put("tumor_group", BasicType.STRING);
-    var validated =
+    Set<String> validated =
         DatabaseBackedProcessor.validateLabels(providedLabels, expectedLabels)
             .collect(Collectors.toSet());
-    var expected = new HashSet<String>();
+    HashSet<String> expected = new HashSet<>();
     assertEquals(expected, validated);
   }
 
   @Test
   public void testValidateLabels_invalidLabelsData() {
-    var providedLabels = sut.mapper().createObjectNode();
+    ObjectNode providedLabels = sut.mapper().createObjectNode();
     providedLabels.put("reference", "hg38");
     providedLabels.put("tumor_group", "first");
-    var expectedLabels = new HashMap<String, BasicType>();
+    HashMap<String, BasicType> expectedLabels = new HashMap<>();
     expectedLabels.put("reference", BasicType.STRING);
     expectedLabels.put("tumor_group", BasicType.BOOLEAN);
-    var validated =
+    Set<String> validated =
         DatabaseBackedProcessor.validateLabels(providedLabels, expectedLabels)
             .collect(Collectors.toSet());
-    var expected = new HashSet<String>();
+    HashSet<String> expected = new HashSet<>();
     expected.add("Label tumor_group: Label: tumor_group: Expected Boolean but got \"first\".");
     assertEquals(expected, validated);
   }
 
   @Test
   public void testValidateLabels_invalidLabelsCount() {
-    var providedLabels = sut.mapper().createObjectNode();
+    ObjectNode providedLabels = sut.mapper().createObjectNode();
     providedLabels.put("reference", "hg38");
     providedLabels.put("tumor_group", "first");
-    var expectedLabels = new HashMap<String, BasicType>();
+    HashMap<String, BasicType> expectedLabels = new HashMap<>();
     expectedLabels.put("reference", BasicType.STRING);
-    var validated =
+    Set<String> validated =
         DatabaseBackedProcessor.validateLabels(providedLabels, expectedLabels)
             .collect(Collectors.toSet());
-    var expected = new HashSet<String>();
+    HashSet<String> expected = new HashSet<>();
     expected.add("2 labels are provided but 1 are expected.");
     assertEquals(expected, validated);
   }
 
   @Test
   public void testComputeWorkflowHash_alwaysSameHash() {
-    var workflowName = "bcl2fastq";
-    var providedLabels = sut.mapper().createObjectNode();
+    String workflowName = "bcl2fastq";
+    ObjectNode providedLabels = sut.mapper().createObjectNode();
     providedLabels.put("reference", "hg38");
     providedLabels.put("tumor_group", "first");
-    var expectedLabels = new TreeSet<String>();
+    TreeSet<String> expectedLabels = new TreeSet<>();
     expectedLabels.add("reference");
     expectedLabels.add("tumor_group");
-    var inputIds = new TreeSet<String>();
+    TreeSet<String> inputIds = new TreeSet<>();
     inputIds.add("vidarr:test/file/abcdefabcdefabcdef");
     inputIds.add("vidarr:test/file/fedcbafedcbafedcba");
-    var externalKeys = new HashSet<ExternalMultiVersionKey>();
-    var ekv1 = new HashMap<String, Set<String>>();
-    var ekvv1 = new HashSet<String>();
+    HashSet<ExternalMultiVersionKey> externalKeys = new HashSet<>();
+    HashMap<String, Set<String>> ekv1 = new HashMap<>();
+    HashSet<String> ekvv1 = new HashSet<>();
     ekvv1.add("b2b2b2b2b2b2b2b2");
     ekv1.put("pinery-hash-22", ekvv1);
-    var ekvv2 = new HashSet<String>();
+    HashSet<String> ekvv2 = new HashSet<>();
     ekvv2.add("a1a1a1a1a1a1a1a1");
     ekv1.put("shesmu-sha3", ekvv2);
-    var ek = new ExternalMultiVersionKey("pinery-miso", "1234_1_LIB1234");
+    ExternalMultiVersionKey ek = new ExternalMultiVersionKey("pinery-miso", "1234_1_LIB1234");
     ek.setVersions(ekv1);
     externalKeys.add(ek);
 
-    var compute1 =
+    String compute1 =
         DatabaseBackedProcessor.computeWorkflowRunHashId(
             workflowName, providedLabels, expectedLabels, inputIds, externalKeys);
-    var compute2 =
+    String compute2 =
         DatabaseBackedProcessor.computeWorkflowRunHashId(
             workflowName, providedLabels, expectedLabels, inputIds, externalKeys);
     assertEquals(compute1, compute2);
 
     // Confirm that this computes independently of external key versions
 
-    var externalIds = new HashSet<ExternalId>();
-    var ei = new ExternalId("pinery-miso", "1234_1_LIB1234");
+    HashSet<ExternalId> externalIds = new HashSet<>();
+    ExternalId ei = new ExternalId("pinery-miso", "1234_1_LIB1234");
     externalIds.add(ei);
-    var compute3 =
+    String compute3 =
         DatabaseBackedProcessor.computeWorkflowRunHashId(
             workflowName, providedLabels, expectedLabels, inputIds, externalIds);
     assertEquals(compute1, compute3);

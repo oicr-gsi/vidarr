@@ -6,6 +6,13 @@ For unreleased changes, see [changes](changes).
 
 -----------------------------------------------------------------------------
 
+## [2.11.1] - 2026-03-24
+
+### Fixed
+
+* Update copy-out and unload query to use "@>"/contains array operator
+
+
 ## [2.11.0] - 2026-03-16
 
 ### Added

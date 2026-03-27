@@ -633,6 +633,8 @@ public final class Main implements ServerConfig {
                         .collect(Collectors.toList())));
           }
         });
+    // Clear content-length header in case it was previously set to 0
+    exchange.getResponseHeaders().remove(Headers.CONTENT_LENGTH);
     exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_JSON);
     exchange.setStatusCode(response.first());
     if (postCommitAction.get() != null) {

@@ -1485,7 +1485,7 @@ public final class Main implements ServerConfig {
     createAnalysisRecords(
         DSL.using(tx),
         output,
-        VersionPolicy.ALL,
+        VersionPolicy.LATEST,
         null,
         true,
         EnumSet.allOf(AnalysisOutputType.class),
@@ -1999,8 +1999,7 @@ public final class Main implements ServerConfig {
     associate.execute();
   }
 
-  private void insertExternalKey(
-      Configuration configuration, long id, ExternalMultiVersionKey externalId) {
+  private void insertExternalKey(Configuration configuration, long id, ExternalKey externalId) {
     final Integer externalIdDbId =
         DSL.using(configuration)
             .insertInto(EXTERNAL_ID)
@@ -2018,10 +2017,8 @@ public final class Main implements ServerConfig {
                 EXTERNAL_ID_VERSION.EXTERNAL_ID_ID,
                 EXTERNAL_ID_VERSION.KEY,
                 EXTERNAL_ID_VERSION.VALUE);
-    for (final Entry<String, Set<String>> version : externalId.getVersions().entrySet()) {
-      for (final String value : version.getValue()) {
-        insertVersions = insertVersions.values(externalIdDbId, version.getKey(), value);
-      }
+    for (final Entry<String, String> version : externalId.getVersions().entrySet()) {
+      insertVersions = insertVersions.values(externalIdDbId, version.getKey(), version.getValue());
     }
     insertVersions.execute();
   }
@@ -2045,7 +2042,7 @@ public final class Main implements ServerConfig {
       Configuration configuration,
       int workflowId,
       OffsetDateTime now,
-      ca.on.oicr.gsi.vidarr.api.ProvenanceWorkflowRun<ExternalMultiVersionKey> run) {
+      ca.on.oicr.gsi.vidarr.api.ProvenanceWorkflowRun<ExternalKey> run) {
     return DSL.using(configuration)
         .insertInto(WORKFLOW_RUN)
         .set(WORKFLOW_RUN.HASH_ID, param("hashId", run.getId()))
@@ -2170,8 +2167,7 @@ public final class Main implements ServerConfig {
       // Validate the workflow runs; all workflow data must be included, so we don't need the DB for
       // this.
       final TreeSet<String> seenWorkflowRunIds = new TreeSet<>();
-      for (final ProvenanceWorkflowRun<ExternalMultiVersionKey> workflowRun :
-          unloadedData.getWorkflowRuns()) {
+      for (final ProvenanceWorkflowRun<ExternalKey> workflowRun : unloadedData.getWorkflowRuns()) {
 
         // All workflow runs must be of included workflows
         final Pair<UnloadedWorkflow, Map<String, Pair<String, UnloadedWorkflowVersion>>> info =
@@ -2491,8 +2487,7 @@ public final class Main implements ServerConfig {
       }
     }
     final OffsetDateTime now = OffsetDateTime.now();
-    for (final ProvenanceWorkflowRun<ExternalMultiVersionKey> run :
-        unloadedData.getWorkflowRuns()) {
+    for (final ProvenanceWorkflowRun<ExternalKey> run : unloadedData.getWorkflowRuns()) {
       final Optional<Long> id =
           insertWorkflowRun(
               configuration,
@@ -2500,7 +2495,7 @@ public final class Main implements ServerConfig {
               now,
               run);
       if (id.isPresent()) {
-        for (final ExternalMultiVersionKey externalId : run.getExternalKeys()) {
+        for (final ExternalKey externalId : run.getExternalKeys()) {
 
           insertExternalKey(configuration, id.get(), externalId);
         }

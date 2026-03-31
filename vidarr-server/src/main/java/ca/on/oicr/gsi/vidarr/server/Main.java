@@ -2860,9 +2860,8 @@ public final class Main implements ServerConfig {
                                                       case 1:
                                                         return field.eq(items.iterator().next());
                                                       default:
-                                                        // equivalent sql: items @> Array[field]
-                                                        return DSL.val(items.toArray(String[]::new))
-                                                            .contains(DSL.array(field));
+                                                        return field.eq(
+                                                            DSL.any(items.toArray(String[]::new)));
                                                     }
                                                   }
 

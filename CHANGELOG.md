@@ -6,6 +6,13 @@ For unreleased changes, see [changes](changes).
 
 -----------------------------------------------------------------------------
 
+## [2.11.2] - 2026-04-01
+
+### Fixed
+
+* More updates for copy-out and unload query performace optimizations
+
+
 ## [2.11.1] - 2026-03-24
 
 ### Fixed

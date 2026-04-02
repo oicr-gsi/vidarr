@@ -507,10 +507,14 @@ public final class Main implements ServerConfig {
     Semaphore s = reprovisionCounter.getOrDefault(reprovisionOutRequest.getWorkflowRunHashId(), new Semaphore(1));
     if(!s.tryAcquire()){
       exchange.setStatusCode(StatusCodes.INSUFFICIENT_STORAGE);
-      exchange
-          .getResponseSender()
-          .send(
-              "There is already a reprovision request on this workflow run right now. Please try again later.");
+      try {
+        exchange
+            .getResponseSender()
+            .send(
+                MAPPER.writeValueAsString(new SubmitWorkflowResponseConflict(List.of(reprovisionOutRequest.getWorkflowRunHashId()))));
+      } catch (JsonProcessingException e) {
+        throw new RuntimeException(e);
+      }
       return;
     }
     reprovisionCounter.put(reprovisionOutRequest.getWorkflowRunHashId(), s);

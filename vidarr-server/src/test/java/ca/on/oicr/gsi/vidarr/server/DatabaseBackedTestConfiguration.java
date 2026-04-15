@@ -4,6 +4,7 @@ import ca.on.oicr.gsi.vidarr.core.RawInputProvisioner;
 import ca.on.oicr.gsi.vidarr.server.dto.ServerConfiguration;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Set;
 import org.junit.rules.TemporaryFolder;
 import org.testcontainers.containers.JdbcDatabaseContainer;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -41,6 +42,7 @@ public class DatabaseBackedTestConfiguration {
     config.setRuntimeProvisioners(new HashMap<>());
     config.setTargets(new HashMap<>());
     config.setUnloadDirectory(unloadDir.getRoot().getAbsolutePath());
+    config.setExcludeWorkflowsFromProvenance(Set.of("exclude_me"));
     return config;
   }
 

@@ -30,6 +30,7 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -204,7 +205,8 @@ public class MainIntegrationTest {
         .assertThat()
         .statusCode(200);
 
-    JsonPath newImportFastq = get("/api/workflow/{name}", "import_fastq").then().extract().jsonPath();
+    JsonPath newImportFastq =
+        get("/api/workflow/{name}", "import_fastq").then().extract().jsonPath();
     int updatedWorkflowCount =
         get("/api/workflows")
             .then()
@@ -253,7 +255,8 @@ public class MainIntegrationTest {
         .then()
         .assertThat()
         .statusCode(200);
-    JsonPath mifImportFastq = get("/api/workflow/{name}", "import_fastq").then().extract().jsonPath();
+    JsonPath mifImportFastq =
+        get("/api/workflow/{name}", "import_fastq").then().extract().jsonPath();
     assertEquals(newMaxInFlight, (int) ((Integer) mifImportFastq.get("maxInFlight")));
 
     // labels should NOT be modifiable
@@ -295,8 +298,7 @@ public class MainIntegrationTest {
             .statusCode(200)
             .and()
             .extract()
-            .as(new TypeRef<>() {
-            });
+            .as(new TypeRef<>() {});
     assertThat(
         workflows.stream().filter(wf -> "import_fastq".equals(wf.get("name"))).count(),
         greaterThan(0L));
@@ -384,8 +386,7 @@ public class MainIntegrationTest {
             .and()
             .extract()
             .body()
-            .as(new TypeRef<>() {
-            });
+            .as(new TypeRef<>() {});
     int newSize = updated.size();
     Set<Object> versions =
         updated.stream()
@@ -580,8 +581,7 @@ public class MainIntegrationTest {
             .then()
             .extract()
             .body()
-            .as(new TypeRef<>() {
-            });
+            .as(new TypeRef<>() {});
     given()
         .contentType(ContentType.JSON)
         .body(MAPPER.writeValueAsString(existingVersion))
@@ -596,8 +596,7 @@ public class MainIntegrationTest {
             .then()
             .extract()
             .body()
-            .as(new TypeRef<>() {
-            });
+            .as(new TypeRef<>() {});
 
     given()
         .contentType(ContentType.JSON)
@@ -673,8 +672,7 @@ public class MainIntegrationTest {
             .and()
             .extract()
             .body()
-            .as(new TypeRef<>() {
-            });
+            .as(new TypeRef<>() {});
 
     delete("/api/workflow/{name}", "novel").then().assertThat().statusCode(404);
 
@@ -686,8 +684,7 @@ public class MainIntegrationTest {
             .and()
             .extract()
             .body()
-            .as(new TypeRef<>() {
-            });
+            .as(new TypeRef<>() {});
 
     assertEquals(before.size(), after.size());
   }
@@ -695,12 +692,7 @@ public class MainIntegrationTest {
   @Test
   public void whenDisableKnownWorkflow_thenAvailableWorkflowsAreUpdated() {
     List<Map<String, Object>> before =
-        get("/api/workflows")
-            .then()
-            .extract()
-            .body()
-            .as(new TypeRef<>() {
-            });
+        get("/api/workflows").then().extract().body().as(new TypeRef<>() {});
 
     delete("/api/workflow/{name}", "import_fastq").then().assertThat().statusCode(200);
 
@@ -712,8 +704,7 @@ public class MainIntegrationTest {
             .and()
             .extract()
             .body()
-            .as(new TypeRef<>() {
-            });
+            .as(new TypeRef<>() {});
 
     assertTrue(before.size() > after.size());
   }
@@ -840,7 +831,7 @@ public class MainIntegrationTest {
     assertTrue(
         nodeVersions.stream()
             .map(v -> MAPPER.convertValue(v, new TypeReference<Map<String, String>>() {}))
-            .map(v -> v.values())
+            .map(Map::values)
             .anyMatch(a -> a.contains(targetVersion) && !a.contains(antiTargetVersion)));
   }
 
@@ -1042,6 +1033,27 @@ public class MainIntegrationTest {
       Instant modTime = dateFromTime((String) r.get("modified"));
       assertTrue(modTime.isAfter(endTime));
     }
+  }
+
+  @Test
+  public void whenGetProvenanceRecordsWithExcludedWorkflow_thenWorkflowIsExcluded() {
+    ObjectNode requestBody =
+        buildProvenanceRequestBody("LATEST", Instant.ofEpochMilli(0), Instant.ofEpochMilli(0));
+    List<ObjectNode> results =
+        given()
+            .contentType(ContentType.JSON)
+            .body(requestBody)
+            .when()
+            .post("/api/provenance")
+            .then()
+            .assertThat()
+            .statusCode(200)
+            .and()
+            .extract()
+            .body()
+            .as(ProvenanceResponse.class)
+            .getResults();
+    results.forEach(wfr -> assertNotEquals("exclude_me", wfr.get("workflowName").asText()));
   }
 
   @Test
@@ -1387,7 +1399,7 @@ public class MainIntegrationTest {
 
     String unloadedFilePath = unloadDirectory.getRoot().getAbsolutePath() + "/" + unloadFileName;
 
-    JsonNode unloaded = MAPPER.readTree(new File(unloadedFilePath));
+    ObjectNode unloaded = (ObjectNode) MAPPER.readTree(new File(unloadedFilePath));
 
     // Confirm that the bcl2fastq workflow run has been unloaded from the database
     get("/api/run/{hash}", bcl2fastqHash).then().assertThat().statusCode(404);
@@ -1420,10 +1432,10 @@ public class MainIntegrationTest {
     String unload2FileName = res2.get("filename").toString();
     String unloaded2FilePath = unloadDirectory.getRoot().getAbsolutePath() + "/" + unload2FileName;
 
-    JsonNode reUnloaded = MAPPER.readTree(new File(unloaded2FilePath));
-    // Created and modified fields will be affected by our re-loading them into the db
-    removeCreatedAndModifiedFieldsForBetterComparisons(unloaded);
-    removeCreatedAndModifiedFieldsForBetterComparisons(reUnloaded);
+    ObjectNode reUnloaded = (ObjectNode) MAPPER.readTree(new File(unloaded2FilePath));
+    massageFieldsForBetterComparisons(unloaded);
+    massageFieldsForBetterComparisons(reUnloaded);
+
     assertEquals(reUnloaded, unloaded);
   }
 
@@ -1611,7 +1623,11 @@ public class MainIntegrationTest {
     return OffsetDateTime.parse(timeString).toInstant();
   }
 
-  private void removeCreatedAndModifiedFieldsForBetterComparisons(JsonNode unload) {
+  /*
+  Created and modified fields will be affected by our re-loading them into the db.
+  Also, ordering of the lists doesn't matter to us but does matter to the equals method */
+  private void massageFieldsForBetterComparisons(JsonNode unload) {
+    // First, sort the inner analysis list and remove the datetime fields
     unload
         .get("workflowRuns")
         .forEach(
@@ -1625,7 +1641,23 @@ public class MainIntegrationTest {
                         ((ObjectNode) ek).remove("modified");
                       });
               wfr.get("analysis").forEach(a -> ((ObjectNode) a).remove("modified"));
+
+              List<JsonNode> analysis = new ArrayList<>();
+              wfr.get("analysis").forEach(analysis::add);
+              ArrayNode sortedAnalysis = MAPPER.createArrayNode();
+              sortedAnalysis.addAll(
+                  analysis.stream()
+                      .sorted(Comparator.comparing(a -> a.get("id").asText()))
+                      .toList());
+              ((ObjectNode) wfr).set("analysis", sortedAnalysis);
             });
+    // Then, sort the workflowRuns list
+    List<JsonNode> workflowRuns = new ArrayList<>();
+    unload.get("workflowRuns").forEach(workflowRuns::add);
+    ArrayNode sortedWorkflowRuns = MAPPER.createArrayNode();
+    sortedWorkflowRuns.addAll(
+        workflowRuns.stream().sorted(Comparator.comparing(a -> a.get("id").asText())).toList());
+    ((ObjectNode) unload).set("workflowRuns", sortedWorkflowRuns);
   }
 
   private static class ProvenanceResponse {

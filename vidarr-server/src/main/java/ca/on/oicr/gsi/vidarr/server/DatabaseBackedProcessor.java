@@ -1679,8 +1679,6 @@ public abstract class DatabaseBackedProcessor
                                                     workflowRunId,
                                                     knownMatches);
 
-                                                updateLastAccessed(context.dsl(), candidateId);
-
                                                 // If this workflow is active, but failed, and the
                                                 // attempt number is higher or this is a different
                                                 // workflow version, we should restart it.
@@ -1776,6 +1774,8 @@ public abstract class DatabaseBackedProcessor
                                                             }
                                                           }));
                                                 } else {
+                                                  updateLastAccessed(
+                                                      transaction, candidates.get(0).workflowRun());
                                                   return handler.matchExisting(
                                                       candidates.get(0).workflowRun());
                                                 }

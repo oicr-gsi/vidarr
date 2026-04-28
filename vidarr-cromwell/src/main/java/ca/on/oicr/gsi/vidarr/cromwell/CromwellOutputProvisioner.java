@@ -5,6 +5,7 @@ import static ca.on.oicr.gsi.vidarr.OperationStatefulStep.log;
 import static ca.on.oicr.gsi.vidarr.OperationStatefulStep.onInnerState;
 import static ca.on.oicr.gsi.vidarr.OperationStatefulStep.poll;
 import static ca.on.oicr.gsi.vidarr.OperationStatefulStep.repeatUntilSuccess;
+import static ca.on.oicr.gsi.vidarr.OperationStatefulStep.subStep;
 import static ca.on.oicr.gsi.vidarr.OperationStep.debugInfo;
 import static ca.on.oicr.gsi.vidarr.OperationStep.getJson;
 import static ca.on.oicr.gsi.vidarr.OperationStep.handleHttpResponseCode;
@@ -249,12 +250,20 @@ public class CromwellOutputProvisioner
                     .then(status(response -> statusFromCromwell(response.getStatus())))
                     .map(WorkflowMetadataResponse::pollStatus)
                     .then(poll(Duration.ofMinutes(5)))
-                    .reload(s -> s.loadInner(StateStarted.class).buildOutputsRequest())
-                    .then(http(new JsonBodyHandler<>(MAPPER, WorkflowOutputResponse.class)))
-                    .then(monitorWhen(CROMWELL_FAILURES, OperationStep::isHttpNotOk, cromwellUrl))
-                    .then(handleHttpResponseCode())
-                    .then(repeatUntilSuccess(Duration.ofMinutes(5), 5))
-                    .then(getJson())))
+                    .then(
+                        subStep(
+                            (state, input) -> state.loadInner(StateStarted.class),
+                            load(StateStarted.class, StateStarted::buildOutputsRequest)
+                                .then(
+                                    http(
+                                        new JsonBodyHandler<>(
+                                            MAPPER, WorkflowOutputResponse.class)))
+                                .then(
+                                    monitorWhen(
+                                        CROMWELL_FAILURES, OperationStep::isHttpNotOk, cromwellUrl))
+                                .then(handleHttpResponseCode())
+                                .then(repeatUntilSuccess(Duration.ofMinutes(5), 5))
+                                .then(getJson())))))
         .map(this::extractOutput);
   }
 

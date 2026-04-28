@@ -32,7 +32,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.prometheus.client.Counter;
 import java.lang.System.Logger.Level;
-import java.lang.Thread.State;
 import java.net.http.HttpClient;
 import java.time.Duration;
 import java.util.Map;
@@ -154,18 +153,27 @@ public final class CromwellWorkflowEngine implements WorkflowEngine<StateUnstart
                     .then(status(response -> statusFromCromwell(response.getStatus())))
                     .map(WorkflowMetadataResponse::pollStatus)
                     .then(poll(Duration.ofMinutes(5)))
-                    .reload(s -> s.loadInner(StateStarted.class).buildOutputsRequest())
-                    .then(http(new JsonBodyHandler<>(MAPPER, WorkflowOutputResponse.class)))
-                    .then(monitorWhen(CROMWELL_FAILURES, OperationStep::isHttpNotOk, url))
-                    .then(handleHttpResponseCode())
-                    .then(repeatUntilSuccess(Duration.ofMinutes(5), 5))
-                    .then(getJson())
-                    .map(
-                        (state, output) ->
-                            new Result<>(
-                                output.getOutputs(),
-                                state.loadInner(StateStarted.class).runtimeProvisionerUrl(),
-                                Optional.empty()))));
+                    .then(
+                        subStep(
+                            (state, input) -> state.loadInner(StateStarted.class),
+                            load(StateStarted.class, StateStarted::buildOutputsRequest)
+                                .then(
+                                    http(
+                                        new JsonBodyHandler<>(
+                                            MAPPER, WorkflowOutputResponse.class)))
+                                .then(
+                                    monitorWhen(CROMWELL_FAILURES, OperationStep::isHttpNotOk, url))
+                                .then(handleHttpResponseCode())
+                                .then(repeatUntilSuccess(Duration.ofMinutes(5), 5))
+                                .then(getJson())
+                                .map(
+                                    (state, output) ->
+                                        new Result<>(
+                                            output.getOutputs(),
+                                            state
+                                                .loadInner(StateStarted.class)
+                                                .runtimeProvisionerUrl(),
+                                            Optional.empty()))))));
   }
 
   public void setDebugInflightRuns(boolean debugInflightRuns) {

@@ -6,6 +6,25 @@ For unreleased changes, see [changes](changes).
 
 -----------------------------------------------------------------------------
 
+## [2.12.0] - 2026-04-29
+
+### Added
+
+* Config to exclude specified workflows from `/provenance` requests
+
+### Changed
+
+* SubmitWorkflowResponseConflict now returned when reprovisioning already underway, including id of job underway
+  
+* load-injected now does not require a workflow definition to be included in the request, if a workflow version matching the name and version is found in the database, it will be filled in.
+
+### Fixed
+
+* Response bodies now returned when importing
+  
+* Concurrent update issue
+
+
 ## [2.11.2] - 2026-04-01
 
 ### Fixed

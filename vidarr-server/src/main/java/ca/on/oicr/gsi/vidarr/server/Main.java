@@ -406,13 +406,17 @@ public final class Main implements ServerConfig {
                                 MAPPER,
                                 RetryProvisionOutRequest.class,
                                 server::retryProvisionOut))))
-                .post("/api/reprovision-out",
-                    monitor(new BlockingHandler(
-                        JsonPost.parse(
-                            MAPPER,
-                            ReprovisionOutRequest.class,
-                            server::reprovisionOut))))
-                .post("/api/import", monitor(new BlockingHandler(JsonPost.parse(MAPPER, ImportRequest.class, server::importRun))))
+                .post(
+                    "/api/reprovision-out",
+                    monitor(
+                        new BlockingHandler(
+                            JsonPost.parse(
+                                MAPPER, ReprovisionOutRequest.class, server::reprovisionOut))))
+                .post(
+                    "/api/import",
+                    monitor(
+                        new BlockingHandler(
+                            JsonPost.parse(MAPPER, ImportRequest.class, server::importRun))))
                 .delete(
                     "/api/status/{hash}", monitor(new BlockingHandler(server::deleteWorkflowRun)))
                 .post(
@@ -456,7 +460,7 @@ public final class Main implements ServerConfig {
     routes.addPrefixPath(
         "/consumable-resource/max-in-flight-by-workflow",
         server.overridableMaxInFlightPerWorkflow.httpHandler().get());
-    final long undertowEntitySize = server.maxEntitySize * 1024L * 1024L; //undertow requires bytes
+    final long undertowEntitySize = server.maxEntitySize * 1024L * 1024L; // undertow requires bytes
     final Undertow undertow =
         Undertow.builder()
             .addHttpListener(server.port, "0.0.0.0")
@@ -471,9 +475,9 @@ public final class Main implements ServerConfig {
   }
 
   /**
-   * Takes a request which is a combination of a load request and a reprovision request.
-   * Does an unverified load and gets the hash back from the unverified loading process,
-   * then reprovisions files from the workflow run to the location specified in the request.
+   * Takes a request which is a combination of a load request and a reprovision request. Does an
+   * unverified load and gets the hash back from the unverified loading process, then reprovisions
+   * files from the workflow run to the location specified in the request.
    *
    * @param httpServerExchange
    * @param importRequest
@@ -485,162 +489,165 @@ public final class Main implements ServerConfig {
       load(httpServerExchange, importRequest.load(), false, false);
 
       // If loading fails, then the exchange will be terminated, pop out
-      if (httpServerExchange.isComplete()){
+      if (httpServerExchange.isComplete()) {
         return;
       }
 
       // Should never happen - status code setting methods will terminate the exchange if bad
-      if (httpServerExchange.getStatusCode() / 100 != 2){
+      if (httpServerExchange.getStatusCode() / 100 != 2) {
         internalServerErrorResponse(httpServerExchange, new Exception("Unknown error"));
       }
 
       // Use hash id generated during load()
-      reprovisionOut(httpServerExchange,
-          importRequest.reprovision(importRequest.getWorkflowRun().getId()));
+      reprovisionOut(
+          httpServerExchange, importRequest.reprovision(importRequest.getWorkflowRun().getId()));
     } catch (Exception e) {
       internalServerErrorResponse(httpServerExchange, e);
     }
   }
 
-  private void reprovisionOut(HttpServerExchange exchange,
-      ReprovisionOutRequest reprovisionOutRequest) {
+  private void reprovisionOut(
+      HttpServerExchange exchange, ReprovisionOutRequest reprovisionOutRequest) {
     // Clear content-length header in case it was previously set to 0
     exchange.getResponseHeaders().remove(Headers.CONTENT_LENGTH);
     exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_JSON);
 
-    Semaphore s = reprovisionCounter.getOrDefault(reprovisionOutRequest.getWorkflowRunHashId(), new Semaphore(1));
-    if(!s.tryAcquire()){
+    Semaphore s =
+        reprovisionCounter.getOrDefault(
+            reprovisionOutRequest.getWorkflowRunHashId(), new Semaphore(1));
+    if (!s.tryAcquire()) {
       exchange.setStatusCode(StatusCodes.INSUFFICIENT_STORAGE);
       try {
         exchange
             .getResponseSender()
             .send(
-                MAPPER.writeValueAsString(new SubmitWorkflowResponseConflict(List.of(reprovisionOutRequest.getWorkflowRunHashId()))));
+                MAPPER.writeValueAsString(
+                    new SubmitWorkflowResponseConflict(
+                        List.of(reprovisionOutRequest.getWorkflowRunHashId()))));
       } catch (JsonProcessingException e) {
         throw new RuntimeException(e);
       }
       return;
     }
     reprovisionCounter.put(reprovisionOutRequest.getWorkflowRunHashId(), s);
-    try{
+    try {
       reprovisionOutRequest.check();
-    } catch (Exception e){
+    } catch (Exception e) {
       internalServerErrorResponse(exchange, e);
     }
     String provisionerName = reprovisionOutRequest.getOutputProvisionerName();
-    OutputProvisioner<?, ?> provisioner = outputProvisioners.get(
-        provisionerName);
-    if(null == provisioner){
+    OutputProvisioner<?, ?> provisioner = outputProvisioners.get(provisionerName);
+    if (null == provisioner) {
       exchange.setStatusCode(StatusCodes.BAD_REQUEST);
-      exchange
-          .getResponseSender()
-          .send(
-              "No output provisioner known as " + provisionerName);
+      exchange.getResponseSender().send("No output provisioner known as " + provisionerName);
       return;
     }
     final AtomicReference<Runnable> postCommitAction = new AtomicReference<>();
-    final Pair<Integer, SubmitWorkflowResponse> response = processor.reprovisionOut(
-        reprovisionOutRequest.getWorkflowRunHashId(), provisionerName, provisioner,
-        reprovisionOutRequest.getOutputPath(),
-        new DatabaseBackedProcessor.SubmissionResultHandler<>() {
-          @Override
-          public boolean allowLaunch() {
-            return true;
-          }
+    final Pair<Integer, SubmitWorkflowResponse> response =
+        processor.reprovisionOut(
+            reprovisionOutRequest.getWorkflowRunHashId(),
+            provisionerName,
+            provisioner,
+            reprovisionOutRequest.getOutputPath(),
+            new DatabaseBackedProcessor.SubmissionResultHandler<>() {
+              @Override
+              public boolean allowLaunch() {
+                return true;
+              }
 
-          @Override
-          public Pair<Integer, SubmitWorkflowResponse> dryRunResult() {
-            return new Pair<>(StatusCodes.OK, new SubmitWorkflowResponseDryRun());
-          }
+              @Override
+              public Pair<Integer, SubmitWorkflowResponse> dryRunResult() {
+                return new Pair<>(StatusCodes.OK, new SubmitWorkflowResponseDryRun());
+              }
 
-          @Override
-          public Pair<Integer, SubmitWorkflowResponse> externalIdMismatch(String error) {
-            return new Pair<>(
-                StatusCodes.BAD_REQUEST,
-                new SubmitWorkflowResponseFailure("External IDs do not match: " + error));
-          }
+              @Override
+              public Pair<Integer, SubmitWorkflowResponse> externalIdMismatch(String error) {
+                return new Pair<>(
+                    StatusCodes.BAD_REQUEST,
+                    new SubmitWorkflowResponseFailure("External IDs do not match: " + error));
+              }
 
-          @Override
-          public Pair<Integer, SubmitWorkflowResponse> internalError(Exception e) {
-            e.printStackTrace();
-            return new Pair<>(
-                StatusCodes.INTERNAL_SERVER_ERROR,
-                new SubmitWorkflowResponseFailure(e.getMessage()));
-          }
+              @Override
+              public Pair<Integer, SubmitWorkflowResponse> internalError(Exception e) {
+                e.printStackTrace();
+                return new Pair<>(
+                    StatusCodes.INTERNAL_SERVER_ERROR,
+                    new SubmitWorkflowResponseFailure(e.getMessage()));
+              }
 
-          @Override
-          public Pair<Integer, SubmitWorkflowResponse> invalidWorkflow(Set<String> errors) {
-            return new Pair<>(
-                StatusCodes.BAD_REQUEST, new SubmitWorkflowResponseFailure(errors));
-          }
+              @Override
+              public Pair<Integer, SubmitWorkflowResponse> invalidWorkflow(Set<String> errors) {
+                return new Pair<>(
+                    StatusCodes.BAD_REQUEST, new SubmitWorkflowResponseFailure(errors));
+              }
 
-          @Override
-          public Pair<Integer, SubmitWorkflowResponse> launched(
-              String vidarrId, Runnable start) {
-            postCommitAction.set(start);
-            return new Pair<>(StatusCodes.OK, new SubmitWorkflowResponseSuccess(vidarrId));
-          }
+              @Override
+              public Pair<Integer, SubmitWorkflowResponse> launched(
+                  String vidarrId, Runnable start) {
+                postCommitAction.set(start);
+                return new Pair<>(StatusCodes.OK, new SubmitWorkflowResponseSuccess(vidarrId));
+              }
 
-          @Override
-          public Pair<Integer, SubmitWorkflowResponse> matchExisting(String vidarrId) {
-            return new Pair<>(StatusCodes.OK, new SubmitWorkflowResponseSuccess(vidarrId));
-          }
+              @Override
+              public Pair<Integer, SubmitWorkflowResponse> matchExisting(String vidarrId) {
+                return new Pair<>(StatusCodes.OK, new SubmitWorkflowResponseSuccess(vidarrId));
+              }
 
-          @Override
-          public Pair<Integer, SubmitWorkflowResponse> missingExternalIdVersion() {
-            return new Pair<>(
-                StatusCodes.BAD_REQUEST,
-                new SubmitWorkflowResponseFailure("External IDs do not have versions set."));
-          }
+              @Override
+              public Pair<Integer, SubmitWorkflowResponse> missingExternalIdVersion() {
+                return new Pair<>(
+                    StatusCodes.BAD_REQUEST,
+                    new SubmitWorkflowResponseFailure("External IDs do not have versions set."));
+              }
 
-          @Override
-          public Pair<Integer, SubmitWorkflowResponse> missingExternalKeyVersions(
-              String vidarrId, List<ExternalKey> missingKeys) {
-            return new Pair<>(
-                StatusCodes.BAD_REQUEST,
-                new SubmitWorkflowResponseMissingKeyVersions(vidarrId, missingKeys));
-          }
+              @Override
+              public Pair<Integer, SubmitWorkflowResponse> missingExternalKeyVersions(
+                  String vidarrId, List<ExternalKey> missingKeys) {
+                return new Pair<>(
+                    StatusCodes.BAD_REQUEST,
+                    new SubmitWorkflowResponseMissingKeyVersions(vidarrId, missingKeys));
+              }
 
-          @Override
-          public Pair<Integer, SubmitWorkflowResponse> multipleMatches(List<String> matchIds) {
-            return new Pair<>(
-                StatusCodes.CONFLICT, new SubmitWorkflowResponseConflict(matchIds));
-          }
+              @Override
+              public Pair<Integer, SubmitWorkflowResponse> multipleMatches(List<String> matchIds) {
+                return new Pair<>(
+                    StatusCodes.CONFLICT, new SubmitWorkflowResponseConflict(matchIds));
+              }
 
-          @Override
-          public Pair<Integer, SubmitWorkflowResponse> reinitialise(
-              String vidarrId, Runnable start) {
-            postCommitAction.set(start);
-            return new Pair<>(StatusCodes.OK, new SubmitWorkflowResponseSuccess(vidarrId));
-          }
+              @Override
+              public Pair<Integer, SubmitWorkflowResponse> reinitialise(
+                  String vidarrId, Runnable start) {
+                postCommitAction.set(start);
+                return new Pair<>(StatusCodes.OK, new SubmitWorkflowResponseSuccess(vidarrId));
+              }
 
-          @Override
-          public Pair<Integer, SubmitWorkflowResponse> unknownTarget(String targetName) {
-            return new Pair<>(
-                StatusCodes.BAD_REQUEST,
-                new SubmitWorkflowResponseFailure(
-                    String.format("Target %s is unknown", targetName)));
-          }
+              @Override
+              public Pair<Integer, SubmitWorkflowResponse> unknownTarget(String targetName) {
+                return new Pair<>(
+                    StatusCodes.BAD_REQUEST,
+                    new SubmitWorkflowResponseFailure(
+                        String.format("Target %s is unknown", targetName)));
+              }
 
-          @Override
-          public Pair<Integer, SubmitWorkflowResponse> unknownWorkflow(
-              String name, String version) {
-            return new Pair<>(
-                StatusCodes.BAD_REQUEST,
-                new SubmitWorkflowResponseFailure(
-                    String.format("Workflow %s (%s) is unknown", name, version)));
-          }
+              @Override
+              public Pair<Integer, SubmitWorkflowResponse> unknownWorkflow(
+                  String name, String version) {
+                return new Pair<>(
+                    StatusCodes.BAD_REQUEST,
+                    new SubmitWorkflowResponseFailure(
+                        String.format("Workflow %s (%s) is unknown", name, version)));
+              }
 
-          @Override
-          public Pair<Integer, SubmitWorkflowResponse> unresolvedIds(TreeSet<String> inputId) {
-            return new Pair<>(
-                StatusCodes.BAD_REQUEST,
-                new SubmitWorkflowResponseFailure(
-                    inputId.stream()
-                        .map(id -> String.format("Input ID %s cannot be resolved", id))
-                        .collect(Collectors.toList())));
-          }
-        });
+              @Override
+              public Pair<Integer, SubmitWorkflowResponse> unresolvedIds(TreeSet<String> inputId) {
+                return new Pair<>(
+                    StatusCodes.BAD_REQUEST,
+                    new SubmitWorkflowResponseFailure(
+                        inputId.stream()
+                            .map(id -> String.format("Input ID %s cannot be resolved", id))
+                            .collect(Collectors.toList())));
+              }
+            });
     exchange.setStatusCode(response.first());
     if (postCommitAction.get() != null) {
       postCommitAction.get().run();
@@ -1335,6 +1342,8 @@ public final class Main implements ServerConfig {
     context
         .select(DSL.jsonObject(fields))
         .from(WORKFLOW_RUN)
+        .join(WORKFLOW_VERSION)
+        .on(WORKFLOW_RUN.WORKFLOW_VERSION_ID.eq(WORKFLOW_VERSION.ID))
         .where(condition)
         .forEach(
             result -> {
@@ -1609,6 +1618,14 @@ public final class Main implements ServerConfig {
     exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_JSON);
     exchange.setStatusCode(StatusCodes.OK);
     final OffsetDateTime endTime = OffsetDateTime.now();
+
+    Condition maybeExcludeWorkflowsCondition = DSL.noCondition();
+    if (request.getExcludeWorkflows() != null && !request.getExcludeWorkflows().isEmpty()) {
+      maybeExcludeWorkflowsCondition =
+          maybeExcludeWorkflowsCondition.and(
+              DSL.not(WORKFLOW_VERSION.NAME.in(request.getExcludeWorkflows())));
+    }
+
     epochLock.readLock().lock();
     try (final JsonGenerator output = MAPPER_FACTORY.createGenerator(exchange.getOutputStream())) {
       if (request.getEpoch() != epoch) {
@@ -1630,7 +1647,8 @@ public final class Main implements ServerConfig {
                 .MODIFIED
                 .gt(Instant.ofEpochMilli(request.getTimestamp()).atOffset(ZoneOffset.UTC))
                 .and(WORKFLOW_RUN.MODIFIED.le(endTime))
-                .and(WORKFLOW_RUN.COMPLETED.isNotNull()));
+                .and(WORKFLOW_RUN.COMPLETED.isNotNull())
+                .and(maybeExcludeWorkflowsCondition));
         output.writeEndArray();
         output.writeEndObject();
       }
@@ -1829,12 +1847,13 @@ public final class Main implements ServerConfig {
     entries.add(literalJsonEntry("id", WORKFLOW_VERSION.HASH_ID));
     entries.add(literalJsonEntry("metadata", WORKFLOW_VERSION.METADATA));
     entries.add(literalJsonEntry("parameters", WORKFLOW_VERSION.PARAMETERS));
-    entries.add(literalJsonEntry(
-        "labels",
-        DSL.field(
-            DSL.select(WORKFLOW.LABELS)
-                .from(WORKFLOW)
-                .where(WORKFLOW.NAME.eq(WORKFLOW_VERSION.NAME)))));
+    entries.add(
+        literalJsonEntry(
+            "labels",
+            DSL.field(
+                DSL.select(WORKFLOW.LABELS)
+                    .from(WORKFLOW)
+                    .where(WORKFLOW.NAME.eq(WORKFLOW_VERSION.NAME)))));
     entries.add(literalJsonEntry("language", WORKFLOW_DEFINITION.WORKFLOW_LANGUAGE));
     entries.add(literalJsonEntry("outputs", WORKFLOW_VERSION.METADATA));
     if (includeDbId) {
@@ -1847,12 +1866,13 @@ public final class Main implements ServerConfig {
     List<JSONEntry<?>> entries = new ArrayList<>();
     final WorkflowDefinition accessoryDefinition =
         WORKFLOW_DEFINITION.as("accessoryWorkflowDefinition");
-        entries.add(literalJsonEntry("name", WORKFLOW_VERSION.NAME));
+    entries.add(literalJsonEntry("name", WORKFLOW_VERSION.NAME));
     entries.add(literalJsonEntry("version", WORKFLOW_VERSION.VERSION));
     entries.add(literalJsonEntry("id", WORKFLOW_VERSION.HASH_ID));
     entries.add(literalJsonEntry("metadata", WORKFLOW_VERSION.METADATA));
     entries.add(literalJsonEntry("parameters", WORKFLOW_VERSION.PARAMETERS));
-    entries.add(literalJsonEntry(
+    entries.add(
+        literalJsonEntry(
             "labels",
             DSL.field(
                 DSL.select(WORKFLOW.LABELS)
@@ -1861,7 +1881,8 @@ public final class Main implements ServerConfig {
     entries.add(literalJsonEntry("language", WORKFLOW_DEFINITION.WORKFLOW_LANGUAGE));
     entries.add(literalJsonEntry("outputs", WORKFLOW_VERSION.METADATA));
     entries.add(literalJsonEntry("workflow", WORKFLOW_DEFINITION.WORKFLOW_FILE));
-    entries.add(literalJsonEntry(
+    entries.add(
+        literalJsonEntry(
             "accessoryFiles",
             DSL.coalesce(
                 DSL.field(
@@ -1881,16 +1902,17 @@ public final class Main implements ServerConfig {
                                         WORKFLOW_VERSION.ID)))),
                 DSL.inline(JSON.json("{}")))));
 
-    if(includeDbId) entries.add(literalJsonEntry("dbId", WORKFLOW_VERSION.ID));
+    if (includeDbId) entries.add(literalJsonEntry("dbId", WORKFLOW_VERSION.ID));
     return DSL.jsonObject(entries);
   }
 
-  private Optional<String> fetchWorkflowVersion(String name, String version, boolean includeWorkflowDefinitions)
-      throws SQLException {
+  private Optional<String> fetchWorkflowVersion(
+      String name, String version, boolean includeWorkflowDefinitions) throws SQLException {
     return fetchWorkflowVersion(name, version, includeWorkflowDefinitions, false);
   }
 
-  private Optional<String> fetchWorkflowVersion(String name, String version, boolean includeWorkflowDefinitions, boolean includeDbId)
+  private Optional<String> fetchWorkflowVersion(
+      String name, String version, boolean includeWorkflowDefinitions, boolean includeDbId)
       throws SQLException {
     final Optional<String> result;
     try (final Connection connection = dataSource.getConnection()) {
@@ -2121,7 +2143,8 @@ public final class Main implements ServerConfig {
         .fetchOptional();
   }
 
-  private void load(HttpServerExchange exchange, UnloadedData unloadedData, boolean verify, boolean send) {
+  private void load(
+      HttpServerExchange exchange, UnloadedData unloadedData, boolean verify, boolean send) {
     try {
       // We have to hold a very expensive lock to load data in the database, so we're going to do an
       // offline validation of the data to make sure it's self-consistent, then acquire the lock and
@@ -2392,7 +2415,8 @@ public final class Main implements ServerConfig {
       try (final Connection connection = dataSource.getConnection()) {
         DSL.using(connection, SQLDialect.POSTGRES)
             .transaction(
-                configuration -> loadDataIntoDatabase(unloadedData, workflowInfo, configuration, !verify));
+                configuration ->
+                    loadDataIntoDatabase(unloadedData, workflowInfo, configuration, !verify));
         okEmptyResponse(exchange, send);
       } catch (IllegalArgumentException e) {
         badRequestResponse(exchange, e.getMessage());
@@ -2420,11 +2444,11 @@ public final class Main implements ServerConfig {
   /**
    * Perform additional validation and insert into database
    *
-   *
    * @param unloadedData json from load request
    * @param workflowInfo verified info built in load()
    * @param configuration database configuration
-   * @param workflowVersionFromDb whether we permit using the installed workflow version in case of conflict
+   * @param workflowVersionFromDb whether we permit using the installed workflow version in case of
+   *     conflict
    * @throws JsonProcessingException
    * @throws NoSuchAlgorithmException
    */
@@ -2492,7 +2516,10 @@ public final class Main implements ServerConfig {
         // No ID from database because it is already installed, and we want to use that version
         // because we may have incomplete information in the load request.
         else if (workflowVersionFromDb) {
-          ObjectNode installedVersion = MAPPER.readValue(fetchWorkflowVersion(workflowName, workflowVersion, true, true).orElseThrow(), ObjectNode.class);
+          ObjectNode installedVersion =
+              MAPPER.readValue(
+                  fetchWorkflowVersion(workflowName, workflowVersion, true, true).orElseThrow(),
+                  ObjectNode.class);
           workflowVersionIds.put(workflowVersion, installedVersion.get("dbId").intValue());
         }
         // No ID from database because it is already installed, and we want to ensure we have
@@ -2544,7 +2571,11 @@ public final class Main implements ServerConfig {
 
   private void recover() throws SQLException {
     final ArrayList<Runnable> recoveredWorkflows = new ArrayList<>();
-    processor.recover(recoveredWorkflows::add, this.maxInFlightPerWorkflow, outputProvisioners, reprovisionCounter);
+    processor.recover(
+        recoveredWorkflows::add,
+        this.maxInFlightPerWorkflow,
+        outputProvisioners,
+        reprovisionCounter);
     if (recoveredWorkflows.isEmpty()) {
       System.err.println("No unstarted workflows in the database. Resuming normal operation.");
     } else {
@@ -3100,14 +3131,13 @@ public final class Main implements ServerConfig {
 
   /**
    * Set the http server exchange with an OK status code and potentially complete the exchange with
-   * a json response body.
-   * If the exchange is not completed, json is attached to the exchange instead of set as the
-   * response body.
+   * a json response body. If the exchange is not completed, json is attached to the exchange
+   * instead of set as the response body.
    *
    * @param exchange http server exchange object
    * @param json response body as string
    * @param send whether to send the response (thus completing the exchange). if false, json is
-   *             attached to the exchange.
+   *     attached to the exchange.
    */
   private void okJsonResponse(HttpServerExchange exchange, String json, boolean send) {
     exchange.setStatusCode(StatusCodes.OK);
@@ -3124,13 +3154,12 @@ public final class Main implements ServerConfig {
    *
    * @param exchange http server exchange object
    */
-  private void createdResponse(HttpServerExchange exchange){
+  private void createdResponse(HttpServerExchange exchange) {
     createdResponse(exchange, true);
   }
 
   /**
-   * Set the http server exchange with a CREATED status code and potentially complete the
-   * exchange.
+   * Set the http server exchange with a CREATED status code and potentially complete the exchange.
    *
    * @param exchange http server exchange object
    * @param send whether to send the response (thus completing the exchange)

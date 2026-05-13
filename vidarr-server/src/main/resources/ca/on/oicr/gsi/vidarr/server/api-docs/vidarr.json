@@ -1386,6 +1386,13 @@
                       "type": "string"
                     },
                     "type": "array"
+                  },
+                  "excludeWorkflows": {
+                    "items": {
+                      "description": "The workflows to be excluded from provenance results; if not provided, all results will be returned",
+                     "type": "string"
+                    },
+                    "type": "array"
                   }
                 },
                 "type": "object"

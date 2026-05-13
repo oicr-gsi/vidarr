@@ -9,6 +9,7 @@ public class AnalysisProvenanceRequest {
   private Set<AnalysisOutputType> analysisOutputTypes =
       Collections.singleton(AnalysisOutputType.FILE);
   private long epoch;
+  private Set<String> excludeWorkflows = Collections.emptySet();
   private boolean includeParameters;
   private long timestamp;
   private VersionPolicy versionPolicy = VersionPolicy.NONE;
@@ -20,6 +21,10 @@ public class AnalysisProvenanceRequest {
 
   public long getEpoch() {
     return epoch;
+  }
+
+  public Set<String> getExcludeWorkflows() {
+    return excludeWorkflows;
   }
 
   public long getTimestamp() {
@@ -44,6 +49,10 @@ public class AnalysisProvenanceRequest {
 
   public void setEpoch(long epoch) {
     this.epoch = epoch;
+  }
+
+  public void setExcludeWorkflows(Set<String> excludeWorkflows) {
+    this.excludeWorkflows = excludeWorkflows;
   }
 
   public void setIncludeParameters(boolean includeParameters) {

@@ -109,7 +109,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.EnumSet;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -679,7 +678,6 @@ public final class Main implements ServerConfig {
   private final Map<String, HttpHandler> consumableResources = new TreeMap<>();
   private final HikariDataSource dataSource;
   private long epoch = ManagementFactory.getRuntimeMXBean().getStartTime();
-  private final Set<String> excludeWorkflowsFromProvenance = new HashSet<>();
   private final ReentrantReadWriteLock epochLock = new ReentrantReadWriteLock();
   private final ScheduledExecutorService executor =
       Executors.newScheduledThreadPool(Runtime.getRuntime().availableProcessors());
@@ -768,8 +766,6 @@ public final class Main implements ServerConfig {
     inputProvisioners = configuration.getInputProvisioners();
     outputProvisioners = configuration.getOutputProvisioners();
     runtimeProvisioners = configuration.getRuntimeProvisioners();
-
-    excludeWorkflowsFromProvenance.addAll(configuration.getExcludeWorkflowsFromProvenance());
 
     for (final InputProvisioner<?> input : inputProvisioners.values()) {
       input.startup();
@@ -1339,8 +1335,6 @@ public final class Main implements ServerConfig {
     context
         .select(DSL.jsonObject(fields))
         .from(WORKFLOW_RUN)
-        .join(WORKFLOW_VERSION)
-        .on(WORKFLOW_RUN.WORKFLOW_VERSION_ID.eq(WORKFLOW_VERSION.ID))
         .where(condition)
         .forEach(
             result -> {
@@ -1636,8 +1630,7 @@ public final class Main implements ServerConfig {
                 .MODIFIED
                 .gt(Instant.ofEpochMilli(request.getTimestamp()).atOffset(ZoneOffset.UTC))
                 .and(WORKFLOW_RUN.MODIFIED.le(endTime))
-                .and(WORKFLOW_RUN.COMPLETED.isNotNull())
-                .and(DSL.not(WORKFLOW_VERSION.NAME.in(excludeWorkflowsFromProvenance))));
+                .and(WORKFLOW_RUN.COMPLETED.isNotNull()));
         output.writeEndArray();
         output.writeEndObject();
       }

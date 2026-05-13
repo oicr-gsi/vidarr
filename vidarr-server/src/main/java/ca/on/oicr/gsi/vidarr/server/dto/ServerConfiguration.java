@@ -8,7 +8,6 @@ import ca.on.oicr.gsi.vidarr.WorkflowEngine;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.util.Collections;
 import java.util.Map;
-import java.util.Set;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public final class ServerConfiguration {
@@ -20,7 +19,6 @@ public final class ServerConfiguration {
   private String dbPass;
   private int dbPort;
   private String dbUser;
-  private Set<String> excludeWorkflowsFromProvenance = Collections.emptySet();
   private Map<String, InputProvisioner<?>> inputProvisioners;
   private long maxEntitySize;
   private String name;
@@ -59,10 +57,6 @@ public final class ServerConfiguration {
 
   public String getDbUser() {
     return dbUser;
-  }
-
-  public Set<String> getExcludeWorkflowsFromProvenance() {
-    return excludeWorkflowsFromProvenance;
   }
 
   public Map<String, InputProvisioner<?>> getInputProvisioners() {
@@ -135,10 +129,6 @@ public final class ServerConfiguration {
 
   public void setDbUser(String dbUser) {
     this.dbUser = dbUser;
-  }
-
-  public void setExcludeWorkflowsFromProvenance(Set<String> excludeWorkflowsFromProvenance) {
-    this.excludeWorkflowsFromProvenance = excludeWorkflowsFromProvenance;
   }
 
   public void setInputProvisioners(Map<String, InputProvisioner<?>> inputProvisioners) {

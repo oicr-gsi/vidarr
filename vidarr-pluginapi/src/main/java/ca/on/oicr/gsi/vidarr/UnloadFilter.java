@@ -10,6 +10,7 @@ import ca.on.oicr.gsi.vidarr.api.UnloadFilterLastSubmittedAfter;
 import ca.on.oicr.gsi.vidarr.api.UnloadFilterNot;
 import ca.on.oicr.gsi.vidarr.api.UnloadFilterOr;
 import ca.on.oicr.gsi.vidarr.api.UnloadFilterWorkflowId;
+import ca.on.oicr.gsi.vidarr.api.UnloadFilterWorkflowLabel;
 import ca.on.oicr.gsi.vidarr.api.UnloadFilterWorkflowName;
 import ca.on.oicr.gsi.vidarr.api.UnloadFilterWorkflowRunId;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
@@ -119,6 +120,13 @@ public interface UnloadFilter {
     T workflowId(Stream<String> ids);
 
     /**
+     * Match any of the workflow labels provided.
+     *
+     * @param labels The workflow labels to match
+     */
+    T workflowLabel(String label, Stream<String> values);
+
+    /**
      * Match any of the workflow names provided.
      *
      * @param names the human-readable workflow names to match
@@ -146,6 +154,7 @@ public interface UnloadFilter {
                     new Pair<>("vidarr-external-provider", UnloadFilterExternalProvider.class),
                     new Pair<>("vidarr-last-submitted-after", UnloadFilterLastSubmittedAfter.class),
                     new Pair<>("vidarr-workflow-id", UnloadFilterWorkflowId.class),
+                    new Pair<>("vidarr-workflow-label", UnloadFilterWorkflowLabel.class),
                     new Pair<>("vidarr-workflow-name", UnloadFilterWorkflowName.class),
                     new Pair<>("vidarr-workflow-run-id", UnloadFilterWorkflowRunId.class)),
                 ServiceLoader.load(UnloadFilterProvider.class).stream()

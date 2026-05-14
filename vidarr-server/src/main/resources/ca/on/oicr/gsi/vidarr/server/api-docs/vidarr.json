@@ -692,6 +692,7 @@
               "vidarr-external-provider",
               "vidarr-last-submitted-after",
               "vidarr-workflow-id",
+              "vidarr-workflow-label",
               "vidarr-workflow-name",
               "vidarr-workflow-run-id"
             ],
@@ -709,6 +710,7 @@
                 "vidarr-external-provider": "#/components/schemas/UnloadFilterExternalProvider",
                 "vidarr-last-submitted-after": "#/components/schemas/UnloadFilterLastSubmittedAfter",
                 "vidarr-workflow-id": "#/components/schemas/UnloadFilterWorkflowId",
+                "vidarr-workflow-label": "#/components/schemas/UnloadFilterWorkflowLabel",
                 "vidarr-workflow-name": "#/components/schemas/UnloadFilterWorkflowName",
                 "vidarr-workflow-run-id": "#/components/schemas/UnloadFilterWorkflowRunId"
               },
@@ -741,6 +743,9 @@
               },
               {
                 "$ref": "#/components/schemas/UnloadFilterWorkflowId"
+              },
+              {
+                "$ref": "#/components/schemas/UnloadFilterWorkflowLabel"
               },
               {
                 "$ref": "#/components/schemas/UnloadFilterWorkflowName"
@@ -827,6 +832,15 @@
       "UnloadFilterWorkflowId": {
         "properties": {
           "id": {
+            "$ref": "#/components/schemas/UnloadTextSelector"
+          }
+        },
+        "type": "object"
+      },
+      "UnloadFilterWorkflowLabel": {
+        "properties": {
+          "label": {"type": "string"},
+          "value": {
             "$ref": "#/components/schemas/UnloadTextSelector"
           }
         },

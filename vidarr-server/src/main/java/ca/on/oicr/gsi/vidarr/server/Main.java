@@ -148,7 +148,6 @@ import org.jooq.SQLDialect;
 import org.jooq.Table;
 import org.jooq.impl.DSL;
 import org.jooq.impl.SQLDataType;
-import org.jooq.util.postgres.PostgresDSL;
 import org.postgresql.ds.PGSimpleDataSource;
 
 public final class Main implements ServerConfig {

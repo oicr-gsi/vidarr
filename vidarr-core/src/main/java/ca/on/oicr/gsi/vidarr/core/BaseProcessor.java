@@ -1175,7 +1175,7 @@ public abstract class BaseProcessor<
     }
   }
 
-  protected void reprovision(Target target, WorkflowDefinition definition, W workflow,
+  public void reprovision(Target target, WorkflowDefinition definition, W workflow,
       Map<ProvenanceAnalysisRecord<ExternalId>, JsonNode> analysisInfo,
       OffsetDateTime originalCompleted,
       TX transaction) {

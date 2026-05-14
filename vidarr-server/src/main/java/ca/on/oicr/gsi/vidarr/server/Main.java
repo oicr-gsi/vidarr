@@ -149,6 +149,7 @@ import org.jooq.SQLDialect;
 import org.jooq.Table;
 import org.jooq.impl.DSL;
 import org.jooq.impl.SQLDataType;
+import org.jooq.util.postgres.PostgresDSL;
 import org.postgresql.ds.PGSimpleDataSource;
 
 public final class Main implements ServerConfig {
@@ -2912,6 +2913,33 @@ public final class Main implements ServerConfig {
                                                   @Override
                                                   public Condition workflowId(Stream<String> ids) {
                                                     return match(WORKFLOW_VERSION.HASH_ID, ids);
+                                                  }
+
+                                                  @Override
+                                                  public Condition workflowLabel(
+                                                      String label, Stream<String> values) {
+
+                                                    List<String> collectedValues = values.toList();
+                                                    switch(collectedValues.size()){
+                                                      case 0:
+                                                        return DSL.condition(false);
+                                                      case 1:
+                                                        return DSL.exists(DSL.select()
+                                                            .from(WORKFLOW_RUN)
+                                                                .where(DSL.condition(
+                                                                    "jsonb_exists(labels->?, ?)",
+                                                                    label,
+                                                                    collectedValues.iterator().next()
+                                                                )));
+                                                      default:
+                                                        return DSL.exists(DSL.select()
+                                                            .from(WORKFLOW_RUN)
+                                                            .where(DSL.condition(
+                                                                "jsonb_exists_any(labels->?, ?)",
+                                                                label,
+                                                                DSL.val(collectedValues, SQLDataType.VARCHAR.getArrayType())
+                                                            )));
+                                                    }
                                                   }
 
                                                   @Override

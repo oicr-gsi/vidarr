@@ -9,6 +9,7 @@ public class ImportRequest {
   private UnloadedWorkflow workflow;
   private String outputProvisionerName;
   private String outputPath;
+  private int attempt;
 
   /**
    * Do preliminary setup from a WorkflowDeclaration.
@@ -40,6 +41,10 @@ public class ImportRequest {
     request.setWorkflowRun(new ProvenanceWorkflowRun<>());
 
     return request;
+  }
+
+  public int getAttempt() {
+    return attempt;
   }
 
   public String getOutputPath() {
@@ -75,6 +80,7 @@ public class ImportRequest {
     ret.setOutputPath(outputPath);
     ret.setOutputProvisionerName(outputProvisionerName);
     ret.setWorkflowRunHashId(hash);
+    ret.setAttempt(attempt);
     return ret;
   }
 
@@ -112,10 +118,13 @@ public class ImportRequest {
     if (!ok) throw new Exception(error.toString());
   }
 
-  @Override
-  public boolean equals(Object o){
-    if (this == o) return true;
-    if (null == o || this.getClass() != o.getClass()) return false;
+  public boolean equalsIgnoreAttempt(Object o) {
+    if (this == o) {
+      return true;
+    }
+    if (null == o || this.getClass() != o.getClass()) {
+      return false;
+    }
 
     ImportRequest other = (ImportRequest) o;
     return Objects.equals(this.outputPath, other.outputPath)
@@ -126,8 +135,21 @@ public class ImportRequest {
   }
 
   @Override
-  public int hashCode(){
+  public boolean equals(Object o) {
+    return this.equalsIgnoreAttempt(o) && Objects.equals(this.attempt, ((ImportRequest) o).attempt);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(hashCodeIgnoreAttempt(), attempt);
+  }
+
+  public int hashCodeIgnoreAttempt() {
     return Objects.hash(outputPath, outputProvisionerName, workflowRun, workflowVersion, workflow);
+  }
+
+  public void setAttempt(int attempt) {
+    this.attempt = attempt;
   }
 
   public void setWorkflow(UnloadedWorkflow workflow) {

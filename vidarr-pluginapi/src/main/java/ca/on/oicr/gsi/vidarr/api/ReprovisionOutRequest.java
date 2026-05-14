@@ -9,6 +9,11 @@ public class ReprovisionOutRequest {
   private String workflowRunHashId;
   private String outputProvisionerName;
   private String outputPath;
+  private int attempt;
+
+  public int getAttempt() {
+    return attempt;
+  }
 
   public String getOutputPath() {
     return outputPath;
@@ -20,6 +25,10 @@ public class ReprovisionOutRequest {
 
   public String getOutputProvisionerName() {
     return outputProvisionerName;
+  }
+
+  public void setAttempt(int attempt) {
+    this.attempt = attempt;
   }
 
   public void setOutputPath(String outputPath) {

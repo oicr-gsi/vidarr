@@ -543,17 +543,14 @@ public final class Main implements ServerConfig {
       return;
     }
     final AtomicReference<Runnable> postCommitAction = new AtomicReference<>();
-    final Pair<Integer, SubmitWorkflowResponse> response =
-        processor.reprovisionOut(
-            reprovisionOutRequest.getWorkflowRunHashId(),
-            provisionerName,
-            provisioner,
-            reprovisionOutRequest.getOutputPath(),
-            new DatabaseBackedProcessor.SubmissionResultHandler<>() {
-              @Override
-              public boolean allowLaunch() {
-                return true;
-              }
+    final Pair<Integer, SubmitWorkflowResponse> response = processor.reprovisionOut(
+        reprovisionOutRequest.getWorkflowRunHashId(), provisionerName, provisioner,
+        reprovisionOutRequest.getOutputPath(), reprovisionOutRequest.getAttempt(),
+        new DatabaseBackedProcessor.SubmissionResultHandler<>() {
+          @Override
+          public boolean allowLaunch() {
+            return true;
+          }
 
               @Override
               public Pair<Integer, SubmitWorkflowResponse> dryRunResult() {

@@ -1199,6 +1199,9 @@
                   },
                   "outputPath": {
                     "type": "string"
+                  },
+                  "attempt": {
+                    "type": "integer"
                   }
                 },
                 "type": "object"
@@ -1514,6 +1517,9 @@
                   },
                   "outputPath": {
                     "type": "string"
+                  },
+                  "attempt": {
+                    "type": "integer"
                   }
                 },
                 "type": "object"

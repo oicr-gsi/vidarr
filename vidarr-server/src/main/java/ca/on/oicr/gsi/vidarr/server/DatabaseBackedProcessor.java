@@ -13,6 +13,7 @@ import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.WORKFLOW_VERSION;
 import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.WORKFLOW_VERSION_ACCESSORY;
 import static java.util.stream.Collectors.collectingAndThen;
 import static java.util.stream.Collectors.toList;
+import static org.jooq.impl.DSL.select;
 import static org.jooq.impl.DSL.trueCondition;
 
 import ca.on.oicr.gsi.Pair;
@@ -61,7 +62,6 @@ import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import com.zaxxer.hikari.HikariDataSource;
 import io.prometheus.client.Counter;
 import io.prometheus.client.Gauge;
-import io.undertow.util.StatusCodes;
 import java.io.IOError;
 import java.lang.ref.SoftReference;
 import java.nio.charset.StandardCharsets;
@@ -718,7 +718,7 @@ public abstract class DatabaseBackedProcessor
             }));
   }
 
-  private AtomicBoolean liveness(long workflowRunId) {
+  AtomicBoolean liveness(long workflowRunId) {
     return liveness
         .computeIfAbsent(workflowRunId, k -> new SoftReference<>(new AtomicBoolean(true)))
         .get();
@@ -1127,203 +1127,224 @@ public abstract class DatabaseBackedProcessor
       String provisionerName,
       OutputProvisioner<?, ?> provisioner,
       String outputPath,
+      int attempt,
       SubmissionResultHandler<T> handler) {
     AtomicReference<T> ret = new AtomicReference<>();
     // New target to aim the new job at
     Target newTarget = makeReprovisionTarget(provisioner);
 
-    // Create a new active_workflow_run from the existing and finished workflow_run
+    // If the workflow run is not active, create a new active workflow run and reconstruct
+    // all the metadata we need to launch reprovisioning.
+    // If the workflow run IS active but failed at phase 'reprovision' and attempt is
+    // incremented, that's a valid request to reattempt a failed reprovisioning.
     try {
       try (final Connection connection = dataSource.getConnection()) {
         DSL.using(connection, SQLDialect.POSTGRES)
             .transaction(
                 context -> {
+                  boolean process = true;
                   DSLContext dsl = DSL.using(context);
                   Result<Record> result = dsl.select()
                       .from(
                           WORKFLOW_RUN
                               .join(WORKFLOW_VERSION)
-                              .on(WORKFLOW_RUN.WORKFLOW_VERSION_ID.eq(WORKFLOW_VERSION.ID)))
-                      .where(WORKFLOW_RUN.HASH_ID.eq(workflowRunId)
-                          .and(WORKFLOW_RUN.ID.notIn(
-                              dsl.select(ACTIVE_WORKFLOW_RUN.ID)
-                                  .from(ACTIVE_WORKFLOW_RUN))))
+                              .on(WORKFLOW_RUN.WORKFLOW_VERSION_ID.eq(WORKFLOW_VERSION.ID))
+                              .leftJoin(ACTIVE_WORKFLOW_RUN)
+                              .on(WORKFLOW_RUN.ID.eq(ACTIVE_WORKFLOW_RUN.ID)))
+                      .where(WORKFLOW_RUN.HASH_ID.eq(workflowRunId))
                       .fetch();
                   if (result.isNotEmpty() && result.size() == 1) {
-                    // Populate the workflow run metadata with information will we need
-                    // for reprovisioning or recovery
                     Record record = result.get(0);
-                    JsonNode metadata = record.get(WORKFLOW_RUN.METADATA);
-                    OffsetDateTime originalCompleted = record.get(WORKFLOW_RUN.COMPLETED);
-                    Iterator<Entry<String, JsonNode>> iterator = metadata.fields();
-                    while (iterator.hasNext()) {
-                      Entry<String, JsonNode> entry = iterator.next();
-                      ArrayNode contents = (ArrayNode) entry.getValue().get("contents");
-                      Iterator<JsonNode> iterator2 = contents.elements();
-                      while (iterator2.hasNext()) {
-                        ObjectNode content = (ObjectNode) iterator2.next();
-                        if (content.has("outputDirectory")) {
-                          content.set("originalDirectory", content.get("outputDirectory"));
-                          content.put("outputDirectory", outputPath);
-                          content.put("outputReprovisioner", provisionerName);
-                          content.put("originalCompleted", originalCompleted.toInstant().getEpochSecond());
-                          content.put("originalCompletedOffset", originalCompleted.getOffset().toString());
-                        } // else there's some other kind of content here, maybe the next one
+                    ReprovisionStrategy strategy = null;
+
+                    // If there is no active workflow run id, we may need to create a new
+                    // active workflow run
+                    if (null == record.get(ACTIVE_WORKFLOW_RUN.ID)) {
+                      // Unless it's a duplicate request. We already did that!
+                      JsonNode metadata = record.get(WORKFLOW_RUN.METADATA);
+                      if (metadata.has("outputDirectory")
+                          && metadata.get("outputDirectory").textValue().equals(outputPath)) {
+                        ret.set(handler.matchExisting(record.get(WORKFLOW_RUN.HASH_ID)));
+                        process = false;
+                      } else {
+                        strategy = new ReprovisionStrategyNew();
                       }
                     }
+                    // if there IS an active workflow run ID, see if it's failed at reprovision
+                    // and our attempt count has incremented.
+                    else {
+                      if (record.get(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE).equals(Phase.FAILED)) {
+                        Result<Record1<Phase>> operations =
+                            dsl.select(ACTIVE_OPERATION.ENGINE_PHASE)
+                                .from(ACTIVE_OPERATION)
+                                .where(ACTIVE_OPERATION.WORKFLOW_RUN_ID.eq(
+                                    select(WORKFLOW_RUN.ID)
+                                        .from(WORKFLOW_RUN)
+                                        .where(WORKFLOW_RUN.HASH_ID.eq(workflowRunId))))
+                                .fetch();
+                        if (attempt > record.get(ACTIVE_WORKFLOW_RUN.ATTEMPT)) {
+                          if (operations.stream().anyMatch(o -> o.get(
+                              ACTIVE_OPERATION.ENGINE_PHASE).equals(Phase.REPROVISION))) {
+                            strategy = new ReprovisionStrategyReattempt();
+                          } else {
+                            ret.set(handler.matchExisting(workflowRunId));
+                            process = false;
+                          }
+                        } else {
+                          ret.set(handler.matchExisting(workflowRunId));
+                          process = false;
+                        }
+                      }
 
-                    // Null out Completed time in database if it wasn't already
-                    dsl.update(WORKFLOW_RUN)
-                        .setNull(WORKFLOW_RUN.COMPLETED)
-                        .set(WORKFLOW_RUN.METADATA, metadata)
-                        .where(WORKFLOW_RUN.HASH_ID.eq(record.get(WORKFLOW_RUN.HASH_ID)))
-                        .execute();
-
-                    // Get workflow definition needed downstream
-                    Optional<WorkflowInformation> definition;
-                    try {
-                      definition = getWorkflowByName(
-                          record.get(WORKFLOW_VERSION.NAME),
-                          record.get(WORKFLOW_VERSION.VERSION), dsl);
-                    } catch (SQLException e) {
-                      throw new RuntimeException(e);
+                      // There is an active workflow run ID, but the engine phase is something
+                      // other than FAILED. Probably inflight
+                      else {
+                        ret.set(handler.invalidWorkflow(Set.of(String.format(
+                            "Workflow hash id %s is active with a phase of %s, which is not FAILED.",
+                            workflowRunId,
+                            record.get(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE)))));
+                        process = false;
+                      }
                     }
+                    if (process) {
+                      // We've established we're in a valid state and chosen a strategy, let's go
+                      final SoftReference<AtomicBoolean> oldLiveness =
+                          liveness.remove(record.get(WORKFLOW_RUN.ID));
+                      if (oldLiveness != null) {
+                        final AtomicBoolean oldLivenessLock =
+                            oldLiveness.get();
+                        if (oldLivenessLock != null) {
+                          oldLivenessLock.set(false);
+                        }
+                      }
+                      OffsetDateTime originalCompleted = strategy.getOriginalCompleted(record);
+                      if (originalCompleted.equals(OffsetDateTime.MAX)) {
+                        throw new RuntimeException(String.format(
+                            "Workflow run %s doesn't seem to have a valid original completed time.",
+                            workflowRunId));
+                      }
+                      JsonNode metadata = strategy.getMetadata(record, outputPath, provisionerName,
+                          originalCompleted);
 
-                    // Get the analysis, and also the external ids for those analysis records
-                    Map<ProvenanceAnalysisRecord<ExternalId>, JsonNode> analysis = new HashMap<>();
-                    Map<Integer, Set<ExternalId>> externalIdsByAnalysis = new HashMap<>();
-                    dsl.select()
-                        .from(ANALYSIS)
-                        .where(ANALYSIS.WORKFLOW_RUN_ID.eq(record.get(WORKFLOW_RUN.ID)))
+                      // Null out Completed time in database if it wasn't already
+                      dsl.update(WORKFLOW_RUN)
+                          .setNull(WORKFLOW_RUN.COMPLETED)
+                          .set(WORKFLOW_RUN.METADATA, metadata)
+                          .where(WORKFLOW_RUN.HASH_ID.eq(record.get(WORKFLOW_RUN.HASH_ID)))
+                          .execute();
 
-                        // For every analysis record associated with this workflow run, create
-                        // an object for use downstream
-                        .forEach(analysisDbRecord -> {
-                          ProvenanceAnalysisRecord<ExternalId> analysisObject = new ProvenanceAnalysisRecord<>();
-                          analysisObject.setId(analysisDbRecord.get(ANALYSIS.HASH_ID));
-                          analysisObject.setType(analysisDbRecord.get(ANALYSIS.ANALYSIS_TYPE));
-                          analysisObject.setChecksum(analysisDbRecord.get(ANALYSIS.FILE_CHECKSUM));
-                          analysisObject.setChecksumType(analysisDbRecord.get(ANALYSIS.FILE_CHECKSUM_TYPE));
-                          analysisObject.setMetatype(analysisDbRecord.get(ANALYSIS.FILE_METATYPE));
-                          analysisObject.setPath(analysisDbRecord.get(ANALYSIS.FILE_PATH));
-                          analysisObject.setSize(analysisDbRecord.get(ANALYSIS.FILE_SIZE));
+                      // Get workflow definition needed downstream
+                      Optional<WorkflowInformation> definition;
+                      try {
+                        definition = getWorkflowByName(
+                            record.get(WORKFLOW_VERSION.NAME),
+                            record.get(WORKFLOW_VERSION.VERSION), dsl);
+                      } catch (SQLException e) {
+                        throw new RuntimeException(e);
+                      }
 
-                          analysisObject.setLabels(
-                              mapper().convertValue(new PostgresJSONBBinding().converter()
-                                  .from(analysisDbRecord.get(ANALYSIS.LABELS)), new TypeReference<>() {}));
-                          analysisObject.setWorkflowRun(record.get(WORKFLOW_RUN.HASH_ID));
-                          analysisObject.setCreated(analysisDbRecord.get(ANALYSIS.CREATED).toZonedDateTime());
+                      // Get the analysis, and also the external ids for those analysis records
+                      Map<ProvenanceAnalysisRecord<ExternalId>, JsonNode> analysis = new HashMap<>();
+                      Map<Integer, Set<ExternalId>> externalIdsByAnalysis = new HashMap<>();
+                      dsl.select()
+                          .from(ANALYSIS)
+                          .where(ANALYSIS.WORKFLOW_RUN_ID.eq(record.get(WORKFLOW_RUN.ID)))
 
-                          // Get the external IDs associated with this analysis record
-                          Integer analysisId = analysisDbRecord.get(ANALYSIS.ID);
-                          dsl.select()
-                              .from(EXTERNAL_ID)
-                              .join(ANALYSIS_EXTERNAL_ID)
-                              .on(EXTERNAL_ID.ID.eq(ANALYSIS_EXTERNAL_ID.EXTERNAL_ID_ID))
-                              .where(ANALYSIS_EXTERNAL_ID.ANALYSIS_ID.eq(analysisId))
+                          // For every analysis record associated with this workflow run, create
+                          // an object for use downstream
+                          .forEach(analysisDbRecord -> {
+                            ProvenanceAnalysisRecord<ExternalId> analysisObject = new ProvenanceAnalysisRecord<>();
+                            analysisObject.setId(analysisDbRecord.get(ANALYSIS.HASH_ID));
+                            analysisObject.setType(analysisDbRecord.get(ANALYSIS.ANALYSIS_TYPE));
+                            analysisObject.setChecksum(
+                                analysisDbRecord.get(ANALYSIS.FILE_CHECKSUM));
+                            analysisObject.setChecksumType(
+                                analysisDbRecord.get(ANALYSIS.FILE_CHECKSUM_TYPE));
+                            analysisObject.setMetatype(
+                                analysisDbRecord.get(ANALYSIS.FILE_METATYPE));
+                            analysisObject.setPath(analysisDbRecord.get(ANALYSIS.FILE_PATH));
+                            analysisObject.setSize(analysisDbRecord.get(ANALYSIS.FILE_SIZE));
 
-                              // Build a set of external ids and associate it to the analysis id
-                              .forEach(externalIdDbRecord -> {
-                                    Set<ExternalId> externalIdsForAnalysisRecord =
-                                        externalIdsByAnalysis.containsKey(analysisId) ? externalIdsByAnalysis.get(
-                                            analysisId)
-                                            : new HashSet<>();
-                                    externalIdsForAnalysisRecord.add(new ExternalId(externalIdDbRecord.get(EXTERNAL_ID.PROVIDER),
-                                        externalIdDbRecord.get(EXTERNAL_ID.EXTERNAL_ID_)));
-                                    externalIdsByAnalysis.put(analysisId, externalIdsForAnalysisRecord);
-                                  }
-                              );
-                          analysisObject.setExternalKeys(
-                              externalIdsByAnalysis.get(analysisId).stream().toList());
+                            analysisObject.setLabels(
+                                mapper().convertValue(new PostgresJSONBBinding().converter()
+                                        .from(analysisDbRecord.get(ANALYSIS.LABELS)),
+                                    new TypeReference<>() {
+                                    }));
+                            analysisObject.setWorkflowRun(record.get(WORKFLOW_RUN.HASH_ID));
+                            analysisObject.setCreated(
+                                analysisDbRecord.get(ANALYSIS.CREATED).toZonedDateTime());
 
-                          // Associate the analysis object with some metadata
-                          // We have to get this from the workflow run, but because in normal
-                          // operation there is only ever 1 outputDirectory for a run, we can
-                          // just get the first workflow run metadatum available.
-                          // No writing is done with this information, so it's ok.
-                          JsonNode workflowRunMetadataPart = null;
-                          Iterator<JsonNode> metadataIterator = metadata.iterator();
-                          while (metadataIterator.hasNext() && null == workflowRunMetadataPart) {
-                            JsonNode metadatum = metadataIterator.next();
-                            ArrayNode contents = (ArrayNode) metadatum.get("contents");
-                            Iterator<JsonNode> contentsIterator = contents.elements();
-                            while (contentsIterator.hasNext()) {
-                              JsonNode content = contentsIterator.next();
-                              if (content.has("originalDirectory")) {
-                                workflowRunMetadataPart = content;
-                                break;
+                            // Get the external IDs associated with this analysis record
+                            Integer analysisId = analysisDbRecord.get(ANALYSIS.ID);
+                            dsl.select()
+                                .from(EXTERNAL_ID)
+                                .join(ANALYSIS_EXTERNAL_ID)
+                                .on(EXTERNAL_ID.ID.eq(ANALYSIS_EXTERNAL_ID.EXTERNAL_ID_ID))
+                                .where(ANALYSIS_EXTERNAL_ID.ANALYSIS_ID.eq(analysisId))
+
+                                // Build a set of external ids and associate it to the analysis id
+                                .forEach(externalIdDbRecord -> {
+                                      Set<ExternalId> externalIdsForAnalysisRecord =
+                                          externalIdsByAnalysis.containsKey(analysisId)
+                                              ? externalIdsByAnalysis.get(
+                                              analysisId)
+                                              : new HashSet<>();
+                                      externalIdsForAnalysisRecord.add(
+                                          new ExternalId(externalIdDbRecord.get(EXTERNAL_ID.PROVIDER),
+                                              externalIdDbRecord.get(EXTERNAL_ID.EXTERNAL_ID_)));
+                                      externalIdsByAnalysis.put(analysisId,
+                                          externalIdsForAnalysisRecord);
+                                    }
+                                );
+                            analysisObject.setExternalKeys(
+                                externalIdsByAnalysis.get(analysisId).stream().toList());
+
+                            // Associate the analysis object with some metadata
+                            // We have to get this from the workflow run, but because in normal
+                            // operation there is only ever 1 outputDirectory for a run, we can
+                            // just get the first workflow run metadatum available.
+                            // No writing is done with this information, so it's ok.
+                            JsonNode workflowRunMetadataPart = null;
+                            Iterator<JsonNode> metadataIterator = metadata.iterator();
+                            while (metadataIterator.hasNext() && null == workflowRunMetadataPart) {
+                              JsonNode metadatum = metadataIterator.next();
+                              ArrayNode contents = (ArrayNode) metadatum.get("contents");
+                              Iterator<JsonNode> contentsIterator = contents.elements();
+                              while (contentsIterator.hasNext()) {
+                                JsonNode content = contentsIterator.next();
+                                if (content.has("originalDirectory")) {
+                                  workflowRunMetadataPart = content;
+                                  break;
+                                }
                               }
                             }
-                          }
-                          if(null == workflowRunMetadataPart){
-                            handler.invalidWorkflow(Set.of(
-                              String.format("Unable to correlate workflow run %s with metadata %s to analysis %s with path %s%n",
-                                  workflowRunId,
-                                  metadata.textValue(),
-                                  analysisId,
-                                  analysisObject.getPath()
+                            if (null == workflowRunMetadataPart) {
+                              handler.invalidWorkflow(Set.of(
+                                      String.format(
+                                          "Unable to correlate workflow run %s with metadata %s to analysis %s with path %s%n",
+                                          workflowRunId,
+                                          metadata.textValue(),
+                                          analysisId,
+                                          analysisObject.getPath()
+                                      )
                                   )
-                              )
-                            );
-                          }
-                          analysis.put(analysisObject, workflowRunMetadataPart);
-                        });
+                              );
+                            }
+                            analysis.put(analysisObject, workflowRunMetadataPart);
+                          });
 
-                    try {
-                      final DatabaseWorkflow dbWorkflow = DatabaseWorkflow.createActive(
-                          "reprovision",
-                          newTarget,
-                          record.get(WORKFLOW_RUN.ID),
-                          "reprovision", //record.get(WORKFLOW_VERSION.NAME),
-                          "1", // record.get(WORKFLOW_VERSION.VERSION),
-                          record.get(WORKFLOW_RUN.HASH_ID),
-                          record.get(WORKFLOW_RUN.ARGUMENTS),
-                          record.get(WORKFLOW_RUN.ENGINE_PARAMETERS),
-                          metadata,
-                          externalIdsByAnalysis.values().stream().flatMap(Collection::stream).collect(
-                              Collectors.toSet()),
-                          Map.of(), //empty consumable resources
-                          record.get(WORKFLOW_RUN.CREATED).toInstant(),
-                          this::liveness,
-                          dsl,
-                          Phase.REPROVISION
-                      );
+                      try {
+                        final DatabaseWorkflow dbWorkflow = strategy.getDbWorkflow(record,
+                            newTarget,
+                            metadata, externalIdsByAnalysis, this, dsl);
+                        ret.set(strategy.handle(record, dbWorkflow, definition.get(), analysis,
+                            originalCompleted, handler, newTarget, dataSource, executor(), this));
 
-                      ret.set(handler.launched(record.get(WORKFLOW_RUN.HASH_ID),
-                          new ConsumableResourceChecker(
-                              newTarget,
-                              dataSource,
-                              executor(),
-                              dbWorkflow.dbId(),
-                              liveness(dbWorkflow.dbId()),
-                              new MaxInFlightByWorkflow(),
-                              "reprovision",
-                              "1",
-                              record.get(WORKFLOW_RUN.HASH_ID),
-                              Map.of(),
-                              record.get(WORKFLOW_RUN.CREATED).toInstant(),
-                              new Runnable() {
-                                private boolean launched;
-
-                                @Override
-                                public void run() {
-                                  if (launched) {
-                                    throw new IllegalStateException(
-                                        "Workflow has already been" + " launched");
-                                  }
-                                  launched = true;
-                                  inTransaction(
-                                      runTransaction ->
-                                          DatabaseBackedProcessor.this.reprovision(
-                                              newTarget, definition.get().definition(),
-                                              dbWorkflow, analysis, originalCompleted,
-                                              runTransaction));
-                                }
-                              })));
-                    } catch (Exception e) {
-                      throw new RuntimeException(e);
+                      } catch (SQLException e) {
+                        throw new RuntimeException(e);
+                      }
                     }
-                  } else if (result.size() > 1){
+                  } else if (result.size() > 1) {
                     ret.set(handler.multipleMatches(
                         result.stream()
                             .map(r -> r.get(WORKFLOW_RUN.HASH_ID))
@@ -1332,10 +1353,7 @@ public abstract class DatabaseBackedProcessor
                     ret.set(handler.invalidWorkflow(
                         Set.of(
                             String.format(
-                                "No record for workflow run hash id %s. Either the workflow run "
-                                    + "doesn't exist, or it does exist and is actively running - "
-                                    + "reprovisioning can only be performed on completed workflow "
-                                    + "runs%n",
+                                "No record for workflow run hash id %s. Does the run exist?%n",
                                 workflowRunId))));
                   }
                 });

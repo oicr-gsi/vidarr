@@ -99,7 +99,8 @@ public abstract sealed class OperationStep<Input, Output>
         .then(future());
   }
 
-  public static <Value> OperationStep<Value, Value> handleHttpResponseCode() {
+  public static <Body>
+      OperationStep<HttpResponse<Body>, HttpResponse<Body>> handleHttpResponseCode() {
     return new OperationStepHandleHttpStatus<>();
   }
 

@@ -9,7 +9,8 @@ import java.net.http.HttpResponse;
  * allows for reattempting the requests when chained with e.g. {@link
  * OperationStatefulStepRepeatUntilSuccess}
  */
-public final class OperationStepHandleHttpStatus<Value> extends OperationStep<Value, Value> {
+public final class OperationStepHandleHttpStatus<Body>
+    extends OperationStep<HttpResponse<Body>, HttpResponse<Body>> {
 
   public OperationStepHandleHttpStatus() {
     super();
@@ -17,12 +18,11 @@ public final class OperationStepHandleHttpStatus<Value> extends OperationStep<Va
 
   @Override
   public <State extends Record, TX> void run(
-      Value input,
+      HttpResponse<Body> input,
       ActiveOperation<TX> operation,
       TransactionManager<TX> transactionManager,
-      OperationControlFlow<State, Value> next) {
-    HttpResponse<?> response = (HttpResponse<?>) input;
-    int status = response.statusCode();
+      OperationControlFlow<State, HttpResponse<Body>> next) {
+    int status = input.statusCode();
     switch (status) {
       case 200:
       case 201:
@@ -30,24 +30,23 @@ public final class OperationStepHandleHttpStatus<Value> extends OperationStep<Va
         break;
 
       case 301:
-        String locationFromRedirect = response.headers().map().get("location").get(0);
+        String locationFromRedirect = input.headers().map().get("location").get(0);
         throw new RuntimeException(
             String.format(
                 "HTTP request to %s returned 301 redirect URL %s. The HTTP request URL cannot be adjusted on the fly.",
-                response.uri(), locationFromRedirect));
+                input.uri(), locationFromRedirect));
       case 400:
       case 404:
       case 500:
         next.error(
             String.format(
-                "HTTP request to %s failed with status: %d",
-                response.uri(), response.statusCode()));
+                "HTTP request to %s failed with status: %d", input.uri(), input.statusCode()));
         break;
       default:
         throw new RuntimeException(
             String.format(
-                "HTTP request to %s received unhandled HTTP response status %s",
-                response.uri(), response.statusCode()));
+                "HTTP request to %s received unhandled HTTP input status %s",
+                input.uri(), input.statusCode()));
     }
   }
 }

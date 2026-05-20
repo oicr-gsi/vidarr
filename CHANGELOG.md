@@ -6,6 +6,18 @@ For unreleased changes, see [changes](changes).
 
 -----------------------------------------------------------------------------
 
+## [2.13.0] - 2026-05-20
+
+### Added
+
+* 'vidarr-workflow-label' unload filter
+* import and reprovision-out now take an attempt number for reattempting failed reprovisioning
+
+### Changed
+
+* Java API: add optional `excludeWorkflows` array to AnalysisProvenanceRequest to exclude certain workflows when requesting analysis provenance
+
+
 ## [2.12.0] - 2026-04-29
 
 ### Added

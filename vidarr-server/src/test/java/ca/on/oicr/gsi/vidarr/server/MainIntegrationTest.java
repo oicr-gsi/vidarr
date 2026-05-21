@@ -1121,7 +1121,7 @@ public class MainIntegrationTest {
         .then()
         .assertThat()
         .statusCode(200)
-        .body("size()", equalTo(1))
+        .body("size()", equalTo(3))
         .body("[0].completed", nullValue())
         .body("[0].operationStatus", equalTo("N/A"))
         .body("[0].waiting_resource", equalTo("prometheus-alert-manager"))
@@ -1191,8 +1191,8 @@ public class MainIntegrationTest {
             .then()
             .assertThat()
             .statusCode(200)
-            .body("workflowRuns.size()", equalTo(9))
-            .body("workflowRuns.findAll { it.workflowName == \"bcl2fastq\" }.size()", equalTo(8))
+            .body("workflowRuns.size()", equalTo(12))
+            .body("workflowRuns.findAll { it.workflowName == \"bcl2fastq\" }.size()", equalTo(9))
             .and()
             .extract()
             .jsonPath();
@@ -1269,10 +1269,10 @@ public class MainIntegrationTest {
     String unloadedFilePath = unloadDirectory.getRoot().getAbsolutePath() + "/" + unloadFileName;
 
     JsonPath unloaded = JsonPath.from(new File(unloadedFilePath));
-    assertThat(unloaded.getList("workflowRuns").size(), equalTo(9));
+    assertThat(unloaded.getList("workflowRuns").size(), equalTo(12));
     assertThat(
         unloaded.getList("workflowRuns.findAll { it.workflowName == \"bcl2fastq\" }").size(),
-        equalTo(8));
+        equalTo(9));
     Object firstHash = unloaded.get("workflowRuns[0].id");
 
     // Confirm that the bcl2fastq workflow run has been unloaded from the database
@@ -1387,6 +1387,70 @@ public class MainIntegrationTest {
   }
 
   @Test
+  public void whenUnloadByWorkflowLabel_thenWorkflowRunsAreDeletedFromVidarr() {
+    ObjectNode unloadFilter = unloadByWorkflowLabelFilter("reference", "hg37");
+
+    JsonPath res =
+        given()
+            .contentType(ContentType.JSON)
+            .body(unloadFilter)
+            .when()
+            .post("/api/unload")
+            .then()
+            .assertThat()
+            .statusCode(200)
+            .and()
+            .extract()
+            .jsonPath();
+    String unloadFileName = res.get("filename").toString();
+    String unloadedFilePath = unloadDirectory.getRoot().getAbsolutePath() + "/" + unloadFileName;
+    JsonPath unloaded = JsonPath.from(new File(unloadedFilePath));
+
+    assertThat(unloaded.getList("workflowRuns").size(), equalTo(1));
+    assertThat(
+        unloaded.getList("workflowRuns.id"),
+        containsInAnyOrder("dae92f1a609fbed45c4c491eff254f8ddebade0f0d92abe3d2107214df6b800b"));
+    assertThat(
+        unloaded.getList("workflowRuns.id"),
+        not(
+            contains(
+                "742582b0ba687e1c72b5179b9a54c016e2f45ecbdf352717566a3d23f675f1fe")) // hg38 label
+        );
+  }
+
+  @Test
+  public void whenUnloadByWorkflowLabelList_thenWorkflowRunsAreDeletedFromVidarr() {
+    ObjectNode unloadFilter = unloadByWorkflowLabelListFilter("reference", List.of("hg37", "mm10"));
+
+    JsonPath res =
+        given()
+            .contentType(ContentType.JSON)
+            .body(unloadFilter)
+            .when()
+            .post("/api/unload")
+            .then()
+            .assertThat()
+            .statusCode(200)
+            .and()
+            .extract()
+            .jsonPath();
+    String unloadFileName = res.get("filename").toString();
+    String unloadedFilePath = unloadDirectory.getRoot().getAbsolutePath() + "/" + unloadFileName;
+    JsonPath unloaded = JsonPath.from(new File(unloadedFilePath));
+
+    assertThat(unloaded.getList("workflowRuns").size(), equalTo(1));
+    assertThat(
+        unloaded.getList("workflowRuns.id"),
+        containsInAnyOrder("dae92f1a609fbed45c4c491eff254f8ddebade0f0d92abe3d2107214df6b800b"));
+    assertThat(
+        unloaded.getList("workflowRuns.id"),
+        not(
+            contains(
+                "742582b0ba687e1c72b5179b9a54c016e2f45ecbdf352717566a3d23f675f1fe")) // hg38 label
+        );
+  }
+
+  @Test
   public void whenWorkflowIsUnloaded_thenItAndItsRunsCanBeLoaded() throws IOException {
     String bcl2fastqHash = "2f52b25df0a20cf41b0476b9114ad40a7d8d2edbddf0bed7d2d1b01d3f2d2b56";
     // Confirm that the bcl2fastq workflow run exists in the database
@@ -1474,7 +1538,7 @@ public class MainIntegrationTest {
 
     File unloadedFile = new File(unloadedFilePath);
     JsonPath unloaded = JsonPath.from(unloadedFile);
-    assertThat(unloaded.getList("workflowRuns").size(), equalTo(1));
+    assertThat(unloaded.getList("workflowRuns").size(), equalTo(2));
 
     // now reload the data
     given()
@@ -1511,7 +1575,7 @@ public class MainIntegrationTest {
         .then()
         .assertThat()
         .statusCode(200)
-        .body(equalTo("1"));
+        .body(equalTo("2"));
 
     JsonPath updated = get("/api/run/{hash}", runHash).then().extract().jsonPath();
     assertThat(updated.getList("externalKeys"), hasSize(1));
@@ -1631,6 +1695,28 @@ public class MainIntegrationTest {
     return unloadFilter;
   }
 
+  private ObjectNode unloadByWorkflowLabelFilter(String label, String labelValue) {
+    ObjectNode unloadFilter = MAPPER.createObjectNode();
+    ObjectNode filterType = MAPPER.createObjectNode();
+    filterType.put("type", "vidarr-workflow-label");
+    filterType.put("label", label);
+    filterType.put("value", labelValue);
+    unloadFilter.set("filter", filterType);
+    return unloadFilter;
+  }
+
+  private ObjectNode unloadByWorkflowLabelListFilter(String label, List<String> labelValues) {
+    ObjectNode unloadFilter = MAPPER.createObjectNode();
+    ObjectNode filterType = MAPPER.createObjectNode();
+    filterType.put("type", "vidarr-workflow-label");
+    filterType.put("label", label);
+    ArrayNode labels = MAPPER.createArrayNode();
+    labelValues.forEach(labels::add);
+    filterType.set("value", labels);
+    unloadFilter.set("filter", filterType);
+    return unloadFilter;
+  }
+
   private Instant dateFromTime(String timeString) throws ParseException {
     return OffsetDateTime.parse(timeString).toInstant();
   }
@@ -1686,6 +1772,7 @@ public class MainIntegrationTest {
     versionTypes.add("pinery-hash-2");
     versionTypes.add("pinery-hash-7");
     versionTypes.add("pinery-hash-8");
+    versionTypes.add("pinery-hash-9");
     return requestBody;
   }
 

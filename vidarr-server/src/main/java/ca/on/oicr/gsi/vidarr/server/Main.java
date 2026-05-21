@@ -543,14 +543,18 @@ public final class Main implements ServerConfig {
       return;
     }
     final AtomicReference<Runnable> postCommitAction = new AtomicReference<>();
-    final Pair<Integer, SubmitWorkflowResponse> response = processor.reprovisionOut(
-        reprovisionOutRequest.getWorkflowRunHashId(), provisionerName, provisioner,
-        reprovisionOutRequest.getOutputPath(), reprovisionOutRequest.getAttempt(),
-        new DatabaseBackedProcessor.SubmissionResultHandler<>() {
-          @Override
-          public boolean allowLaunch() {
-            return true;
-          }
+    final Pair<Integer, SubmitWorkflowResponse> response =
+        processor.reprovisionOut(
+            reprovisionOutRequest.getWorkflowRunHashId(),
+            provisionerName,
+            provisioner,
+            reprovisionOutRequest.getOutputPath(),
+            reprovisionOutRequest.getAttempt(),
+            new DatabaseBackedProcessor.SubmissionResultHandler<>() {
+              @Override
+              public boolean allowLaunch() {
+                return true;
+              }
 
               @Override
               public Pair<Integer, SubmitWorkflowResponse> dryRunResult() {
@@ -2940,26 +2944,22 @@ public final class Main implements ServerConfig {
                                                       String label, Stream<String> values) {
 
                                                     List<String> collectedValues = values.toList();
-                                                    switch(collectedValues.size()){
-                                                      case 0:
-                                                        return DSL.condition(false);
-                                                      case 1:
-                                                        return DSL.exists(DSL.select()
-                                                            .from(WORKFLOW_RUN)
-                                                                .where(DSL.condition(
-                                                                    "jsonb_exists(labels->?, ?)",
-                                                                    label,
-                                                                    collectedValues.iterator().next()
-                                                                )));
-                                                      default:
-                                                        return DSL.exists(DSL.select()
-                                                            .from(WORKFLOW_RUN)
-                                                            .where(DSL.condition(
-                                                                "jsonb_exists_any(labels->?, ?)",
-                                                                label,
-                                                                DSL.val(collectedValues, SQLDataType.VARCHAR.getArrayType())
-                                                            )));
-                                                    }
+                                                    return switch (collectedValues.size()) {
+                                                      case 0 -> DSL.condition(false);
+                                                      case 1 ->
+                                                          DSL.condition(
+                                                              "labels->>? = ?",
+                                                              label,
+                                                              collectedValues.iterator().next());
+                                                      default ->
+                                                          DSL.condition(
+                                                              "labels->>? = ANY(?)",
+                                                              label,
+                                                              DSL.val(
+                                                                  collectedValues,
+                                                                  SQLDataType.VARCHAR
+                                                                      .getArrayType()));
+                                                    };
                                                   }
 
                                                   @Override

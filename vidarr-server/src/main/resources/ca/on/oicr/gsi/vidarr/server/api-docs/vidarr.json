@@ -839,7 +839,9 @@
       },
       "UnloadFilterWorkflowLabel": {
         "properties": {
-          "label": {"type": "string"},
+          "label": {
+            "type": "string"
+          },
           "value": {
             "$ref": "#/components/schemas/UnloadTextSelector"
           }
@@ -1189,7 +1191,7 @@
         ]
       }
     },
-    "/api/import":{
+    "/api/import": {
       "post": {
         "description": "Add workflow and workflow run data without workflow run or analysis hashes to the Vidarr database with new hashes, then provision-out the output files.",
         "requestBody": {
@@ -1198,15 +1200,15 @@
               "schema": {
                 "properties": {
                   "workflowRun": {
-                      "$ref": "#/components/schemas/WorkflowRun"
+                    "$ref": "#/components/schemas/WorkflowRun"
                   },
                   "workflowVersion": {
-                      "description": "Workflow version for the workflow run",
-                      "$ref": "#/components/schemas/WorkflowVersion"
+                    "description": "Workflow version for the workflow run",
+                    "$ref": "#/components/schemas/WorkflowVersion"
                   },
                   "workflow": {
-                      "description": "Workflow definition for the workflow run",
-                      "$ref": "#/components/schemas/Workflow"
+                    "description": "Workflow definition for the workflow run",
+                    "$ref": "#/components/schemas/Workflow"
                   },
                   "outputProvisionerName": {
                     "type": "string"
@@ -1407,7 +1409,7 @@
                   "excludeWorkflows": {
                     "items": {
                       "description": "The workflows to be excluded from provenance results; if not provided, all results will be returned",
-                     "type": "string"
+                      "type": "string"
                     },
                     "type": "array"
                   }
@@ -1908,6 +1910,26 @@
               }
             },
             "description": "An object detailing the name of the file in the configured 'unloadDirectory' where the unloaded data is stored (this data has been removed from the Vidarr database) and the IDs of the workflow runs which have been removed."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "reason": {
+                      "description": "Explanation for why the unload failed and how to resolve before reattempting",
+                      "type": "string"
+                    },
+                    "hashIdsByPhase": {
+                      "description": "Mapping for incomplete workflow runs of engine phase to affected workflow run IDs",
+                      "type": "object"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Unload cannot proceed as some workflow runs are incomplete"
           },
           "507": {
             "description": "Too many load/unload requests; try again later"

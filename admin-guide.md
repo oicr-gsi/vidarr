@@ -12,7 +12,7 @@ See [Víðarr Code Style](code-style.md) for preferred code formatting.
 ## System Operations Guide
 Running a Víðarr instance requires:
 
-- Java 17 or later
+- Java 21 or later
 - PostgreSQL 12 or later
 - Maven (for building, not required on installation machine)
 - Docker (for building, not required on installation machine)

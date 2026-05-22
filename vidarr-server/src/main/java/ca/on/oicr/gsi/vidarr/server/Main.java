@@ -3019,7 +3019,7 @@ public final class Main implements ServerConfig {
                                     pi -> fetchHashIds(pi.getValue(), configuration)));
 
                     String reason =
-                        "Some selected workflow runs are incomplete. Please resolve the following and then reattempt the unload: 1) delete any WAITING_FOR_RESOURCES or FAILED workflow "
+                        "Some selected workflow runs are incomplete. Before reattempting the unload, either wait until downstream workflow runs succeed, or resolve the incomplete workflow runs: 1) delete any WAITING_FOR_RESOURCES or FAILED workflow "
                             + "runs; 2) terminate any PROVISION_IN, RUNNING or PROVISION_OUT workflow runs in the provisioner and/or workflow engine, wait for the runs to transition to FAILED in Vidarr, and delete them from Vidarr";
                     throw new IncompleteRunsException(reason, hashIdsByPhase);
                   }

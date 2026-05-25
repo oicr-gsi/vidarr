@@ -6,6 +6,14 @@ For unreleased changes, see [changes](changes).
 
 -----------------------------------------------------------------------------
 
+## [2.13.1] - 2026-05-25
+
+### Fixed
+
+* issue where unload filter `vidarr-workflow-run-label` over-selected runs
+* * Fixes a bug where failed Cromwell runs will be polled an execessive number of times; this update will break in-flight workflow runs
+
+
 ## [2.13.0] - 2026-05-20
 
 ### Added

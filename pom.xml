@@ -77,6 +77,11 @@
         </version> <!-- using the undertow-core dependency version of 3.7.0 causes a runtime error, so pin this here -->
       </dependency>
       <dependency>
+        <groupId>org.jboss.logging</groupId>
+        <artifactId>jboss-logging</artifactId>
+	<version>3.4.2.Final</version> <!-- 3.5.x won't work due to this commit which uses MethodHandles.privateLookupIn() for logger generation, for better encapsulation, but undertow is an automatic module and assumes it can use reflection to get the logger, which it can't . https://github.com/jboss-logging/jboss-logging/commit/d8b57d2a3bcad6bb05784d1e3f33de3c366fdf57 -->
+      </dependency>
+      <dependency>
         <groupId>ca.on.oicr.gsi.vidarr</groupId>
         <artifactId>vidarr-pluginapi</artifactId>
         <version>${project.version}</version>

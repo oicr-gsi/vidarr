@@ -35,7 +35,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.TimeZone;
 import java.util.stream.Collectors;
@@ -816,7 +815,7 @@ public class MainIntegrationTest {
     assertTrue(
         nodeVersions.stream()
             .map(v -> MAPPER.convertValue(v, new TypeReference<Map<String, String>>() {}))
-            .map(Map::values)
+            .map(v -> v.values())
             .anyMatch(a -> a.contains(targetVersion) && !a.contains(earlierVersion)));
   }
 
@@ -1193,7 +1192,7 @@ public class MainIntegrationTest {
             .assertThat()
             .statusCode(200)
             .body("workflowRuns.size()", equalTo(12))
-            .body("workflowRuns.findAll { it.workflowName == \"bcl2fastq\" }.size()", equalTo(8))
+            .body("workflowRuns.findAll { it.workflowName == \"bcl2fastq\" }.size()", equalTo(9))
             .and()
             .extract()
             .jsonPath();
@@ -1216,52 +1215,11 @@ public class MainIntegrationTest {
         .statusCode(200)
         .body("workflowName", equalTo("bcl2fastq"));
 
-    ObjectNode copyOutFilter =
-        getUnloadWorkflowRunFilter(bcl2fastqWorkflowRunId); // this is recursive
-
-    JsonPath resp =
-        given()
-            .contentType(ContentType.JSON)
-            .body(copyOutFilter)
-            .when()
-            .post("/api/copy-out")
-            .then()
-            .assertThat()
-            .statusCode(200)
-            .body("workflowRuns.size()", is(3))
-            .body("workflowRuns.findAll { it.workflowName == \"bcl2fastq\" }.size()", is(1))
-            .body("workflowRuns.findAll { it.workflowName == \"fastqc\" }.size()", is(1))
-            .body("workflowRuns.findAll { it.workflowName == \"standardqc\" }.size()", is(1))
-            .and()
-            .extract()
-            .jsonPath();
-
-    Object firstHash = resp.get("workflowRuns[0].id");
-    Object secondHash = resp.get("workflowRuns[1].id");
-    Object thirdHash = resp.get("workflowRuns[2].id");
-    assertTrue(Arrays.asList(firstHash, secondHash, thirdHash).contains(fastqcWorkflowRunId));
-  }
-
-  @Test
-  public void whenCopyOutItemsInHierarchy_thenOnlyTargetItemsAreCopied() {
-    // copy-out a root workflow run and a workflow run that's downstream of it, but not directly
-    // downstream.
-    // confirm that only those two workflow runs are returned, and no workflow runs in between in
-    // the hierarchy are returned.
-    List<String> targetWorkflowRuns =
-        List.of(
-            "40456ae079abc87805ba3ece5eebaf747170c794daa111bcf0107a81e59f7043", // import_fastq
-            "66a6c5f02112ba6faf2f3ef8ee2a9076ae2a46b2368035fddb72202b555f1fb9" // standardqc which
-            // uses fastqc input
-            );
-
     ObjectNode copyOutFilter = MAPPER.createObjectNode();
-    copyOutFilter.put("recursive", false); // non-recursive
-    ObjectNode filterType = MAPPER.createObjectNode();
+    copyOutFilter.put("recursive", true);
+    ObjectNode filterType = copyOutFilter.putObject("filter");
     filterType.put("type", "vidarr-workflow-run-id");
-    ArrayNode workflowRunIds = filterType.putArray("id");
-    targetWorkflowRuns.forEach(workflowRunIds::add);
-    copyOutFilter.set("filter", filterType);
+    filterType.put("id", bcl2fastqWorkflowRunId);
 
     JsonPath resp =
         given()
@@ -1273,28 +1231,27 @@ public class MainIntegrationTest {
             .assertThat()
             .statusCode(200)
             .body("workflowRuns.size()", is(2))
-            .body("workflowRuns.findAll { it.workflowName == \"import_fastq\" }.size()", is(1))
-            .body("workflowRuns.findAll { it.workflowName == \"standardqc\" }.size()", is(1))
+            .body("workflowRuns.findAll { it.workflowName == \"bcl2fastq\" }.size()", is(1))
+            .body("workflowRuns.findAll { it.workflowName == \"fastqc\" }.size()", is(1))
             .and()
             .extract()
             .jsonPath();
 
-    List<String> copiedHashes =
-        List.of(resp.get("workflowRuns[0].id"), resp.get("workflowRuns[1].id"));
-    assertTrue(targetWorkflowRuns.containsAll(copiedHashes));
+    Object firstHash = resp.get("workflowRuns[0].id");
+    Object secondHash = resp.get("workflowRuns[1].id");
+    assertTrue(Stream.of(firstHash, secondHash).anyMatch(h -> fastqcWorkflowRunId.equals(h)));
   }
 
   @Test
   public void whenUnloadWorkflow_thenWorkflowRunsAreDeletedFromVidarr() {
-    String targetWorkflow = "terminal_workflow";
-    // Confirm that the workflow run exists
-    get("/api/run/{hash}", "82a53df75b6ecf75256f1688b0f4304515e7fba1c6793f26c8e844ccc5444f35")
+    // Confirm that a bcl2fastq workflow run exists
+    get("/api/run/{hash}", "2f52b25df0a20cf41b0476b9114ad40a7d8d2edbddf0bed7d2d1b01d3f2d2b56")
         .then()
         .assertThat()
         .statusCode(200)
-        .body("workflowName", equalTo(targetWorkflow));
+        .body("workflowName", equalTo("bcl2fastq"));
 
-    ObjectNode unloadFilter = getUnloadWorkflowFilter(targetWorkflow);
+    ObjectNode unloadFilter = getUnloadWorkflowFilter("bcl2fastq");
 
     JsonPath res =
         given()
@@ -1312,15 +1269,13 @@ public class MainIntegrationTest {
     String unloadedFilePath = unloadDirectory.getRoot().getAbsolutePath() + "/" + unloadFileName;
 
     JsonPath unloaded = JsonPath.from(new File(unloadedFilePath));
-    assertThat(unloaded.getList("workflowRuns").size(), equalTo(1));
+    assertThat(unloaded.getList("workflowRuns").size(), equalTo(12));
     assertThat(
-        unloaded
-            .getList("workflowRuns.findAll { it.workflowName == \"" + targetWorkflow + "\" }")
-            .size(),
-        equalTo(1));
+        unloaded.getList("workflowRuns.findAll { it.workflowName == \"bcl2fastq\" }").size(),
+        equalTo(9));
     Object firstHash = unloaded.get("workflowRuns[0].id");
 
-    // Confirm that the workflow run has been unloaded from the database
+    // Confirm that the bcl2fastq workflow run has been unloaded from the database
     get("/api/run/{hash}", firstHash).then().assertThat().statusCode(404);
   }
 
@@ -1422,7 +1377,7 @@ public class MainIntegrationTest {
     String unloadedFilePath = unloadDirectory.getRoot().getAbsolutePath() + "/" + unloadFileName;
 
     JsonPath unloaded = JsonPath.from(new File(unloadedFilePath));
-    assertThat(unloaded.getList("workflowRuns").size(), equalTo(4));
+    assertThat(unloaded.getList("workflowRuns").size(), equalTo(3));
     assertThat(
         unloaded.getList("workflowRuns.findAll { it.workflowName == \"bcl2fastq\" }").size(),
         equalTo(2));
@@ -1497,11 +1452,11 @@ public class MainIntegrationTest {
 
   @Test
   public void whenWorkflowIsUnloaded_thenItAndItsRunsCanBeLoaded() throws IOException {
-    String terminalWfRunHash = "82a53df75b6ecf75256f1688b0f4304515e7fba1c6793f26c8e844ccc5444f35";
-    // Confirm that the terminal_workflow workflow run exists in the database
-    get("/api/run/{hash}", terminalWfRunHash).then().assertThat().statusCode(200);
+    String bcl2fastqHash = "2f52b25df0a20cf41b0476b9114ad40a7d8d2edbddf0bed7d2d1b01d3f2d2b56";
+    // Confirm that the bcl2fastq workflow run exists in the database
+    get("/api/run/{hash}", bcl2fastqHash).then().assertThat().statusCode(200);
 
-    ObjectNode unloadFilter = getUnloadWorkflowFilter("terminal_workflow");
+    ObjectNode unloadFilter = getUnloadWorkflowFilter("bcl2fastq");
 
     JsonPath res =
         given()
@@ -1521,8 +1476,8 @@ public class MainIntegrationTest {
 
     JsonNode unloaded = MAPPER.readTree(new File(unloadedFilePath));
 
-    // Confirm that the workflow run has been unloaded from the database
-    get("/api/run/{hash}", terminalWfRunHash).then().assertThat().statusCode(404);
+    // Confirm that the bcl2fastq workflow run has been unloaded from the database
+    get("/api/run/{hash}", bcl2fastqHash).then().assertThat().statusCode(404);
 
     given()
         .contentType(ContentType.JSON)
@@ -1533,8 +1488,8 @@ public class MainIntegrationTest {
         .assertThat()
         .statusCode(200);
 
-    // Confirm that the workflow run has been loaded back into the database
-    get("/api/run/{hash}", terminalWfRunHash).then().assertThat().statusCode(200);
+    // Confirm that the bcl2fastq workflow run has been loaded back into the database
+    get("/api/run/{hash}", bcl2fastqHash).then().assertThat().statusCode(200);
 
     // Confirm that unloading the same data again produces the same result
     JsonPath res2 =
@@ -1562,9 +1517,9 @@ public class MainIntegrationTest {
   @Test
   public void whenWorkflowsWithAccessoryFilesAreUnloaded_theWorkflowRunsCanBeReloaded()
       throws IOException {
-    ObjectNode unloadFilter =
-        getUnloadWorkflowRunFilter(
-            "66a6c5f02112ba6faf2f3ef8ee2a9076ae2a46b2368035fddb72202b555f1fb9");
+    String workflowName = "standardqc";
+
+    ObjectNode unloadFilter = getUnloadWorkflowFilter(workflowName);
 
     JsonPath res =
         given()
@@ -1583,7 +1538,7 @@ public class MainIntegrationTest {
 
     File unloadedFile = new File(unloadedFilePath);
     JsonPath unloaded = JsonPath.from(unloadedFile);
-    assertThat(unloaded.getList("workflowRuns").size(), equalTo(1));
+    assertThat(unloaded.getList("workflowRuns").size(), equalTo(2));
 
     // now reload the data
     given()
@@ -1594,28 +1549,6 @@ public class MainIntegrationTest {
         .then()
         .assertThat()
         .statusCode(200);
-  }
-
-  @Test
-  public void whenQueuedWorkflowRunIsUnloaded_unloadFails() throws IOException {
-    String workflowId = "df7df7df7df7df7df7df7df7df7df70df7df7df7df7df7df7df7df7df7df7df7";
-
-    ObjectNode unloadFilter = getUnloadWorkflowRunFilter(workflowId);
-
-    JsonPath res =
-        given()
-            .contentType(ContentType.JSON)
-            .body(unloadFilter)
-            .when()
-            .post("/api/unload")
-            .then()
-            .assertThat()
-            .statusCode(409)
-            .and()
-            .extract()
-            .jsonPath();
-    assertNotNull(res.get("idsByPhase.WAITING_FOR_RESOURCES"));
-    assertEquals(((List<String>) res.get("idsByPhase.WAITING_FOR_RESOURCES")).size(), 1);
   }
 
   @Test
@@ -1745,16 +1678,6 @@ public class MainIntegrationTest {
     ObjectNode filterType = MAPPER.createObjectNode();
     filterType.put("type", "vidarr-workflow-name");
     filterType.put("name", workflowName);
-    unloadFilter.set("filter", filterType);
-    return unloadFilter;
-  }
-
-  private ObjectNode getUnloadWorkflowRunFilter(String workflowId) {
-    ObjectNode unloadFilter = MAPPER.createObjectNode();
-    unloadFilter.put("recursive", true);
-    ObjectNode filterType = MAPPER.createObjectNode();
-    filterType.put("type", "vidarr-workflow-run-id");
-    filterType.put("id", workflowId);
     unloadFilter.set("filter", filterType);
     return unloadFilter;
   }

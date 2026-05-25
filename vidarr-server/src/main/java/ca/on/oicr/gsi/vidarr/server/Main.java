@@ -58,11 +58,8 @@ import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.databind.SerializerProvider;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
@@ -144,12 +141,11 @@ import org.jooq.JSON;
 import org.jooq.JSONB;
 import org.jooq.JSONEntry;
 import org.jooq.JSONObjectNullStep;
+import org.jooq.Record;
 import org.jooq.Record1;
-import org.jooq.Record2;
 import org.jooq.Result;
 import org.jooq.SQLDialect;
 import org.jooq.Table;
-import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 import org.jooq.impl.SQLDataType;
 import org.postgresql.ds.PGSimpleDataSource;
@@ -157,8 +153,7 @@ import org.postgresql.ds.PGSimpleDataSource;
 public final class Main implements ServerConfig {
 
   private interface UnloadProcessor<T> {
-    T process(Configuration configuration, Map<Long, Phase> workflowRuns)
-        throws IOException, SQLException;
+    T process(Configuration configuration, Long[] workflowRuns) throws IOException, SQLException;
   }
 
   static final HttpClient CLIENT =
@@ -303,7 +298,7 @@ public final class Main implements ServerConfig {
   private static Field<?> createQueryOnVersion(
       Function<ExternalIdVersion, Field<?>> fieldConstructor, Set<String> allowedTypes) {
     Condition condition = EXTERNAL_ID.ID.eq(EXTERNAL_ID_VERSION.EXTERNAL_ID_ID);
-    if (allowedTypes != null && !allowedTypes.isEmpty()) {
+    if (allowedTypes != null && allowedTypes.size() != 0) {
       condition = condition.and(EXTERNAL_ID_VERSION.KEY.in(allowedTypes));
     }
     final ExternalIdVersion externalIdVersionAlias =
@@ -484,8 +479,8 @@ public final class Main implements ServerConfig {
    * unverified load and gets the hash back from the unverified loading process, then reprovisions
    * files from the workflow run to the location specified in the request.
    *
-   * @param httpServerExchange HTTP server exchange
-   * @param importRequest Import Request
+   * @param httpServerExchange
+   * @param importRequest
    */
   private void importRun(HttpServerExchange httpServerExchange, ImportRequest importRequest) {
     try {
@@ -1212,15 +1207,7 @@ public final class Main implements ServerConfig {
     try {
       unloadSearch(
           request,
-          false,
-          (tx, idsAndPhases) -> {
-            // select only idsAndPhases with null phases (non-null phase indicates
-            // queued/active/failed workflow runs, which aren't returned in copy-out)
-            Long[] ids =
-                idsAndPhases.entrySet().stream()
-                    .filter(ip -> ip.getValue() == null)
-                    .map(Entry::getKey)
-                    .toArray(Long[]::new);
+          (tx, ids) -> {
             exchange.setStatusCode(StatusCodes.OK);
             exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_JSON);
             try (final JsonGenerator output =
@@ -1716,7 +1703,9 @@ public final class Main implements ServerConfig {
                   e.printStackTrace();
                 }
               },
-              () -> notFoundResponse(exchange));
+              () -> {
+                notFoundResponse(exchange);
+              });
     } catch (SQLException e) {
       internalServerErrorResponse(exchange, e);
     }
@@ -1736,7 +1725,12 @@ public final class Main implements ServerConfig {
           .where(WORKFLOW_RUN.HASH_ID.eq(param("vidarrId", vidarrId)))
           .fetchOptional(Record1::value1)
           .ifPresentOrElse(
-              record -> okJsonResponse(exchange, record.data()), () -> notFoundResponse(exchange));
+              record -> {
+                okJsonResponse(exchange, record.data());
+              },
+              () -> {
+                notFoundResponse(exchange);
+              });
     } catch (SQLException e) {
       internalServerErrorResponse(exchange, e);
     }
@@ -2532,7 +2526,7 @@ public final class Main implements ServerConfig {
         // No ID from database because it is already installed, and we want to ensure we have
         // the same version
         else {
-          Optional<Integer> workflowVersionIdFromDb =
+          var workflowVersionIdFromDb =
               DSL.using(configuration)
                   .select(WORKFLOW_VERSION.ID)
                   .from(WORKFLOW_VERSION)
@@ -2766,12 +2760,9 @@ public final class Main implements ServerConfig {
       final UnloadResponse response =
           unloadSearch(
               request,
-              true,
-              (tx, idsAndPhases) -> {
+              (tx, ids) -> {
                 final Instant time = Instant.now();
                 final String filename = String.format("unload-%s.json", time);
-
-                Long[] ids = idsAndPhases.keySet().toArray(new Long[0]);
                 try (final JsonGenerator output =
                     MAPPER_FACTORY.createGenerator(
                         Files.newOutputStream(unloadDirectory.resolve(filename)))) {
@@ -2808,7 +2799,7 @@ public final class Main implements ServerConfig {
                         .where(WORKFLOW_RUN.ID.eq(DSL.any(ids)))
                         .returningResult(DSL.field(WORKFLOW_RUN.HASH_ID))
                         .fetch()
-                        .map(Record1::value1);
+                        .map(h -> h.value1());
                 UnloadResponse res = new UnloadResponse();
                 res.setFilename(filename);
                 res.setDeletedWorkflowRuns(hashes);
@@ -2816,12 +2807,6 @@ public final class Main implements ServerConfig {
                 return res;
               });
       okJsonResponse(exchange, MAPPER.writeValueAsString(response));
-    } catch (IncompleteRunsException ire) {
-      try {
-        conflictJsonResponse(exchange, MAPPER.writeValueAsString(ire));
-      } catch (Exception e) {
-        internalServerErrorResponse(exchange, e);
-      }
     } catch (Exception e) {
       internalServerErrorResponse(exchange, e);
     } finally {
@@ -2829,202 +2814,198 @@ public final class Main implements ServerConfig {
     }
   }
 
-  private <T> T unloadSearch(
-      UnloadRequest request,
-      boolean raiseIfAnyRunsAreIncomplete,
-      UnloadProcessor<T> handleWorkflowRuns)
-      throws SQLException, IncompleteRunsException {
+  private <T> T unloadSearch(UnloadRequest request, UnloadProcessor<T> handleWorkflowRuns)
+      throws SQLException {
     try (Connection connection = dataSource.getConnection()) {
       return DSL.using(connection, SQLDialect.POSTGRES)
           .transactionResult(
               configuration -> {
-                Result<Record2<Long, Phase>> results =
-                    DSL.using(configuration)
-                        .select(WORKFLOW_RUN.ID, ACTIVE_WORKFLOW_RUN.ENGINE_PHASE)
-                        .from(
-                            WORKFLOW_RUN
-                                .join(WORKFLOW_VERSION)
-                                .on(WORKFLOW_RUN.WORKFLOW_VERSION_ID.eq(WORKFLOW_VERSION.ID))
-                                .leftJoin(ACTIVE_WORKFLOW_RUN)
-                                .on(WORKFLOW_RUN.ID.eq(ACTIVE_WORKFLOW_RUN.ID)))
-                        .where(
-                            request
-                                .getFilter()
-                                .convert(
-                                    new UnloadFilter.Visitor<Condition>() {
-                                      @Override
-                                      public Condition analysisId(Stream<String> ids) {
-                                        return DSL.exists(
-                                            DSL.select()
-                                                .from(ANALYSIS)
-                                                .where(
-                                                    WORKFLOW_RUN
-                                                        .ID
-                                                        .eq(ANALYSIS.WORKFLOW_RUN_ID)
-                                                        .and(match(ANALYSIS.HASH_ID, ids))));
-                                      }
+                final TreeSet<Long> workflowRuns =
+                    new TreeSet<>(
+                        DSL.using(configuration)
+                            .select(WORKFLOW_RUN.ID)
+                            .from(
+                                WORKFLOW_RUN
+                                    .join(WORKFLOW_VERSION)
+                                    .on(WORKFLOW_RUN.WORKFLOW_VERSION_ID.eq(WORKFLOW_VERSION.ID)))
+                            .where(
+                                WORKFLOW_RUN
+                                    .COMPLETED
+                                    .isNotNull()
+                                    .and(
+                                        request
+                                            .getFilter()
+                                            .convert(
+                                                new UnloadFilter.Visitor<Condition>() {
+                                                  @Override
+                                                  public Condition analysisId(Stream<String> ids) {
+                                                    return DSL.exists(
+                                                        DSL.select()
+                                                            .from(ANALYSIS)
+                                                            .where(
+                                                                WORKFLOW_RUN
+                                                                    .ID
+                                                                    .eq(ANALYSIS.WORKFLOW_RUN_ID)
+                                                                    .and(
+                                                                        match(
+                                                                            ANALYSIS.HASH_ID,
+                                                                            ids))));
+                                                  }
 
-                                      @Override
-                                      public Condition and(Stream<Condition> clauses) {
-                                        return clauses
-                                            .reduce(Condition::and)
-                                            .orElseGet(() -> DSL.condition(false));
-                                      }
+                                                  @Override
+                                                  public Condition and(Stream<Condition> clauses) {
+                                                    return clauses
+                                                        .reduce(Condition::and)
+                                                        .orElseGet(() -> DSL.condition(false));
+                                                  }
 
-                                      @Override
-                                      public Condition completedAfter(Instant time) {
-                                        return WORKFLOW_RUN.COMPLETED.ge(
-                                            time.atOffset(ZoneOffset.UTC));
-                                      }
+                                                  @Override
+                                                  public Condition completedAfter(Instant time) {
+                                                    return WORKFLOW_RUN.COMPLETED.ge(
+                                                        time.atOffset(ZoneOffset.UTC));
+                                                  }
 
-                                      @Override
-                                      public Condition externalKey(Stream<String> providers) {
-                                        return DSL.exists(
-                                            DSL.select()
-                                                .from(EXTERNAL_ID)
-                                                .where(
-                                                    WORKFLOW_RUN
-                                                        .ID
-                                                        .eq(EXTERNAL_ID.WORKFLOW_RUN_ID)
-                                                        .and(
-                                                            match(
-                                                                EXTERNAL_ID.PROVIDER, providers))));
-                                      }
+                                                  @Override
+                                                  public Condition externalKey(
+                                                      Stream<String> providers) {
+                                                    return DSL.exists(
+                                                        DSL.select()
+                                                            .from(EXTERNAL_ID)
+                                                            .where(
+                                                                WORKFLOW_RUN
+                                                                    .ID
+                                                                    .eq(EXTERNAL_ID.WORKFLOW_RUN_ID)
+                                                                    .and(
+                                                                        match(
+                                                                            EXTERNAL_ID.PROVIDER,
+                                                                            providers))));
+                                                  }
 
-                                      @Override
-                                      public Condition externalKey(
-                                          String provider, Stream<String> ids) {
-                                        return DSL.exists(
-                                            DSL.select()
-                                                .from(EXTERNAL_ID)
-                                                .where(
-                                                    WORKFLOW_RUN
-                                                        .ID
-                                                        .eq(EXTERNAL_ID.WORKFLOW_RUN_ID)
-                                                        .and(EXTERNAL_ID.PROVIDER.eq(provider))
-                                                        .and(
-                                                            match(EXTERNAL_ID.EXTERNAL_ID_, ids))));
-                                      }
+                                                  @Override
+                                                  public Condition externalKey(
+                                                      String provider, Stream<String> ids) {
+                                                    return DSL.exists(
+                                                        DSL.select()
+                                                            .from(EXTERNAL_ID)
+                                                            .where(
+                                                                WORKFLOW_RUN
+                                                                    .ID
+                                                                    .eq(EXTERNAL_ID.WORKFLOW_RUN_ID)
+                                                                    .and(
+                                                                        EXTERNAL_ID.PROVIDER.eq(
+                                                                            provider))
+                                                                    .and(
+                                                                        match(
+                                                                            EXTERNAL_ID
+                                                                                .EXTERNAL_ID_,
+                                                                            ids))));
+                                                  }
 
-                                      @Override
-                                      public Condition lastSubmittedAfter(Instant time) {
-                                        return WORKFLOW_RUN.LAST_ACCESSED.ge(
-                                            time.atOffset(ZoneOffset.UTC));
-                                      }
+                                                  @Override
+                                                  public Condition lastSubmittedAfter(
+                                                      Instant time) {
+                                                    return WORKFLOW_RUN.LAST_ACCESSED.ge(
+                                                        time.atOffset(ZoneOffset.UTC));
+                                                  }
 
-                                      private Condition match(
-                                          Field<String> field, Stream<String> values) {
-                                        final Set<String> items =
-                                            values.collect(Collectors.toSet());
-                                        return switch (items.size()) {
-                                          case 0 -> DSL.condition(false);
-                                          case 1 -> field.eq(items.iterator().next());
-                                          default ->
-                                              field.eq(DSL.any(items.toArray(String[]::new)));
-                                        };
-                                      }
+                                                  private Condition match(
+                                                      Field<String> field, Stream<String> values) {
+                                                    final Set<String> items =
+                                                        values.collect(Collectors.toSet());
+                                                    switch (items.size()) {
+                                                      case 0:
+                                                        return DSL.condition(false);
+                                                      case 1:
+                                                        return field.eq(items.iterator().next());
+                                                      default:
+                                                        return field.eq(
+                                                            DSL.any(items.toArray(String[]::new)));
+                                                    }
+                                                  }
 
-                                      @Override
-                                      public Condition not(Condition clause) {
-                                        return clause.not();
-                                      }
+                                                  @Override
+                                                  public Condition not(Condition clause) {
+                                                    return clause.not();
+                                                  }
 
-                                      @Override
-                                      public Condition of(boolean value) {
-                                        return DSL.condition(value);
-                                      }
+                                                  @Override
+                                                  public Condition of(boolean value) {
+                                                    return DSL.condition(value);
+                                                  }
 
-                                      @Override
-                                      public Condition or(Stream<Condition> clauses) {
-                                        return clauses
-                                            .reduce(Condition::or)
-                                            .orElseGet(() -> DSL.condition(false));
-                                      }
+                                                  @Override
+                                                  public Condition or(Stream<Condition> clauses) {
+                                                    return clauses
+                                                        .reduce(Condition::or)
+                                                        .orElseGet(() -> DSL.condition(false));
+                                                  }
 
-                                      @Override
-                                      public Condition workflowId(Stream<String> ids) {
-                                        return match(WORKFLOW_VERSION.HASH_ID, ids);
-                                      }
+                                                  @Override
+                                                  public Condition workflowId(Stream<String> ids) {
+                                                    return match(WORKFLOW_VERSION.HASH_ID, ids);
+                                                  }
 
-                                      @Override
-                                      public Condition workflowLabel(
-                                          String label, Stream<String> values) {
+                                                  @Override
+                                                  public Condition workflowLabel(
+                                                      String label, Stream<String> values) {
 
-                                        List<String> collectedValues = values.toList();
-                                        return switch (collectedValues.size()) {
-                                          case 0 -> DSL.condition(false);
-                                          case 1 ->
-                                              DSL.condition(
-                                                  "labels->>? = ?",
-                                                  label,
-                                                  collectedValues.iterator().next());
-                                          default ->
-                                              DSL.condition(
-                                                  "labels->>? = ANY(?)",
-                                                  label,
-                                                  DSL.val(
-                                                      collectedValues,
-                                                      SQLDataType.VARCHAR.getArrayType()));
-                                        };
-                                      }
+                                                    List<String> collectedValues = values.toList();
+                                                    return switch (collectedValues.size()) {
+                                                      case 0 -> DSL.condition(false);
+                                                      case 1 ->
+                                                          DSL.condition(
+                                                              "labels->>? = ?",
+                                                              label,
+                                                              collectedValues.iterator().next());
+                                                      default ->
+                                                          DSL.condition(
+                                                              "labels->>? = ANY(?)",
+                                                              label,
+                                                              DSL.val(
+                                                                  collectedValues,
+                                                                  SQLDataType.VARCHAR
+                                                                      .getArrayType()));
+                                                    };
+                                                  }
 
-                                      @Override
-                                      public Condition workflowName(Stream<String> names) {
-                                        return match(WORKFLOW_VERSION.NAME, names);
-                                      }
+                                                  @Override
+                                                  public Condition workflowName(
+                                                      Stream<String> names) {
+                                                    return match(WORKFLOW_VERSION.NAME, names);
+                                                  }
 
-                                      @Override
-                                      public Condition workflowRunId(Stream<String> ids) {
-                                        Stream<String> hashIds =
-                                            ids.map(
-                                                DatabaseBackedProcessor
-                                                    ::extractHashIfIsFullWorkflowRunId);
-                                        return match(WORKFLOW_RUN.HASH_ID, hashIds);
-                                      }
-                                    }))
-                        .fetch();
-
-                final TreeMap<Long, Phase> targetWorkflowRunsAndPhases = new TreeMap<>();
-                for (Record2<Long, Phase> record : results) {
-                  targetWorkflowRunsAndPhases.put(record.value1(), record.value2());
-                }
+                                                  @Override
+                                                  public Condition workflowRunId(
+                                                      Stream<String> ids) {
+                                                    Stream<String> hashIds =
+                                                        ids.map(
+                                                            id ->
+                                                                processor
+                                                                    .extractHashIfIsFullWorkflowRunId(
+                                                                        id));
+                                                    return match(WORKFLOW_RUN.HASH_ID, hashIds);
+                                                  }
+                                                })))
+                            .fetch(WORKFLOW_RUN.ID));
                 if (request.isRecursive()) {
-                  Collection<Long> latestWorkflowRunIds = targetWorkflowRunsAndPhases.keySet();
+                  Collection<Long> latestWorkflowRunIds = workflowRuns;
                   do {
-                    Map<Long, Phase> downstreamWorkflowRunIdsAndPhases =
+                    Collection<Long> downstreamWorkflowRunIds =
                         getIdsForWorkflowRunsDownstreamFrom(latestWorkflowRunIds, configuration);
-                    targetWorkflowRunsAndPhases.putAll(downstreamWorkflowRunIdsAndPhases);
-                    latestWorkflowRunIds = downstreamWorkflowRunIdsAndPhases.keySet();
+                    latestWorkflowRunIds =
+                        DSL.using(configuration)
+                            .select(WORKFLOW_RUN.ID)
+                            .from(WORKFLOW_RUN)
+                            .where(
+                                WORKFLOW_RUN
+                                    .COMPLETED
+                                    .isNotNull()
+                                    .and(WORKFLOW_RUN.ID.in(downstreamWorkflowRunIds)))
+                            .fetch(WORKFLOW_RUN.ID);
+                    workflowRuns.addAll(latestWorkflowRunIds);
                   } while (!latestWorkflowRunIds.isEmpty());
                 }
-
-                if (raiseIfAnyRunsAreIncomplete) {
-                  boolean stallUnload =
-                      targetWorkflowRunsAndPhases.entrySet().stream()
-                          .anyMatch(ip -> ip.getValue() != null);
-
-                  if (stallUnload) {
-                    Map<String, List<Long>> idsByIncompletePhase =
-                        targetWorkflowRunsAndPhases.entrySet().stream()
-                            .filter(ip -> ip.getValue() != null)
-                            .collect(
-                                Collectors.groupingBy(
-                                    ip -> ip.getValue().toString(),
-                                    Collectors.mapping(Map.Entry::getKey, Collectors.toList())));
-                    Map<String, List<String>> hashIdsByPhase =
-                        idsByIncompletePhase.entrySet().stream()
-                            .collect(
-                                Collectors.toMap(
-                                    Map.Entry::getKey,
-                                    pi -> fetchHashIds(pi.getValue(), configuration)));
-
-                    String reason =
-                        "Some selected workflow runs are incomplete. Please resolve the following and then reattempt the unload: 1) delete any WAITING_FOR_RESOURCES or FAILED workflow "
-                            + "runs; 2) terminate any PROVISION_IN, RUNNING or PROVISION_OUT workflow runs in the provisioner and/or workflow engine, wait for the runs to transition to FAILED in Vidarr, and delete them from Vidarr";
-                    throw new IncompleteRunsException(reason, hashIdsByPhase);
-                  }
-                }
-                return handleWorkflowRuns.process(configuration, targetWorkflowRunsAndPhases);
+                return handleWorkflowRuns.process(configuration, workflowRuns.toArray(Long[]::new));
               });
     }
   }
@@ -3133,32 +3114,16 @@ public final class Main implements ServerConfig {
     }
   }
 
-  private Map<Long, Phase> getIdsForWorkflowRunsDownstreamFrom(
+  private Collection<Long> getIdsForWorkflowRunsDownstreamFrom(
       Collection<Long> workflowRunIds, Configuration configuration) {
     workflowRunIds = workflowRunIds.stream().filter(Objects::nonNull).collect(Collectors.toList());
-    Long[] wfr = workflowRunIds.toArray(new Long[0]);
+    Long[] wfr = workflowRunIds.toArray(new Long[workflowRunIds.size()]);
 
     GetIdsForDownstreamWorkflowRuns getIdsForDownstreamWorkflowRuns =
         new GetIdsForDownstreamWorkflowRuns();
-    return DSL.using(configuration)
-        .select()
-        .from(getIdsForDownstreamWorkflowRuns.call(wfr))
-        .fetch()
-        .intoMap(
-            getIdsForDownstreamWorkflowRuns.WFR_ID, getIdsForDownstreamWorkflowRuns.ENGINE_PHASE);
-  }
-
-  private List<String> fetchHashIds(List<Long> workflowRunIds, Configuration configuration) {
-    Long[] wfr = workflowRunIds.toArray(new Long[0]);
-
-    Result<Record1<String>> result =
-        DSL.using(configuration)
-            .select(WORKFLOW_RUN.HASH_ID)
-            .from(WORKFLOW_RUN)
-            .where(WORKFLOW_RUN.ID.in(wfr))
-            .fetch();
-
-    return result.getValues(0, String.class);
+    Result<Record> records =
+        DSL.using(configuration).select().from(getIdsForDownstreamWorkflowRuns.call(wfr)).fetch();
+    return records.getValues(getIdsForDownstreamWorkflowRuns.WFR_ID);
   }
 
   // Good responses - use `send` = false to chain methods together
@@ -3259,49 +3224,10 @@ public final class Main implements ServerConfig {
     exchange.getResponseSender().send("");
   }
 
-  private void conflictJsonResponse(HttpServerExchange exchange, String data) {
-    exchange.setStatusCode(StatusCodes.CONFLICT);
-    exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_JSON);
-    exchange.getResponseSender().send(data);
-  }
-
   private void internalServerErrorResponse(HttpServerExchange exchange, Exception e) {
     e.printStackTrace();
     exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);
     exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_TEXT);
     exchange.getResponseSender().send(e.getMessage());
-  }
-
-  @JsonSerialize(using = IncompleteRunsException.Serializer.class)
-  private static class IncompleteRunsException extends RuntimeException {
-
-    private final Map<String, List<String>> hashIdsByPhase;
-    private final String reason;
-
-    public IncompleteRunsException(String reason, Map<String, List<String>> hashIdsByPhase) {
-      super(reason);
-      this.reason = reason;
-      this.hashIdsByPhase = hashIdsByPhase;
-    }
-
-    public Map<String, List<String>> getHashIdsByPhase() {
-      return hashIdsByPhase;
-    }
-
-    public String getReason() {
-      return reason;
-    }
-
-    static class Serializer extends JsonSerializer<IncompleteRunsException> {
-      @Override
-      public void serialize(
-          IncompleteRunsException ex, JsonGenerator gen, SerializerProvider serializers)
-          throws IOException {
-        gen.writeStartObject();
-        gen.writeStringField("reason", ex.reason);
-        gen.writeObjectField("idsByPhase", ex.hashIdsByPhase);
-        gen.writeEndObject();
-      }
-    }
   }
 }

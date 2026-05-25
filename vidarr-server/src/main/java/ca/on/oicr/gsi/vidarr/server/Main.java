@@ -2526,15 +2526,21 @@ public final class Main implements ServerConfig {
         // No ID from database because it is already installed, and we want to ensure we have
         // the same version
         else {
-          workflowVersionIds.put(
-              workflowVersion,
+          var workflowVersionIdFromDb =
               DSL.using(configuration)
                   .select(WORKFLOW_VERSION.ID)
                   .from(WORKFLOW_VERSION)
                   .where(
                       WORKFLOW_VERSION.HASH_ID.eq(param("workflow-hash-id", workflowVersionHashId)))
-                  .fetchOptional(WORKFLOW_VERSION.ID)
-                  .orElseThrow());
+                  .fetchOptional(WORKFLOW_VERSION.ID);
+          if (workflowVersionIdFromDb.isPresent()) {
+            workflowVersionIds.put(workflowVersion, workflowVersionIdFromDb.get());
+          } else {
+            throw new IllegalArgumentException(
+                String.format(
+                    "Workflow version %s %s should have ID %s. Cannot load this data.",
+                    workflowName, workflowVersion, workflowVersionHashId));
+          }
         }
       }
     }

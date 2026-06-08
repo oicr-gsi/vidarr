@@ -19,9 +19,9 @@ public final class ExtractInputVidarrIds
         Stream<String>,
         Stream<String>> {
 
-  private final ObjectMapper mapper;
+  private final JsonMapper mapper;
 
-  public ExtractInputVidarrIds(ObjectMapper mapper, JsonNode arguments) {
+  public ExtractInputVidarrIds(JsonMapper mapper, JsonNode arguments) {
     super(arguments);
     this.mapper = mapper;
   }
@@ -111,7 +111,7 @@ public final class ExtractInputVidarrIds
   }
 
   @Override
-  protected ObjectMapper mapper() {
+  protected JsonMapper mapper() {
     return mapper;
   }
 

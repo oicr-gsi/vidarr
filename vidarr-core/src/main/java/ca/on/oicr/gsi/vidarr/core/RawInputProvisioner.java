@@ -3,18 +3,24 @@ package ca.on.oicr.gsi.vidarr.core;
 import ca.on.oicr.gsi.Pair;
 import ca.on.oicr.gsi.status.SectionRenderer;
 import ca.on.oicr.gsi.vidarr.*;
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.json.JsonMapper;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import java.util.Set;
 import java.util.stream.Stream;
 import javax.xml.stream.XMLStreamException;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.SerializationFeature;
+import tools.jackson.databind.cfg.DateTimeFeature;
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.StringNode;
 
 /** Provision input using the stored path as the input path with no alteration */
 public final class RawInputProvisioner implements InputProvisioner<RawInputState> {
-  // Jdk8Module is a compatibility fix for de/serializing Optionals
-  private static final ObjectMapper MAPPER = new ObjectMapper().registerModule(new Jdk8Module());
+  private static final JsonMapper MAPPER =
+      JsonMapper.builder()
+          .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+          .configure(DateTimeFeature.WRITE_DATES_AS_TIMESTAMPS, true)
+          .configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true)
+          .build();
 
   public static InputProvisionerProvider provider() {
     return () -> Stream.of(new Pair<>("raw", RawInputProvisioner.class));
@@ -44,8 +50,9 @@ public final class RawInputProvisioner implements InputProvisioner<RawInputState
   }
 
   @Override
-  public RawInputState prepareInternalProvisionInput(WorkflowLanguage language, String id, String path) {
-    return new RawInputState(JsonNodeFactory.instance.textNode(path));
+  public RawInputState prepareInternalProvisionInput(
+      WorkflowLanguage language, String id, String path) {
+    return new RawInputState(StringNode.valueOf(path));
   }
 
   @Override

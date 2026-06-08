@@ -35,14 +35,14 @@ final class PrepareOutputProvisioning
   }
 
   private final Set<? extends ExternalId> allInputIds;
-  private final ObjectMapper mapper;
+  private final JsonMapper mapper;
   private final Set<? extends ExternalId> remainingInputIds;
   private final Runnable outputIsBad;
   private final Target target;
   private final String workflowRunId;
 
   public PrepareOutputProvisioning(
-      ObjectMapper mapper,
+      JsonMapper mapper,
       Target target,
       JsonNode output,
       JsonNode metadata,
@@ -72,10 +72,11 @@ final class PrepareOutputProvisioning
     }
 
     return (switch (format) {
-          case DATAWAREHOUSE_RECORDS, LOGS, FILE, QUALITY_CONTROL -> Stream.of(
-              new Pair<>(output.asText(), Map.<String, String>of()));
-          case FILES -> stream(output, optional)
-              .map(file -> new Pair<>(file.asText(), Map.<String, String>of()));
+          case DATAWAREHOUSE_RECORDS, LOGS, FILE, QUALITY_CONTROL ->
+              Stream.of(new Pair<>(output.asText(), Map.<String, String>of()));
+          case FILES ->
+              stream(output, optional)
+                  .map(file -> new Pair<>(file.asText(), Map.<String, String>of()));
 
           case FILE_WITH_LABELS -> {
             final var labels = extractLabels(output.get("right"));
@@ -115,7 +116,7 @@ final class PrepareOutputProvisioning
   }
 
   @Override
-  protected ObjectMapper mapper() {
+  protected JsonMapper mapper() {
     return mapper;
   }
 

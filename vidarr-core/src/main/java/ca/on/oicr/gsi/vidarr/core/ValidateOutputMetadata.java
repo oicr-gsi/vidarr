@@ -1,11 +1,11 @@
 package ca.on.oicr.gsi.vidarr.core;
 
 import ca.on.oicr.gsi.vidarr.OutputType;
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.json.JsonMapper;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Stream;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Check that the output metadata provided by the caller matches the workflow definition
@@ -14,12 +14,12 @@ import java.util.stream.Stream;
  */
 public final class ValidateOutputMetadata
     extends BaseOutputExtractor<Stream<String>, Stream<String>> {
-  private final ObjectMapper mapper;
+  private final JsonMapper mapper;
   private final Target target;
   private final String context;
 
   public ValidateOutputMetadata(
-      ObjectMapper mapper, Target target, String context, JsonNode metadata) {
+      JsonMapper mapper, Target target, String context, JsonNode metadata) {
     super(null, metadata);
     this.mapper = mapper;
     this.target = target;
@@ -51,7 +51,7 @@ public final class ValidateOutputMetadata
   }
 
   @Override
-  protected ObjectMapper mapper() {
+  protected JsonMapper mapper() {
     return mapper;
   }
 

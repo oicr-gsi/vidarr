@@ -2,17 +2,17 @@ package ca.on.oicr.gsi.vidarr.core;
 
 import ca.on.oicr.gsi.vidarr.OutputType;
 import ca.on.oicr.gsi.vidarr.api.ExternalId;
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.json.JsonMapper;
 import java.util.Map;
 import java.util.stream.Stream;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 public class CheckOutputCompatibility
     extends BaseOutputExtractor<OutputCompatibility, OutputCompatibility> {
 
-  private final ObjectMapper mapper;
+  private final JsonMapper mapper;
 
-  public CheckOutputCompatibility(ObjectMapper mapper, JsonNode metadata) {
+  public CheckOutputCompatibility(JsonMapper mapper, JsonNode metadata) {
     super(null, metadata);
     this.mapper = mapper;
   }
@@ -48,7 +48,7 @@ public class CheckOutputCompatibility
   }
 
   @Override
-  protected ObjectMapper mapper() {
+  protected JsonMapper mapper() {
     return mapper;
   }
 

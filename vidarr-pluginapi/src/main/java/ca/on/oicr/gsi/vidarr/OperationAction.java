@@ -3,13 +3,15 @@ package ca.on.oicr.gsi.vidarr;
 import ca.on.oicr.gsi.vidarr.ActiveOperation.TransactionManager;
 import ca.on.oicr.gsi.vidarr.OperationStatefulStep.StatefulTransformer;
 import ca.on.oicr.gsi.vidarr.OperationStep.Transformer;
+import java.util.Map;
 import tools.jackson.core.JacksonException;
 import tools.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.JavaType;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.JavaType;
 import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.SerializationFeature;
+import tools.jackson.databind.cfg.DateTimeFeature;
 import tools.jackson.databind.json.JsonMapper;
-import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
-import java.util.Map;
 
 /**
  * An operation action defines a process that takes some initial state and executes a sequence of
@@ -92,8 +94,12 @@ public abstract sealed class OperationAction<
    */
   public record BranchState(String name, JsonNode inner) {}
 
-  // Jdk8Module is a compatibility fix for de/serializing Optionals
-  static final ObjectMapper MAPPER = new ObjectMapper().registerModule(new Jdk8Module());
+  static final JsonMapper MAPPER =
+      JsonMapper.builder()
+          .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+          .configure(DateTimeFeature.WRITE_DATES_AS_TIMESTAMPS, true)
+          .configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true)
+          .build();
 
   /**
    * Create a new action that can follow many paths
@@ -176,8 +182,7 @@ public abstract sealed class OperationAction<
    * @throws JacksonException thrown if the JSON does not match the correct structure for the
    *     original state
    */
-  public abstract OriginalState deserializeOriginal(JsonNode originalState)
-      throws JacksonException;
+  public abstract OriginalState deserializeOriginal(JsonNode originalState) throws JacksonException;
 
   /**
    * Create a new branch state by serializing a state object
@@ -232,8 +237,7 @@ public abstract sealed class OperationAction<
   }
 
   /**
-   * Transform the current value into another.
-   * Wraps synchronous methods into async step.
+   * Transform the current value into another. Wraps synchronous methods into async step.
    *
    * <p>This is syntactic sugar for {@link OperationStep#mapping(Transformer)}
    *

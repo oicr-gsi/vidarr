@@ -3,22 +3,22 @@ package ca.on.oicr.gsi.vidarr.core;
 import ca.on.oicr.gsi.Pair;
 import ca.on.oicr.gsi.vidarr.OutputType;
 import ca.on.oicr.gsi.vidarr.api.ExternalId;
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.json.JsonMapper;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Stream;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 public class ExtractOutputKeys
     extends BaseOutputExtractor<Stream<Pair<String, String>>, Stream<Pair<String, String>>> {
 
   private final Set<Pair<String, String>> externalKeyIds;
-  private final ObjectMapper mapper;
+  private final JsonMapper mapper;
   private final boolean optional;
 
   public ExtractOutputKeys(
-      ObjectMapper mapper,
+      JsonMapper mapper,
       Set<Pair<String, String>> externalKeyIds,
       boolean optional,
       JsonNode metadata) {
@@ -59,7 +59,7 @@ public class ExtractOutputKeys
   }
 
   @Override
-  protected ObjectMapper mapper() {
+  protected JsonMapper mapper() {
     return mapper;
   }
 

@@ -2,8 +2,6 @@ package ca.on.oicr.gsi.vidarr.cli;
 
 import ca.on.oicr.gsi.vidarr.core.BaseProcessor;
 import ca.on.oicr.gsi.vidarr.core.WorkflowConfiguration;
-import tools.jackson.databind.json.JsonMapper;
-import tools.jackson.databind.node.ObjectNode;
 import java.io.File;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
@@ -16,6 +14,11 @@ import java.util.concurrent.Executors;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import picocli.CommandLine;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.SerializationFeature;
+import tools.jackson.databind.cfg.DateTimeFeature;
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 /**
  * Subcommand to running unit tests
@@ -31,7 +34,12 @@ public class CommandTest implements Callable<Integer> {
     }
   }
 
-  private static final ObjectMapper MAPPER = new ObjectMapper();
+  private static final JsonMapper MAPPER =
+      JsonMapper.builder()
+          .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+          .configure(DateTimeFeature.WRITE_DATES_AS_TIMESTAMPS, true)
+          .configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true)
+          .build();
 
   @CommandLine.Option(
       names = {"-c", "--config", "--configuration"},

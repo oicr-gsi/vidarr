@@ -5,18 +5,17 @@ import ca.on.oicr.gsi.status.SectionRenderer;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonTypeInfo.As;
 import com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
-import com.fasterxml.jackson.databind.DatabindContext;
-import com.fasterxml.jackson.databind.JavaType;
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.annotation.JsonTypeIdResolver;
-import com.fasterxml.jackson.databind.jsontype.impl.TypeIdResolverBase;
-import java.io.IOException;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.ServiceLoader;
 import java.util.ServiceLoader.Provider;
 import java.util.stream.Collectors;
 import javax.xml.stream.XMLStreamException;
+import tools.jackson.databind.DatabindContext;
+import tools.jackson.databind.JavaType;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.annotation.JsonTypeIdResolver;
+import tools.jackson.databind.jsontype.impl.TypeIdResolverBase;
 
 /**
  * A mechanism to collect output data from a workflow and push it into an appropriate data store
@@ -39,21 +38,21 @@ public interface InputProvisioner<State extends Record> {
     }
 
     @Override
-    public String idFromValue(Object o) {
+    public String idFromValue(DatabindContext context, Object value) {
       return knownIds.entrySet().stream()
-          .filter(known -> known.getValue().isInstance(o))
+          .filter(known -> known.getValue().isInstance(value))
           .map(Entry::getKey)
           .findFirst()
           .orElseThrow();
     }
 
     @Override
-    public String idFromValueAndType(Object o, Class<?> aClass) {
-      return idFromValue(o);
+    public String idFromValueAndType(DatabindContext context, Object value, Class<?> suggestedType) {
+      return idFromValue(context, value);
     }
 
     @Override
-    public JavaType typeFromId(DatabindContext context, String id) throws IOException {
+    public JavaType typeFromId(DatabindContext context, String id) {
       final var clazz = knownIds.get(id);
       return clazz == null ? null : context.constructType(clazz);
     }

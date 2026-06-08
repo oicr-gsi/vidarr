@@ -16,11 +16,6 @@ import ca.on.oicr.gsi.vidarr.api.UnloadFilterWorkflowRunId;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonTypeInfo.As;
 import com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
-import com.fasterxml.jackson.databind.DatabindContext;
-import com.fasterxml.jackson.databind.JavaType;
-import tools.jackson.databind.annotation.JsonTypeIdResolver;
-import com.fasterxml.jackson.databind.jsontype.impl.TypeIdResolverBase;
-import java.io.IOException;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -28,6 +23,10 @@ import java.util.ServiceLoader;
 import java.util.ServiceLoader.Provider;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import tools.jackson.databind.DatabindContext;
+import tools.jackson.databind.JavaType;
+import tools.jackson.databind.annotation.JsonTypeIdResolver;
+import tools.jackson.databind.jsontype.impl.TypeIdResolverBase;
 
 /**
  * Defines a JSON object for unloading records
@@ -122,7 +121,7 @@ public interface UnloadFilter {
     /**
      * Match any of the workflow labels provided.
      *
-     * @param labels The workflow labels to match
+     * @param label The workflow labels to match
      */
     T workflowLabel(String label, Stream<String> values);
 
@@ -168,21 +167,22 @@ public interface UnloadFilter {
     }
 
     @Override
-    public String idFromValue(Object o) {
+    public String idFromValue(DatabindContext context, Object value) {
       return knownIds.entrySet().stream()
-          .filter(known -> known.getValue().isInstance(o))
+          .filter(known -> known.getValue().isInstance(value))
           .map(Entry::getKey)
           .findFirst()
           .orElseThrow();
     }
 
     @Override
-    public String idFromValueAndType(Object o, Class<?> aClass) {
-      return idFromValue(o);
+    public String idFromValueAndType(
+        DatabindContext context, Object value, Class<?> suggestedType) {
+      return idFromValue(context, value);
     }
 
     @Override
-    public JavaType typeFromId(DatabindContext context, String id) throws IOException {
+    public JavaType typeFromId(DatabindContext context, String id) {
       final var clazz = knownIds.get(id);
       return clazz == null ? null : context.constructType(clazz);
     }

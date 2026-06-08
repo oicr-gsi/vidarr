@@ -10,8 +10,11 @@
   <properties>
     <jooq.version>3.21.2</jooq.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <rest-assured.version>5.3.1</rest-assured.version>
+    <rest-assured.version>6.0.0</rest-assured.version>
     <swagger-core-version>1.5.18</swagger-core-version>
+    <jackson3.version>3.1.3</jackson3.version>
+    <jackson2.version>2.21
+    </jackson2.version> <!-- jackson-annotations version bundled with jackson-bom 3.1.3: https://github.com/FasterXML/jackson-bom/blob/c2ea79e9178f0aaa5e4f381c644140357bfc307e/pom.xml#L60 -->
   </properties>
   <repositories>
     <repository>
@@ -51,19 +54,11 @@
   <dependencyManagement>
     <dependencies>
       <dependency>
-        <groupId>com.fasterxml.jackson.core</groupId>
-        <artifactId>jackson-core</artifactId>
-        <version>2.15.2</version>
-      </dependency>
-      <dependency>
-        <groupId>com.fasterxml.jackson.core</groupId>
-        <artifactId>jackson-databind</artifactId>
-        <version>2.15.2</version>
-      </dependency>
-      <dependency>
-        <groupId>com.fasterxml.jackson.datatype</groupId>
-        <artifactId>jackson-datatype-jsr310</artifactId>
-        <version>2.15.2</version>
+        <groupId>tools.jackson</groupId>
+        <artifactId>jackson-bom</artifactId>
+        <version>${jackson3.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
       </dependency>
       <dependency>
         <groupId>io.undertow</groupId>
@@ -114,6 +109,11 @@
       <dependency>
         <groupId>org.jooq</groupId>
         <artifactId>jooq-codegen</artifactId>
+        <version>${jooq.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.jooq</groupId>
+        <artifactId>jooq-jackson3-extensions</artifactId>
         <version>${jooq.version}</version>
       </dependency>
       <dependency>

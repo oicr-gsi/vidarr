@@ -1,14 +1,13 @@
 package ca.on.oicr.gsi.vidarr;
 
-import tools.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.JavaType;
-import tools.jackson.databind.json.JsonMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.net.http.HttpResponse;
 import java.util.function.Supplier;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.JavaType;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Read a JSON response from an HTTP connection and decode it via Jackson
@@ -17,36 +16,34 @@ import java.util.function.Supplier;
  */
 public final class JsonBodyHandler<W> implements HttpResponse.BodyHandler<Supplier<W>> {
   private static <W> HttpResponse.BodySubscriber<Supplier<W>> asJSON(
-      ObjectMapper objectMapper, JavaType targetType) {
+      JsonMapper JsonMapper, JavaType targetType) {
     HttpResponse.BodySubscriber<InputStream> upstream =
         HttpResponse.BodySubscribers.ofInputStream();
 
     return HttpResponse.BodySubscribers.mapping(
-        upstream, inputStream -> toSupplierOfType(objectMapper, inputStream, targetType));
+        upstream, inputStream -> toSupplierOfType(JsonMapper, inputStream, targetType));
   }
 
   private static <W> Supplier<W> toSupplierOfType(
-      ObjectMapper objectMapper, InputStream inputStream, JavaType targetType) {
+      JsonMapper JsonMapper, InputStream inputStream, JavaType targetType) {
     return () -> {
       try (final var stream = inputStream) {
-        return objectMapper.readValue(stream, targetType);
+        return JsonMapper.readValue(stream, targetType);
       } catch (IOException e) {
         throw new UncheckedIOException(e);
       }
     };
   }
 
-  private final ObjectMapper mapper;
+  private final JsonMapper mapper;
   private final JavaType targetType;
 
-  public JsonBodyHandler(ObjectMapper mapper, Class<W> targetType) {
-    mapper.registerModule(new JavaTimeModule());
+  public JsonBodyHandler(JsonMapper mapper, Class<W> targetType) {
     this.mapper = mapper;
     this.targetType = mapper.getTypeFactory().constructType(targetType);
   }
 
-  public JsonBodyHandler(ObjectMapper mapper, TypeReference<W> targetType) {
-    mapper.registerModule(new JavaTimeModule());
+  public JsonBodyHandler(JsonMapper mapper, TypeReference<W> targetType) {
     this.mapper = mapper;
     this.targetType = mapper.getTypeFactory().constructType(targetType);
   }

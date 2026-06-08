@@ -5,11 +5,6 @@ import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 
 import ca.on.oicr.gsi.vidarr.server.dto.ServerConfiguration;
-import tools.jackson.core.JacksonException;
-import tools.jackson.databind.json.JsonMapper;
-import tools.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.rasklaad.blns.NaughtyStrings;
 import io.restassured.RestAssured;
 import io.restassured.http.ContentType;
@@ -30,14 +25,24 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.postgresql.ds.PGSimpleDataSource;
 import org.testcontainers.containers.JdbcDatabaseContainer;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.SerializationFeature;
+import tools.jackson.databind.cfg.DateTimeFeature;
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 public class VeryBadDataIntegrationTest {
   @ClassRule
   public static JdbcDatabaseContainer pg =
       DatabaseBackedTestConfiguration.getTestDatabaseContainer();
 
-  // Jdk8Module is a compatibility fix for de/serializing Optionals
-  private static final ObjectMapper MAPPER = new ObjectMapper().registerModule(new Jdk8Module());
+  private static final JsonMapper MAPPER =
+      JsonMapper.builder()
+          .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+          .configure(DateTimeFeature.WRITE_DATES_AS_TIMESTAMPS, true)
+          .configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true)
+          .build();
   private static ServerConfiguration config;
   private static Main main;
   private static final HttpClient CLIENT =
@@ -57,7 +62,6 @@ public class VeryBadDataIntegrationTest {
     RestAssured.port = config.getPort();
     RestAssured.enableLoggingOfRequestAndResponseIfValidationFails();
     defaultParser = Parser.TEXT;
-    MAPPER.registerModule(new JavaTimeModule());
   }
 
   @Before

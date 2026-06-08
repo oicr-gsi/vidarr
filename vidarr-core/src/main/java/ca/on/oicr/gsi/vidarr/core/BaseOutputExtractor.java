@@ -279,7 +279,7 @@ abstract class BaseOutputExtractor<R, E> implements OutputType.Visitor<R> {
     return handle(WorkflowOutputDataType.LOGS, optional);
   }
 
-  protected abstract ObjectMapper mapper();
+  protected abstract JsonMapper mapper();
 
   protected abstract R mergeChildren(Stream<E> stream);
 

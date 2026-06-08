@@ -26,7 +26,7 @@ public interface JsonPost<T> {
    * @return an HTTP handler that will parse the request
    * @param <T> the request body type
    */
-  static <T> HttpHandler parse(ObjectMapper mapper, Class<T> clazz, JsonPost<T> handler) {
+  static <T> HttpHandler parse(JsonMapper mapper, Class<T> clazz, JsonPost<T> handler) {
     return exchange ->
         exchange
             .getRequestReceiver()
@@ -53,7 +53,7 @@ public interface JsonPost<T> {
    * @return an HTTP handler that will parse the request
    * @param <T> the request body type
    */
-  static <T> HttpHandler parse(ObjectMapper mapper, TypeReference<T> type, JsonPost<T> handler) {
+  static <T> HttpHandler parse(JsonMapper mapper, TypeReference<T> type, JsonPost<T> handler) {
     return exchange ->
         exchange
             .getRequestReceiver()

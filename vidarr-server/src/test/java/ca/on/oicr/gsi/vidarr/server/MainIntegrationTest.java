@@ -7,14 +7,6 @@ import static org.junit.Assert.*;
 
 import ca.on.oicr.gsi.vidarr.core.Phase;
 import ca.on.oicr.gsi.vidarr.server.dto.ServerConfiguration;
-import tools.jackson.core.JacksonException;
-import tools.jackson.core.type.TypeReference;
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.json.JsonMapper;
-import tools.jackson.databind.node.ArrayNode;
-import tools.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.restassured.RestAssured;
 import io.restassured.common.mapper.TypeRef;
 import io.restassured.http.ContentType;
@@ -35,11 +27,9 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.TimeZone;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.configuration.FluentConfiguration;
 import org.jetbrains.annotations.NotNull;
@@ -50,6 +40,15 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.postgresql.ds.PGSimpleDataSource;
 import org.testcontainers.containers.JdbcDatabaseContainer;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.SerializationFeature;
+import tools.jackson.databind.cfg.DateTimeFeature;
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 
 public class MainIntegrationTest {
 
@@ -57,8 +56,12 @@ public class MainIntegrationTest {
   public static JdbcDatabaseContainer pg =
       DatabaseBackedTestConfiguration.getTestDatabaseContainer();
 
-  // Jdk8Module is a compatibility fix for de/serializing Optionals
-  private static final ObjectMapper MAPPER = new ObjectMapper().registerModule(new Jdk8Module());
+  private static final JsonMapper MAPPER =
+      JsonMapper.builder()
+          .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+          .configure(DateTimeFeature.WRITE_DATES_AS_TIMESTAMPS, true)
+          .configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true)
+          .build();
   private static ServerConfiguration config;
   private static Main main;
   private static final HttpClient CLIENT =
@@ -78,7 +81,6 @@ public class MainIntegrationTest {
     RestAssured.port = config.getPort();
     RestAssured.enableLoggingOfRequestAndResponseIfValidationFails();
     defaultParser = Parser.TEXT;
-    MAPPER.registerModule(new JavaTimeModule());
   }
 
   @Before
@@ -228,8 +230,7 @@ public class MainIntegrationTest {
   }
 
   @Test
-  public void whenUpdateWorkflowFields_thenOnlySomeFieldsAreUpdated()
-      throws JacksonException {
+  public void whenUpdateWorkflowFields_thenOnlySomeFieldsAreUpdated() throws JacksonException {
     // Only maxInFlight is possible to update from the client side, and it's not possible to set
     // isActive to false.
     JsonPath importFastq = get("/api/workflow/{name}", "import_fastq").then().extract().jsonPath();

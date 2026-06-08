@@ -145,7 +145,7 @@ abstract class BaseInputExtractor<R, D, E, F, L, Y> implements InputType.Visitor
 
   protected abstract Y retry(String id, BasicType type, JsonNode value);
 
-  protected abstract ObjectMapper mapper();
+  protected abstract JsonMapper mapper();
 
   protected abstract R nullValue();
 

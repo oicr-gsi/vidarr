@@ -2,9 +2,6 @@ package ca.on.oicr.gsi.vidarr.cli;
 
 import ca.on.oicr.gsi.vidarr.WorkflowDefinition;
 import ca.on.oicr.gsi.vidarr.core.*;
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.json.JsonMapper;
-import tools.jackson.databind.node.ObjectNode;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -12,6 +9,12 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.SerializationFeature;
+import tools.jackson.databind.cfg.DateTimeFeature;
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 /** A processor designed to run a single workflow run */
 final class SingleShotProcessor
@@ -22,14 +25,19 @@ final class SingleShotProcessor
     SUCCESS
   }
 
-  private static final ObjectMapper MAPPER = new ObjectMapper();
+  private static final JsonMapper MAPPER =
+      JsonMapper.builder()
+          .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+          .configure(DateTimeFeature.WRITE_DATES_AS_TIMESTAMPS, true)
+          .configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true)
+          .build();
 
   protected SingleShotProcessor(ScheduledExecutorService executor) {
     super(executor);
   }
 
   @Override
-  protected ObjectMapper mapper() {
+  protected JsonMapper mapper() {
     return MAPPER;
   }
 

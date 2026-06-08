@@ -8,9 +8,6 @@ import ca.on.oicr.gsi.vidarr.BasicType;
 import ca.on.oicr.gsi.vidarr.InputProvisionFormat;
 import ca.on.oicr.gsi.vidarr.InputType;
 import ca.on.oicr.gsi.vidarr.api.ExternalId;
-import tools.jackson.core.JacksonException;
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.json.JsonMapper;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.Map;
@@ -18,6 +15,9 @@ import java.util.Spliterators;
 import java.util.function.Function;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Check that the input provided by the caller matches the workflow definition
@@ -28,10 +28,10 @@ public final class CheckInputType implements InputType.Visitor<Stream<String>> {
 
   private final String context;
   private final JsonNode input;
-  private final ObjectMapper mapper;
+  private final JsonMapper mapper;
   private final Target target;
 
-  public CheckInputType(ObjectMapper mapper, Target target, String context, JsonNode input) {
+  public CheckInputType(JsonMapper mapper, Target target, String context, JsonNode input) {
     this.mapper = mapper;
     this.target = target;
     this.context = context;

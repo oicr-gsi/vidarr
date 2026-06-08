@@ -14,15 +14,23 @@ import ca.on.oicr.gsi.vidarr.ProcessOutput;
 import ca.on.oicr.gsi.vidarr.WorkflowEngine;
 import ca.on.oicr.gsi.vidarr.WorkflowEngineProvider;
 import ca.on.oicr.gsi.vidarr.WorkflowLanguage;
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.json.JsonMapper;
-import tools.jackson.databind.node.ObjectNode;
 import java.util.Optional;
 import java.util.stream.Stream;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.SerializationFeature;
+import tools.jackson.databind.cfg.DateTimeFeature;
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 /** Run commands using UNIX shell locally */
 public final class UnixShellWorkflowEngine implements WorkflowEngine<StateInitial, CleanupState> {
-  private static final ObjectMapper MAPPER = new ObjectMapper();
+  private static final JsonMapper MAPPER =
+      JsonMapper.builder()
+          .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+          .configure(DateTimeFeature.WRITE_DATES_AS_TIMESTAMPS, true)
+          .configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true)
+          .build();
 
   public static WorkflowEngineProvider provider() {
     return () -> Stream.of(new Pair<>("sh", UnixShellWorkflowEngine.class));

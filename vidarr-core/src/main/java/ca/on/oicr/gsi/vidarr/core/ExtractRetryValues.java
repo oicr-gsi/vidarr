@@ -18,9 +18,9 @@ public class ExtractRetryValues
         Stream<Integer>,
         Stream<Integer>,
         Stream<Integer>> {
-  private final ObjectMapper mapper;
+  private final JsonMapper mapper;
 
-  public ExtractRetryValues(ObjectMapper mapper, JsonNode input) {
+  public ExtractRetryValues(JsonMapper mapper, JsonNode input) {
     super(input);
     this.mapper = mapper;
   }
@@ -115,7 +115,7 @@ public class ExtractRetryValues
   }
 
   @Override
-  protected ObjectMapper mapper() {
+  protected JsonMapper mapper() {
     return mapper;
   }
 

@@ -1,13 +1,13 @@
 package ca.on.oicr.gsi.vidarr;
 
-import tools.jackson.core.JacksonException;
-import tools.jackson.databind.json.JsonMapper;
-import tools.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import java.util.Map;
 import org.junit.Assert;
-import org.junit.BeforeClass;
 import org.junit.Test;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.SerializationFeature;
+import tools.jackson.databind.cfg.DateTimeFeature;
+import tools.jackson.databind.json.JsonMapper;
 
 public abstract class BasicTypeTest {
   static Map<BasicType, String> primitiveTypes =
@@ -18,13 +18,12 @@ public abstract class BasicTypeTest {
           BasicType.INTEGER, "integer",
           BasicType.JSON, "json",
           BasicType.STRING, "string");
-  static ObjectMapper MAPPER = new ObjectMapper();
-
-  @BeforeClass
-  public static void setUp() {
-    MAPPER.registerModule(new JavaTimeModule());
-    MAPPER.configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true);
-  }
+  static final JsonMapper MAPPER =
+      JsonMapper.builder()
+          .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+          .configure(DateTimeFeature.WRITE_DATES_AS_TIMESTAMPS, true)
+          .configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true)
+          .build();
 
   protected static void serializeTester(String expected, BasicType toTest) {
     try {

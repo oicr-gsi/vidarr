@@ -77,12 +77,12 @@ public class AlertmanagerAutoInhibitConsumableResource implements ConsumableReso
 
   @Override
   public void startup(String name) {
-    if (alertmanagerUrl == null || "".equals(alertmanagerUrl)) {
+    if (alertmanagerUrl == null || alertmanagerUrl.isEmpty()) {
       throw new IllegalArgumentException(
           "The consumableResources 'alertmanager-auto-inhibit' config is missing "
               + "'alertmanagerUrl': string.");
     }
-    if (autoInhibitOnEnvironment == null || "".equals(autoInhibitOnEnvironment)) {
+    if (autoInhibitOnEnvironment == null || autoInhibitOnEnvironment.isEmpty()) {
       throw new IllegalArgumentException(
           "The consumableResources 'alertmanager-auto-inhibit' config is missing "
               + "'autoInhibitOnEnvironment': string.");

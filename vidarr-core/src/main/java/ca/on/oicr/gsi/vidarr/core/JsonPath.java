@@ -2,18 +2,18 @@ package ca.on.oicr.gsi.vidarr.core;
 
 import ca.on.oicr.gsi.vidarr.core.JsonPath.JsonPathDeserializer;
 import ca.on.oicr.gsi.vidarr.core.JsonPath.JsonPathSerializer;
+import com.fasterxml.jackson.databind.DeserializationContext;
+import java.io.IOException;
 import tools.jackson.core.JsonGenerator;
 import tools.jackson.core.JsonParser;
-import com.fasterxml.jackson.databind.DeserializationContext;
-import tools.jackson.databind.ValueDeserializer;
 import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.ValueSerializer;
 import tools.jackson.databind.SerializationContext;
+import tools.jackson.databind.ValueDeserializer;
+import tools.jackson.databind.ValueSerializer;
 import tools.jackson.databind.annotation.JsonDeserialize;
 import tools.jackson.databind.annotation.JsonSerialize;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
-import java.io.IOException;
 
 /** A description of how to select a child element in a larger JSON structure */
 @JsonDeserialize(using = JsonPathDeserializer.class)
@@ -26,7 +26,7 @@ public abstract class JsonPath {
         JsonParser jsonParser, DeserializationContext deserializationContext) throws IOException {
       return switch (jsonParser.currentToken()) {
         case VALUE_NUMBER_INT -> array(jsonParser.getIntValue());
-        case VALUE_STRING -> object(jsonParser.getText());
+        case VALUE_STRING -> object(jsonParser.getString());
         default -> throw new IllegalArgumentException("Invalid path operation");
       };
     }
@@ -36,8 +36,7 @@ public abstract class JsonPath {
 
     @Override
     public void serialize(
-        JsonPath jsonPath, JsonGenerator jsonGenerator, SerializationContext serializerProvider)
-        throws IOException {
+        JsonPath jsonPath, JsonGenerator jsonGenerator, SerializationContext serializerProvider) {
       jsonPath.serialise(jsonGenerator);
     }
   }

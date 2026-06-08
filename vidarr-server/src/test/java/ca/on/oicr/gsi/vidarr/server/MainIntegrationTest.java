@@ -1041,7 +1041,7 @@ public class MainIntegrationTest {
             .as(ProvenanceResponse.class)
             .getResults();
     assertTrue(
-        allResults.stream().anyMatch(r -> targetWorkflow.equals(r.get("workflowName").asText())));
+        allResults.stream().anyMatch(r -> targetWorkflow.equals(r.get("workflowName").asString())));
 
     requestBody.putArray("excludeWorkflows").add(targetWorkflow);
 
@@ -1062,7 +1062,7 @@ public class MainIntegrationTest {
     assertNotEquals(allResults.size(), resultsMissingExcluded.size());
     assertTrue(
         resultsMissingExcluded.stream()
-            .noneMatch(r -> targetWorkflow.equals(r.get("workflowName").asText())));
+            .noneMatch(r -> targetWorkflow.equals(r.get("workflowName").asString())));
   }
 
   @Test
@@ -1327,7 +1327,7 @@ public class MainIntegrationTest {
 
   @Test
   public void whenUnloadByEmptyExternalId_thenNoWorkflowRunsAreDeletedFromVidarr() {
-    ObjectNode unloadFilter = getUnloadWorkflowFilterByExternalId("pinery-miso", Arrays.asList());
+    ObjectNode unloadFilter = getUnloadWorkflowFilterByExternalId("pinery-miso", List.of());
 
     JsonPath res =
         given()
@@ -1822,14 +1822,14 @@ public class MainIntegrationTest {
                         ((ObjectNode) a).remove("modified");
                         analyses.add(a);
                       });
-              analyses.sort(Comparator.comparing(a -> a.get("id").asText()));
+              analyses.sort(Comparator.comparing(a -> a.get("id").asString()));
               ArrayNode sortedAnalyses = MAPPER.createArrayNode().addAll(analyses);
               // replace analysis array with array sorted by ID, because order is irrelevant to us
               // here
               ((ObjectNode) wfr).set("analysis", sortedAnalyses);
               workflowRuns.add(wfr);
             });
-    workflowRuns.sort(Comparator.comparing(a -> a.get("id").asText()));
+    workflowRuns.sort(Comparator.comparing(a -> a.get("id").asString()));
     ArrayNode sortedWorkflowRuns = MAPPER.createArrayNode().addAll(workflowRuns);
     // replace workflow runs array with array sorted by ID
     ((ObjectNode) unload).set("workflowRuns", sortedWorkflowRuns);

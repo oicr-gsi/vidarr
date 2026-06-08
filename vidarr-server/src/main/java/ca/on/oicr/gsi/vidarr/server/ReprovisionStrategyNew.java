@@ -7,9 +7,6 @@ import ca.on.oicr.gsi.vidarr.api.ProvenanceAnalysisRecord;
 import ca.on.oicr.gsi.vidarr.core.Phase;
 import ca.on.oicr.gsi.vidarr.core.Target;
 import ca.on.oicr.gsi.vidarr.server.DatabaseBackedProcessor.SubmissionResultHandler;
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.node.ArrayNode;
-import tools.jackson.databind.node.ObjectNode;
 import com.zaxxer.hikari.HikariDataSource;
 import java.time.OffsetDateTime;
 import java.util.Collection;
@@ -22,6 +19,9 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 import org.jooq.DSLContext;
 import org.jooq.Record;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 
 public class ReprovisionStrategyNew implements ReprovisionStrategy {
 
@@ -31,24 +31,22 @@ public class ReprovisionStrategyNew implements ReprovisionStrategy {
   }
 
   @Override
-  public JsonNode getMetadata(Record record, String outputPath, String provisionerName,
-      OffsetDateTime originalCompleted) {
+  public JsonNode getMetadata(
+      Record record, String outputPath, String provisionerName, OffsetDateTime originalCompleted) {
     JsonNode metadata = record.get(WORKFLOW_RUN.METADATA);
-    Iterator<Entry<String, JsonNode>> iterator = metadata.fields();
+    Iterator<Entry<String, JsonNode>> iterator = metadata.properties().iterator();
     while (iterator.hasNext()) {
       Entry<String, JsonNode> entry = iterator.next();
       ArrayNode contents = (ArrayNode) entry.getValue().get("contents");
-      Iterator<JsonNode> iterator2 = contents.elements();
+      Iterator<JsonNode> iterator2 = contents.iterator();
       while (iterator2.hasNext()) {
         ObjectNode content = (ObjectNode) iterator2.next();
         if (content.has("outputDirectory")) {
           content.set("originalDirectory", content.get("outputDirectory"));
           content.put("outputDirectory", outputPath);
           content.put("outputReprovisioner", provisionerName);
-          content.put("originalCompleted",
-              originalCompleted.toInstant().getEpochSecond());
-          content.put("originalCompletedOffset",
-              originalCompleted.getOffset().toString());
+          content.put("originalCompleted", originalCompleted.toInstant().getEpochSecond());
+          content.put("originalCompletedOffset", originalCompleted.getOffset().toString());
         } // else there's some other kind of content here, maybe the next one
       }
     }
@@ -56,8 +54,12 @@ public class ReprovisionStrategyNew implements ReprovisionStrategy {
   }
 
   @Override
-  public DatabaseWorkflow getDbWorkflow(Record record, Target target, JsonNode metadata,
-      Map<Integer, Set<ExternalId>> externalIdsByAnalysis, DatabaseBackedProcessor processor,
+  public DatabaseWorkflow getDbWorkflow(
+      Record record,
+      Target target,
+      JsonNode metadata,
+      Map<Integer, Set<ExternalId>> externalIdsByAnalysis,
+      DatabaseBackedProcessor processor,
       DSLContext dsl) {
     return DatabaseWorkflow.createActive(
         "reprovision",
@@ -69,26 +71,30 @@ public class ReprovisionStrategyNew implements ReprovisionStrategy {
         record.get(WORKFLOW_RUN.ARGUMENTS),
         record.get(WORKFLOW_RUN.ENGINE_PARAMETERS),
         metadata,
-        externalIdsByAnalysis.values().stream().flatMap(Collection::stream).collect(
-            Collectors.toSet()),
-        Map.of(), //empty consumable resources
+        externalIdsByAnalysis.values().stream()
+            .flatMap(Collection::stream)
+            .collect(Collectors.toSet()),
+        Map.of(), // empty consumable resources
         record.get(WORKFLOW_RUN.CREATED).toInstant(),
         processor::liveness,
         dsl,
-        Phase.REPROVISION
-    );
+        Phase.REPROVISION);
   }
 
   @Override
-  public <T> T handle(Record record,
+  public <T> T handle(
+      Record record,
       DatabaseWorkflow dbWorkflow,
       DatabaseBackedProcessor.WorkflowInformation definition,
       Map<ProvenanceAnalysisRecord<ExternalId>, JsonNode> analysis,
       OffsetDateTime originalCompleted,
-      SubmissionResultHandler<T> handler, Target target,
-      HikariDataSource dataSource, ScheduledExecutorService executor,
+      SubmissionResultHandler<T> handler,
+      Target target,
+      HikariDataSource dataSource,
+      ScheduledExecutorService executor,
       DatabaseBackedProcessor processor) {
-    return handler.launched(record.get(WORKFLOW_RUN.HASH_ID),
+    return handler.launched(
+        record.get(WORKFLOW_RUN.HASH_ID),
         new ConsumableResourceChecker(
             target,
             dataSource,
@@ -107,15 +113,17 @@ public class ReprovisionStrategyNew implements ReprovisionStrategy {
               @Override
               public void run() {
                 if (launched) {
-                  throw new IllegalStateException(
-                      "Workflow has already been" + " launched");
+                  throw new IllegalStateException("Workflow has already been" + " launched");
                 }
                 launched = true;
                 processor.inTransaction(
                     runTransaction ->
                         processor.reprovision(
-                            target, definition.definition(),
-                            dbWorkflow, analysis, originalCompleted,
+                            target,
+                            definition.definition(),
+                            dbWorkflow,
+                            analysis,
+                            originalCompleted,
                             runTransaction));
               }
             }));

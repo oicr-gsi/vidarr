@@ -63,7 +63,7 @@ public final class RawInputProvisioner implements InputProvisioner<RawInputState
   @Override
   public OperationAction<?, RawInputState, JsonNode> build() {
     return OperationAction.load(RawInputState.class, RawInputState::path)
-        .then(OperationStep.require(JsonNode::isTextual, "Input is not text"));
+        .then(OperationStep.require(JsonNode::isString, "Input is not text"));
   }
 
   public Set<InputProvisionFormat> getFormats() {

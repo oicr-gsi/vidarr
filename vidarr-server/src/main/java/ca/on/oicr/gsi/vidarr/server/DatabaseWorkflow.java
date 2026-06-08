@@ -12,11 +12,6 @@ import ca.on.oicr.gsi.vidarr.core.Target;
 import ca.on.oicr.gsi.vidarr.server.jooq.tables.records.AnalysisExternalIdRecord;
 import ca.on.oicr.gsi.vidarr.server.jooq.tables.records.ExternalIdRecord;
 import ca.on.oicr.gsi.vidarr.server.jooq.tables.records.ExternalIdVersionRecord;
-import tools.jackson.core.JacksonException;
-import tools.jackson.core.type.TypeReference;
-import tools.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import tools.jackson.databind.node.ObjectNode;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.security.MessageDigest;
@@ -32,6 +27,11 @@ import java.util.stream.Collectors;
 import org.jooq.*;
 import org.jooq.Record;
 import org.jooq.impl.DSL;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.JsonNodeFactory;
+import tools.jackson.databind.node.ObjectNode;
 
 public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLContext> {
   public static DatabaseWorkflow createNew(

@@ -3,11 +3,11 @@ package ca.on.oicr.gsi.vidarr.core;
 import ca.on.oicr.gsi.vidarr.OutputType;
 import ca.on.oicr.gsi.vidarr.OutputType.IdentifierKey;
 import ca.on.oicr.gsi.vidarr.api.ExternalId;
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.json.JsonMapper;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Maraud over output metadata
@@ -62,13 +62,13 @@ abstract class BaseOutputExtractor<R, E> implements OutputType.Visitor<R> {
   private R handle(WorkflowOutputDataType format, boolean optional) {
     if (metadata.isObject()
         && metadata.has("type")
-        && metadata.get("type").isTextual()
+        && metadata.get("type").isString()
         && metadata.has("contents")) {
       final var contents = metadata.get("contents");
       if (!contents.isArray()) {
         return invalid("(in metadata): 'contents' must be array.");
       }
-      switch (metadata.get("type").asText()) {
+      switch (metadata.get("type").asString()) {
         case "REMAINING":
           var remainingExpectedSize = 1;
           if (contents.size() != remainingExpectedSize) {
@@ -140,7 +140,7 @@ abstract class BaseOutputExtractor<R, E> implements OutputType.Visitor<R> {
           return invalid(
               String.format(
                   "(in metadata): Unknown 'type' %s in %s.",
-                  metadata.get("type").asText(), format));
+                  metadata.get("type").asString(), format));
       }
     } else if (!metadata.isObject()) {
       return invalid(
@@ -148,7 +148,7 @@ abstract class BaseOutputExtractor<R, E> implements OutputType.Visitor<R> {
               "(in metadata): this must be an object (because it's for output %s), but instead "
                   + "it's a %s full of %s",
               format, metadata.getNodeType(), metadata.toString()));
-    } else if (!metadata.has("type") || !metadata.get("type").isTextual()) {
+    } else if (!metadata.has("type") || !metadata.get("type").isString()) {
       return invalid("(in metadata): must contain field 'type' which has a text value.");
     } else if (!metadata.has("contents")) {
       return invalid("(in metadata): must contain field 'contents'.");
@@ -187,7 +187,7 @@ abstract class BaseOutputExtractor<R, E> implements OutputType.Visitor<R> {
               identifier.getKey(),
               switch (identifier.getValue()) {
                 case INTEGER -> child.get(identifier.getKey()).asLong();
-                case STRING -> child.get(identifier.getKey()).asText();
+                case STRING -> child.get(identifier.getKey()).asString();
               });
         }
         final var value = new TreeMap<String, JsonNode>();
@@ -232,7 +232,7 @@ abstract class BaseOutputExtractor<R, E> implements OutputType.Visitor<R> {
                 identifier.getKey(),
                 switch (identifier.getValue()) {
                   case INTEGER -> child.get(identifier.getKey()).asLong();
-                  case STRING -> child.get(identifier.getKey()).asText();
+                  case STRING -> child.get(identifier.getKey()).asString();
                 });
           }
           final var mapping = outputMappings.get(key);

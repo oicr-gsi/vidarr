@@ -20,9 +20,7 @@ import tools.jackson.databind.cfg.DateTimeFeature;
 import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.node.ObjectNode;
 
-/**
- * Subcommand to running unit tests
- */
+/** Subcommand to running unit tests */
 @CommandLine.Command(name = "test", description = "Run a test suite for a workflow")
 public class CommandTest implements Callable<Integer> {
 
@@ -50,7 +48,7 @@ public class CommandTest implements Callable<Integer> {
   @CommandLine.Option(
       names = {"-i", "--include"},
       description = "Limit to test to only the listed tests")
-  private List<String> includes = List.of();
+  private final List<String> includes = List.of();
 
   @CommandLine.Option(
       names = {"-t", "--test"},
@@ -87,7 +85,7 @@ public class CommandTest implements Callable<Integer> {
         MAPPER.readValue(new File(workflowFile), WorkflowConfiguration.class).toDefinition();
     var cases = List.of(MAPPER.readValue(new File(testCases), TestCase[].class));
     if (!includes.isEmpty()) {
-      cases = cases.stream().filter(c -> includes.contains(c.getId())).collect(Collectors.toList());
+      cases = cases.stream().filter(c -> includes.contains(c.getId())).toList();
     }
     if (cases.isEmpty()) {
       System.err.println("No test cases found.");
@@ -121,7 +119,7 @@ public class CommandTest implements Callable<Integer> {
                             c.getMetadata(),
                             c.getEngineArguments())
                         .map((c.getId() + ": ")::concat))
-            .collect(Collectors.toList());
+            .toList();
     if (!errors.isEmpty()) {
       errors.forEach(System.err::println);
       return 2;
@@ -133,12 +131,15 @@ public class CommandTest implements Callable<Integer> {
             .map(
                 c -> {
                   /* Will use output directory if provided, otherwise "null" is passed into
-                     createValidator Timestamp date passed in to use as subdirectory to output
-                     directory.One is created for each vidarr-cli test run */
+                  createValidator Timestamp date passed in to use as subdirectory to output
+                  directory.One is created for each vidarr-cli test run */
                   final var validator =
-                      Validator.all(c.getValidators().stream().map(
-                          TestValidator -> TestValidator.createValidator(outputDirectory,
-                              c.getId(), date, verboseMode)));
+                      Validator.all(
+                          c.getValidators().stream()
+                              .map(
+                                  TestValidator ->
+                                      TestValidator.createValidator(
+                                          outputDirectory, c.getId(), date, verboseMode)));
 
                   final var run =
                       runner.startAsync(
@@ -178,7 +179,7 @@ public class CommandTest implements Callable<Integer> {
                             }
                           });
                 })
-            .collect(Collectors.toList())) {
+            .toList()) {
       result &= future.join();
     }
     return result ? 0 : 1;

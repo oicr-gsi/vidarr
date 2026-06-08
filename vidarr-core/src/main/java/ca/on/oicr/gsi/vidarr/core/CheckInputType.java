@@ -48,9 +48,9 @@ public final class CheckInputType implements InputType.Visitor<Stream<String>> {
 
   @Override
   public Stream<String> date() {
-    if (input.isTextual()) {
+    if (input.isString()) {
       try {
-        DateTimeFormatter.ISO_INSTANT.parse(input.asText());
+        DateTimeFormatter.ISO_INSTANT.parse(input.asString());
         return Stream.empty();
       } catch (DateTimeParseException e) {
         // Do nothing
@@ -95,9 +95,9 @@ public final class CheckInputType implements InputType.Visitor<Stream<String>> {
     if (input.isObject()
         && input.has("contents")
         && input.has("type")
-        && input.get("type").isTextual()) {
+        && input.get("type").isString()) {
       final var contents = input.get("contents");
-      switch (input.get("type").asText()) {
+      switch (input.get("type").asString()) {
         case "EXTERNAL":
           if (!contents.isObject()) {
             return Stream.of(String.format("%s: Input for external is not an object.", context));
@@ -133,8 +133,8 @@ public final class CheckInputType implements InputType.Visitor<Stream<String>> {
               .externalTypeFor(format)
               .apply(new ValidateJsonToSimpleType(context, contents.get(EXTERNAL__CONFIG)));
         case "INTERNAL":
-          if (contents.isArray() && contents.size() == 1 && contents.get(0).isTextual()) {
-            final var id = contents.get(0).asText();
+          if (contents.isArray() && contents.size() == 1 && contents.get(0).isString()) {
+            final var id = contents.get(0).asString();
             final var matcher = BaseProcessor.ANALYSIS_RECORD_ID.matcher(id);
             if (matcher.matches()) {
               if (matcher.group("type").equals("file")) {
@@ -155,7 +155,7 @@ public final class CheckInputType implements InputType.Visitor<Stream<String>> {
           return Stream.of(
               String.format(
                   "%s: Unknown type %s in tagged union for %s.",
-                  context, input.get("type").asText(), format));
+                  context, input.get("type").asString(), format));
       }
     } else {
       return Stream.of(
@@ -196,7 +196,7 @@ public final class CheckInputType implements InputType.Visitor<Stream<String>> {
     if (input.isArray()) {
       return StreamSupport.stream(input.spliterator(), false)
           .flatMap(
-              new Function<JsonNode, Stream<? extends String>>() {
+              new Function<>() {
                 private int index;
 
                 @Override
@@ -251,7 +251,8 @@ public final class CheckInputType implements InputType.Visitor<Stream<String>> {
   public Stream<String> retry(BasicType inner) {
     if (input.isObject()) {
       return Stream.concat(
-          StreamSupport.stream(Spliterators.spliterator(input.fields(), input.size(), 0), false)
+          StreamSupport.stream(
+                  Spliterators.spliterator(input.properties().iterator(), input.size(), 0), false)
               .flatMap(
                   e ->
                       Stream.concat(
@@ -268,7 +269,7 @@ public final class CheckInputType implements InputType.Visitor<Stream<String>> {
 
   @Override
   public Stream<String> string() {
-    return input.isTextual()
+    return input.isString()
         ? Stream.empty()
         : Stream.of(context + ": Expected string, but got " + input.toPrettyString());
   }
@@ -277,8 +278,8 @@ public final class CheckInputType implements InputType.Visitor<Stream<String>> {
   public Stream<String> taggedUnion(Stream<Map.Entry<String, InputType>> elements) {
     if (input.isObject() && input.has("type") && input.has("contents")) {
       final var type = input.get("type");
-      if (type.isTextual()) {
-        final var typeStr = type.asText();
+      if (type.isString()) {
+        final var typeStr = type.asString();
         return elements
             .filter(e -> e.getKey().equals(typeStr))
             .findAny()
@@ -292,7 +293,7 @@ public final class CheckInputType implements InputType.Visitor<Stream<String>> {
                 () ->
                     Stream.of(
                         String.format(
-                            "%s: Unknown type in tagged union: %s", context, type.asText())));
+                            "%s: Unknown type in tagged union: %s", context, type.asString())));
       } else {
         return Stream.of(
             String.format(

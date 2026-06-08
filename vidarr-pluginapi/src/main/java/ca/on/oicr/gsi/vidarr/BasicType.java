@@ -1,21 +1,21 @@
 package ca.on.oicr.gsi.vidarr;
 
 import ca.on.oicr.gsi.Pair;
-import tools.jackson.core.*;
-import com.fasterxml.jackson.databind.DeserializationContext;
-import tools.jackson.databind.ValueDeserializer;
-import tools.jackson.databind.ValueSerializer;
-import tools.jackson.databind.SerializationContext;
-import tools.jackson.databind.annotation.JsonDeserialize;
-import tools.jackson.databind.annotation.JsonSerialize;
-import tools.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.databind.node.ValueNode;
 import java.io.IOException;
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
+import tools.jackson.core.*;
+import tools.jackson.databind.DeserializationContext;
+import tools.jackson.databind.SerializationContext;
+import tools.jackson.databind.ValueDeserializer;
+import tools.jackson.databind.ValueSerializer;
+import tools.jackson.databind.annotation.JsonDeserialize;
+import tools.jackson.databind.annotation.JsonSerialize;
+import tools.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.node.ValueNode;
 
 /**
  * Basic types that do not include files
@@ -49,10 +49,10 @@ public abstract class BasicType {
           final var printValue = value.apply(this);
           return g -> {
             g.writeStartObject();
-            g.writeStringField(STR_IS, STR_DICTIONARY);
-            g.writeFieldName(STR_KEY);
+            g.writeStringProperty(STR_IS, STR_DICTIONARY);
+            g.writeName(STR_KEY);
             printKey.print(g);
-            g.writeFieldName(STR_VALUE);
+            g.writeName(STR_VALUE);
             printValue.print(g);
             g.writeEndObject();
           };
@@ -78,8 +78,8 @@ public abstract class BasicType {
           final var printInner = inner.apply(this);
           return g -> {
             g.writeStartObject();
-            g.writeStringField(STR_IS, STR_LIST);
-            g.writeFieldName(STR_INNER);
+            g.writeStringProperty(STR_IS, STR_LIST);
+            g.writeName(STR_INNER);
             printInner.print(g);
             g.writeEndObject();
           };
@@ -88,15 +88,13 @@ public abstract class BasicType {
         @Override
         public Printer object(Stream<Pair<String, BasicType>> contents) {
           final var fields =
-              contents
-                  .map(p -> new Pair<>(p.first(), p.second().apply(this)))
-                  .collect(Collectors.toList());
+              contents.map(p -> new Pair<>(p.first(), p.second().apply(this))).toList();
           return g -> {
             g.writeStartObject();
-            g.writeStringField(STR_IS, STR_OBJECT);
-            g.writeObjectFieldStart(STR_FIELDS);
+            g.writeStringProperty(STR_IS, STR_OBJECT);
+            g.writeObjectPropertyStart(STR_FIELDS);
             for (final var field : fields) {
-              g.writeFieldName(field.first());
+              g.writeName(field.first());
               field.second().print(g);
             }
             g.writeEndObject();
@@ -109,8 +107,8 @@ public abstract class BasicType {
           final var printInner = inner.apply(this);
           return g -> {
             g.writeStartObject();
-            g.writeStringField(STR_IS, STR_OPTIONAL);
-            g.writeFieldName(STR_INNER);
+            g.writeStringProperty(STR_IS, STR_OPTIONAL);
+            g.writeName(STR_INNER);
             printInner.print(g);
             g.writeEndObject();
           };
@@ -122,10 +120,10 @@ public abstract class BasicType {
           final var printRight = right.apply(this);
           return g -> {
             g.writeStartObject();
-            g.writeStringField(STR_IS, STR_PAIR);
-            g.writeFieldName(STR_LEFT);
+            g.writeStringProperty(STR_IS, STR_PAIR);
+            g.writeName(STR_LEFT);
             printLeft.print(g);
-            g.writeFieldName(STR_RIGHT);
+            g.writeName(STR_RIGHT);
             printRight.print(g);
             g.writeEndObject();
           };
@@ -142,10 +140,10 @@ public abstract class BasicType {
               elements.collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().apply(this)));
           return g -> {
             g.writeStartObject();
-            g.writeStringField(STR_IS, STR_TAGGED_UNION);
-            g.writeObjectFieldStart(STR_OPTIONS);
+            g.writeStringProperty(STR_IS, STR_TAGGED_UNION);
+            g.writeObjectPropertyStart(STR_OPTIONS);
             for (final var union : unions.entrySet()) {
-              g.writeFieldName(union.getKey());
+              g.writeName(union.getKey());
               union.getValue().print(g);
             }
             g.writeEndObject();
@@ -155,11 +153,11 @@ public abstract class BasicType {
 
         @Override
         public Printer tuple(Stream<BasicType> contents) {
-          final var elements = contents.map(e -> e.apply(this)).collect(Collectors.toList());
+          final var elements = contents.map(e -> e.apply(this)).toList();
           return g -> {
             g.writeStartObject();
-            g.writeStringField(STR_IS, STR_TUPLE);
-            g.writeArrayFieldStart(STR_ELEMENTS);
+            g.writeStringProperty(STR_IS, STR_TUPLE);
+            g.writeArrayPropertyStart(STR_ELEMENTS);
             for (final var element : elements) {
               element.print(g);
             }
@@ -247,12 +245,14 @@ public abstract class BasicType {
 
     /** Convert a <tt>string</tt> type */
     R string();
+
     /**
      * Convert a discriminated union
      *
      * @param elements the possible values in the algebraic type
      */
     R taggedUnion(Stream<Map.Entry<String, BasicType>> elements);
+
     /**
      * Convert a tuple type
      *
@@ -300,7 +300,7 @@ public abstract class BasicType {
     @Override
     public BasicType deserialize(
         JsonParser jsonParser, DeserializationContext deserializationContext)
-        throws IOException, JacksonException {
+        throws JacksonException {
       return BasicType.deserialize(jsonParser.readValueAsTree());
     }
   }
@@ -467,7 +467,7 @@ public abstract class BasicType {
         Objects.requireNonNull(type, "union type contents");
       }
 
-      if (union.size() == 0)
+      if (union.isEmpty())
         throw new IllegalArgumentException("TaggedUnion BasicType needs at least 1 field, got 0.");
 
       if (union.containsKey(""))
@@ -532,6 +532,7 @@ public abstract class BasicType {
       return Arrays.hashCode(types);
     }
   }
+
   /** The type of a Boolean value */
   public static final BasicType BOOLEAN =
       new BasicType() {
@@ -541,6 +542,7 @@ public abstract class BasicType {
           return transformer.bool();
         }
       };
+
   /**
    * The type of a date
    *
@@ -554,6 +556,7 @@ public abstract class BasicType {
           return transformer.date();
         }
       };
+
   /**
    * The type of a floating-point number
    *
@@ -567,6 +570,7 @@ public abstract class BasicType {
           return transformer.floating();
         }
       };
+
   /**
    * The type of an integral number
    *
@@ -580,6 +584,7 @@ public abstract class BasicType {
           return transformer.integer();
         }
       };
+
   /** The type of arbitrary JSON content */
   public static final BasicType JSON =
       new BasicType() {
@@ -589,6 +594,7 @@ public abstract class BasicType {
           return transformer.json();
         }
       };
+
   /** The type of a string */
   public static final BasicType STRING =
       new BasicType() {
@@ -600,8 +606,8 @@ public abstract class BasicType {
       };
 
   static BasicType deserialize(TreeNode node) {
-    if (node.isValueNode() && ((ValueNode) node).isTextual()) {
-      final var str = ((ValueNode) node).asText();
+    if (node.isValueNode() && ((ValueNode) node).isString()) {
+      final var str = ((ValueNode) node).asString();
       switch (str) {
         case STR_BOOLEAN:
           return BasicType.BOOLEAN;
@@ -620,8 +626,8 @@ public abstract class BasicType {
       }
     } else if (node.isObject() && node instanceof ObjectNode) {
       final var obj = (ObjectNode) node;
-      if (obj.has(STR_IS) && obj.get(STR_IS).isTextual()) {
-        switch (obj.get(STR_IS).asText()) {
+      if (obj.has(STR_IS) && obj.get(STR_IS).isString()) {
+        switch (obj.get(STR_IS).asString()) {
           case STR_DICTIONARY:
             if (!obj.has(STR_KEY)) {
               throw new IllegalArgumentException("Missing 'key' in dictionary.");
@@ -641,7 +647,9 @@ public abstract class BasicType {
             }
             return object(
                 StreamSupport.stream(
-                        Spliterators.spliteratorUnknownSize(obj.get(STR_FIELDS).fields(), 0), false)
+                        Spliterators.spliteratorUnknownSize(
+                            obj.get(STR_FIELDS).properties().iterator(), 0),
+                        false)
                     .map(e -> new Pair<>(e.getKey(), deserialize(e.getValue()))));
           case STR_OPTIONAL:
             if (!obj.has(STR_INNER)) {
@@ -662,7 +670,8 @@ public abstract class BasicType {
             }
             return taggedUnionFromPairs(
                 StreamSupport.stream(
-                        Spliterators.spliteratorUnknownSize(obj.get(STR_OPTIONS).fields(), 0),
+                        Spliterators.spliteratorUnknownSize(
+                            obj.get(STR_OPTIONS).properties().iterator(), 0),
                         false)
                     .map(e -> new Pair<>(e.getKey(), deserialize(e.getValue()))));
           case STR_TUPLE:
@@ -684,6 +693,7 @@ public abstract class BasicType {
       throw new IllegalArgumentException("Invalid JSON token in engine type: " + node);
     }
   }
+
   /**
    * Create a dictionary type
    *
@@ -702,15 +712,15 @@ public abstract class BasicType {
    */
   public static BasicType object(Stream<Pair<String, BasicType>> fields) {
     // Sanity checking
-    final List<Pair<String, BasicType>> fieldsList = fields.collect(Collectors.toList());
-    if (fieldsList.size() == 0)
+    final List<Pair<String, BasicType>> fieldsList = fields.toList();
+    if (fieldsList.isEmpty())
       throw new IllegalArgumentException("Object BasicType needs at least 1 field, got 0.");
 
     for (final Map.Entry<String, Long> entry :
         fieldsList.stream()
             .collect(Collectors.groupingBy(Pair::first, Collectors.counting()))
             .entrySet()) {
-      if (entry.getKey().equals("")) {
+      if (entry.getKey().isEmpty()) {
         throw new IllegalArgumentException(
             "Found illegal field key \"\" while creating Object BasicType.");
       }

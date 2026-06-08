@@ -54,18 +54,17 @@ import ca.on.oicr.gsi.vidarr.server.jooq.tables.WorkflowVersion;
 import ca.on.oicr.gsi.vidarr.server.jooq.tables.records.AnalysisExternalIdRecord;
 import ca.on.oicr.gsi.vidarr.server.jooq.tables.records.ExternalIdVersionRecord;
 import ca.on.oicr.gsi.vidarr.server.jooq.tables.records.WorkflowVersionAccessoryRecord;
-import com.fasterxml.jackson.core.JsonFactory;
-import com.fasterxml.jackson.core.JsonGenerator;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.JsonSerializer;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.databind.SerializerProvider;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.core.json.JsonFactory;
+import tools.jackson.core.JsonGenerator;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ValueSerializer;
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.SerializationFeature;
+import tools.jackson.databind.SerializationContext;
+import tools.jackson.databind.annotation.JsonSerialize;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.zaxxer.hikari.HikariConfig;
@@ -540,7 +539,7 @@ public final class Main implements ServerConfig {
                 MAPPER.writeValueAsString(
                     new SubmitWorkflowResponseConflict(
                         List.of(reprovisionOutRequest.getWorkflowRunHashId()))));
-      } catch (JsonProcessingException e) {
+      } catch (JacksonException e) {
         throw new RuntimeException(e);
       }
       return;
@@ -673,7 +672,7 @@ public final class Main implements ServerConfig {
     reprovisionCounter.get(reprovisionOutRequest.getWorkflowRunHashId()).release();
     try {
       exchange.getResponseSender().send(MAPPER.writeValueAsString(response.second()));
-    } catch (JsonProcessingException e) {
+    } catch (JacksonException e) {
       internalServerErrorResponse(exchange, e);
     }
   }
@@ -1028,7 +1027,7 @@ public final class Main implements ServerConfig {
                       .execute());
       maxInFlightPerWorkflow.set(name, request.getMaxInFlight());
       okEmptyResponse(exchange);
-    } catch (SQLException | JsonProcessingException e) {
+    } catch (SQLException | JacksonException e) {
       internalServerErrorResponse(exchange, e);
     }
   }
@@ -1692,7 +1691,7 @@ public final class Main implements ServerConfig {
     failureIds.forEach(failureIdsResult::add);
     try {
       okJsonResponse(exchange, MAPPER.writeValueAsString(failureIdsResult));
-    } catch (JsonProcessingException e) {
+    } catch (JacksonException e) {
       throw new RuntimeException(e);
     }
   }
@@ -1789,7 +1788,7 @@ public final class Main implements ServerConfig {
     }
     try {
       okJsonResponse(exchange, MAPPER.writeValueAsString(targetsOutput));
-    } catch (JsonProcessingException e) {
+    } catch (JacksonException e) {
       throw new RuntimeException(e);
     }
   }
@@ -2444,7 +2443,7 @@ public final class Main implements ServerConfig {
       } finally {
         epochLock.writeLock().unlock();
       }
-    } catch (JsonProcessingException | NoSuchAlgorithmException e) {
+    } catch (JacksonException | NoSuchAlgorithmException e) {
       internalServerErrorResponse(exchange, e);
     }
   }
@@ -2468,7 +2467,7 @@ public final class Main implements ServerConfig {
    * @param configuration database configuration
    * @param workflowVersionFromDb whether we permit using the installed workflow version in case of
    *     conflict
-   * @throws JsonProcessingException
+   * @throws JacksonException
    * @throws NoSuchAlgorithmException
    */
   private void loadDataIntoDatabase(
@@ -2477,7 +2476,7 @@ public final class Main implements ServerConfig {
           workflowInfo,
       Configuration configuration,
       boolean workflowVersionFromDb)
-      throws JsonProcessingException, NoSuchAlgorithmException, SQLException {
+      throws JacksonException, NoSuchAlgorithmException, SQLException {
     // Map of Workflow Name to Workflow Version IDs (UnloadedWorkflowVersion.version to
     // id.get.value1??)
     final TreeMap<String, Map<String, Integer>> workflowId = new TreeMap<>();
@@ -2756,7 +2755,7 @@ public final class Main implements ServerConfig {
     }
     try {
       exchange.getResponseSender().send(MAPPER.writeValueAsString(response.second()));
-    } catch (JsonProcessingException e) {
+    } catch (JacksonException e) {
       internalServerErrorResponse(exchange, e);
     }
   }
@@ -3069,7 +3068,7 @@ public final class Main implements ServerConfig {
 
   private Map<String, BasicType> upsertWorkflowReturningLabels(
       Configuration configuration, String workflowName, Map<String, BasicType> workflowLabels)
-      throws JsonProcessingException {
+      throws JacksonException {
     String result =
         Optional.ofNullable(
                 DSL.using(configuration)
@@ -3112,7 +3111,7 @@ public final class Main implements ServerConfig {
       Map<String, OutputType> outputs,
       Map<String, InputType> inputs,
       Map<String, String> accessoryHashes)
-      throws NoSuchAlgorithmException, JsonProcessingException {
+      throws NoSuchAlgorithmException, JacksonException {
     final MessageDigest versionDigest = MessageDigest.getInstance("SHA-256");
     versionDigest.update(workflowName.getBytes(StandardCharsets.UTF_8));
     versionDigest.update(new byte[] {0});
@@ -3304,10 +3303,10 @@ public final class Main implements ServerConfig {
       return reason;
     }
 
-    static class Serializer extends JsonSerializer<IncompleteRunsException> {
+    static class Serializer extends ValueSerializer<IncompleteRunsException> {
       @Override
       public void serialize(
-          IncompleteRunsException ex, JsonGenerator gen, SerializerProvider serializers)
+          IncompleteRunsException ex, JsonGenerator gen, SerializationContext serializers)
           throws IOException {
         gen.writeStartObject();
         gen.writeStringField("reason", ex.reason);

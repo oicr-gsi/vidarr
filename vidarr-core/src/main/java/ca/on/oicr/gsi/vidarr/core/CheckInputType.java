@@ -8,9 +8,9 @@ import ca.on.oicr.gsi.vidarr.BasicType;
 import ca.on.oicr.gsi.vidarr.InputProvisionFormat;
 import ca.on.oicr.gsi.vidarr.InputType;
 import ca.on.oicr.gsi.vidarr.api.ExternalId;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.Map;
@@ -124,7 +124,7 @@ public final class CheckInputType implements InputType.Visitor<Stream<String>> {
                         "%s: External IDs has blank or missing ID or provider.", context));
               }
             }
-          } catch (JsonProcessingException e) {
+          } catch (JacksonException e) {
             return Stream.of(
                 String.format("%s: External IDs are malformed: %s", context, e.getMessage()));
           }

@@ -2,9 +2,9 @@ package ca.on.oicr.gsi.vidarr;
 
 import ca.on.oicr.gsi.vidarr.ActiveOperation.TransactionManager;
 import ca.on.oicr.gsi.vidarr.OperationAction.BranchState;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JavaType;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JavaType;
+import tools.jackson.databind.JsonNode;
 import java.util.Map;
 
 final class OperationActionBranch<Output>
@@ -22,7 +22,7 @@ final class OperationActionBranch<Output>
   }
 
   @Override
-  public BranchState deserializeOriginal(JsonNode originalState) throws JsonProcessingException {
+  public BranchState deserializeOriginal(JsonNode originalState) throws JacksonException {
     return MAPPER.treeToValue(originalState, BranchState.class);
   }
 
@@ -32,12 +32,12 @@ final class OperationActionBranch<Output>
   }
 
   @Override
-  BranchState rewind(BranchState state) throws JsonProcessingException {
+  BranchState rewind(BranchState state) throws JacksonException {
     return new BranchState(state.name(), rewind(branches.get(state.name()), state.inner()));
   }
 
   private <State extends Record> JsonNode rewind(
-      OperationAction<State, ?, Output> action, JsonNode inner) throws JsonProcessingException {
+      OperationAction<State, ?, Output> action, JsonNode inner) throws JacksonException {
     return MAPPER.valueToTree(action.rewind(MAPPER.treeToValue(inner, action.jacksonType())));
   }
 

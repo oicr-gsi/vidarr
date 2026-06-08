@@ -1,14 +1,14 @@
 package ca.on.oicr.gsi.vidarr;
 
 import ca.on.oicr.gsi.Pair;
-import com.fasterxml.jackson.core.*;
+import tools.jackson.core.*;
 import com.fasterxml.jackson.databind.DeserializationContext;
-import com.fasterxml.jackson.databind.JsonDeserializer;
-import com.fasterxml.jackson.databind.JsonSerializer;
-import com.fasterxml.jackson.databind.SerializerProvider;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.ValueDeserializer;
+import tools.jackson.databind.ValueSerializer;
+import tools.jackson.databind.SerializationContext;
+import tools.jackson.databind.annotation.JsonDeserialize;
+import tools.jackson.databind.annotation.JsonSerialize;
+import tools.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.ValueNode;
 import java.io.IOException;
 import java.util.*;
@@ -165,12 +165,12 @@ public abstract class InputType {
     }
   }
 
-  public static final class JacksonDeserializer extends JsonDeserializer<InputType> {
+  public static final class JacksonDeserializer extends ValueDeserializer<InputType> {
 
     @Override
     public InputType deserialize(
         JsonParser jsonParser, DeserializationContext deserializationContext)
-        throws IOException, JsonProcessingException {
+        throws IOException, JacksonException {
       return deserialize(jsonParser.readValueAsTree());
     }
 
@@ -271,11 +271,11 @@ public abstract class InputType {
     }
   }
 
-  public static final class JacksonSerializer extends JsonSerializer<InputType> {
+  public static final class JacksonSerializer extends ValueSerializer<InputType> {
 
     @Override
     public void serialize(
-        InputType inputType, JsonGenerator jsonGenerator, SerializerProvider serializerProvider)
+        InputType inputType, JsonGenerator jsonGenerator, SerializationContext serializerProvider)
         throws IOException {
       inputType
           .apply(

@@ -1,9 +1,9 @@
 package ca.on.oicr.gsi.vidarr;
 
 import ca.on.oicr.gsi.vidarr.ActiveOperation.TransactionManager;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JavaType;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JavaType;
+import tools.jackson.databind.JsonNode;
 import java.lang.System.Logger.Level;
 import java.time.Duration;
 import java.util.Optional;
@@ -301,11 +301,11 @@ public abstract sealed class OperationStatefulStep<
    * @param state the original state
    * @param input the upstream operation
    * @return the reset state
-   * @throws JsonProcessingException allow JSON decoding errors to occur
+   * @throws JacksonException allow JSON decoding errors to occur
    */
   abstract OutputState rewind(
       OutputState state, OperationAction<InputState, OriginalState, Input> input)
-      throws JsonProcessingException;
+      throws JacksonException;
 
   abstract <TX> void run(
       OperationAction<InputState, OriginalState, Input> input,

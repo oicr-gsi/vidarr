@@ -5,9 +5,9 @@ import ca.on.oicr.gsi.vidarr.BasicType;
 import ca.on.oicr.gsi.vidarr.InputProvisionFormat;
 import ca.on.oicr.gsi.vidarr.InputType;
 import ca.on.oicr.gsi.vidarr.api.ExternalId;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 import java.util.Map;
 import java.util.Spliterators;
 import java.util.function.Function;
@@ -104,7 +104,7 @@ abstract class BaseInputExtractor<R, D, E, F, L, Y> implements InputType.Visitor
                 format,
                 contents.get(EXTERNAL__CONFIG),
                 mapper().treeToValue(externalIds, ExternalId[].class));
-          } catch (JsonProcessingException e) {
+          } catch (JacksonException e) {
             throw new RuntimeException(e);
           }
         case "INTERNAL":

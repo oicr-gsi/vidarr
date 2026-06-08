@@ -2,7 +2,7 @@ package ca.on.oicr.gsi.vidarr;
 
 import static ca.on.oicr.gsi.vidarr.OperationAction.MAPPER;
 
-import com.fasterxml.jackson.core.type.TypeReference;
+import tools.jackson.core.type.TypeReference;
 import java.io.IOException;
 import java.nio.file.Path;
 

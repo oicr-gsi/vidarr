@@ -5,9 +5,9 @@ import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 
 import ca.on.oicr.gsi.vidarr.server.dto.ServerConfiguration;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.rasklaad.blns.NaughtyStrings;
@@ -117,7 +117,7 @@ public class VeryBadDataIntegrationTest {
   }
 
   @Test(expected = IllegalArgumentException.class)
-  public void addWorkflow() throws JsonProcessingException {
+  public void addWorkflow() throws JacksonException {
     List<String> filteredBlns = getNaughtyStringList();
     String noParamWorkflow = MAPPER.writeValueAsString(new HashMap<>());
 

@@ -8,7 +8,7 @@ import ca.on.oicr.gsi.vidarr.OperationAction.BranchState;
 import ca.on.oicr.gsi.vidarr.OutputProvisionFormat;
 import ca.on.oicr.gsi.vidarr.OutputProvisioner;
 import ca.on.oicr.gsi.vidarr.OutputProvisionerProvider;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.stream.Collectors;

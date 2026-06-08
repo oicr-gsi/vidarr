@@ -5,7 +5,7 @@ import ca.on.oicr.gsi.vidarr.api.ProvenanceAnalysisRecord;
 import ca.on.oicr.gsi.vidarr.core.Target;
 import ca.on.oicr.gsi.vidarr.server.DatabaseBackedProcessor.SubmissionResultHandler;
 import ca.on.oicr.gsi.vidarr.server.DatabaseBackedProcessor.WorkflowInformation;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import com.zaxxer.hikari.HikariDataSource;
 import java.sql.SQLException;
 import java.time.OffsetDateTime;

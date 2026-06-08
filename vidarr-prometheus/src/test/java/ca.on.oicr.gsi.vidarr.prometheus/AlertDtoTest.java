@@ -2,8 +2,8 @@ package ca.on.oicr.gsi.vidarr.prometheus;
 
 import static org.junit.Assert.assertEquals;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.ObjectNode;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;

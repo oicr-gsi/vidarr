@@ -3,11 +3,11 @@ package ca.on.oicr.gsi.vidarr;
 import ca.on.oicr.gsi.vidarr.ActiveOperation.TransactionManager;
 import ca.on.oicr.gsi.vidarr.OperationStatefulStep.StatefulTransformer;
 import ca.on.oicr.gsi.vidarr.OperationStep.Transformer;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JavaType;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import java.util.Map;
 
@@ -173,11 +173,11 @@ public abstract sealed class OperationAction<
    *
    * @param originalState the original state as JSON
    * @return the deserialized original state
-   * @throws JsonProcessingException thrown if the JSON does not match the correct structure for the
+   * @throws JacksonException thrown if the JSON does not match the correct structure for the
    *     original state
    */
   public abstract OriginalState deserializeOriginal(JsonNode originalState)
-      throws JsonProcessingException;
+      throws JacksonException;
 
   /**
    * Create a new branch state by serializing a state object
@@ -295,7 +295,7 @@ public abstract sealed class OperationAction<
           return MAPPER.valueToTree(s);
         }
       };
-    } catch (JsonProcessingException e) {
+    } catch (JacksonException e) {
       return new Launcher<>() {
         final String message = "Failed to rewind state: " + e.getMessage();
 
@@ -315,7 +315,7 @@ public abstract sealed class OperationAction<
     }
   }
 
-  abstract State rewind(State state) throws JsonProcessingException;
+  abstract State rewind(State state) throws JacksonException;
 
   /**
    * Discard the current value and load a new one from the state

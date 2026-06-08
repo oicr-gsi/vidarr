@@ -58,7 +58,7 @@
       <artifactId>jooq</artifactId>
       <exclusions>
         <exclusion>
-          <groupId>com.fasterxml.jackson.core</groupId>
+          <groupId>tools.jackson.core</groupId>
           <artifactId>jackson-databind</artifactId>
         </exclusion>
       </exclusions>
@@ -146,7 +146,7 @@
               <artifactId>jackson-databind</artifactId>
             </dependency>
             <!--            <dependency>-->
-            <!--              <groupId>com.fasterxml.jackson.core</groupId>-->
+            <!--              <groupId>tools.jackson.core</groupId>-->
             <!--              <artifactId>jackson-annotations</artifactId>-->
             <!--            </dependency>-->
           </dependencies>
@@ -191,7 +191,7 @@
             <version>${jackson3.version}</version>
           </dependency>
           <!--          <dependency>-->
-          <!--            <groupId>com.fasterxml.jackson.core</groupId>-->
+          <!--            <groupId>tools.jackson.core</groupId>-->
           <!--            <artifactId>jackson-annotations</artifactId>-->
           <!--          </dependency>-->
         </dependencies>
@@ -244,7 +244,7 @@
             <version>${jooq.version}</version>
             <exclusions>
               <exclusion>
-                <groupId>com.fasterxml.jackson.core</groupId>
+                <groupId>tools.jackson.core</groupId>
                 <artifactId>*</artifactId>
               </exclusion>
             </exclusions>

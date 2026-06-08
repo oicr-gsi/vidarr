@@ -4,9 +4,9 @@ import ca.on.oicr.gsi.Pair;
 import ca.on.oicr.gsi.vidarr.BasicType;
 import ca.on.oicr.gsi.vidarr.ConsumableResource;
 import ca.on.oicr.gsi.vidarr.ConsumableResourceResponse;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import io.undertow.Handlers;
 import io.undertow.server.HttpHandler;
@@ -28,7 +28,7 @@ public final class ManualOverrideConsumableResource implements ConsumableResourc
   private final Set<String> allowList = new TreeSet<>();
   private ConsumableResource inner;
 
-  private void dumpAllowed(HttpServerExchange exchange) throws JsonProcessingException {
+  private void dumpAllowed(HttpServerExchange exchange) throws JacksonException {
     exchange.setStatusCode(StatusCodes.OK);
     exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/json");
     exchange.getResponseSender().send(MAPPER.writeValueAsString(allowList));

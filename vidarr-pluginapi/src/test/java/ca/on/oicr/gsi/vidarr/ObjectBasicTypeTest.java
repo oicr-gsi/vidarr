@@ -3,8 +3,8 @@ package ca.on.oicr.gsi.vidarr;
 import static ca.on.oicr.gsi.vidarr.VeryLongString.VERY_LONG;
 
 import ca.on.oicr.gsi.Pair;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.node.ObjectNode;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -39,8 +39,8 @@ public class ObjectBasicTypeTest extends BasicTypeTest {
       root.set("fields", fields);
       try {
         json = MAPPER.writeValueAsString(root);
-      } catch (JsonProcessingException e) {
-        Assert.fail("JsonProcessingException writing long json: " + e.getMessage());
+      } catch (JacksonException e) {
+        Assert.fail("JacksonException writing long json: " + e.getMessage());
       }
       serializeTester(json, BasicType.object(varargs.stream()));
     }

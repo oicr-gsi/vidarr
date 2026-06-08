@@ -7,12 +7,12 @@ import static org.junit.Assert.*;
 
 import ca.on.oicr.gsi.vidarr.core.Phase;
 import ca.on.oicr.gsi.vidarr.server.dto.ServerConfiguration;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.restassured.RestAssured;
@@ -133,7 +133,7 @@ public class MainIntegrationTest {
   }
 
   @Test
-  public void whenAddWorkflow_thenWorkflowIsAdded() throws JsonProcessingException {
+  public void whenAddWorkflow_thenWorkflowIsAdded() throws JacksonException {
     get("/api/workflow/{name}", "novel").then().assertThat().statusCode(404);
 
     String noParamWorkflow = MAPPER.writeValueAsString(new HashMap<>());
@@ -229,7 +229,7 @@ public class MainIntegrationTest {
 
   @Test
   public void whenUpdateWorkflowFields_thenOnlySomeFieldsAreUpdated()
-      throws JsonProcessingException {
+      throws JacksonException {
     // Only maxInFlight is possible to update from the client side, and it's not possible to set
     // isActive to false.
     JsonPath importFastq = get("/api/workflow/{name}", "import_fastq").then().extract().jsonPath();
@@ -309,7 +309,7 @@ public class MainIntegrationTest {
   }
 
   @Test
-  public void whenAddWorkflow_thenWorkflowIsNotAvailable() throws JsonProcessingException {
+  public void whenAddWorkflow_thenWorkflowIsNotAvailable() throws JacksonException {
     int oldSize =
         get("/api/workflows")
             .then()
@@ -536,7 +536,7 @@ public class MainIntegrationTest {
 
   @Test
   public void whenAddDuplicateWorkflowVersion_thenWorkflowVersionIsUnchanged()
-      throws JsonProcessingException {
+      throws JacksonException {
     String wfName = "import_fastq";
     String wfVersion = "2.double";
 

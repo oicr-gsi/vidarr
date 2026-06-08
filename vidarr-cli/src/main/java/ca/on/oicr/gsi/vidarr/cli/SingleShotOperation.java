@@ -2,7 +2,7 @@ package ca.on.oicr.gsi.vidarr.cli;
 
 import ca.on.oicr.gsi.vidarr.ActiveOperation;
 import ca.on.oicr.gsi.vidarr.OperationStatus;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import java.lang.System.Logger.Level;
 
 final class SingleShotOperation implements ActiveOperation<Void> {

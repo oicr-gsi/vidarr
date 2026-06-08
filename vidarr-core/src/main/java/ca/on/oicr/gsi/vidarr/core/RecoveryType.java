@@ -2,7 +2,7 @@ package ca.on.oicr.gsi.vidarr.core;
 
 import ca.on.oicr.gsi.vidarr.OperationAction;
 import ca.on.oicr.gsi.vidarr.OperationAction.Launcher;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 
 public enum RecoveryType {
   RECOVER {

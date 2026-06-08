@@ -7,7 +7,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.JsonNode;
@@ -70,8 +69,7 @@ final class SingleShotProcessor
       OutputProvisioningHandler<Void> outputHandler) {
     System.err.printf("%s: [%s] Validating input...%n", prefix, Instant.now());
     final List<String> errors =
-        validateInput(MAPPER, target, workflow, arguments, metadata, engineParameters)
-            .collect(Collectors.toList());
+        validateInput(MAPPER, target, workflow, arguments, metadata, engineParameters).toList();
     if (!errors.isEmpty()) {
       errors.forEach(System.err::println);
       return null;

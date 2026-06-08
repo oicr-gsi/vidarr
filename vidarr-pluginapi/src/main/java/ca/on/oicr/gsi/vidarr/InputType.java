@@ -1,21 +1,21 @@
 package ca.on.oicr.gsi.vidarr;
 
 import ca.on.oicr.gsi.Pair;
-import tools.jackson.core.*;
-import com.fasterxml.jackson.databind.DeserializationContext;
-import tools.jackson.databind.ValueDeserializer;
-import tools.jackson.databind.ValueSerializer;
-import tools.jackson.databind.SerializationContext;
-import tools.jackson.databind.annotation.JsonDeserialize;
-import tools.jackson.databind.annotation.JsonSerialize;
-import tools.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.databind.node.ValueNode;
 import java.io.IOException;
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
+import tools.jackson.core.*;
+import tools.jackson.databind.DeserializationContext;
+import tools.jackson.databind.SerializationContext;
+import tools.jackson.databind.ValueDeserializer;
+import tools.jackson.databind.ValueSerializer;
+import tools.jackson.databind.annotation.JsonDeserialize;
+import tools.jackson.databind.annotation.JsonSerialize;
+import tools.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.node.ValueNode;
 
 /** Input type information that must be provided to run a workflow */
 @JsonSerialize(using = InputType.JacksonSerializer.class)
@@ -47,6 +47,7 @@ public abstract class InputType {
       STR_RIGHT = "right",
       STR_OPTIONS = "options",
       STR_ELEMENTS = "elements";
+
   /**
    * Convert an input type into another value
    *
@@ -116,6 +117,7 @@ public abstract class InputType {
 
     /** Convert a <tt>string</tt> type */
     R string();
+
     /**
      * Convert a discriminated union
      *
@@ -175,8 +177,8 @@ public abstract class InputType {
     }
 
     private InputType deserialize(TreeNode node) {
-      if (node.isValueNode() && ((ValueNode) node).isTextual()) {
-        final var str = ((ValueNode) node).asText();
+      if (node.isValueNode() && ((ValueNode) node).isString()) {
+        final var str = ((ValueNode) node).asString();
         switch (str) {
           case STR_BOOLEAN:
             return InputType.BOOLEAN;
@@ -199,8 +201,8 @@ public abstract class InputType {
         }
       } else if (node.isObject() && node instanceof ObjectNode) {
         final var obj = (ObjectNode) node;
-        if (obj.has(STR_IS) && obj.get(STR_IS).isTextual()) {
-          switch (obj.get(STR_IS).asText()) {
+        if (obj.has(STR_IS) && obj.get(STR_IS).isString()) {
+          switch (obj.get(STR_IS).asString()) {
             case STR_DICTIONARY:
               if (!obj.has(STR_KEY)) {
                 throw new IllegalArgumentException("Missing 'key' in dictionary.");
@@ -220,7 +222,8 @@ public abstract class InputType {
               }
               return object(
                   StreamSupport.stream(
-                          Spliterators.spliteratorUnknownSize(obj.get(STR_FIELDS).fields(), 0),
+                          Spliterators.spliteratorUnknownSize(
+                              obj.get(STR_FIELDS).properties().iterator(), 0),
                           false)
                       .map(e -> new Pair<>(e.getKey(), deserialize(e.getValue()))));
             case STR_OPTIONAL:
@@ -247,7 +250,8 @@ public abstract class InputType {
               }
               return taggedUnionFromPairs(
                   StreamSupport.stream(
-                          Spliterators.spliteratorUnknownSize(obj.get(STR_OPTIONS).fields(), 0),
+                          Spliterators.spliteratorUnknownSize(
+                              obj.get(STR_OPTIONS).properties().iterator(), 0),
                           false)
                       .map(e -> new Pair<>(e.getKey(), deserialize(e.getValue()))));
             case STR_TUPLE:
@@ -275,8 +279,7 @@ public abstract class InputType {
 
     @Override
     public void serialize(
-        InputType inputType, JsonGenerator jsonGenerator, SerializationContext serializerProvider)
-        throws IOException {
+        InputType inputType, JsonGenerator jsonGenerator, SerializationContext serializerProvider) {
       inputType
           .apply(
               new Visitor<Printer>() {
@@ -296,10 +299,10 @@ public abstract class InputType {
                   final var printValue = value.apply(this);
                   return g -> {
                     g.writeStartObject();
-                    g.writeStringField(STR_IS, STR_DICTIONARY);
-                    g.writeFieldName(STR_KEY);
+                    g.writeStringProperty(STR_IS, STR_DICTIONARY);
+                    g.writeName(STR_KEY);
                     printKey.print(g);
-                    g.writeFieldName(STR_VALUE);
+                    g.writeName(STR_VALUE);
                     printValue.print(g);
                     g.writeEndObject();
                   };
@@ -335,8 +338,8 @@ public abstract class InputType {
                   final var printInner = inner.apply(this);
                   return g -> {
                     g.writeStartObject();
-                    g.writeStringField(STR_IS, STR_LIST);
-                    g.writeFieldName(STR_INNER);
+                    g.writeStringProperty(STR_IS, STR_LIST);
+                    g.writeName(STR_INNER);
                     printInner.print(g);
                     g.writeEndObject();
                   };
@@ -345,15 +348,13 @@ public abstract class InputType {
                 @Override
                 public Printer object(Stream<Pair<String, InputType>> contents) {
                   final var fields =
-                      contents
-                          .map(p -> new Pair<>(p.first(), p.second().apply(this)))
-                          .collect(Collectors.toList());
+                      contents.map(p -> new Pair<>(p.first(), p.second().apply(this))).toList();
                   return g -> {
                     g.writeStartObject();
-                    g.writeStringField(STR_IS, STR_OBJECT);
-                    g.writeObjectFieldStart(STR_FIELDS);
+                    g.writeStringProperty(STR_IS, STR_OBJECT);
+                    g.writeObjectPropertyStart(STR_FIELDS);
                     for (final var field : fields) {
-                      g.writeFieldName(field.first());
+                      g.writeName(field.first());
                       field.second().print(g);
                     }
                     g.writeEndObject();
@@ -366,8 +367,8 @@ public abstract class InputType {
                   final var printInner = inner.apply(this);
                   return g -> {
                     g.writeStartObject();
-                    g.writeStringField(STR_IS, STR_OPTIONAL);
-                    g.writeFieldName(STR_INNER);
+                    g.writeStringProperty(STR_IS, STR_OPTIONAL);
+                    g.writeName(STR_INNER);
                     printInner.print(g);
                     g.writeEndObject();
                   };
@@ -379,10 +380,10 @@ public abstract class InputType {
                   final var printRight = right.apply(this);
                   return g -> {
                     g.writeStartObject();
-                    g.writeStringField(STR_IS, STR_PAIR);
-                    g.writeFieldName(STR_LEFT);
+                    g.writeStringProperty(STR_IS, STR_PAIR);
+                    g.writeName(STR_LEFT);
                     printLeft.print(g);
-                    g.writeFieldName(STR_RIGHT);
+                    g.writeName(STR_RIGHT);
                     printRight.print(g);
                     g.writeEndObject();
                   };
@@ -393,8 +394,8 @@ public abstract class InputType {
                   final var printInner = inner.apply(BasicType.CREATE_PRINTER);
                   return g -> {
                     g.writeStartObject();
-                    g.writeStringField(STR_IS, STR_RETRY);
-                    g.writeFieldName(STR_INNER);
+                    g.writeStringProperty(STR_IS, STR_RETRY);
+                    g.writeName(STR_INNER);
                     printInner.print(g);
                     g.writeEndObject();
                   };
@@ -412,10 +413,10 @@ public abstract class InputType {
                           Collectors.toMap(Map.Entry::getKey, e -> e.getValue().apply(this)));
                   return g -> {
                     g.writeStartObject();
-                    g.writeStringField(STR_IS, STR_TAGGED_UNION);
-                    g.writeObjectFieldStart(STR_OPTIONS);
+                    g.writeStringProperty(STR_IS, STR_TAGGED_UNION);
+                    g.writeObjectPropertyStart(STR_OPTIONS);
                     for (final var union : unions.entrySet()) {
-                      g.writeFieldName(union.getKey());
+                      g.writeName(union.getKey());
                       union.getValue().print(g);
                     }
                     g.writeEndObject();
@@ -425,12 +426,11 @@ public abstract class InputType {
 
                 @Override
                 public Printer tuple(Stream<InputType> contents) {
-                  final var elements =
-                      contents.map(e -> e.apply(this)).collect(Collectors.toList());
+                  final var elements = contents.map(e -> e.apply(this)).toList();
                   return g -> {
                     g.writeStartObject();
-                    g.writeStringField(STR_IS, STR_TUPLE);
-                    g.writeArrayFieldStart(STR_ELEMENTS);
+                    g.writeStringProperty(STR_IS, STR_TUPLE);
+                    g.writeArrayPropertyStart(STR_ELEMENTS);
                     for (final var element : elements) {
                       element.print(g);
                     }
@@ -625,7 +625,7 @@ public abstract class InputType {
         Objects.requireNonNull(type, "union type contents");
       }
 
-      if (union.size() == 0)
+      if (union.isEmpty())
         throw new IllegalArgumentException("TaggedUnion InputType needs at least 1 field, got 0.");
 
       if (union.containsKey(""))
@@ -687,6 +687,7 @@ public abstract class InputType {
       return transformer.tuple(Stream.of(types));
     }
   }
+
   /** The type of a Boolean value */
   public static final InputType BOOLEAN =
       new InputType() {
@@ -706,6 +707,7 @@ public abstract class InputType {
           return transformer.date();
         }
       };
+
   /** The type of a directory to be made available as a unit */
   public static final InputType DIRECTORY =
       new InputType() {
@@ -715,6 +717,7 @@ public abstract class InputType {
           return transformer.directory();
         }
       };
+
   /** The type of a single file */
   public static final InputType FILE =
       new InputType() {
@@ -724,6 +727,7 @@ public abstract class InputType {
           return transformer.file();
         }
       };
+
   /**
    * The type of a floating-point number
    *
@@ -737,6 +741,7 @@ public abstract class InputType {
           return transformer.floating();
         }
       };
+
   /**
    * The type of an integral number
    *
@@ -750,6 +755,7 @@ public abstract class InputType {
           return transformer.integer();
         }
       };
+
   /** The type of arbitrary JSON content */
   public static final InputType JSON =
       new InputType() {
@@ -759,6 +765,7 @@ public abstract class InputType {
           return transformer.json();
         }
       };
+
   /** The type of a string */
   public static final InputType STRING =
       new InputType() {
@@ -788,15 +795,15 @@ public abstract class InputType {
    */
   public static InputType object(Stream<Pair<String, InputType>> fields) {
     // Sanity checking
-    final List<Pair<String, InputType>> fieldsList = fields.collect(Collectors.toList());
-    if (fieldsList.size() == 0)
+    final List<Pair<String, InputType>> fieldsList = fields.toList();
+    if (fieldsList.isEmpty())
       throw new IllegalArgumentException("Object InputType needs at least 1 field, got 0.");
 
     for (final Map.Entry<String, Long> entry :
         fieldsList.stream()
             .collect(Collectors.groupingBy(Pair::first, Collectors.counting()))
             .entrySet()) {
-      if (entry.getKey().equals("")) {
+      if (entry.getKey().isEmpty()) {
         throw new IllegalArgumentException(
             "Found illegal field key \"\" while creating Object InputType.");
       }
@@ -919,6 +926,7 @@ public abstract class InputType {
   public final InputType asList() {
     return new ListInputType(this);
   }
+
   /** Create an optional type containing the current type. */
   public InputType asOptional() {
     return new OptionalInputType(this);

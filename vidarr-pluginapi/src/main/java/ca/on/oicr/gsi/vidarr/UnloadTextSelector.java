@@ -36,14 +36,14 @@ public abstract class UnloadTextSelector {
         JsonParser jsonParser, DeserializationContext deserializationContext)
         throws IOException, JacksonException {
       final var tree = jsonParser.readValueAsTree();
-      if (tree.isValueNode() && ((ValueNode) tree).isTextual()) {
-        return of(((ValueNode) tree).asText());
+      if (tree.isValueNode() && ((ValueNode) tree).isString()) {
+        return of(((ValueNode) tree).asString());
       }
       if (tree.isArray()) {
         final var values = new TreeSet<String>();
         for (final var child : ((ArrayNode) tree)) {
-          if (child.isValueNode() && child.isTextual()) {
-            values.add(child.asText());
+          if (child.isValueNode() && child.isString()) {
+            values.add(child.asString());
           } else {
             throw new IllegalArgumentException("Non-string element in array unload filter array.");
           }
@@ -60,8 +60,7 @@ public abstract class UnloadTextSelector {
     public void serialize(
         UnloadTextSelector filter,
         JsonGenerator jsonGenerator,
-        SerializationContext serializerProvider)
-        throws IOException {
+        SerializationContext serializerProvider) {
       filter.toJson(jsonGenerator);
     }
   }

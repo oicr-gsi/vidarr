@@ -212,7 +212,7 @@ public final class CromwellWorkflowEngine implements WorkflowEngine<StateUnstart
      * accept. There's no situation where Cromwell would _need_ to see a null.
      */
     final var filteredParameters = MAPPER.createObjectNode();
-    final var iterator = workflowParameters.fields();
+    final var iterator = workflowParameters.properties().iterator();
     while (iterator.hasNext()) {
       final var field = iterator.next();
       if (!field.getValue().isNull()) {

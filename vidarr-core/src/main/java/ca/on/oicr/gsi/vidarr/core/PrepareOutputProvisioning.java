@@ -3,9 +3,9 @@ package ca.on.oicr.gsi.vidarr.core;
 import ca.on.oicr.gsi.Pair;
 import ca.on.oicr.gsi.vidarr.OutputType;
 import ca.on.oicr.gsi.vidarr.api.ExternalId;
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.json.JsonMapper;
+import java.util.Iterator;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.Spliterators;
@@ -14,6 +14,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Take the output metadata provided by the caller, the output from the workflow, and create tasks
@@ -26,10 +28,10 @@ final class PrepareOutputProvisioning
   private static Map<String, String> extractLabels(JsonNode node) {
     final var labels = new TreeMap<String, String>();
 
-    final var iterator = node.fields();
+    Iterator<Entry<String, JsonNode>> iterator = node.properties().iterator();
     while (iterator.hasNext()) {
       final var entry = iterator.next();
-      labels.put(entry.getKey(), entry.getValue().asText());
+      labels.put(entry.getKey(), entry.getValue().asString());
     }
     return labels;
   }
@@ -73,19 +75,19 @@ final class PrepareOutputProvisioning
 
     return (switch (format) {
           case DATAWAREHOUSE_RECORDS, LOGS, FILE, QUALITY_CONTROL ->
-              Stream.of(new Pair<>(output.asText(), Map.<String, String>of()));
+              Stream.of(new Pair<>(output.asString(), Map.<String, String>of()));
           case FILES ->
               stream(output, optional)
-                  .map(file -> new Pair<>(file.asText(), Map.<String, String>of()));
+                  .map(file -> new Pair<>(file.asString(), Map.<String, String>of()));
 
           case FILE_WITH_LABELS -> {
             final var labels = extractLabels(output.get("right"));
-            yield Stream.of(new Pair<>(output.get("left").asText(), labels));
+            yield Stream.of(new Pair<>(output.get("left").asString(), labels));
           }
           case FILES_WITH_LABELS -> {
             final var labels = extractLabels(output.get("right"));
             yield stream(output.get("left"), optional)
-                .map(file -> new Pair<>(file.asText(), labels));
+                .map(file -> new Pair<>(file.asString(), labels));
           }
         })
         .map(

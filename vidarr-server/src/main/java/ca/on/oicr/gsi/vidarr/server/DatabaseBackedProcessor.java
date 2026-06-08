@@ -537,7 +537,7 @@ public abstract class DatabaseBackedProcessor
     return workflow
         .definition()
         .parameters()
-        .<ExternalId>flatMap(
+        .flatMap(
             p ->
                 arguments.has(p.name())
                     ? p.type()
@@ -839,7 +839,7 @@ public abstract class DatabaseBackedProcessor
                               // Get recovery state back
                               JsonNode recoveryState =
                                   activeOperations
-                                      .get(0)
+                                      .getFirst()
                                       .recoveryState()
                                       .get("state")
                                       .get("metadata");
@@ -1711,7 +1711,8 @@ public abstract class DatabaseBackedProcessor
                                                   return handler.dryRunResult();
                                                 }
                                               } else if (candidates.size() == 1) {
-                                                final long workflowRunId = candidates.get(0).id();
+                                                final long workflowRunId =
+                                                    candidates.getFirst().id();
                                                 final HashMap<Pair<String, String>, List<String>>
                                                     knownMatches = new HashMap<>();
                                                 final ArrayList<ExternalKey> missingKeys =
@@ -1733,14 +1734,15 @@ public abstract class DatabaseBackedProcessor
                                                 }
                                                 if (!missingKeys.isEmpty()) {
                                                   return handler.missingExternalKeyVersions(
-                                                      candidates.get(0).workflowRun(), missingKeys);
+                                                      candidates.getFirst().workflowRun(),
+                                                      missingKeys);
                                                 }
 
                                                 // Exit early if no launching is to occur (e.g. dry
                                                 // run or validate mode).
                                                 if (!handler.allowLaunch()) {
                                                   return handler.matchExisting(
-                                                      candidates.get(0).workflowRun());
+                                                      candidates.getFirst().workflowRun());
                                                 }
 
                                                 addNewExternalKeyVersions(
@@ -1802,7 +1804,7 @@ public abstract class DatabaseBackedProcessor
                                                           metadata,
                                                           externalIds,
                                                           liveness(workflowRunId),
-                                                          candidates.get(0).created(),
+                                                          candidates.getFirst().created(),
                                                           externalKeys,
                                                           consumableResources,
                                                           transaction);
@@ -1819,7 +1821,7 @@ public abstract class DatabaseBackedProcessor
                                                           version,
                                                           candidateId,
                                                           consumableResources,
-                                                          candidates.get(0).created(),
+                                                          candidates.getFirst().created(),
                                                           new Runnable() {
                                                             private boolean launched;
 
@@ -1845,9 +1847,10 @@ public abstract class DatabaseBackedProcessor
                                                           }));
                                                 } else {
                                                   updateLastAccessed(
-                                                      transaction, candidates.get(0).workflowRun());
+                                                      transaction,
+                                                      candidates.getFirst().workflowRun());
                                                   return handler.matchExisting(
-                                                      candidates.get(0).workflowRun());
+                                                      candidates.getFirst().workflowRun());
                                                 }
                                               } else {
                                                 return handler.multipleMatches(

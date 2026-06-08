@@ -10,19 +10,17 @@ import ca.on.oicr.gsi.vidarr.OperationAction;
 import ca.on.oicr.gsi.vidarr.OperationStatefulStep;
 import ca.on.oicr.gsi.vidarr.OperationStatefulStep.Child;
 import ca.on.oicr.gsi.vidarr.WorkflowLanguage;
-import tools.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import tools.jackson.databind.node.NullNode;
-import tools.jackson.databind.node.ObjectNode;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.JsonNodeFactory;
+import tools.jackson.databind.node.NullNode;
+import tools.jackson.databind.node.ObjectNode;
 
-/**
- * Start the input provisioning tasks
- */
+/** Start the input provisioning tasks */
 final class PrepareInputProvisioning implements InputType.Visitor<JsonNode> {
 
   private static <State extends Record> TaskStarter<JsonMutation> launch(
@@ -71,14 +69,14 @@ final class PrepareInputProvisioning implements InputType.Visitor<JsonNode> {
   }
 
   static <State extends Record, OriginalState extends Record>
-  OperationAction<
-      Child<InputProvisioningStateExternal, State>,
-      InputProvisioningStateExternal,
-      JsonMutation>
-  wrapProvisionActionExternal(
-      WorkflowLanguage language,
-      InputProvisioner<OriginalState> provisioner,
-      OperationAction<State, OriginalState, JsonNode> action) {
+      OperationAction<
+              Child<InputProvisioningStateExternal, State>,
+              InputProvisioningStateExternal,
+              JsonMutation>
+          wrapProvisionActionExternal(
+              WorkflowLanguage language,
+              InputProvisioner<OriginalState> provisioner,
+              OperationAction<State, OriginalState, JsonNode> action) {
     return OperationAction.load(
             InputProvisioningStateExternal.class, InputProvisioningStateExternal::metadata)
         .then(
@@ -89,20 +87,21 @@ final class PrepareInputProvisioning implements InputType.Visitor<JsonNode> {
   }
 
   static <State extends Record, OriginalState extends Record>
-  OperationAction<
-      Child<InputProvisioningStateInternal, State>,
-      InputProvisioningStateInternal,
-      JsonMutation>
-  wrapProvisionActionInternal(
-      WorkflowLanguage language,
-      InputProvisioner<OriginalState> provisioner,
-      OperationAction<State, OriginalState, JsonNode> action) {
+      OperationAction<
+              Child<InputProvisioningStateInternal, State>,
+              InputProvisioningStateInternal,
+              JsonMutation>
+          wrapProvisionActionInternal(
+              WorkflowLanguage language,
+              InputProvisioner<OriginalState> provisioner,
+              OperationAction<State, OriginalState, JsonNode> action) {
     return OperationAction.load(
             InputProvisioningStateInternal.class, InputProvisioningStateInternal::id)
         .then(
             OperationStatefulStep.subStep(
-                (state, id) -> provisioner.prepareInternalProvisionInput(language, id,
-                    state.path()), action))
+                (state, id) ->
+                    provisioner.prepareInternalProvisionInput(language, id, state.path()),
+                action))
         .map((state, result) -> new JsonMutation(state.state().mutation(), result));
   }
 
@@ -142,7 +141,7 @@ final class PrepareInputProvisioning implements InputType.Visitor<JsonNode> {
 
   @Override
   public JsonNode date() {
-    if (input.isIntegralNumber() || input.isTextual()) {
+    if (input.isIntegralNumber() || input.isString()) {
       return input;
     } else {
       throw new IllegalArgumentException();
@@ -153,7 +152,7 @@ final class PrepareInputProvisioning implements InputType.Visitor<JsonNode> {
   public JsonNode dictionary(InputType key, InputType value) {
     if (input.isObject() && key == InputType.STRING) {
       final var output = JsonNodeFactory.instance.objectNode();
-      final var iterator = input.fields();
+      final var iterator = input.properties().iterator();
       while (iterator.hasNext()) {
         final var entry = iterator.next();
         output.set(
@@ -231,8 +230,8 @@ final class PrepareInputProvisioning implements InputType.Visitor<JsonNode> {
     if (handler == null) {
       throw new UnsupportedOperationException("No handler for " + format.name());
     }
-    if (input.isObject() && input.has("type") && input.get("type").isTextual()) {
-      switch (input.get("type").asText()) {
+    if (input.isObject() && input.has("type") && input.get("type").isString()) {
+      switch (input.get("type").asString()) {
         case "EXTERNAL":
           consumer.accept(
               launchExternal(
@@ -242,11 +241,16 @@ final class PrepareInputProvisioning implements InputType.Visitor<JsonNode> {
           if (input.has("contents")
               && input.get("contents").isArray()
               && input.get("contents").size() == 1
-              && input.get("contents").get(0).isTextual()) {
-            final var id = input.get("contents").get(0).asText();
-            final var filePath = resolver.pathForId(id).map(FileMetadata::path).orElseThrow(
-                () -> new IllegalArgumentException(
-                    String.format("Could not resolve input file %s", id)));
+              && input.get("contents").get(0).isString()) {
+            final var id = input.get("contents").get(0).asString();
+            final var filePath =
+                resolver
+                    .pathForId(id)
+                    .map(FileMetadata::path)
+                    .orElseThrow(
+                        () ->
+                            new IllegalArgumentException(
+                                String.format("Could not resolve input file %s", id)));
             consumer.accept(launch(format, language, handler, jsonPath, id, filePath));
           } else {
             throw new IllegalArgumentException("Invalid input file for BY_ID");
@@ -398,7 +402,7 @@ final class PrepareInputProvisioning implements InputType.Visitor<JsonNode> {
 
   @Override
   public JsonNode retry(BasicType inner) {
-    final var fields = input.fields();
+    final var fields = input.properties().iterator();
     while (fields.hasNext()) {
       final var field = fields.next();
       retryModifications
@@ -410,7 +414,7 @@ final class PrepareInputProvisioning implements InputType.Visitor<JsonNode> {
 
   @Override
   public JsonNode string() {
-    if (input.isTextual()) {
+    if (input.isString()) {
       return input;
     } else {
       throw new IllegalArgumentException();
@@ -419,8 +423,8 @@ final class PrepareInputProvisioning implements InputType.Visitor<JsonNode> {
 
   @Override
   public JsonNode taggedUnion(Stream<Map.Entry<String, InputType>> elements) {
-    if (input.isObject() && input.get("type").isTextual()) {
-      final var type = input.get("type").asText();
+    if (input.isObject() && input.get("type").isString()) {
+      final var type = input.get("type").asString();
       return elements
           .filter(e -> e.getKey().equals(type))
           .findFirst()

@@ -54,19 +54,6 @@ import ca.on.oicr.gsi.vidarr.server.jooq.tables.WorkflowVersion;
 import ca.on.oicr.gsi.vidarr.server.jooq.tables.records.AnalysisExternalIdRecord;
 import ca.on.oicr.gsi.vidarr.server.jooq.tables.records.ExternalIdVersionRecord;
 import ca.on.oicr.gsi.vidarr.server.jooq.tables.records.WorkflowVersionAccessoryRecord;
-import tools.jackson.core.json.JsonFactory;
-import tools.jackson.core.JsonGenerator;
-import tools.jackson.core.JacksonException;
-import tools.jackson.core.type.TypeReference;
-import tools.jackson.databind.DeserializationFeature;
-import tools.jackson.databind.ValueSerializer;
-import tools.jackson.databind.cfg.DateTimeFeature;
-import tools.jackson.databind.json.JsonMapper;
-import tools.jackson.databind.SerializationFeature;
-import tools.jackson.databind.SerializationContext;
-import tools.jackson.databind.annotation.JsonSerialize;
-import tools.jackson.databind.node.ArrayNode;
-import tools.jackson.databind.node.ObjectNode;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import io.prometheus.client.CollectorRegistry;
@@ -149,10 +136,22 @@ import org.jooq.Record2;
 import org.jooq.Result;
 import org.jooq.SQLDialect;
 import org.jooq.Table;
-import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 import org.jooq.impl.SQLDataType;
 import org.postgresql.ds.PGSimpleDataSource;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.JsonGenerator;
+import tools.jackson.core.json.JsonFactory;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.SerializationContext;
+import tools.jackson.databind.SerializationFeature;
+import tools.jackson.databind.ValueSerializer;
+import tools.jackson.databind.annotation.JsonSerialize;
+import tools.jackson.databind.cfg.DateTimeFeature;
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 
 public final class Main implements ServerConfig {
 
@@ -3281,11 +3280,17 @@ public final class Main implements ServerConfig {
     static class Serializer extends ValueSerializer<IncompleteRunsException> {
       @Override
       public void serialize(
-          IncompleteRunsException ex, JsonGenerator gen, SerializationContext serializers)
-          throws IOException {
+          IncompleteRunsException ex, JsonGenerator gen, SerializationContext serializers) {
         gen.writeStartObject();
-        gen.writeStringField("reason", ex.reason);
-        gen.writeObjectField("idsByPhase", ex.hashIdsByPhase);
+        gen.writeStringProperty("reason", ex.reason);
+        gen.writeObjectPropertyStart("idsByPhase");
+        for (Entry<String, List<String>> phaseAndIds : ex.hashIdsByPhase.entrySet()) {
+          gen.writeArrayPropertyStart(phaseAndIds.getKey());
+          for (String id : phaseAndIds.getValue()) {
+            gen.writeString(id);
+          }
+          gen.writeEndArray();
+        }
         gen.writeEndObject();
       }
     }

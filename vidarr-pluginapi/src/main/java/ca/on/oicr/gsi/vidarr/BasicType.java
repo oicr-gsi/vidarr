@@ -309,9 +309,12 @@ public abstract class BasicType {
 
     @Override
     public void serialize(
-        BasicType basicType, JsonGenerator jsonGenerator, SerializationContext serializerProvider)
-        throws IOException {
-      basicType.apply(CREATE_PRINTER).print(jsonGenerator);
+        BasicType basicType, JsonGenerator jsonGenerator, SerializationContext serializerProvider) {
+      try {
+        basicType.apply(CREATE_PRINTER).print(jsonGenerator);
+      } catch (IOException e) {
+        throw new RuntimeException(e);
+      }
     }
   }
 

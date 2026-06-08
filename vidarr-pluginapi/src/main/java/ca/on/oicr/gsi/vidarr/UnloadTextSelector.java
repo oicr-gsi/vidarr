@@ -61,7 +61,11 @@ public abstract class UnloadTextSelector {
         UnloadTextSelector filter,
         JsonGenerator jsonGenerator,
         SerializationContext serializerProvider) {
-      filter.toJson(jsonGenerator);
+      try {
+        filter.toJson(jsonGenerator);
+      } catch (IOException e) {
+        throw new RuntimeException(e);
+      }
     }
   }
 

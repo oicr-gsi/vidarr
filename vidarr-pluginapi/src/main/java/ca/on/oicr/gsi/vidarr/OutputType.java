@@ -1,5 +1,6 @@
 package ca.on.oicr.gsi.vidarr;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
@@ -217,83 +218,90 @@ public abstract class OutputType {
   public static final class JacksonSerializer extends ValueSerializer<OutputType> {
     @Override
     public void serialize(
-        OutputType outputType, JsonGenerator jsonGenerator, SerializationContext serializerProvider) {
-      outputType
-          .apply(
-              new Visitor<Printer>() {
-                @Override
-                public Printer file(boolean optional) {
-                  return g -> g.writeString(optional ? STR_FILE_OPTIONAL : STR_FILE);
-                }
+        OutputType outputType,
+        JsonGenerator jsonGenerator,
+        SerializationContext serializerProvider) {
+      try {
+        outputType
+            .apply(
+                new Visitor<Printer>() {
+                  @Override
+                  public Printer file(boolean optional) {
+                    return g -> g.writeString(optional ? STR_FILE_OPTIONAL : STR_FILE);
+                  }
 
-                @Override
-                public Printer fileWithLabels(boolean optional) {
-                  return g ->
-                      g.writeString(
-                          optional ? STR_FILE_WITH_LABELS_OPTIONAL : STR_FILE_WITH_LABELS);
-                }
+                  @Override
+                  public Printer fileWithLabels(boolean optional) {
+                    return g ->
+                        g.writeString(
+                            optional ? STR_FILE_WITH_LABELS_OPTIONAL : STR_FILE_WITH_LABELS);
+                  }
 
-                @Override
-                public Printer files(boolean optional) {
-                  return g -> g.writeString(optional ? STR_FILES_OPTIONAL : STR_FILES);
-                }
+                  @Override
+                  public Printer files(boolean optional) {
+                    return g -> g.writeString(optional ? STR_FILES_OPTIONAL : STR_FILES);
+                  }
 
-                @Override
-                public Printer filesWithLabels(boolean optional) {
-                  return g ->
-                      g.writeString(
-                          optional ? STR_FILES_WITH_LABELS_OPTIONAL : STR_FILES_WITH_LABELS);
-                }
+                  @Override
+                  public Printer filesWithLabels(boolean optional) {
+                    return g ->
+                        g.writeString(
+                            optional ? STR_FILES_WITH_LABELS_OPTIONAL : STR_FILES_WITH_LABELS);
+                  }
 
-                @Override
-                public Printer list(
-                    Map<String, IdentifierKey> keys, Map<String, OutputType> outputs) {
-                  final var printOutputs =
-                      outputs.entrySet().stream()
-                          .collect(
-                              Collectors.toMap(Map.Entry::getKey, e -> e.getValue().apply(this)));
-                  return g -> {
-                    g.writeStartObject();
-                    g.writeStringProperty(STR_IS, STR_LIST);
-                    g.writeObjectPropertyStart(STR_KEYS);
-                    for (final var key : keys.entrySet()) {
-                      g.writeStringProperty(key.getKey(), key.getValue().name().toLowerCase());
-                    }
-                    g.writeEndObject();
-                    g.writeObjectPropertyStart(STR_OUTPUTS);
-                    for (final var output : printOutputs.entrySet()) {
-                      g.writeName(output.getKey());
-                      output.getValue().print(g);
-                    }
-                    g.writeEndObject();
-                    g.writeEndObject();
-                  };
-                }
+                  @Override
+                  public Printer list(
+                      Map<String, IdentifierKey> keys, Map<String, OutputType> outputs) {
+                    final var printOutputs =
+                        outputs.entrySet().stream()
+                            .collect(
+                                Collectors.toMap(Map.Entry::getKey, e -> e.getValue().apply(this)));
+                    return g -> {
+                      g.writeStartObject();
+                      g.writeStringProperty(STR_IS, STR_LIST);
+                      g.writeObjectPropertyStart(STR_KEYS);
+                      for (final var key : keys.entrySet()) {
+                        g.writeStringProperty(key.getKey(), key.getValue().name().toLowerCase());
+                      }
+                      g.writeEndObject();
+                      g.writeObjectPropertyStart(STR_OUTPUTS);
+                      for (final var output : printOutputs.entrySet()) {
+                        g.writeName(output.getKey());
+                        output.getValue().print(g);
+                      }
+                      g.writeEndObject();
+                      g.writeEndObject();
+                    };
+                  }
 
-                @Override
-                public Printer logs(boolean optional) {
-                  return g -> g.writeString(optional ? STR_LOGS_OPTIONAL : STR_LOGS);
-                }
+                  @Override
+                  public Printer logs(boolean optional) {
+                    return g -> g.writeString(optional ? STR_LOGS_OPTIONAL : STR_LOGS);
+                  }
 
-                @Override
-                public Printer qualityControl(boolean optional) {
-                  return g ->
-                      g.writeString(optional ? STR_QUALITY_CONTROL_OPTIONAL : STR_QUALITY_CONTROL);
-                }
+                  @Override
+                  public Printer qualityControl(boolean optional) {
+                    return g ->
+                        g.writeString(
+                            optional ? STR_QUALITY_CONTROL_OPTIONAL : STR_QUALITY_CONTROL);
+                  }
 
-                @Override
-                public Printer unknown() {
-                  return g -> g.writeString(STR_UNKNOWN);
-                }
+                  @Override
+                  public Printer unknown() {
+                    return g -> g.writeString(STR_UNKNOWN);
+                  }
 
-                @Override
-                public Printer warehouseRecords(boolean optional) {
-                  return g ->
-                      g.writeString(
-                          optional ? STR_WAREHOUSE_RECORDS_OPTIONAL : STR_WAREHOUSE_RECORDS);
-                }
-              })
-          .print(jsonGenerator);
+                  @Override
+                  public Printer warehouseRecords(boolean optional) {
+                    return g ->
+                        g.writeString(
+                            optional ? STR_WAREHOUSE_RECORDS_OPTIONAL : STR_WAREHOUSE_RECORDS);
+                  }
+                })
+            .print(jsonGenerator);
+      } catch (IOException e) {
+        throw new RuntimeException(e);
+      }
     }
   }
 

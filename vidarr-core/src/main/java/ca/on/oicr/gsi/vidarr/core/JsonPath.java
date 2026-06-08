@@ -2,10 +2,10 @@ package ca.on.oicr.gsi.vidarr.core;
 
 import ca.on.oicr.gsi.vidarr.core.JsonPath.JsonPathDeserializer;
 import ca.on.oicr.gsi.vidarr.core.JsonPath.JsonPathSerializer;
-import com.fasterxml.jackson.databind.DeserializationContext;
 import java.io.IOException;
 import tools.jackson.core.JsonGenerator;
 import tools.jackson.core.JsonParser;
+import tools.jackson.databind.DeserializationContext;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.SerializationContext;
 import tools.jackson.databind.ValueDeserializer;
@@ -23,7 +23,7 @@ public abstract class JsonPath {
 
     @Override
     public JsonPath deserialize(
-        JsonParser jsonParser, DeserializationContext deserializationContext) throws IOException {
+        JsonParser jsonParser, DeserializationContext deserializationContext) {
       return switch (jsonParser.currentToken()) {
         case VALUE_NUMBER_INT -> array(jsonParser.getIntValue());
         case VALUE_STRING -> object(jsonParser.getString());
@@ -37,7 +37,11 @@ public abstract class JsonPath {
     @Override
     public void serialize(
         JsonPath jsonPath, JsonGenerator jsonGenerator, SerializationContext serializerProvider) {
-      jsonPath.serialise(jsonGenerator);
+      try {
+        jsonPath.serialise(jsonGenerator);
+      } catch (IOException e) {
+        throw new RuntimeException(e);
+      }
     }
   }
 

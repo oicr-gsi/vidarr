@@ -12,11 +12,11 @@ import ca.on.oicr.gsi.vidarr.core.Target;
 import ca.on.oicr.gsi.vidarr.server.jooq.tables.records.AnalysisExternalIdRecord;
 import ca.on.oicr.gsi.vidarr.server.jooq.tables.records.ExternalIdRecord;
 import ca.on.oicr.gsi.vidarr.server.jooq.tables.records.ExternalIdVersionRecord;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.node.ObjectNode;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.security.MessageDigest;
@@ -166,7 +166,7 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
     }
     try {
       return JSONB.valueOf(DatabaseBackedProcessor.MAPPER.writeValueAsString(labelNode));
-    } catch (JsonProcessingException e) {
+    } catch (JacksonException e) {
       throw new RuntimeException(e);
     }
   }
@@ -174,7 +174,7 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
   public static JSONB labelsToJson(ObjectNode labels) {
     try {
       return JSONB.valueOf(DatabaseBackedProcessor.MAPPER.writeValueAsString(labels));
-    } catch (JsonProcessingException e) {
+    } catch (JacksonException e) {
       throw new RuntimeException(e);
     }
   }

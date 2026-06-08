@@ -4,7 +4,7 @@ import ca.on.oicr.gsi.Pair;
 import ca.on.oicr.gsi.vidarr.BasicType;
 import ca.on.oicr.gsi.vidarr.PriorityInput;
 import ca.on.oicr.gsi.vidarr.PriorityInputProvider;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import io.undertow.server.HttpHandler;
 import java.time.Instant;
 import java.util.List;

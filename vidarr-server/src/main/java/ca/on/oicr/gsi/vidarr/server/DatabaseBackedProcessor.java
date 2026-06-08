@@ -52,12 +52,12 @@ import ca.on.oicr.gsi.vidarr.core.RecoveryType;
 import ca.on.oicr.gsi.vidarr.core.Target;
 import ca.on.oicr.gsi.vidarr.core.ValidateJsonToSimpleType;
 import ca.on.oicr.gsi.vidarr.server.jooq.tables.records.ExternalIdVersionRecord;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import com.zaxxer.hikari.HikariDataSource;
 import io.prometheus.client.Counter;
@@ -324,7 +324,7 @@ public abstract class DatabaseBackedProcessor
       }
 
       return hexDigits(digest.digest());
-    } catch (NoSuchAlgorithmException | JsonProcessingException e) {
+    } catch (NoSuchAlgorithmException | JacksonException e) {
       throw new IOError(e);
     }
   }
@@ -620,7 +620,7 @@ public abstract class DatabaseBackedProcessor
                     (record.get(WORKFLOW.LABELS) == null
                         ? new TreeMap<>()
                         : MAPPER.readValue(record.get(WORKFLOW.LABELS).data(), LABELS_JSON_TYPE)));
-              } catch (JsonProcessingException e) {
+              } catch (JacksonException e) {
                 throw new RuntimeException(e);
               }
             });

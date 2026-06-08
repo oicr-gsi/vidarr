@@ -4,7 +4,7 @@ import static ca.on.oicr.gsi.vidarr.cromwell.CromwellWorkflowEngine.statusFromCr
 
 import ca.on.oicr.gsi.vidarr.PollResult;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import java.util.List;
 import java.util.Map;
 

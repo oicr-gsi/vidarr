@@ -4,8 +4,8 @@ import ca.on.oicr.gsi.vidarr.BasicType;
 import ca.on.oicr.gsi.vidarr.InputProvisionFormat;
 import ca.on.oicr.gsi.vidarr.InputType;
 import ca.on.oicr.gsi.vidarr.api.ExternalId;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 import java.util.function.Function;
 import java.util.stream.Stream;
 

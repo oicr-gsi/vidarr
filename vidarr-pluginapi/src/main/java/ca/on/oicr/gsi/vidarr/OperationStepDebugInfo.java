@@ -1,7 +1,7 @@
 package ca.on.oicr.gsi.vidarr;
 
 import ca.on.oicr.gsi.vidarr.ActiveOperation.TransactionManager;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 
 final class OperationStepDebugInfo<Value> extends OperationStep<Value, Value> {
 

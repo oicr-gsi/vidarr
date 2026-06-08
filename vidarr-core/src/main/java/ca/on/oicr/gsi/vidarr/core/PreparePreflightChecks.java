@@ -2,8 +2,8 @@ package ca.on.oicr.gsi.vidarr.core;
 
 import ca.on.oicr.gsi.vidarr.OutputType;
 import ca.on.oicr.gsi.vidarr.api.ExternalId;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.stream.Stream;

@@ -2,8 +2,8 @@ package ca.on.oicr.gsi.vidarr.cli;
 
 import ca.on.oicr.gsi.vidarr.core.BaseProcessor;
 import ca.on.oicr.gsi.vidarr.core.WorkflowConfiguration;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.ObjectNode;
 import java.io.File;
 import java.io.IOException;
 import java.text.SimpleDateFormat;

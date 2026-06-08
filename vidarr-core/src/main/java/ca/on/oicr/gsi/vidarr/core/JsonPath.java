@@ -2,24 +2,24 @@ package ca.on.oicr.gsi.vidarr.core;
 
 import ca.on.oicr.gsi.vidarr.core.JsonPath.JsonPathDeserializer;
 import ca.on.oicr.gsi.vidarr.core.JsonPath.JsonPathSerializer;
-import com.fasterxml.jackson.core.JsonGenerator;
-import com.fasterxml.jackson.core.JsonParser;
+import tools.jackson.core.JsonGenerator;
+import tools.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.DeserializationContext;
-import com.fasterxml.jackson.databind.JsonDeserializer;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.JsonSerializer;
-import com.fasterxml.jackson.databind.SerializerProvider;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.ValueDeserializer;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ValueSerializer;
+import tools.jackson.databind.SerializationContext;
+import tools.jackson.databind.annotation.JsonDeserialize;
+import tools.jackson.databind.annotation.JsonSerialize;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import java.io.IOException;
 
 /** A description of how to select a child element in a larger JSON structure */
 @JsonDeserialize(using = JsonPathDeserializer.class)
 @JsonSerialize(using = JsonPathSerializer.class)
 public abstract class JsonPath {
-  public static final class JsonPathDeserializer extends JsonDeserializer<JsonPath> {
+  public static final class JsonPathDeserializer extends ValueDeserializer<JsonPath> {
 
     @Override
     public JsonPath deserialize(
@@ -32,11 +32,11 @@ public abstract class JsonPath {
     }
   }
 
-  public static final class JsonPathSerializer extends JsonSerializer<JsonPath> {
+  public static final class JsonPathSerializer extends ValueSerializer<JsonPath> {
 
     @Override
     public void serialize(
-        JsonPath jsonPath, JsonGenerator jsonGenerator, SerializerProvider serializerProvider)
+        JsonPath jsonPath, JsonGenerator jsonGenerator, SerializationContext serializerProvider)
         throws IOException {
       jsonPath.serialise(jsonGenerator);
     }

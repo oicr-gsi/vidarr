@@ -14,10 +14,10 @@ import ca.on.oicr.gsi.vidarr.WorkflowDefinition;
 import ca.on.oicr.gsi.vidarr.WorkflowEngine;
 import ca.on.oicr.gsi.vidarr.api.ExternalId;
 import ca.on.oicr.gsi.vidarr.core.BaseProcessor.TerminalHandler;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.ObjectNode;
 import java.util.Map;
 import java.util.Set;
 
@@ -86,7 +86,7 @@ interface TaskStarter<Output> {
       WorkflowEngine<?, Cleanup> engine, JsonNode savedState) {
     try {
       return of("", engine.cleanup().launch(engine.cleanup().deserializeOriginal(savedState)));
-    } catch (JsonProcessingException e) {
+    } catch (JacksonException e) {
       return new TaskStarter<>() {
         @Override
         public String name() {

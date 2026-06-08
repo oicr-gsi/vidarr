@@ -1,8 +1,8 @@
 package ca.on.oicr.gsi.vidarr;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import java.util.Map;
 import org.junit.Assert;
@@ -29,16 +29,16 @@ public abstract class BasicTypeTest {
   protected static void serializeTester(String expected, BasicType toTest) {
     try {
       Assert.assertEquals(expected, MAPPER.writeValueAsString(toTest));
-    } catch (JsonProcessingException e) {
-      Assert.fail("serializeTester threw JsonProcessingException: " + e.getMessage());
+    } catch (JacksonException e) {
+      Assert.fail("serializeTester threw JacksonException: " + e.getMessage());
     }
   }
 
   protected static void deserializeTester(BasicType expected, String toTest) {
     try {
       Assert.assertEquals(expected, MAPPER.readValue(toTest, BasicType.class));
-    } catch (JsonProcessingException e) {
-      Assert.fail("deserializeTester threw JsonProcessingException: " + e.getMessage());
+    } catch (JacksonException e) {
+      Assert.fail("deserializeTester threw JacksonException: " + e.getMessage());
     }
   }
 

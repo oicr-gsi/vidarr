@@ -1,10 +1,10 @@
 package ca.on.oicr.gsi.vidarr;
 
 import ca.on.oicr.gsi.vidarr.ActiveOperation.TransactionManager;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.JavaType;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.JavaType;
+import tools.jackson.databind.JsonNode;
 
 final class OperationActionLoad<State extends Record, Result>
     extends OperationAction<State, State, Result> {
@@ -28,7 +28,7 @@ final class OperationActionLoad<State extends Record, Result>
   }
 
   @Override
-  public State deserializeOriginal(JsonNode originalState) throws JsonProcessingException {
+  public State deserializeOriginal(JsonNode originalState) throws JacksonException {
     return MAPPER.treeToValue(originalState, type);
   }
 
@@ -38,7 +38,7 @@ final class OperationActionLoad<State extends Record, Result>
   }
 
   @Override
-  State rewind(State state) throws JsonProcessingException {
+  State rewind(State state) throws JacksonException {
     return state;
   }
 

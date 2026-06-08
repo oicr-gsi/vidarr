@@ -7,13 +7,6 @@ import ca.on.oicr.gsi.status.SectionRenderer;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonTypeInfo.As;
 import com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
-import com.fasterxml.jackson.databind.DatabindContext;
-import com.fasterxml.jackson.databind.JavaType;
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.annotation.JsonTypeIdResolver;
-import com.fasterxml.jackson.databind.jsontype.impl.TypeIdResolverBase;
-import tools.jackson.databind.node.ObjectNode;
-import java.io.IOException;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
@@ -22,6 +15,12 @@ import java.util.ServiceLoader.Provider;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.xml.stream.XMLStreamException;
+import tools.jackson.databind.DatabindContext;
+import tools.jackson.databind.JavaType;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.annotation.JsonTypeIdResolver;
+import tools.jackson.databind.jsontype.impl.TypeIdResolverBase;
+import tools.jackson.databind.node.ObjectNode;
 
 /**
  * Defines an engine that knows how to execute workflows and track the results
@@ -67,21 +66,22 @@ public interface WorkflowEngine<State extends Record, CleanupState extends Recor
     }
 
     @Override
-    public String idFromValue(Object o) {
+    public String idFromValue(DatabindContext context, Object value) {
       return knownIds.entrySet().stream()
-          .filter(known -> known.getValue().isInstance(o))
+          .filter(known -> known.getValue().isInstance(value))
           .map(Entry::getKey)
           .findFirst()
           .orElseThrow();
     }
 
     @Override
-    public String idFromValueAndType(Object o, Class<?> aClass) {
-      return idFromValue(o);
+    public String idFromValueAndType(
+        DatabindContext context, Object value, Class<?> suggestedType) {
+      return idFromValue(context, value);
     }
 
     @Override
-    public JavaType typeFromId(DatabindContext context, String id) throws IOException {
+    public JavaType typeFromId(DatabindContext context, String id) {
       final var clazz = knownIds.get(id);
       return clazz == null ? null : context.constructType(clazz);
     }
@@ -109,8 +109,8 @@ public interface WorkflowEngine<State extends Record, CleanupState extends Recor
   /**
    * Build a declarative structure which executes a workflow when played back
    *
-   * Compare to Pattern.compile() - builds a ready object for later use by the processor.
-   * This allows the processor to play back and pause the sequence of events built here.
+   * <p>Compare to Pattern.compile() - builds a ready object for later use by the processor. This
+   * allows the processor to play back and pause the sequence of events built here.
    *
    * @return the sequence of operations that should be performed
    */
@@ -120,9 +120,9 @@ public interface WorkflowEngine<State extends Record, CleanupState extends Recor
    * Prepare the input to a new workflow
    *
    * <p>This method should not do any externally-visible work. It should simply populate the state
-   * structure that will be used by the object created in {@link #build()}.
-   * If build() is compared to Pattern.compile(), then prepareInput prepares the String that will
-   * have match() executed against it.
+   * structure that will be used by the object created in {@link #build()}. If build() is compared
+   * to Pattern.compile(), then prepareInput prepares the String that will have match() executed
+   * against it.
    *
    * @param workflowLanguage the language the workflow was written in
    * @param workflow the contents of the workflow

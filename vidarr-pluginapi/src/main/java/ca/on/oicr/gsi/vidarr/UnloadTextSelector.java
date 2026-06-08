@@ -1,22 +1,22 @@
 package ca.on.oicr.gsi.vidarr;
 
-import tools.jackson.core.JsonGenerator;
-import tools.jackson.core.JsonParser;
-import tools.jackson.core.JacksonException;
-import com.fasterxml.jackson.databind.DeserializationContext;
-import tools.jackson.databind.ValueDeserializer;
-import tools.jackson.databind.ValueSerializer;
-import tools.jackson.databind.SerializationContext;
-import tools.jackson.databind.annotation.JsonDeserialize;
-import tools.jackson.databind.annotation.JsonSerialize;
-import tools.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ValueNode;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.JsonGenerator;
+import tools.jackson.core.JsonParser;
+import tools.jackson.databind.DeserializationContext;
+import tools.jackson.databind.SerializationContext;
+import tools.jackson.databind.ValueDeserializer;
+import tools.jackson.databind.ValueSerializer;
+import tools.jackson.databind.annotation.JsonDeserialize;
+import tools.jackson.databind.annotation.JsonSerialize;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ValueNode;
 
 /**
  * An unload filter a JSON value that comes in two forms:
@@ -34,7 +34,7 @@ public abstract class UnloadTextSelector {
     @Override
     public UnloadTextSelector deserialize(
         JsonParser jsonParser, DeserializationContext deserializationContext)
-        throws IOException, JacksonException {
+        throws JacksonException {
       final var tree = jsonParser.readValueAsTree();
       if (tree.isValueNode() && ((ValueNode) tree).isString()) {
         return of(((ValueNode) tree).asString());

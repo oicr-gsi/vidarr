@@ -172,7 +172,7 @@ public abstract class InputType {
     @Override
     public InputType deserialize(
         JsonParser jsonParser, DeserializationContext deserializationContext)
-        throws IOException, JacksonException {
+        throws JacksonException {
       return deserialize(jsonParser.readValueAsTree());
     }
 
@@ -280,166 +280,170 @@ public abstract class InputType {
     @Override
     public void serialize(
         InputType inputType, JsonGenerator jsonGenerator, SerializationContext serializerProvider) {
-      inputType
-          .apply(
-              new Visitor<Printer>() {
-                @Override
-                public Printer bool() {
-                  return g -> g.writeString(STR_BOOLEAN);
-                }
+      try {
+        inputType
+            .apply(
+                new Visitor<Printer>() {
+                  @Override
+                  public Printer bool() {
+                    return g -> g.writeString(STR_BOOLEAN);
+                  }
 
-                @Override
-                public Printer date() {
-                  return g -> g.writeString(STR_DATE);
-                }
+                  @Override
+                  public Printer date() {
+                    return g -> g.writeString(STR_DATE);
+                  }
 
-                @Override
-                public Printer dictionary(InputType key, InputType value) {
-                  final var printKey = key.apply(this);
-                  final var printValue = value.apply(this);
-                  return g -> {
-                    g.writeStartObject();
-                    g.writeStringProperty(STR_IS, STR_DICTIONARY);
-                    g.writeName(STR_KEY);
-                    printKey.print(g);
-                    g.writeName(STR_VALUE);
-                    printValue.print(g);
-                    g.writeEndObject();
-                  };
-                }
+                  @Override
+                  public Printer dictionary(InputType key, InputType value) {
+                    final var printKey = key.apply(this);
+                    final var printValue = value.apply(this);
+                    return g -> {
+                      g.writeStartObject();
+                      g.writeStringProperty(STR_IS, STR_DICTIONARY);
+                      g.writeName(STR_KEY);
+                      printKey.print(g);
+                      g.writeName(STR_VALUE);
+                      printValue.print(g);
+                      g.writeEndObject();
+                    };
+                  }
 
-                @Override
-                public Printer directory() {
-                  return g -> g.writeString(STR_DIRECTORY);
-                }
+                  @Override
+                  public Printer directory() {
+                    return g -> g.writeString(STR_DIRECTORY);
+                  }
 
-                @Override
-                public Printer file() {
-                  return g -> g.writeString(STR_FILE);
-                }
+                  @Override
+                  public Printer file() {
+                    return g -> g.writeString(STR_FILE);
+                  }
 
-                @Override
-                public Printer floating() {
-                  return g -> g.writeString(STR_FLOATING);
-                }
+                  @Override
+                  public Printer floating() {
+                    return g -> g.writeString(STR_FLOATING);
+                  }
 
-                @Override
-                public Printer integer() {
-                  return g -> g.writeString(STR_INTEGER);
-                }
+                  @Override
+                  public Printer integer() {
+                    return g -> g.writeString(STR_INTEGER);
+                  }
 
-                @Override
-                public Printer json() {
-                  return g -> g.writeString(STR_JSON);
-                }
+                  @Override
+                  public Printer json() {
+                    return g -> g.writeString(STR_JSON);
+                  }
 
-                @Override
-                public Printer list(InputType inner) {
-                  final var printInner = inner.apply(this);
-                  return g -> {
-                    g.writeStartObject();
-                    g.writeStringProperty(STR_IS, STR_LIST);
-                    g.writeName(STR_INNER);
-                    printInner.print(g);
-                    g.writeEndObject();
-                  };
-                }
+                  @Override
+                  public Printer list(InputType inner) {
+                    final var printInner = inner.apply(this);
+                    return g -> {
+                      g.writeStartObject();
+                      g.writeStringProperty(STR_IS, STR_LIST);
+                      g.writeName(STR_INNER);
+                      printInner.print(g);
+                      g.writeEndObject();
+                    };
+                  }
 
-                @Override
-                public Printer object(Stream<Pair<String, InputType>> contents) {
-                  final var fields =
-                      contents.map(p -> new Pair<>(p.first(), p.second().apply(this))).toList();
-                  return g -> {
-                    g.writeStartObject();
-                    g.writeStringProperty(STR_IS, STR_OBJECT);
-                    g.writeObjectPropertyStart(STR_FIELDS);
-                    for (final var field : fields) {
-                      g.writeName(field.first());
-                      field.second().print(g);
-                    }
-                    g.writeEndObject();
-                    g.writeEndObject();
-                  };
-                }
+                  @Override
+                  public Printer object(Stream<Pair<String, InputType>> contents) {
+                    final var fields =
+                        contents.map(p -> new Pair<>(p.first(), p.second().apply(this))).toList();
+                    return g -> {
+                      g.writeStartObject();
+                      g.writeStringProperty(STR_IS, STR_OBJECT);
+                      g.writeObjectPropertyStart(STR_FIELDS);
+                      for (final var field : fields) {
+                        g.writeName(field.first());
+                        field.second().print(g);
+                      }
+                      g.writeEndObject();
+                      g.writeEndObject();
+                    };
+                  }
 
-                @Override
-                public Printer optional(InputType inner) {
-                  final var printInner = inner.apply(this);
-                  return g -> {
-                    g.writeStartObject();
-                    g.writeStringProperty(STR_IS, STR_OPTIONAL);
-                    g.writeName(STR_INNER);
-                    printInner.print(g);
-                    g.writeEndObject();
-                  };
-                }
+                  @Override
+                  public Printer optional(InputType inner) {
+                    final var printInner = inner.apply(this);
+                    return g -> {
+                      g.writeStartObject();
+                      g.writeStringProperty(STR_IS, STR_OPTIONAL);
+                      g.writeName(STR_INNER);
+                      printInner.print(g);
+                      g.writeEndObject();
+                    };
+                  }
 
-                @Override
-                public Printer pair(InputType left, InputType right) {
-                  final var printLeft = left.apply(this);
-                  final var printRight = right.apply(this);
-                  return g -> {
-                    g.writeStartObject();
-                    g.writeStringProperty(STR_IS, STR_PAIR);
-                    g.writeName(STR_LEFT);
-                    printLeft.print(g);
-                    g.writeName(STR_RIGHT);
-                    printRight.print(g);
-                    g.writeEndObject();
-                  };
-                }
+                  @Override
+                  public Printer pair(InputType left, InputType right) {
+                    final var printLeft = left.apply(this);
+                    final var printRight = right.apply(this);
+                    return g -> {
+                      g.writeStartObject();
+                      g.writeStringProperty(STR_IS, STR_PAIR);
+                      g.writeName(STR_LEFT);
+                      printLeft.print(g);
+                      g.writeName(STR_RIGHT);
+                      printRight.print(g);
+                      g.writeEndObject();
+                    };
+                  }
 
-                @Override
-                public Printer retry(BasicType inner) {
-                  final var printInner = inner.apply(BasicType.CREATE_PRINTER);
-                  return g -> {
-                    g.writeStartObject();
-                    g.writeStringProperty(STR_IS, STR_RETRY);
-                    g.writeName(STR_INNER);
-                    printInner.print(g);
-                    g.writeEndObject();
-                  };
-                }
+                  @Override
+                  public Printer retry(BasicType inner) {
+                    final var printInner = inner.apply(BasicType.CREATE_PRINTER);
+                    return g -> {
+                      g.writeStartObject();
+                      g.writeStringProperty(STR_IS, STR_RETRY);
+                      g.writeName(STR_INNER);
+                      printInner.print(g);
+                      g.writeEndObject();
+                    };
+                  }
 
-                @Override
-                public Printer string() {
-                  return g -> g.writeString(STR_STRING);
-                }
+                  @Override
+                  public Printer string() {
+                    return g -> g.writeString(STR_STRING);
+                  }
 
-                @Override
-                public Printer taggedUnion(Stream<Map.Entry<String, InputType>> elements) {
-                  final var unions =
-                      elements.collect(
-                          Collectors.toMap(Map.Entry::getKey, e -> e.getValue().apply(this)));
-                  return g -> {
-                    g.writeStartObject();
-                    g.writeStringProperty(STR_IS, STR_TAGGED_UNION);
-                    g.writeObjectPropertyStart(STR_OPTIONS);
-                    for (final var union : unions.entrySet()) {
-                      g.writeName(union.getKey());
-                      union.getValue().print(g);
-                    }
-                    g.writeEndObject();
-                    g.writeEndObject();
-                  };
-                }
+                  @Override
+                  public Printer taggedUnion(Stream<Map.Entry<String, InputType>> elements) {
+                    final var unions =
+                        elements.collect(
+                            Collectors.toMap(Map.Entry::getKey, e -> e.getValue().apply(this)));
+                    return g -> {
+                      g.writeStartObject();
+                      g.writeStringProperty(STR_IS, STR_TAGGED_UNION);
+                      g.writeObjectPropertyStart(STR_OPTIONS);
+                      for (final var union : unions.entrySet()) {
+                        g.writeName(union.getKey());
+                        union.getValue().print(g);
+                      }
+                      g.writeEndObject();
+                      g.writeEndObject();
+                    };
+                  }
 
-                @Override
-                public Printer tuple(Stream<InputType> contents) {
-                  final var elements = contents.map(e -> e.apply(this)).toList();
-                  return g -> {
-                    g.writeStartObject();
-                    g.writeStringProperty(STR_IS, STR_TUPLE);
-                    g.writeArrayPropertyStart(STR_ELEMENTS);
-                    for (final var element : elements) {
-                      element.print(g);
-                    }
-                    g.writeEndArray();
-                    g.writeEndObject();
-                  };
-                }
-              })
-          .print(jsonGenerator);
+                  @Override
+                  public Printer tuple(Stream<InputType> contents) {
+                    final var elements = contents.map(e -> e.apply(this)).toList();
+                    return g -> {
+                      g.writeStartObject();
+                      g.writeStringProperty(STR_IS, STR_TUPLE);
+                      g.writeArrayPropertyStart(STR_ELEMENTS);
+                      for (final var element : elements) {
+                        element.print(g);
+                      }
+                      g.writeEndArray();
+                      g.writeEndObject();
+                    };
+                  }
+                })
+            .print(jsonGenerator);
+      } catch (IOException e) {
+        throw new RuntimeException(e);
+      }
     }
   }
 

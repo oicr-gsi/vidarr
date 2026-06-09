@@ -154,7 +154,7 @@
             <removeVolumes>true</removeVolumes>
             <images>
               <image>
-                <name>postgres:15-alpine</name>
+                <name>postgres:18-alpine</name>
                 <alias>postgres</alias>
                 <run>
                   <env>

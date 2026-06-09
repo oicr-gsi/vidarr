@@ -534,31 +534,33 @@ public abstract class DatabaseBackedProcessor
 
   private TreeSet<ExternalId> extractExternalIds(
       JsonNode arguments, WorkflowInformation workflow, TreeSet<String> unresolvedIds) {
-    return workflow
-        .definition()
-        .parameters()
-        .flatMap(
-            p ->
-                arguments.has(p.name())
-                    ? p.type()
-                        .apply(
-                            new ExtractInputExternalIds(
-                                MAPPER,
-                                arguments.get(p.name()),
-                                id -> {
-                                  final Optional<FileMetadata> result = pathForId(id);
-                                  if (result.isEmpty()) {
-                                    unresolvedIds.add(id);
-                                  }
-                                  return result;
-                                }))
-                    : Stream.empty())
-        .collect(
-            Collectors.toCollection(
-                () ->
-                    new TreeSet<>(
-                        Comparator.comparing(ExternalId::getProvider)
-                            .thenComparing(ExternalId::getId))));
+    // add intermediary variable to help the compiler with the types
+    Stream<? extends ExternalId> intermediary =
+        workflow
+            .definition()
+            .parameters()
+            .flatMap(
+                p ->
+                    arguments.has(p.name())
+                        ? p.type()
+                            .apply(
+                                new ExtractInputExternalIds(
+                                    MAPPER,
+                                    arguments.get(p.name()),
+                                    id -> {
+                                      final Optional<FileMetadata> result = pathForId(id);
+                                      if (result.isEmpty()) {
+                                        unresolvedIds.add(id);
+                                      }
+                                      return result;
+                                    }))
+                        : Stream.empty());
+    return intermediary.collect(
+        Collectors.toCollection(
+            () ->
+                new TreeSet<>(
+                    Comparator.comparing(ExternalId::getProvider)
+                        .thenComparing(ExternalId::getId))));
   }
 
   private TreeSet<String> extractWorkflowInputIds(

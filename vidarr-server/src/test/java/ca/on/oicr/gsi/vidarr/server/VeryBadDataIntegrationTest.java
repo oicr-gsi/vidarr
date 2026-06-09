@@ -1,9 +1,11 @@
 package ca.on.oicr.gsi.vidarr.server;
 
 import static io.restassured.RestAssured.*;
-import static org.hamcrest.Matchers.emptyIterable;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
 
+import ca.on.oicr.gsi.vidarr.api.WorkflowResponse;
 import ca.on.oicr.gsi.vidarr.server.dto.ServerConfiguration;
 import com.rasklaad.blns.NaughtyStrings;
 import io.restassured.RestAssured;
@@ -75,11 +77,10 @@ public class VeryBadDataIntegrationTest {
     FluentConfiguration fw = Flyway.configure().dataSource(simpleConnection).cleanDisabled(false);
     fw.load().clean();
     fw.locations("classpath:db/migration").load().migrate();
-    // we do this in a separate step because Flyway on its own isn't finding the test data, and it dies when you
+    // we do this in a separate step because Flyway on its own isn't finding the test data, and it
+    // dies when you
     // try to give it classpath + filesystem locations in one string.
-    fw.locations("filesystem:src/test/resources/db/migration/")
-        .load()
-        .migrate();
+    fw.locations("filesystem:src/test/resources/db/migration/").load().migrate();
   }
 
   public List<String> getNaughtyStringList() {
@@ -137,12 +138,16 @@ public class VeryBadDataIntegrationTest {
               .assertThat()
               .statusCode(200);
 
-          get("/api/workflow/{name}", naughtyString)
-              .then()
-              .assertThat()
-              .body("labels.keySet()", emptyIterable())
-              .body("maxInFlight", equalTo(0))
-              .body("isActive", equalTo(true));
+          WorkflowResponse response =
+              get("/api/workflow/{name}", naughtyString)
+                  .then()
+                  .assertThat()
+                  .statusCode(200)
+                  .extract()
+                  .as(WorkflowResponse.class);
+          assertThat(response.labels(), anEmptyMap());
+          assertThat(response.maxInFlight(), equalTo(0));
+          assertThat(response.isActive(), equalTo(true));
         });
   }
 

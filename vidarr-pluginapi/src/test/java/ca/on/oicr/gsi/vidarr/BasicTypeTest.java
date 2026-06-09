@@ -4,6 +4,8 @@ import java.util.Map;
 import org.junit.Assert;
 import org.junit.Test;
 import tools.jackson.core.JacksonException;
+import tools.jackson.core.StreamReadConstraints;
+import tools.jackson.core.json.JsonFactory;
 import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.SerializationFeature;
 import tools.jackson.databind.cfg.DateTimeFeature;
@@ -18,8 +20,14 @@ public abstract class BasicTypeTest {
           BasicType.INTEGER, "integer",
           BasicType.JSON, "json",
           BasicType.STRING, "string");
+  // override the default max name length of 50,000 for testing because truncating the test data and
+  // getting all the expected strings to match is a real pain
+  static JsonFactory MAPPER_FACTORY =
+      JsonFactory.builder()
+          .streamReadConstraints(StreamReadConstraints.builder().maxNameLength(65000).build())
+          .build();
   static final JsonMapper MAPPER =
-      JsonMapper.builder()
+      JsonMapper.builder(MAPPER_FACTORY)
           .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
           .configure(DateTimeFeature.WRITE_DATES_AS_TIMESTAMPS, true)
           .configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true)

@@ -4,8 +4,8 @@ import ca.on.oicr.gsi.vidarr.BasicType;
 import ca.on.oicr.gsi.vidarr.InputProvisionFormat;
 import ca.on.oicr.gsi.vidarr.InputType;
 import ca.on.oicr.gsi.vidarr.api.ExternalId;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -19,9 +19,9 @@ public final class ExtractInputVidarrIds
         Stream<String>,
         Stream<String>> {
 
-  private final ObjectMapper mapper;
+  private final JsonMapper mapper;
 
-  public ExtractInputVidarrIds(ObjectMapper mapper, JsonNode arguments) {
+  public ExtractInputVidarrIds(JsonMapper mapper, JsonNode arguments) {
     super(arguments);
     this.mapper = mapper;
   }
@@ -111,7 +111,7 @@ public final class ExtractInputVidarrIds
   }
 
   @Override
-  protected ObjectMapper mapper() {
+  protected JsonMapper mapper() {
     return mapper;
   }
 

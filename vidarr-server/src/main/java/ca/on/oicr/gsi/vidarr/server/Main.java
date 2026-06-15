@@ -54,19 +54,6 @@ import ca.on.oicr.gsi.vidarr.server.jooq.tables.WorkflowVersion;
 import ca.on.oicr.gsi.vidarr.server.jooq.tables.records.AnalysisExternalIdRecord;
 import ca.on.oicr.gsi.vidarr.server.jooq.tables.records.ExternalIdVersionRecord;
 import ca.on.oicr.gsi.vidarr.server.jooq.tables.records.WorkflowVersionAccessoryRecord;
-import com.fasterxml.jackson.core.JsonFactory;
-import com.fasterxml.jackson.core.JsonGenerator;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.JsonSerializer;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.databind.SerializerProvider;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import io.prometheus.client.CollectorRegistry;
@@ -149,10 +136,22 @@ import org.jooq.Record2;
 import org.jooq.Result;
 import org.jooq.SQLDialect;
 import org.jooq.Table;
-import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 import org.jooq.impl.SQLDataType;
 import org.postgresql.ds.PGSimpleDataSource;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.JsonGenerator;
+import tools.jackson.core.json.JsonFactory;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.SerializationContext;
+import tools.jackson.databind.SerializationFeature;
+import tools.jackson.databind.ValueSerializer;
+import tools.jackson.databind.annotation.JsonSerialize;
+import tools.jackson.databind.cfg.DateTimeFeature;
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 
 public final class Main implements ServerConfig {
 
@@ -167,9 +166,14 @@ public final class Main implements ServerConfig {
           .followRedirects(HttpClient.Redirect.NORMAL)
           .connectTimeout(Duration.ofSeconds(20))
           .build();
-  // Jdk8Module is a compatibility fix for de/serializing Optionals
-  static final ObjectMapper MAPPER = new ObjectMapper().registerModule(new Jdk8Module());
-  static final JsonFactory MAPPER_FACTORY = new JsonFactory().setCodec(MAPPER);
+
+  static final JsonFactory MAPPER_FACTORY = JsonFactory.builder().build();
+  static final JsonMapper MAPPER =
+      JsonMapper.builder(MAPPER_FACTORY)
+          .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+          .configure(DateTimeFeature.WRITE_DATES_AS_TIMESTAMPS, true)
+          .configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true)
+          .build();
   private static final String CONTENT_TYPE_TEXT = "text/plain";
   private static final String CONTENT_TYPE_JSON = "application/json";
   private static final Counter REMOTE_ERROR_COUNT =
@@ -195,9 +199,6 @@ public final class Main implements ServerConfig {
   private static final List<JSONEntry<?>> STATUS_FIELDS = new ArrayList<>();
 
   static {
-    MAPPER.registerModule(new JavaTimeModule());
-    MAPPER.configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true);
-
     // STATUS_FIELDS populate the WorkflowRunStatusResponse API class
     STATUS_FIELDS.add(literalJsonEntry("completed", WORKFLOW_RUN.COMPLETED));
     STATUS_FIELDS.add(
@@ -529,7 +530,7 @@ public final class Main implements ServerConfig {
                 MAPPER.writeValueAsString(
                     new SubmitWorkflowResponseConflict(
                         List.of(reprovisionOutRequest.getWorkflowRunHashId()))));
-      } catch (JsonProcessingException e) {
+      } catch (JacksonException e) {
         throw new RuntimeException(e);
       }
       return;
@@ -661,7 +662,7 @@ public final class Main implements ServerConfig {
     reprovisionCounter.get(reprovisionOutRequest.getWorkflowRunHashId()).release();
     try {
       exchange.getResponseSender().send(MAPPER.writeValueAsString(response.second()));
-    } catch (JsonProcessingException e) {
+    } catch (JacksonException e) {
       internalServerErrorResponse(exchange, e);
     }
   }
@@ -1016,7 +1017,7 @@ public final class Main implements ServerConfig {
                       .execute());
       maxInFlightPerWorkflow.set(name, request.getMaxInFlight());
       okEmptyResponse(exchange);
-    } catch (SQLException | JsonProcessingException e) {
+    } catch (SQLException | JacksonException e) {
       internalServerErrorResponse(exchange, e);
     }
   }
@@ -1361,11 +1362,7 @@ public final class Main implements ServerConfig {
         .where(condition)
         .forEach(
             result -> {
-              try {
-                jsonGenerator.writeRawValue(result.value1().data());
-              } catch (IOException e) {
-                throw new RuntimeException(e);
-              }
+              jsonGenerator.writeRawValue(result.value1().data());
             });
   }
 
@@ -1431,7 +1428,7 @@ public final class Main implements ServerConfig {
   private void dumpUnloadDataToJson(Configuration tx, Long[] ids, JsonGenerator output)
       throws IOException, SQLException {
     output.writeStartObject();
-    output.writeArrayFieldStart("workflows");
+    output.writeArrayPropertyStart("workflows");
     DSL.using(tx)
         .select(
             DSL.jsonObject(
@@ -1452,14 +1449,10 @@ public final class Main implements ServerConfig {
                             .and(WORKFLOW_VERSION.NAME.eq(WORKFLOW.NAME)))))
         .forEach(
             result -> {
-              try {
-                output.writeRawValue(result.value1().data());
-              } catch (IOException e) {
-                throw new RuntimeException(e);
-              }
+              output.writeRawValue(result.value1().data());
             });
     output.writeEndArray();
-    output.writeArrayFieldStart("workflowVersions");
+    output.writeArrayPropertyStart("workflowVersions");
     final WorkflowDefinition accessoryDefinition =
         WORKFLOW_DEFINITION.as("accessoryWorkflowDefinition");
     DSL.using(tx)
@@ -1504,15 +1497,11 @@ public final class Main implements ServerConfig {
                             .and(WORKFLOW_RUN.WORKFLOW_VERSION_ID.eq(WORKFLOW_VERSION.ID)))))
         .forEach(
             result -> {
-              try {
-                output.writeRawValue(result.value1().data());
-              } catch (IOException e) {
-                throw new RuntimeException(e);
-              }
+              output.writeRawValue(result.value1().data());
             });
 
     output.writeEndArray();
-    output.writeArrayFieldStart("workflowRuns");
+    output.writeArrayPropertyStart("workflowRuns");
     createAnalysisRecords(
         DSL.using(tx),
         output,
@@ -1528,7 +1517,7 @@ public final class Main implements ServerConfig {
   private void fetchAllActive(HttpServerExchange exchange) {
 
     try (final Connection connection = dataSource.getConnection();
-        final JsonGenerator output = MAPPER_FACTORY.createGenerator(exchange.getOutputStream())) {
+        final JsonGenerator output = MAPPER.createGenerator(exchange.getOutputStream())) {
       exchange.setStatusCode(StatusCodes.OK);
       exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_JSON);
       output.writeStartArray();
@@ -1541,14 +1530,10 @@ public final class Main implements ServerConfig {
           .where(ACTIVE_WORKFLOW_RUN.ID.isNotNull())
           .forEach(
               result -> {
-                try {
-                  output.writeRawValue(result.value1().data());
-                } catch (IOException e) {
-                  throw new RuntimeException(e);
-                }
+                output.writeRawValue(result.value1().data());
               });
       output.writeEndArray();
-    } catch (SQLException | IOException e) {
+    } catch (SQLException e) {
       internalServerErrorResponse(exchange, e);
     }
   }
@@ -1610,15 +1595,15 @@ public final class Main implements ServerConfig {
     exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, CONTENT_TYPE_JSON);
     exchange.setStatusCode(StatusCodes.OK);
     final OffsetDateTime endTime = OffsetDateTime.now();
-    try (final JsonGenerator output = MAPPER_FACTORY.createGenerator(exchange.getOutputStream())) {
+    try (final JsonGenerator output = MAPPER.createGenerator(exchange.getOutputStream())) {
       InFlightCountsByWorkflow counts = maxInFlightPerWorkflow.getCountsByWorkflow();
       output.writeStartObject();
-      output.writeNumberField("timestamp", endTime.toInstant().toEpochMilli());
-      output.writeObjectFieldStart("workflows");
+      output.writeNumberProperty("timestamp", endTime.toInstant().toEpochMilli());
+      output.writeObjectPropertyStart("workflows");
       for (String workflow : counts.getWorkflows()) {
-        output.writeObjectFieldStart(workflow);
-        output.writeNumberField("currentInFlight", counts.getCurrent(workflow));
-        output.writeNumberField("maxInFlight", counts.getMax(workflow));
+        output.writeObjectPropertyStart(workflow);
+        output.writeNumberProperty("currentInFlight", counts.getCurrent(workflow));
+        output.writeNumberProperty("maxInFlight", counts.getMax(workflow));
         output.writeEndObject();
       }
       output.writeEndObject();
@@ -1646,9 +1631,9 @@ public final class Main implements ServerConfig {
         request.setTimestamp(0);
       }
       output.writeStartObject();
-      output.writeNumberField("epoch", epoch);
-      output.writeNumberField("timestamp", endTime.toInstant().toEpochMilli());
-      output.writeArrayFieldStart("results");
+      output.writeNumberProperty("epoch", epoch);
+      output.writeNumberProperty("timestamp", endTime.toInstant().toEpochMilli());
+      output.writeArrayPropertyStart("results");
       try (final Connection connection = dataSource.getConnection()) {
         createAnalysisRecords(
             DSL.using(connection, SQLDialect.POSTGRES),
@@ -1666,7 +1651,7 @@ public final class Main implements ServerConfig {
         output.writeEndArray();
         output.writeEndObject();
       }
-    } catch (IOException | SQLException e) {
+    } catch (SQLException e) {
       PROVENANCE_ERROR_COUNT.inc();
       internalServerErrorResponse(exchange, e);
     } finally {
@@ -1680,7 +1665,7 @@ public final class Main implements ServerConfig {
     failureIds.forEach(failureIdsResult::add);
     try {
       okJsonResponse(exchange, MAPPER.writeValueAsString(failureIdsResult));
-    } catch (JsonProcessingException e) {
+    } catch (JacksonException e) {
       throw new RuntimeException(e);
     }
   }
@@ -1712,7 +1697,7 @@ public final class Main implements ServerConfig {
                       true,
                       Set.of(AnalysisOutputType.FILE, AnalysisOutputType.URL),
                       WORKFLOW_RUN.HASH_ID.eq(param("vidarrId", vidarrId)));
-                } catch (IOException | SQLException e) {
+                } catch (SQLException e) {
                   e.printStackTrace();
                 }
               },
@@ -1777,7 +1762,7 @@ public final class Main implements ServerConfig {
     }
     try {
       okJsonResponse(exchange, MAPPER.writeValueAsString(targetsOutput));
-    } catch (JsonProcessingException e) {
+    } catch (JacksonException e) {
       throw new RuntimeException(e);
     }
   }
@@ -2432,7 +2417,7 @@ public final class Main implements ServerConfig {
       } finally {
         epochLock.writeLock().unlock();
       }
-    } catch (JsonProcessingException | NoSuchAlgorithmException e) {
+    } catch (JacksonException | NoSuchAlgorithmException e) {
       internalServerErrorResponse(exchange, e);
     }
   }
@@ -2456,7 +2441,7 @@ public final class Main implements ServerConfig {
    * @param configuration database configuration
    * @param workflowVersionFromDb whether we permit using the installed workflow version in case of
    *     conflict
-   * @throws JsonProcessingException
+   * @throws JacksonException
    * @throws NoSuchAlgorithmException
    */
   private void loadDataIntoDatabase(
@@ -2465,7 +2450,7 @@ public final class Main implements ServerConfig {
           workflowInfo,
       Configuration configuration,
       boolean workflowVersionFromDb)
-      throws JsonProcessingException, NoSuchAlgorithmException, SQLException {
+      throws JacksonException, NoSuchAlgorithmException, SQLException {
     // Map of Workflow Name to Workflow Version IDs (UnloadedWorkflowVersion.version to
     // id.get.value1??)
     final TreeMap<String, Map<String, Integer>> workflowId = new TreeMap<>();
@@ -2744,7 +2729,7 @@ public final class Main implements ServerConfig {
     }
     try {
       exchange.getResponseSender().send(MAPPER.writeValueAsString(response.second()));
-    } catch (JsonProcessingException e) {
+    } catch (JacksonException e) {
       internalServerErrorResponse(exchange, e);
     }
   }
@@ -3057,7 +3042,7 @@ public final class Main implements ServerConfig {
 
   private Map<String, BasicType> upsertWorkflowReturningLabels(
       Configuration configuration, String workflowName, Map<String, BasicType> workflowLabels)
-      throws JsonProcessingException {
+      throws JacksonException {
     String result =
         Optional.ofNullable(
                 DSL.using(configuration)
@@ -3100,7 +3085,7 @@ public final class Main implements ServerConfig {
       Map<String, OutputType> outputs,
       Map<String, InputType> inputs,
       Map<String, String> accessoryHashes)
-      throws NoSuchAlgorithmException, JsonProcessingException {
+      throws NoSuchAlgorithmException, JacksonException {
     final MessageDigest versionDigest = MessageDigest.getInstance("SHA-256");
     versionDigest.update(workflowName.getBytes(StandardCharsets.UTF_8));
     versionDigest.update(new byte[] {0});
@@ -3292,14 +3277,20 @@ public final class Main implements ServerConfig {
       return reason;
     }
 
-    static class Serializer extends JsonSerializer<IncompleteRunsException> {
+    static class Serializer extends ValueSerializer<IncompleteRunsException> {
       @Override
       public void serialize(
-          IncompleteRunsException ex, JsonGenerator gen, SerializerProvider serializers)
-          throws IOException {
+          IncompleteRunsException ex, JsonGenerator gen, SerializationContext serializers) {
         gen.writeStartObject();
-        gen.writeStringField("reason", ex.reason);
-        gen.writeObjectField("idsByPhase", ex.hashIdsByPhase);
+        gen.writeStringProperty("reason", ex.reason);
+        gen.writeObjectPropertyStart("idsByPhase");
+        for (Entry<String, List<String>> phaseAndIds : ex.hashIdsByPhase.entrySet()) {
+          gen.writeArrayPropertyStart(phaseAndIds.getKey());
+          for (String id : phaseAndIds.getValue()) {
+            gen.writeString(id);
+          }
+          gen.writeEndArray();
+        }
         gen.writeEndObject();
       }
     }

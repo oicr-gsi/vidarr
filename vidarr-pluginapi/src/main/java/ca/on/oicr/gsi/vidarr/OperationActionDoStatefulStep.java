@@ -1,9 +1,9 @@
 package ca.on.oicr.gsi.vidarr;
 
 import ca.on.oicr.gsi.vidarr.ActiveOperation.TransactionManager;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JavaType;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JavaType;
+import tools.jackson.databind.JsonNode;
 
 final class OperationActionDoStatefulStep<
         State extends Record, NextState extends Record, OriginalState extends Record, Input, Output>
@@ -26,7 +26,7 @@ final class OperationActionDoStatefulStep<
   }
 
   @Override
-  public OriginalState deserializeOriginal(JsonNode originalState) throws JsonProcessingException {
+  public OriginalState deserializeOriginal(JsonNode originalState) throws JacksonException {
     return input.deserializeOriginal(originalState);
   }
 
@@ -36,7 +36,7 @@ final class OperationActionDoStatefulStep<
   }
 
   @Override
-  NextState rewind(NextState state) throws JsonProcessingException {
+  NextState rewind(NextState state) throws JacksonException {
     return step.rewind(state, input);
   }
 

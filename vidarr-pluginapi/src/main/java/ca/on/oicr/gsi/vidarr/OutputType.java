@@ -1,14 +1,5 @@
 package ca.on.oicr.gsi.vidarr;
 
-import com.fasterxml.jackson.core.*;
-import com.fasterxml.jackson.databind.DeserializationContext;
-import com.fasterxml.jackson.databind.JsonDeserializer;
-import com.fasterxml.jackson.databind.JsonSerializer;
-import com.fasterxml.jackson.databind.SerializerProvider;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.databind.node.ValueNode;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
@@ -17,6 +8,15 @@ import java.util.Spliterators;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
+import tools.jackson.core.*;
+import tools.jackson.databind.DeserializationContext;
+import tools.jackson.databind.SerializationContext;
+import tools.jackson.databind.ValueDeserializer;
+import tools.jackson.databind.ValueSerializer;
+import tools.jackson.databind.annotation.JsonDeserialize;
+import tools.jackson.databind.annotation.JsonSerialize;
+import tools.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.node.ValueNode;
 
 /**
  * The type of elements to used as outputs when provisioning out structures
@@ -49,6 +49,7 @@ public abstract class OutputType {
       STR_IS = "is",
       STR_KEYS = "keys",
       STR_OUTPUTS = "outputs";
+
   /**
    * The type of elements to used as keys when provisioning out structures
    *
@@ -129,18 +130,18 @@ public abstract class OutputType {
     }
   }
 
-  public static final class JacksonDeserializer extends JsonDeserializer<OutputType> {
+  public static final class JacksonDeserializer extends ValueDeserializer<OutputType> {
 
     @Override
     public OutputType deserialize(
         JsonParser jsonParser, DeserializationContext deserializationContext)
-        throws IOException, JsonProcessingException {
+        throws JacksonException {
       return deserialize(jsonParser.readValueAsTree());
     }
 
     private OutputType deserialize(TreeNode node) {
-      if (node.isValueNode() && ((ValueNode) node).isTextual()) {
-        final var str = ((ValueNode) node).asText();
+      if (node.isValueNode() && ((ValueNode) node).isString()) {
+        final var str = ((ValueNode) node).asString();
         switch (str) {
           case STR_FILE:
             return OutputType.FILE;
@@ -177,8 +178,8 @@ public abstract class OutputType {
         }
       } else if (node.isObject() && node instanceof ObjectNode) {
         final var obj = (ObjectNode) node;
-        if (obj.has(STR_IS) && obj.get(STR_IS).isTextual()) {
-          switch (obj.get(STR_IS).asText()) {
+        if (obj.has(STR_IS) && obj.get(STR_IS).isString()) {
+          switch (obj.get(STR_IS).asString()) {
             case STR_LIST:
               if (!obj.has(STR_KEYS)) {
                 throw new IllegalArgumentException("List is missing 'keys' property");
@@ -188,13 +189,16 @@ public abstract class OutputType {
               }
               return list(
                   (StreamSupport.stream(
-                          Spliterators.spliteratorUnknownSize(obj.get(STR_KEYS).fields(), 0), false)
+                          Spliterators.spliteratorUnknownSize(
+                              obj.get(STR_KEYS).properties().iterator(), 0),
+                          false)
                       .collect(
                           Collectors.toMap(
                               Map.Entry::getKey,
-                              e -> IdentifierKey.valueOf(e.getValue().asText().toUpperCase())))),
+                              e -> IdentifierKey.valueOf(e.getValue().asString().toUpperCase())))),
                   (StreamSupport.stream(
-                          Spliterators.spliteratorUnknownSize(obj.get(STR_OUTPUTS).fields(), 0),
+                          Spliterators.spliteratorUnknownSize(
+                              obj.get(STR_OUTPUTS).properties().iterator(), 0),
                           false)
                       .collect(
                           Collectors.toMap(Map.Entry::getKey, e -> deserialize(e.getValue())))));
@@ -211,87 +215,93 @@ public abstract class OutputType {
     }
   }
 
-  public static final class JacksonSerializer extends JsonSerializer<OutputType> {
+  public static final class JacksonSerializer extends ValueSerializer<OutputType> {
     @Override
     public void serialize(
-        OutputType outputType, JsonGenerator jsonGenerator, SerializerProvider serializerProvider)
-        throws IOException {
-      outputType
-          .apply(
-              new Visitor<Printer>() {
-                @Override
-                public Printer file(boolean optional) {
-                  return g -> g.writeString(optional ? STR_FILE_OPTIONAL : STR_FILE);
-                }
+        OutputType outputType,
+        JsonGenerator jsonGenerator,
+        SerializationContext serializerProvider) {
+      try {
+        outputType
+            .apply(
+                new Visitor<Printer>() {
+                  @Override
+                  public Printer file(boolean optional) {
+                    return g -> g.writeString(optional ? STR_FILE_OPTIONAL : STR_FILE);
+                  }
 
-                @Override
-                public Printer fileWithLabels(boolean optional) {
-                  return g ->
-                      g.writeString(
-                          optional ? STR_FILE_WITH_LABELS_OPTIONAL : STR_FILE_WITH_LABELS);
-                }
+                  @Override
+                  public Printer fileWithLabels(boolean optional) {
+                    return g ->
+                        g.writeString(
+                            optional ? STR_FILE_WITH_LABELS_OPTIONAL : STR_FILE_WITH_LABELS);
+                  }
 
-                @Override
-                public Printer files(boolean optional) {
-                  return g -> g.writeString(optional ? STR_FILES_OPTIONAL : STR_FILES);
-                }
+                  @Override
+                  public Printer files(boolean optional) {
+                    return g -> g.writeString(optional ? STR_FILES_OPTIONAL : STR_FILES);
+                  }
 
-                @Override
-                public Printer filesWithLabels(boolean optional) {
-                  return g ->
-                      g.writeString(
-                          optional ? STR_FILES_WITH_LABELS_OPTIONAL : STR_FILES_WITH_LABELS);
-                }
+                  @Override
+                  public Printer filesWithLabels(boolean optional) {
+                    return g ->
+                        g.writeString(
+                            optional ? STR_FILES_WITH_LABELS_OPTIONAL : STR_FILES_WITH_LABELS);
+                  }
 
-                @Override
-                public Printer list(
-                    Map<String, IdentifierKey> keys, Map<String, OutputType> outputs) {
-                  final var printOutputs =
-                      outputs.entrySet().stream()
-                          .collect(
-                              Collectors.toMap(Map.Entry::getKey, e -> e.getValue().apply(this)));
-                  return g -> {
-                    g.writeStartObject();
-                    g.writeStringField(STR_IS, STR_LIST);
-                    g.writeObjectFieldStart(STR_KEYS);
-                    for (final var key : keys.entrySet()) {
-                      g.writeStringField(key.getKey(), key.getValue().name().toLowerCase());
-                    }
-                    g.writeEndObject();
-                    g.writeObjectFieldStart(STR_OUTPUTS);
-                    for (final var output : printOutputs.entrySet()) {
-                      g.writeFieldName(output.getKey());
-                      output.getValue().print(g);
-                    }
-                    g.writeEndObject();
-                    g.writeEndObject();
-                  };
-                }
+                  @Override
+                  public Printer list(
+                      Map<String, IdentifierKey> keys, Map<String, OutputType> outputs) {
+                    final var printOutputs =
+                        outputs.entrySet().stream()
+                            .collect(
+                                Collectors.toMap(Map.Entry::getKey, e -> e.getValue().apply(this)));
+                    return g -> {
+                      g.writeStartObject();
+                      g.writeStringProperty(STR_IS, STR_LIST);
+                      g.writeObjectPropertyStart(STR_KEYS);
+                      for (final var key : keys.entrySet()) {
+                        g.writeStringProperty(key.getKey(), key.getValue().name().toLowerCase());
+                      }
+                      g.writeEndObject();
+                      g.writeObjectPropertyStart(STR_OUTPUTS);
+                      for (final var output : printOutputs.entrySet()) {
+                        g.writeName(output.getKey());
+                        output.getValue().print(g);
+                      }
+                      g.writeEndObject();
+                      g.writeEndObject();
+                    };
+                  }
 
-                @Override
-                public Printer logs(boolean optional) {
-                  return g -> g.writeString(optional ? STR_LOGS_OPTIONAL : STR_LOGS);
-                }
+                  @Override
+                  public Printer logs(boolean optional) {
+                    return g -> g.writeString(optional ? STR_LOGS_OPTIONAL : STR_LOGS);
+                  }
 
-                @Override
-                public Printer qualityControl(boolean optional) {
-                  return g ->
-                      g.writeString(optional ? STR_QUALITY_CONTROL_OPTIONAL : STR_QUALITY_CONTROL);
-                }
+                  @Override
+                  public Printer qualityControl(boolean optional) {
+                    return g ->
+                        g.writeString(
+                            optional ? STR_QUALITY_CONTROL_OPTIONAL : STR_QUALITY_CONTROL);
+                  }
 
-                @Override
-                public Printer unknown() {
-                  return g -> g.writeString(STR_UNKNOWN);
-                }
+                  @Override
+                  public Printer unknown() {
+                    return g -> g.writeString(STR_UNKNOWN);
+                  }
 
-                @Override
-                public Printer warehouseRecords(boolean optional) {
-                  return g ->
-                      g.writeString(
-                          optional ? STR_WAREHOUSE_RECORDS_OPTIONAL : STR_WAREHOUSE_RECORDS);
-                }
-              })
-          .print(jsonGenerator);
+                  @Override
+                  public Printer warehouseRecords(boolean optional) {
+                    return g ->
+                        g.writeString(
+                            optional ? STR_WAREHOUSE_RECORDS_OPTIONAL : STR_WAREHOUSE_RECORDS);
+                  }
+                })
+            .print(jsonGenerator);
+      } catch (IOException e) {
+        throw new RuntimeException(e);
+      }
     }
   }
 
@@ -334,6 +344,7 @@ public abstract class OutputType {
       return Objects.hash(inputKeys, outputValues);
     }
   }
+
   /** The output is a single file */
   public static final OutputType FILE =
       new OutputType() {
@@ -342,6 +353,7 @@ public abstract class OutputType {
           return visitor.file(false);
         }
       };
+
   /** The output is an optional single file */
   public static final OutputType FILE_OPTIONAL =
       new OutputType() {
@@ -350,6 +362,7 @@ public abstract class OutputType {
           return visitor.file(true);
         }
       };
+
   /** The output is a collection files that should have identical metadata */
   public static final OutputType FILES =
       new OutputType() {
@@ -358,6 +371,7 @@ public abstract class OutputType {
           return visitor.files(false);
         }
       };
+
   /** The output is an optional collection files that should have identical metadata */
   public static final OutputType FILES_OPTIONAL =
       new OutputType() {
@@ -366,6 +380,7 @@ public abstract class OutputType {
           return visitor.files(true);
         }
       };
+
   /**
    * The output is a collection files with workflow-derived labels that should have identical
    * metadata
@@ -377,6 +392,7 @@ public abstract class OutputType {
           return visitor.filesWithLabels(false);
         }
       };
+
   /**
    * The output is an optional collection files with workflow-derived labels that should have
    * identical metadata
@@ -388,6 +404,7 @@ public abstract class OutputType {
           return visitor.filesWithLabels(true);
         }
       };
+
   /** The output is a single files with workflow-derived labels */
   public static final OutputType FILE_WITH_LABELS =
       new OutputType() {
@@ -396,6 +413,7 @@ public abstract class OutputType {
           return visitor.fileWithLabels(false);
         }
       };
+
   /** The output is an optional single files with workflow-derived labels */
   public static final OutputType FILE_WITH_LABELS_OPTIONAL =
       new OutputType() {
@@ -404,6 +422,7 @@ public abstract class OutputType {
           return visitor.fileWithLabels(true);
         }
       };
+
   /** The output is logs */
   public static final OutputType LOGS =
       new OutputType() {
@@ -412,6 +431,7 @@ public abstract class OutputType {
           return visitor.logs(false);
         }
       };
+
   /** The output is optional logs */
   public static final OutputType LOGS_OPTIONAL =
       new OutputType() {
@@ -420,6 +440,7 @@ public abstract class OutputType {
           return visitor.logs(true);
         }
       };
+
   /** The output is quality control information */
   public static final OutputType QUALITY_CONTROL =
       new OutputType() {
@@ -428,6 +449,7 @@ public abstract class OutputType {
           return visitor.qualityControl(false);
         }
       };
+
   /** The output is optional quality control information */
   public static final OutputType QUALITY_CONTROL_OPTIONAL =
       new OutputType() {
@@ -436,6 +458,7 @@ public abstract class OutputType {
           return visitor.qualityControl(true);
         }
       };
+
   /** The output is unknown or an error */
   public static final OutputType UNKNOWN =
       new OutputType() {
@@ -444,6 +467,7 @@ public abstract class OutputType {
           return visitor.unknown();
         }
       };
+
   /** The output is data warehouse records */
   public static final OutputType WAREHOUSE_RECORDS =
       new OutputType() {
@@ -452,6 +476,7 @@ public abstract class OutputType {
           return visitor.warehouseRecords(false);
         }
       };
+
   /** The output is optional data warehouse records */
   public static final OutputType WAREHOUSE_RECORDS_OPTIONAL =
       new OutputType() {

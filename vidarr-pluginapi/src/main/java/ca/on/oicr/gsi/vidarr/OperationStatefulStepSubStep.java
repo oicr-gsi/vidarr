@@ -4,9 +4,9 @@ import static ca.on.oicr.gsi.vidarr.OperationAction.MAPPER;
 
 import ca.on.oicr.gsi.vidarr.ActiveOperation.TransactionManager;
 import ca.on.oicr.gsi.vidarr.OperationStatefulStep.Child;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JavaType;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JavaType;
+import tools.jackson.databind.JsonNode;
 import java.util.Optional;
 
 final class OperationStatefulStepSubStep<
@@ -44,7 +44,7 @@ final class OperationStatefulStepSubStep<
   @Override
   Child<State, SubState> rewind(
       Child<State, SubState> state, OperationAction<State, OriginalState, Input> input)
-      throws JsonProcessingException {
+      throws JacksonException {
     return new Child<>(Optional.empty(), input.rewind(state.state()));
   }
 

@@ -2,8 +2,8 @@ package ca.on.oicr.gsi.vidarr.core;
 
 import ca.on.oicr.gsi.vidarr.OutputType;
 import ca.on.oicr.gsi.vidarr.api.ExternalId;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
@@ -12,13 +12,13 @@ import java.util.stream.Stream;
 final class PreparePreflightChecks extends BaseOutputExtractor<Boolean, Boolean> {
 
   private final Runnable extraInputIdsHandled;
-  private final ObjectMapper mapper;
+  private final JsonMapper mapper;
   private final Consumer<TaskStarter<Boolean>> preflightTask;
   private final Consumer<ExternalId> requestedExternalId;
   private final Target target;
 
   public PreparePreflightChecks(
-      ObjectMapper mapper,
+      JsonMapper mapper,
       Target target,
       JsonNode metadata,
       Runnable extraIdsHandled,
@@ -74,7 +74,7 @@ final class PreparePreflightChecks extends BaseOutputExtractor<Boolean, Boolean>
   }
 
   @Override
-  protected ObjectMapper mapper() {
+  protected JsonMapper mapper() {
     return mapper;
   }
 

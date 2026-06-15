@@ -2,7 +2,7 @@ package ca.on.oicr.gsi.vidarr;
 
 import static ca.on.oicr.gsi.vidarr.OperationAction.MAPPER;
 
-import com.fasterxml.jackson.databind.JavaType;
+import tools.jackson.databind.JavaType;
 import java.io.File;
 import java.io.IOException;
 

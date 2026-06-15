@@ -1,7 +1,7 @@
 package ca.on.oicr.gsi.vidarr.server;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.sql.Types;
@@ -23,7 +23,7 @@ public class PostgresJSONBBinding implements Binding<JSONB, JsonNode> {
           return t == null
               ? DatabaseBackedProcessor.MAPPER.nullNode()
               : DatabaseBackedProcessor.MAPPER.readValue(t.data(), JsonNode.class);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
           throw new RuntimeException(e);
         }
       }
@@ -34,7 +34,7 @@ public class PostgresJSONBBinding implements Binding<JSONB, JsonNode> {
           return u == null
               ? null
               : JSONB.valueOf(DatabaseBackedProcessor.MAPPER.writeValueAsString(u));
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
           throw new RuntimeException(e);
         }
       }

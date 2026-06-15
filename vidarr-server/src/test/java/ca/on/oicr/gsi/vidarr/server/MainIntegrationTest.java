@@ -5,19 +5,19 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.*;
 
+import ca.on.oicr.gsi.vidarr.api.ExternalMultiVersionKey;
+import ca.on.oicr.gsi.vidarr.api.ProvenanceWorkflowRun;
+import ca.on.oicr.gsi.vidarr.api.UnloadedData;
+import ca.on.oicr.gsi.vidarr.api.WorkflowDeclaration;
+import ca.on.oicr.gsi.vidarr.api.WorkflowResponse;
 import ca.on.oicr.gsi.vidarr.core.Phase;
 import ca.on.oicr.gsi.vidarr.server.dto.ServerConfiguration;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.restassured.RestAssured;
 import io.restassured.common.mapper.TypeRef;
+import io.restassured.config.ObjectMapperConfig;
+import io.restassured.config.RestAssuredConfig;
 import io.restassured.http.ContentType;
+import io.restassured.mapper.ObjectMapperType;
 import io.restassured.parsing.Parser;
 import io.restassured.path.json.JsonPath;
 import java.io.File;
@@ -35,11 +35,9 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.TimeZone;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.configuration.FluentConfiguration;
 import org.jetbrains.annotations.NotNull;
@@ -50,6 +48,16 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.postgresql.ds.PGSimpleDataSource;
 import org.testcontainers.containers.JdbcDatabaseContainer;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.StreamReadFeature;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.SerializationFeature;
+import tools.jackson.databind.cfg.DateTimeFeature;
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 
 public class MainIntegrationTest {
 
@@ -57,8 +65,14 @@ public class MainIntegrationTest {
   public static JdbcDatabaseContainer pg =
       DatabaseBackedTestConfiguration.getTestDatabaseContainer();
 
-  // Jdk8Module is a compatibility fix for de/serializing Optionals
-  private static final ObjectMapper MAPPER = new ObjectMapper().registerModule(new Jdk8Module());
+  private static final JsonMapper MAPPER =
+      JsonMapper.builder()
+          .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+          .configure(DateTimeFeature.WRITE_DATES_AS_TIMESTAMPS, true)
+          .configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true)
+          .enable(SerializationFeature.INDENT_OUTPUT)
+          .enable(StreamReadFeature.INCLUDE_SOURCE_IN_LOCATION)
+          .build();
   private static ServerConfiguration config;
   private static Main main;
   private static final HttpClient CLIENT =
@@ -77,8 +91,12 @@ public class MainIntegrationTest {
     RestAssured.baseURI = config.getUrl();
     RestAssured.port = config.getPort();
     RestAssured.enableLoggingOfRequestAndResponseIfValidationFails();
+    RestAssured.config =
+        RestAssuredConfig.config()
+            .objectMapperConfig(
+                ObjectMapperConfig.objectMapperConfig()
+                    .defaultObjectMapperType(ObjectMapperType.JACKSON_3));
     defaultParser = Parser.TEXT;
-    MAPPER.registerModule(new JavaTimeModule());
   }
 
   @Before
@@ -133,7 +151,7 @@ public class MainIntegrationTest {
   }
 
   @Test
-  public void whenAddWorkflow_thenWorkflowIsAdded() throws JsonProcessingException {
+  public void whenAddWorkflow_thenWorkflowIsAdded() throws JacksonException {
     get("/api/workflow/{name}", "novel").then().assertThat().statusCode(404);
 
     String noParamWorkflow = MAPPER.writeValueAsString(new HashMap<>());
@@ -146,12 +164,18 @@ public class MainIntegrationTest {
         .assertThat()
         .statusCode(200);
 
-    get("/api/workflow/{name}", "novel")
-        .then()
-        .assertThat()
-        .body("labels.keySet()", emptyIterable())
-        .body("maxInFlight", equalTo(0))
-        .body("isActive", equalTo(true));
+    WorkflowResponse response =
+        get("/api/workflow/{name}", "novel")
+            .then()
+            .log()
+            .ifValidationFails()
+            .assertThat()
+            .statusCode(200)
+            .extract()
+            .as(WorkflowResponse.class);
+    assertThat(response.labels(), anEmptyMap());
+    assertThat(response.maxInFlight(), equalTo(0));
+    assertThat(response.isActive(), equalTo(true));
   }
 
   @Test
@@ -228,8 +252,7 @@ public class MainIntegrationTest {
   }
 
   @Test
-  public void whenUpdateWorkflowFields_thenOnlySomeFieldsAreUpdated()
-      throws JsonProcessingException {
+  public void whenUpdateWorkflowFields_thenOnlySomeFieldsAreUpdated() throws JacksonException {
     // Only maxInFlight is possible to update from the client side, and it's not possible to set
     // isActive to false.
     JsonPath importFastq = get("/api/workflow/{name}", "import_fastq").then().extract().jsonPath();
@@ -305,11 +328,17 @@ public class MainIntegrationTest {
         workflows.stream().filter(wf -> "import_fastq".equals(wf.get("name"))).count(),
         greaterThan(0L));
 
-    given().when().post("/api/workflow/{name}", "import_fastq").then().statusCode(400);
+    given()
+        .when()
+        .post("/api/workflow/{name}", "import_fastq")
+        .then()
+        .log()
+        .ifValidationFails()
+        .statusCode(400);
   }
 
   @Test
-  public void whenAddWorkflow_thenWorkflowIsNotAvailable() throws JsonProcessingException {
+  public void whenAddWorkflow_thenWorkflowIsNotAvailable() throws JacksonException {
     int oldSize =
         get("/api/workflows")
             .then()
@@ -348,18 +377,11 @@ public class MainIntegrationTest {
   public void whenAddWorkflowVersion_thenWorkflowIsAvailable() {
     String wfName = "bcl2fastq";
     String version = "1.new.0";
-    int oldSize =
-        get("/api/workflows")
-            .then()
-            .assertThat()
-            .statusCode(200)
-            .body("name", everyItem(not(hasItem("bcl2fastq"))))
-            .body("version", hasItems("1.0.0.12901362", "1.1.0"))
-            .and()
-            .extract()
-            .body()
-            .as(new TypeRef<List<Map<String, Object>>>() {})
-            .size();
+    String response =
+        get("/api/workflows").then().assertThat().statusCode(200).extract().body().asString();
+    List<WorkflowDeclaration> workflows = MAPPER.readValue(response, new TypeReference<>() {});
+    assertTrue(workflows.stream().noneMatch(wf -> wf.getName().equals(wfName)));
+    int oldSize = workflows.size();
 
     ObjectNode body = MAPPER.createObjectNode();
     body.put("language", "UNIX_SHELL");
@@ -379,24 +401,21 @@ public class MainIntegrationTest {
         .statusCode(201);
     // Adding this makes the bcl2fastq workflow and all its versions available
 
-    List<Map<String, Object>> updated =
-        get("/api/workflows")
-            .then()
-            .assertThat()
-            .statusCode(200)
-            .body("name", hasItems("import_fastq", "bcl2fastq"))
-            .and()
-            .extract()
-            .body()
-            .as(new TypeRef<>() {});
-    int newSize = updated.size();
-    Set<Object> versions =
-        updated.stream()
-            .filter(wf -> wfName.equals(wf.get("name")))
-            .map(wf -> wf.get("version"))
-            .collect(Collectors.toSet());
+    String newResponse =
+        get("/api/workflows").then().assertThat().statusCode(200).extract().body().asString();
+    List<WorkflowDeclaration> newWorkflows =
+        MAPPER.readValue(newResponse, new TypeReference<>() {});
+    assertThat(
+        newWorkflows.stream().map(WorkflowDeclaration::getName).toList(),
+        hasItems("import_fastq", "bcl2fastq"));
+    int newSize = newWorkflows.size();
+    List<String> newVersions =
+        newWorkflows.stream()
+            .filter(wf -> wfName.equals(wf.getName()))
+            .map(WorkflowDeclaration::getVersion)
+            .toList();
     assertTrue(newSize > oldSize);
-    assertThat(versions, hasItem(version));
+    assertThat(newVersions, hasItem(version));
   }
 
   @Test
@@ -425,20 +444,15 @@ public class MainIntegrationTest {
   }
 
   private Set<Object> getWorkflowVersions(String wfName) {
-    return get("/api/workflows")
-        .then()
-        .assertThat()
-        .statusCode(200)
-        .body("name", hasItem(wfName))
-        .and()
-        .assertThat()
-        .extract()
-        .body()
-        .as(new TypeRef<List<Map<String, Object>>>() {})
-        .stream()
-        .filter(wf -> wfName.equals(wf.get("name")))
-        .map(wf -> wf.get("version"))
-        .collect(Collectors.toSet());
+    String response =
+        get("/api/workflows").then().assertThat().statusCode(200).extract().body().asString();
+    List<WorkflowDeclaration> workflows = MAPPER.readValue(response, new TypeReference<>() {});
+
+    // do the assertions natively with Hamcrest
+    Set<WorkflowDeclaration> matchingWorkflows =
+        workflows.stream().filter(wf -> wfName.equals(wf.getName())).collect(Collectors.toSet());
+    assertFalse(matchingWorkflows.isEmpty());
+    return workflows.stream().map(WorkflowDeclaration::getVersion).collect(Collectors.toSet());
   }
 
   @Test
@@ -536,7 +550,7 @@ public class MainIntegrationTest {
 
   @Test
   public void whenAddDuplicateWorkflowVersion_thenWorkflowVersionIsUnchanged()
-      throws JsonProcessingException {
+      throws JacksonException {
     String wfName = "import_fastq";
     String wfVersion = "2.double";
 
@@ -714,19 +728,25 @@ public class MainIntegrationTest {
   @Test
   public void whenDeleteWorkflow_thenWorkflowIsInactivated() {
     String workflow = "import_fastq";
-    get("/api/workflow/{name}", workflow)
-        .then()
-        .assertThat()
-        .statusCode(200)
-        .body("isActive", is(true));
+    WorkflowResponse response =
+        get("/api/workflow/{name}", workflow)
+            .then()
+            .assertThat()
+            .statusCode(200)
+            .extract()
+            .as(WorkflowResponse.class);
+    assertThat(response.isActive(), is(true));
 
     delete("/api/workflow/{name}", workflow).then().assertThat().statusCode(200);
 
-    get("/api/workflow/{name}", workflow)
-        .then()
-        .assertThat()
-        .statusCode(200)
-        .body("isActive", is(false));
+    WorkflowResponse response2 =
+        get("/api/workflow/{name}", workflow)
+            .then()
+            .assertThat()
+            .statusCode(200)
+            .extract()
+            .as(WorkflowResponse.class);
+    assertThat(response2.isActive(), is(false));
   }
 
   @Test
@@ -736,20 +756,24 @@ public class MainIntegrationTest {
 
   @Test
   public void whenGetWorkflow_thenWorkflowIsFound() {
-    get("/api/workflow/{name}", "bcl2fastq")
-        .then()
-        .assertThat()
-        .statusCode(200)
-        .body("isActive", is(false));
+    WorkflowResponse response =
+        get("/api/workflow/{name}", "bcl2fastq")
+            .then()
+            .assertThat()
+            .statusCode(200)
+            .extract()
+            .as(WorkflowResponse.class);
+    assertThat(response.isActive(), is(false));
   }
 
   @Test
   public void whenGetMaxInFlight_thenGetMaxInFlightData() {
-    get("/api/max-in-flight")
-        .then()
-        .assertThat()
-        .statusCode(200)
-        .body("$", hasKey("timestamp"), "workflows", hasKey("import_fastq"));
+    String response =
+        get("/api/max-in-flight").then().assertThat().statusCode(200).extract().asString();
+
+    Map<String, Object> mifs = MAPPER.readValue(response, new TypeReference<>() {});
+    assertThat(mifs, hasKey("timestamp"));
+    assertThat(((Map<String, Object>) mifs.get("workflows")), hasKey("import_fastq"));
   }
 
   @Test
@@ -790,7 +814,7 @@ public class MainIntegrationTest {
     String targetVersion = "f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9";
     String earlierVersion = "f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8f8";
 
-    List<ObjectNode> response =
+    List<JsonNode> response =
         given()
             .contentType(ContentType.JSON)
             .body(requestBody)
@@ -825,7 +849,7 @@ public class MainIntegrationTest {
     ObjectNode requestBody =
         buildProvenanceRequestBody("NONE", Instant.ofEpochMilli(0), Instant.ofEpochMilli(0));
 
-    List<ObjectNode> results =
+    List<JsonNode> results =
         given()
             .contentType(ContentType.JSON)
             .body(requestBody)
@@ -861,7 +885,7 @@ public class MainIntegrationTest {
     targetVersions.add("f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7f7");
     targetVersions.add("f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9");
 
-    List<ObjectNode> response =
+    List<JsonNode> response =
         given()
             .contentType(ContentType.JSON)
             .body(requestBody)
@@ -903,7 +927,7 @@ public class MainIntegrationTest {
     ObjectNode requestBody =
         buildProvenanceRequestBody("LATEST", Instant.ofEpochMilli(0), Instant.ofEpochMilli(0));
     requestBody.putNull("versionTypes"); // versionTypes is null
-    List<ObjectNode> results =
+    List<JsonNode> results =
         given()
             .contentType(ContentType.JSON)
             .body(requestBody)
@@ -933,7 +957,7 @@ public class MainIntegrationTest {
     ObjectNode requestBody =
         buildProvenanceRequestBody("LATEST", Instant.ofEpochMilli(0), Instant.ofEpochMilli(0));
     requestBody.remove("versionTypes"); // Version types is not specified
-    List<ObjectNode> results =
+    List<JsonNode> results =
         given()
             .contentType(ContentType.JSON)
             .body(requestBody)
@@ -1025,7 +1049,7 @@ public class MainIntegrationTest {
     var targetWorkflow = "bcl2fastq";
     ObjectNode requestBody =
         buildProvenanceRequestBody("LATEST", Instant.ofEpochMilli(0), Instant.ofEpochMilli(0));
-    List<ObjectNode> allResults =
+    List<JsonNode> allResults =
         given()
             .contentType(ContentType.JSON)
             .body(requestBody)
@@ -1044,7 +1068,7 @@ public class MainIntegrationTest {
 
     requestBody.putArray("excludeWorkflows").add(targetWorkflow);
 
-    List<ObjectNode> resultsMissingExcluded =
+    List<JsonNode> resultsMissingExcluded =
         given()
             .contentType(ContentType.JSON)
             .body(requestBody)
@@ -1066,12 +1090,15 @@ public class MainIntegrationTest {
 
   @Test
   public void whenGetWorkflowRun_thenReturnWorkflowRun() {
-    get("/api/run/{hash}", "df7df7df7df7df7df7df7df7df7df70df7df7df7df7df7df7df7df7df7df7df7")
-        .then()
-        .assertThat()
-        .statusCode(200)
-        .body(
-            "workflowName", equalTo("bcl2fastq"), "arguments.workflowRunSWID", equalTo("4444444"));
+    ProvenanceWorkflowRun run =
+        get("/api/run/{hash}", "df7df7df7df7df7df7df7df7df7df70df7df7df7df7df7df7df7df7df7df7df7")
+            .then()
+            .assertThat()
+            .statusCode(200)
+            .extract()
+            .as(ProvenanceWorkflowRun.class);
+    assertThat(run.getWorkflowName(), equalTo("bcl2fastq"));
+    assertThat(run.getArguments().get("workflowRunSWID").asString(), equalTo("4444444"));
   }
 
   @Test
@@ -1118,31 +1145,36 @@ public class MainIntegrationTest {
 
   @Test
   public void whenGetAllWorkflowStatuses_thenStatusesForAllWorkflowsAreReturned() {
-    get("/api/status")
-        .then()
-        .assertThat()
-        .statusCode(200)
-        .body("size()", equalTo(3))
-        .body("[0].completed", nullValue())
-        .body("[0].operationStatus", equalTo("N/A"))
-        .body("[0].waiting_resource", equalTo("prometheus-alert-manager"))
-        .body("[0].enginePhase", equalTo(Phase.WAITING_FOR_RESOURCES.toString()));
+    String response = get("/api/status").then().assertThat().statusCode(200).extract().asString();
+    List<Map<String, Object>> statuses = MAPPER.readValue(response, new TypeReference<>() {});
+    assertThat(statuses.size(), equalTo(3));
+    Map<String, Object> firstStatus = statuses.getFirst();
+    assertThat(firstStatus.get("completed"), nullValue());
+    assertThat(firstStatus.get("operationStatus"), equalTo("N/A"));
+    assertThat(firstStatus.get("waiting_resource"), equalTo("prometheus-alert-manager"));
+    assertThat(firstStatus.get("enginePhase"), equalTo(Phase.WAITING_FOR_RESOURCES.toString()));
   }
 
   @Test
   public void whenGetWorkflowStatus_thenStatusForWorkflowIsReturned() {
-    get("/api/status/{hash}", "df7df7df7df7df7df7df7df7df7df70df7df7df7df7df7df7df7df7df7df7df7")
-        .then()
-        .assertThat()
-        .statusCode(200)
-        .body("completed", nullValue())
-        .body("operationStatus", equalTo("N/A"))
-        .body("waiting_resource", equalTo("prometheus-alert-manager"))
-        .body("enginePhase", equalTo(Phase.WAITING_FOR_RESOURCES.toString()));
+    String response =
+        get(
+                "/api/status/{hash}",
+                "df7df7df7df7df7df7df7df7df7df70df7df7df7df7df7df7df7df7df7df7df7")
+            .then()
+            .assertThat()
+            .statusCode(200)
+            .extract()
+            .asString();
+    Map<String, Object> status = MAPPER.readValue(response, new TypeReference<>() {});
+    assertThat(status.get("completed"), nullValue());
+    assertThat(status.get("operationStatus"), equalTo("N/A"));
+    assertThat(status.get("waiting_resource"), equalTo("prometheus-alert-manager"));
+    assertThat(status.get("enginePhase"), equalTo(Phase.WAITING_FOR_RESOURCES.toString()));
   }
 
   @Test
-  public void whenGetUnknownWorkflowStatus_thenNoWorkflowStatusIsReturned() {
+  public void whenGetUnknownWorkflowRunStatus_thenNoWorkflowRunStatusIsReturned() {
     get("/api/status/{hash}", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
         .then()
         .assertThat()
@@ -1150,15 +1182,21 @@ public class MainIntegrationTest {
   }
 
   @Test
-  public void whenGetCompletedWorkflowStatus_thenWorkflowStatusIsReturned() {
-    get("/api/status/{hash}", "2f52b25df0a20cf41b0476b9114ad40a7d8d2edbddf0bed7d2d1b01d3f2d2b56")
-        .then()
-        .assertThat()
-        .statusCode(200)
-        .body("completed", not(nullValue()))
-        .body("operationStatus", equalTo("N/A"))
-        .body("waiting_resource", nullValue())
-        .body("enginePhase", nullValue());
+  public void whenGetCompletedWorkflowRunStatus_thenWorkflowRunStatusIsReturned() {
+    String response =
+        get(
+                "/api/status/{hash}",
+                "2f52b25df0a20cf41b0476b9114ad40a7d8d2edbddf0bed7d2d1b01d3f2d2b56")
+            .then()
+            .assertThat()
+            .statusCode(200)
+            .extract()
+            .asString();
+    Map<String, Object> status = MAPPER.readValue(response, new TypeReference<>() {});
+    assertThat(status.get("completed"), not(nullValue()));
+    assertThat(status.get("operationStatus"), equalTo("N/A"));
+    assertThat(status.get("waiting_resource"), nullValue());
+    assertThat(status.get("enginePhase"), nullValue());
   }
 
   @Test
@@ -1171,19 +1209,27 @@ public class MainIntegrationTest {
 
   @Test
   public void whenGetWorkflowRunUrl_thenWorkflowRunIsReturned() {
-    get("/api/url/{hash}", "8b16674e6e2a36d1f689632b1f36d0fe0876b7d54583dfbdf76c4c58e0588531")
-        .then()
-        .assertThat()
-        .statusCode(200)
-        .body("run", equalTo("a5f036ac00769744f9349775b376bf9412a5b28191fb7dd5ca4e635338e9f2b5"))
-        .body("labels.keySet()", hasItems("read_count", "read_number", "niassa-file-accession"));
+    String wfId = "8b16674e6e2a36d1f689632b1f36d0fe0876b7d54583dfbdf76c4c58e0588531";
+    String response =
+        get("/api/url/{hash}", wfId)
+            .then()
+            .assertThat()
+            .statusCode(200)
+            .extract()
+            .body()
+            .asString();
+    ProvenanceWorkflowRun run = MAPPER.readValue(response, new TypeReference<>() {});
+    assertEquals(wfId, run.getId());
+    assertThat(
+        run.getLabels().properties().stream().map(Map.Entry::getKey).collect(Collectors.toList()),
+        hasItems("read_count", "read_number", "niassa-file-accession"));
   }
 
   @Test
   public void whenCopyOut_thenRecordsAreCopied() {
     ObjectNode copyOutFilter = getUnloadWorkflowFilter("bcl2fastq");
 
-    JsonPath resp =
+    String response =
         given()
             .contentType(ContentType.JSON)
             .body(copyOutFilter)
@@ -1192,12 +1238,16 @@ public class MainIntegrationTest {
             .then()
             .assertThat()
             .statusCode(200)
-            .body("workflowRuns.size()", equalTo(12))
-            .body("workflowRuns.findAll { it.workflowName == \"bcl2fastq\" }.size()", equalTo(8))
-            .and()
             .extract()
-            .jsonPath();
-    Object firstHash = resp.get("workflowRuns[0].id");
+            .body()
+            .asString();
+    UnloadedData data = MAPPER.readValue(response, new TypeReference<>() {});
+    assertEquals(12, data.getWorkflowRuns().size());
+    List<ProvenanceWorkflowRun<ExternalMultiVersionKey>> runs = data.getWorkflowRuns();
+    assertThat(
+        runs.stream().filter(wr -> wr.getWorkflowName().equals("bcl2fastq")).count(), equalTo(8L));
+
+    String firstHash = runs.getFirst().getId();
 
     // Confirm run hasn't been unloaded
     get("/api/run/{hash}", firstHash).then().assertThat().statusCode(200);
@@ -1210,16 +1260,21 @@ public class MainIntegrationTest {
     String fastqcWorkflowRunId = "e268e7206776f44a1b438a650bbc4b26bfec46448c4825043b2cf15270f5fffc";
 
     // Confirm that a bcl2fastq workflow run exists
-    get("/api/run/{hash}", bcl2fastqWorkflowRunId)
-        .then()
-        .assertThat()
-        .statusCode(200)
-        .body("workflowName", equalTo("bcl2fastq"));
+    String getResponse =
+        get("/api/run/{hash}", bcl2fastqWorkflowRunId)
+            .then()
+            .assertThat()
+            .statusCode(200)
+            .extract()
+            .body()
+            .asString();
+    ProvenanceWorkflowRun run = MAPPER.readValue(getResponse, new TypeReference<>() {});
+    assertThat(run.getWorkflowName(), equalTo("bcl2fastq"));
 
     ObjectNode copyOutFilter =
         getUnloadWorkflowRunFilter(bcl2fastqWorkflowRunId); // this is recursive
 
-    JsonPath resp =
+    List<ProvenanceWorkflowRun<ExternalMultiVersionKey>> runs =
         given()
             .contentType(ContentType.JSON)
             .body(copyOutFilter)
@@ -1228,18 +1283,18 @@ public class MainIntegrationTest {
             .then()
             .assertThat()
             .statusCode(200)
-            .body("workflowRuns.size()", is(3))
-            .body("workflowRuns.findAll { it.workflowName == \"bcl2fastq\" }.size()", is(1))
-            .body("workflowRuns.findAll { it.workflowName == \"fastqc\" }.size()", is(1))
-            .body("workflowRuns.findAll { it.workflowName == \"standardqc\" }.size()", is(1))
-            .and()
             .extract()
-            .jsonPath();
+            .as(UnloadedData.class)
+            .getWorkflowRuns();
 
-    Object firstHash = resp.get("workflowRuns[0].id");
-    Object secondHash = resp.get("workflowRuns[1].id");
-    Object thirdHash = resp.get("workflowRuns[2].id");
-    assertTrue(Arrays.asList(firstHash, secondHash, thirdHash).contains(fastqcWorkflowRunId));
+    assertThat(runs.size(), is(3));
+    assertThat(runs.stream().filter(r -> r.getWorkflowName().equals("bcl2fastq")).count(), is(1L));
+    assertThat(runs.stream().filter(r -> r.getWorkflowName().equals("fastqc")).count(), is(1L));
+    assertThat(runs.stream().filter(r -> r.getWorkflowName().equals("standardqc")).count(), is(1L));
+
+    assertThat(
+        runs.stream().map(ProvenanceWorkflowRun::getId).toList(),
+        hasItems(bcl2fastqWorkflowRunId, fastqcWorkflowRunId));
   }
 
   @Test
@@ -1263,7 +1318,7 @@ public class MainIntegrationTest {
     targetWorkflowRuns.forEach(workflowRunIds::add);
     copyOutFilter.set("filter", filterType);
 
-    JsonPath resp =
+    List<ProvenanceWorkflowRun<ExternalMultiVersionKey>> runs =
         given()
             .contentType(ContentType.JSON)
             .body(copyOutFilter)
@@ -1272,27 +1327,31 @@ public class MainIntegrationTest {
             .then()
             .assertThat()
             .statusCode(200)
-            .body("workflowRuns.size()", is(2))
-            .body("workflowRuns.findAll { it.workflowName == \"import_fastq\" }.size()", is(1))
-            .body("workflowRuns.findAll { it.workflowName == \"standardqc\" }.size()", is(1))
-            .and()
             .extract()
-            .jsonPath();
+            .as(UnloadedData.class)
+            .getWorkflowRuns();
+    assertThat(runs.size(), is(2));
+    assertThat(
+        runs.stream().filter(wr -> wr.getWorkflowName().equals("import_fastq")).count(), is(1L));
+    assertThat(
+        runs.stream().filter(wr -> wr.getWorkflowName().equals("standardqc")).count(), is(1L));
 
-    List<String> copiedHashes =
-        List.of(resp.get("workflowRuns[0].id"), resp.get("workflowRuns[1].id"));
-    assertTrue(targetWorkflowRuns.containsAll(copiedHashes));
+    List<String> copiedOutHashes = runs.stream().map(ProvenanceWorkflowRun::getId).toList();
+    assertTrue(targetWorkflowRuns.containsAll(copiedOutHashes));
   }
 
   @Test
   public void whenUnloadWorkflow_thenWorkflowRunsAreDeletedFromVidarr() {
     String targetWorkflow = "terminal_workflow";
     // Confirm that the workflow run exists
-    get("/api/run/{hash}", "82a53df75b6ecf75256f1688b0f4304515e7fba1c6793f26c8e844ccc5444f35")
-        .then()
-        .assertThat()
-        .statusCode(200)
-        .body("workflowName", equalTo(targetWorkflow));
+    ProvenanceWorkflowRun run =
+        get("/api/run/{hash}", "82a53df75b6ecf75256f1688b0f4304515e7fba1c6793f26c8e844ccc5444f35")
+            .then()
+            .assertThat()
+            .statusCode(200)
+            .extract()
+            .as(ProvenanceWorkflowRun.class);
+    assertThat(run.getWorkflowName(), equalTo(targetWorkflow));
 
     ObjectNode unloadFilter = getUnloadWorkflowFilter(targetWorkflow);
 
@@ -1385,16 +1444,22 @@ public class MainIntegrationTest {
     String bcl2fastqWorkflowRunId2 =
         "a5f036ac00769744f9349775b376bf9412a5b28191fb7dd5ca4e635338e9f2b5";
 
-    get("/api/run/{hash}", bcl2fastqWorkflowRunId1)
-        .then()
-        .assertThat()
-        .statusCode(200)
-        .body("completed", not(nullValue()));
-    get("/api/run/{hash}", bcl2fastqWorkflowRunId2)
-        .then()
-        .assertThat()
-        .statusCode(200)
-        .body("completed", not(nullValue()));
+    ProvenanceWorkflowRun run1 =
+        get("/api/run/{hash}", bcl2fastqWorkflowRunId1)
+            .then()
+            .assertThat()
+            .statusCode(200)
+            .extract()
+            .as(ProvenanceWorkflowRun.class);
+    assertThat(run1.getCompleted(), not(nullValue()));
+    ProvenanceWorkflowRun run2 =
+        get("/api/run/{hash}", bcl2fastqWorkflowRunId2)
+            .then()
+            .assertThat()
+            .statusCode(200)
+            .extract()
+            .as(ProvenanceWorkflowRun.class);
+    assertThat(run2.getCompleted(), not(nullValue()));
 
     ObjectNode unloadFilter = MAPPER.createObjectNode();
     unloadFilter.put("recursive", true);
@@ -1858,14 +1923,14 @@ public class MainIntegrationTest {
     public ProvenanceResponse() {}
 
     long epoch;
-    List<ObjectNode> results;
+    List<JsonNode> results;
     long timestamp;
 
     public long getEpoch() {
       return epoch;
     }
 
-    public List<ObjectNode> getResults() {
+    public List<JsonNode> getResults() {
       return results;
     }
 
@@ -1877,7 +1942,7 @@ public class MainIntegrationTest {
       this.epoch = epoch;
     }
 
-    public void setResults(List<ObjectNode> results) {
+    public void setResults(List<JsonNode> results) {
       this.results = results;
     }
 

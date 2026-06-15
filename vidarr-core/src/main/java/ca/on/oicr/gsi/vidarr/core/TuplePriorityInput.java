@@ -2,11 +2,11 @@ package ca.on.oicr.gsi.vidarr.core;
 
 import ca.on.oicr.gsi.vidarr.BasicType;
 import ca.on.oicr.gsi.vidarr.PriorityInput;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.NullNode;
 import io.undertow.server.HttpHandler;
 import java.time.Instant;
 import java.util.Optional;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.NullNode;
 
 public final class TuplePriorityInput implements PriorityInput {
 

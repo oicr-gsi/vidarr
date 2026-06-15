@@ -3,7 +3,7 @@ package ca.on.oicr.gsi.vidarr.cromwell;
 import static ca.on.oicr.gsi.vidarr.cromwell.CromwellWorkflowEngine.MAPPER;
 
 import ca.on.oicr.gsi.vidarr.MultiPartBodyPublisher;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpRequest;

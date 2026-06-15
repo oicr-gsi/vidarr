@@ -1,9 +1,9 @@
 package ca.on.oicr.gsi.vidarr;
 
 import ca.on.oicr.gsi.vidarr.ActiveOperation.TransactionManager;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JavaType;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JavaType;
+import tools.jackson.databind.JsonNode;
 
 final class OperationStatefulStepDebugInfo<
         State extends Record, OriginalState extends Record, Value>
@@ -28,7 +28,7 @@ final class OperationStatefulStepDebugInfo<
 
   @Override
   State rewind(State state, OperationAction<State, OriginalState, Value> input)
-      throws JsonProcessingException {
+      throws JacksonException {
     return input.rewind(state);
   }
 

@@ -5,7 +5,7 @@ import ca.on.oicr.gsi.vidarr.BasicType;
 import ca.on.oicr.gsi.vidarr.ConsumableResource;
 import ca.on.oicr.gsi.vidarr.ConsumableResourceResponse;
 import ca.on.oicr.gsi.vidarr.api.InFlightCountsByWorkflow;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import io.prometheus.client.Gauge;
 import java.time.Instant;
 import java.util.Map;

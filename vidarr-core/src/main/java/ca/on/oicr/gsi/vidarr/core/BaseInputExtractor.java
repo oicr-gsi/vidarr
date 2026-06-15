@@ -5,15 +5,15 @@ import ca.on.oicr.gsi.vidarr.BasicType;
 import ca.on.oicr.gsi.vidarr.InputProvisionFormat;
 import ca.on.oicr.gsi.vidarr.InputType;
 import ca.on.oicr.gsi.vidarr.api.ExternalId;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Map;
 import java.util.Spliterators;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Maraud over the input parameters
@@ -47,7 +47,8 @@ abstract class BaseInputExtractor<R, D, E, F, L, Y> implements InputType.Visitor
   public final R dictionary(InputType key, InputType value) {
     if (input.isObject() && key == InputType.STRING) {
       return dictionary(
-          StreamSupport.stream(Spliterators.spliteratorUnknownSize(input.fields(), 0), false)
+          StreamSupport.stream(
+                  Spliterators.spliteratorUnknownSize(input.properties().iterator(), 0), false)
               .map(e -> entry(e.getKey(), value, e.getValue())));
     } else if (input.isArray()) {
       return dictionary(
@@ -88,9 +89,9 @@ abstract class BaseInputExtractor<R, D, E, F, L, Y> implements InputType.Visitor
     if (input.isObject()
         && input.has("contents")
         && input.has("type")
-        && input.get("type").isTextual()) {
+        && input.get("type").isString()) {
       final var contents = input.get("contents");
-      switch (input.get("type").asText()) {
+      switch (input.get("type").asString()) {
         case "EXTERNAL":
           if (!contents.isObject() || !contents.has(EXTERNAL__IDS)) {
             throw new IllegalArgumentException();
@@ -104,12 +105,12 @@ abstract class BaseInputExtractor<R, D, E, F, L, Y> implements InputType.Visitor
                 format,
                 contents.get(EXTERNAL__CONFIG),
                 mapper().treeToValue(externalIds, ExternalId[].class));
-          } catch (JsonProcessingException e) {
+          } catch (JacksonException e) {
             throw new RuntimeException(e);
           }
         case "INTERNAL":
-          if (contents.isArray() && contents.size() == 1 && contents.get(0).isTextual()) {
-            return internal(format, contents.get(0).asText());
+          if (contents.isArray() && contents.size() == 1 && contents.get(0).isString()) {
+            return internal(format, contents.get(0).asString());
           } else {
             throw new IllegalArgumentException("Invalid input file for INTERNAL");
           }
@@ -136,7 +137,8 @@ abstract class BaseInputExtractor<R, D, E, F, L, Y> implements InputType.Visitor
   public final R retry(BasicType inner) {
     if (input.isObject()) {
       return aggregateRetry(
-          StreamSupport.stream(Spliterators.spliteratorUnknownSize(input.fields(), 0), false)
+          StreamSupport.stream(
+                  Spliterators.spliteratorUnknownSize(input.properties().iterator(), 0), false)
               .map(e -> retry(e.getKey(), inner, e.getValue())));
     } else {
       throw new IllegalArgumentException();
@@ -145,7 +147,7 @@ abstract class BaseInputExtractor<R, D, E, F, L, Y> implements InputType.Visitor
 
   protected abstract Y retry(String id, BasicType type, JsonNode value);
 
-  protected abstract ObjectMapper mapper();
+  protected abstract JsonMapper mapper();
 
   protected abstract R nullValue();
 
@@ -197,8 +199,8 @@ abstract class BaseInputExtractor<R, D, E, F, L, Y> implements InputType.Visitor
 
   @Override
   public final R taggedUnion(Stream<Map.Entry<String, InputType>> elements) {
-    if (input.isObject() && input.get("type").isTextual()) {
-      final var type = input.get("type").asText();
+    if (input.isObject() && input.get("type").isString()) {
+      final var type = input.get("type").asString();
       return elements
           .filter(e -> e.getKey().equals(type))
           .findFirst()

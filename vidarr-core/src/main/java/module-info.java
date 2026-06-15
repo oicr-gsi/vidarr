@@ -21,19 +21,18 @@ module ca.on.oicr.gsi.vidarr.core {
 
   opens ca.on.oicr.gsi.vidarr.core to
       com.fasterxml.jackson.annotation,
-      com.fasterxml.jackson.core,
-      com.fasterxml.jackson.databind;
+      tools.jackson.core,
+      tools.jackson.databind;
 
   requires ca.on.oicr.gsi.serverutils;
   requires ca.on.oicr.gsi.vidarr.pluginapi;
-  requires com.fasterxml.jackson.core;
-  requires com.fasterxml.jackson.databind;
+  requires tools.jackson.core;
+  requires tools.jackson.databind;
   requires java.naming;
   requires java.sql;
   requires java.xml;
   requires java.net.http;
   requires simpleclient;
-  requires com.fasterxml.jackson.datatype.jdk8;
 
   provides ConsumableResourceProvider with
       CoreConsumableResourceProvider;

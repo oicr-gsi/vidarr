@@ -1313,11 +1313,19 @@ public abstract class DatabaseBackedProcessor
                               while (contentsIterator.hasNext()) {
                                 JsonNode content = contentsIterator.next();
                                 if (content.has("originalDirectory")) {
+                                  ((ObjectNode)content).put("fileChecksum", analysisObject.getChecksum());
+                                  ((ObjectNode)content).put("fileChecksumType", analysisObject.getChecksumType());
                                   workflowRunMetadataPart = content;
                                   break;
                                 }
                               }
                             }
+                            // Update the metadata again now that we've added the file checksum info
+                            dsl.update(WORKFLOW_RUN)
+                                .set(WORKFLOW_RUN.METADATA, metadata)
+                                .where(WORKFLOW_RUN.HASH_ID.eq(record.get(WORKFLOW_RUN.HASH_ID)))
+                                .execute();
+
                             if (null == workflowRunMetadataPart) {
                               handler.invalidWorkflow(Set.of(
                                       String.format(

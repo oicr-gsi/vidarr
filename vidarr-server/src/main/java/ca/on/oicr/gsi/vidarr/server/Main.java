@@ -2119,7 +2119,7 @@ public final class Main implements ServerConfig {
             WORKFLOW_RUN.INPUT_FILE_IDS,
             param("inputFileIds", run.getInputFiles().toArray(String[]::new)))
         .set(WORKFLOW_RUN.CREATED, param("created", run.getCreated().toOffsetDateTime()))
-        .set(WORKFLOW_RUN.COMPLETED, param("completed", run.getCompleted().toOffsetDateTime()))
+        .set(WORKFLOW_RUN.COMPLETED, param("completed", null == run.getCompleted()? null : run.getCompleted().toOffsetDateTime()))
         .set(WORKFLOW_RUN.LAST_ACCESSED, param("lastAccessed", now))
         .set(
             WORKFLOW_RUN.STARTED,

@@ -16,19 +16,19 @@ import tools.jackson.databind.json.JsonMapper;
  */
 public final class JsonBodyHandler<W> implements HttpResponse.BodyHandler<Supplier<W>> {
   private static <W> HttpResponse.BodySubscriber<Supplier<W>> asJSON(
-      JsonMapper JsonMapper, JavaType targetType) {
+      JsonMapper jsonMapper, JavaType targetType) {
     HttpResponse.BodySubscriber<InputStream> upstream =
         HttpResponse.BodySubscribers.ofInputStream();
 
     return HttpResponse.BodySubscribers.mapping(
-        upstream, inputStream -> toSupplierOfType(JsonMapper, inputStream, targetType));
+        upstream, inputStream -> toSupplierOfType(jsonMapper, inputStream, targetType));
   }
 
   private static <W> Supplier<W> toSupplierOfType(
-      JsonMapper JsonMapper, InputStream inputStream, JavaType targetType) {
+      JsonMapper jsonMapper, InputStream inputStream, JavaType targetType) {
     return () -> {
       try (final var stream = inputStream) {
-        return JsonMapper.readValue(stream, targetType);
+        return jsonMapper.readValue(stream, targetType);
       } catch (IOException e) {
         throw new UncheckedIOException(e);
       }

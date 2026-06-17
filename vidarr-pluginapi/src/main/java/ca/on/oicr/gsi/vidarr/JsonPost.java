@@ -39,11 +39,7 @@ public interface JsonPost<T> {
                     exception.printStackTrace();
                     e.setStatusCode(StatusCodes.BAD_REQUEST);
                     e.getResponseHeaders().put(Headers.CONTENT_TYPE, "text/plain");
-                    if (exception.getMessage().contains("No content to map due to end-of-input")) {
-                      e.getResponseSender().send("Expected content but request body was empty");
-                    } else {
-                      e.getResponseSender().send(exception.getMessage());
-                    }
+                    e.getResponseSender().send(exception.getMessage());
                   }
                 });
   }

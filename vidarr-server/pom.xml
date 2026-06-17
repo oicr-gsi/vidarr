@@ -1,166 +1,23 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns="http://maven.apache.org/POM/4.0.0"
   xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
-  <modelVersion>4.0.0</modelVersion>
   <artifactId>vidarr-server</artifactId>
-  <name>Vidarr Analysis Provenance Server</name>
-  <parent>
-    <groupId>ca.on.oicr.gsi.vidarr</groupId>
-    <artifactId>vidarr</artifactId>
-    <version>2.13.2-SNAPSHOT</version>
-    <relativePath>../pom.xml</relativePath>
-  </parent>
-
-  <dependencies>
-    <dependency>
-      <groupId>tools.jackson.core</groupId>
-      <artifactId>jackson-core</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>tools.jackson.core</groupId>
-      <artifactId>jackson-databind</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>io.undertow</groupId>
-      <artifactId>undertow-core</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.jboss.threads</groupId>
-      <artifactId>jboss-threads</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>ca.on.oicr.gsi</groupId>
-      <artifactId>server-utils</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>ca.on.oicr.gsi.vidarr</groupId>
-      <artifactId>vidarr-pluginapi</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>ca.on.oicr.gsi.vidarr</groupId>
-      <artifactId>vidarr-core</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>io.prometheus</groupId>
-      <artifactId>simpleclient</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>io.prometheus</groupId>
-      <artifactId>simpleclient_common</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>io.prometheus</groupId>
-      <artifactId>simpleclient_hotspot</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.jooq</groupId>
-      <artifactId>jooq</artifactId>
-      <exclusions>
-        <exclusion>
-          <groupId>tools.jackson.core</groupId>
-          <artifactId>jackson-databind</artifactId>
-        </exclusion>
-      </exclusions>
-    </dependency>
-    <dependency>
-      <groupId>org.jooq</groupId>
-      <artifactId>jooq-meta</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.jooq</groupId>
-      <artifactId>jooq-codegen</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.jooq</groupId>
-      <artifactId>jooq-jackson3-extensions</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.postgresql</groupId>
-      <artifactId>postgresql</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.flywaydb</groupId>
-      <artifactId>flyway-core</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>com.zaxxer</groupId>
-      <artifactId>HikariCP</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>io.rest-assured</groupId>
-      <artifactId>rest-assured</artifactId>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>io.rest-assured</groupId>
-      <artifactId>json-path</artifactId>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>io.rest-assured</groupId>
-      <artifactId>xml-path</artifactId>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.testcontainers</groupId>
-      <artifactId>testcontainers</artifactId>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.testcontainers</groupId>
-      <artifactId>postgresql</artifactId>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>junit</groupId>
-      <artifactId>junit</artifactId>
-      <scope>test</scope>
-      <exclusions>
-        <exclusion>
-          <groupId>org.hamcrest</groupId>
-          <artifactId>hamcrest-core</artifactId>
-        </exclusion>
-      </exclusions>
-    </dependency>
-    <dependency>
-      <groupId>com.rasklaad</groupId>
-      <artifactId>blns-java</artifactId>
-      <version>0.0.1</version>
-    </dependency>
-  </dependencies>
   <build>
     <pluginManagement>
       <plugins>
         <plugin>
-          <groupId>io.fabric8</groupId>
           <artifactId>docker-maven-plugin</artifactId>
-          <version>0.48.0</version>
-          <dependencies>
-            <dependency>
-              <groupId>tools.jackson.core</groupId>
-              <artifactId>jackson-core</artifactId>
-            </dependency>
-            <dependency>
-              <groupId>tools.jackson.core</groupId>
-              <artifactId>jackson-databind</artifactId>
-            </dependency>
-            <!--            <dependency>-->
-            <!--              <groupId>tools.jackson.core</groupId>-->
-            <!--              <artifactId>jackson-annotations</artifactId>-->
-            <!--            </dependency>-->
-          </dependencies>
           <configuration>
-            <removeVolumes>true</removeVolumes>
             <images>
               <image>
-                <name>postgres:18-alpine</name>
                 <alias>postgres</alias>
+                <name>postgres:18-alpine</name>
                 <run>
                   <env>
-                    <POSTGRES_USER>vidarr</POSTGRES_USER>
-                    <POSTGRES_PASSWORD>vidarr</POSTGRES_PASSWORD>
                     <POSTGRES_DB>vidarr</POSTGRES_DB>
+                    <POSTGRES_PASSWORD>vidarr</POSTGRES_PASSWORD>
+                    <POSTGRES_USER>vidarr</POSTGRES_USER>
                   </env>
                   <ports>
                     <port>${pg.port}:5432</port>
@@ -171,23 +28,35 @@
                 </run>
               </image>
             </images>
+            <removeVolumes>true</removeVolumes>
           </configuration>
+          <dependencies>
+            <dependency>
+              <artifactId>jackson-core</artifactId>
+              <groupId>tools.jackson.core</groupId>
+            </dependency>
+            <dependency>
+              <artifactId>jackson-databind</artifactId>
+              <groupId>tools.jackson.core</groupId>
+            </dependency>
+          </dependencies>
+          <groupId>io.fabric8</groupId>
+          <version>0.48.0</version>
         </plugin>
       </plugins>
     </pluginManagement>
     <plugins>
       <plugin>
-        <groupId>io.fabric8</groupId>
         <artifactId>docker-maven-plugin</artifactId>
         <dependencies>
           <dependency>
-            <groupId>tools.jackson.core</groupId>
             <artifactId>jackson-core</artifactId>
+            <groupId>tools.jackson.core</groupId>
             <version>${jackson3.version}</version>
           </dependency>
           <dependency>
-            <groupId>tools.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
+            <groupId>tools.jackson.core</groupId>
             <version>${jackson3.version}</version>
           </dependency>
           <!--          <dependency>-->
@@ -197,132 +66,259 @@
         </dependencies>
         <executions>
           <execution>
-            <id>start</id>
-            <phase>generate-sources</phase>
             <goals>
               <goal>start</goal>
             </goals>
+            <id>start</id>
+            <phase>generate-sources</phase>
           </execution>
           <execution>
-            <id>stop</id>
-            <phase>process-sources</phase>
             <goals>
               <goal>stop</goal>
             </goals>
+            <id>stop</id>
+            <phase>process-sources</phase>
           </execution>
         </executions>
+        <groupId>io.fabric8</groupId>
       </plugin>
       <plugin>
-        <groupId>org.flywaydb</groupId>
         <artifactId>flyway-maven-plugin</artifactId>
-        <version>9.19.4</version>
-        <executions>
-          <execution>
-            <phase>generate-sources</phase>
-            <goals>
-              <goal>migrate</goal>
-            </goals>
-          </execution>
-        </executions>
         <configuration>
-          <url>jdbc:postgresql://localhost:${pg.port}/vidarr</url>
-          <user>vidarr</user>
-          <password>vidarr</password>
           <locations>
             <location>filesystem:src/main/resources/db/migration</location>
           </locations>
+          <password>vidarr</password>
+          <url>jdbc:postgresql://localhost:${pg.port}/vidarr</url>
+          <user>vidarr</user>
         </configuration>
+        <executions>
+          <execution>
+            <goals>
+              <goal>migrate</goal>
+            </goals>
+            <phase>generate-sources</phase>
+          </execution>
+        </executions>
+        <groupId>org.flywaydb</groupId>
+        <version>9.19.4</version>
       </plugin>
       <plugin>
-        <groupId>org.jooq</groupId>
         <artifactId>jooq-codegen-maven</artifactId>
-        <version>${jooq.version}</version>
         <dependencies>
           <dependency>
-            <groupId>org.jooq</groupId>
             <artifactId>jooq-jackson3-extensions</artifactId>
-            <version>${jooq.version}</version>
             <exclusions>
               <exclusion>
-                <groupId>tools.jackson.core</groupId>
                 <artifactId>*</artifactId>
+                <groupId>tools.jackson.core</groupId>
               </exclusion>
             </exclusions>
+            <groupId>org.jooq</groupId>
+            <version>${jooq.version}</version>
           </dependency>
           <dependency>
-            <groupId>tools.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
+            <groupId>tools.jackson.core</groupId>
             <version>${jackson3.version}</version>
           </dependency>
         </dependencies>
         <executions>
           <execution>
-            <id>jooq-codegen</id>
-            <phase>generate-sources</phase>
-            <goals>
-              <goal>generate</goal>
-            </goals>
             <configuration>
-              <jdbc>
-                <url>jdbc:postgresql://localhost:${pg.port}/vidarr</url>
-                <user>vidarr</user>
-                <password>vidarr</password>
-              </jdbc>
               <generator>
-                <name>org.jooq.codegen.JavaGenerator</name>
                 <database>
-                  <name>org.jooq.meta.postgres.PostgresDatabase</name>
-                  <inputSchema>public</inputSchema>
-                  <includes>.*</includes>
                   <excludes/>
                   <forcedTypes>
                     <forcedType>
-                      <userType>ca.on.oicr.gsi.vidarr.core.Phase</userType>
+                      <includeExpression>.*\.engine_phase</includeExpression>
+                      <includeTypes>.*</includeTypes>
                       <lambdaConverter>
                         <from>i -&gt; Phase.values()[i]</from>
                         <to>Phase::ordinal</to>
                       </lambdaConverter>
-                      <includeExpression>.*\.engine_phase</includeExpression>
-                      <includeTypes>.*</includeTypes>
+                      <userType>ca.on.oicr.gsi.vidarr.core.Phase</userType>
                     </forcedType>
                     <forcedType>
-                      <userType>ca.on.oicr.gsi.vidarr.OperationStatus</userType>
+                      <includeExpression>public\.active_operation\.status</includeExpression>
+                      <includeTypes>.*</includeTypes>
                       <lambdaConverter>
                         <from>OperationStatus::valueOf</from>
                         <to>OperationStatus::name</to>
                       </lambdaConverter>
-                      <includeExpression>public\.active_operation\.status</includeExpression>
-                      <includeTypes>.*</includeTypes>
+                      <userType>ca.on.oicr.gsi.vidarr.OperationStatus</userType>
                     </forcedType>
                     <forcedType>
-                      <userType>ca.on.oicr.gsi.vidarr.WorkflowLanguage</userType>
+                      <includeExpression>public\.workflow_definition\.workflow_language
+                      </includeExpression>
+                      <includeTypes>.*</includeTypes>
                       <lambdaConverter>
                         <from>WorkflowLanguage::valueOf</from>
                         <to>WorkflowLanguage::name</to>
                       </lambdaConverter>
-                      <includeExpression>public\.workflow_definition\.workflow_language
-                      </includeExpression>
-                      <includeTypes>.*</includeTypes>
+                      <userType>ca.on.oicr.gsi.vidarr.WorkflowLanguage</userType>
                     </forcedType>
                     <forcedType>
-                      <userType>tools.jackson.databind.JsonNode</userType>
                       <binding>ca.on.oicr.gsi.vidarr.server.PostgresJSONBBinding</binding>
+                      <excludeExpression>.*\.labels</excludeExpression>
                       <includeExpression>.*</includeExpression>
                       <!-- We leave labels alone so we can manipulate them using the database functions -->
-                      <excludeExpression>.*\.labels</excludeExpression>
                       <includeTypes>JSONB</includeTypes>
+                      <userType>tools.jackson.databind.JsonNode</userType>
                     </forcedType>
                   </forcedTypes>
+                  <includes>.*</includes>
+                  <inputSchema>public</inputSchema>
+                  <name>org.jooq.meta.postgres.PostgresDatabase</name>
                 </database>
+                <name>org.jooq.codegen.JavaGenerator</name>
                 <target>
-                  <packageName>ca.on.oicr.gsi.vidarr.server.jooq</packageName>
                   <directory>./src/main/java</directory>
+                  <packageName>ca.on.oicr.gsi.vidarr.server.jooq</packageName>
                 </target>
               </generator>
+              <jdbc>
+                <password>vidarr</password>
+                <url>jdbc:postgresql://localhost:${pg.port}/vidarr</url>
+                <user>vidarr</user>
+              </jdbc>
             </configuration>
+            <goals>
+              <goal>generate</goal>
+            </goals>
+            <id>jooq-codegen</id>
+            <phase>generate-sources</phase>
           </execution>
         </executions>
+        <groupId>org.jooq</groupId>
+        <version>${jooq.version}</version>
       </plugin>
     </plugins>
   </build>
+  <dependencies>
+    <dependency>
+      <artifactId>jackson-core</artifactId>
+      <groupId>tools.jackson.core</groupId>
+    </dependency>
+    <dependency>
+      <artifactId>jackson-databind</artifactId>
+      <groupId>tools.jackson.core</groupId>
+    </dependency>
+    <dependency>
+      <artifactId>undertow-core</artifactId>
+      <groupId>io.undertow</groupId>
+    </dependency>
+    <dependency>
+      <artifactId>jboss-threads</artifactId>
+      <groupId>org.jboss.threads</groupId>
+    </dependency>
+    <dependency>
+      <artifactId>server-utils</artifactId>
+      <groupId>ca.on.oicr.gsi</groupId>
+    </dependency>
+    <dependency>
+      <artifactId>vidarr-pluginapi</artifactId>
+      <groupId>ca.on.oicr.gsi.vidarr</groupId>
+    </dependency>
+    <dependency>
+      <artifactId>vidarr-core</artifactId>
+      <groupId>ca.on.oicr.gsi.vidarr</groupId>
+    </dependency>
+    <dependency>
+      <artifactId>simpleclient</artifactId>
+      <groupId>io.prometheus</groupId>
+    </dependency>
+    <dependency>
+      <artifactId>simpleclient_common</artifactId>
+      <groupId>io.prometheus</groupId>
+    </dependency>
+    <dependency>
+      <artifactId>simpleclient_hotspot</artifactId>
+      <groupId>io.prometheus</groupId>
+    </dependency>
+    <dependency>
+      <artifactId>jooq</artifactId>
+      <exclusions>
+        <exclusion>
+          <artifactId>jackson-databind</artifactId>
+          <groupId>tools.jackson.core</groupId>
+        </exclusion>
+      </exclusions>
+      <groupId>org.jooq</groupId>
+    </dependency>
+    <dependency>
+      <artifactId>jooq-meta</artifactId>
+      <groupId>org.jooq</groupId>
+    </dependency>
+    <dependency>
+      <artifactId>jooq-codegen</artifactId>
+      <groupId>org.jooq</groupId>
+    </dependency>
+    <dependency>
+      <artifactId>jooq-jackson3-extensions</artifactId>
+      <groupId>org.jooq</groupId>
+    </dependency>
+    <dependency>
+      <artifactId>postgresql</artifactId>
+      <groupId>org.postgresql</groupId>
+    </dependency>
+    <dependency>
+      <artifactId>flyway-core</artifactId>
+      <groupId>org.flywaydb</groupId>
+    </dependency>
+    <dependency>
+      <artifactId>HikariCP</artifactId>
+      <groupId>com.zaxxer</groupId>
+    </dependency>
+    <dependency>
+      <artifactId>rest-assured</artifactId>
+      <groupId>io.rest-assured</groupId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <artifactId>json-path</artifactId>
+      <groupId>io.rest-assured</groupId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <artifactId>xml-path</artifactId>
+      <groupId>io.rest-assured</groupId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <artifactId>testcontainers</artifactId>
+      <groupId>org.testcontainers</groupId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <artifactId>postgresql</artifactId>
+      <groupId>org.testcontainers</groupId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <artifactId>junit</artifactId>
+      <exclusions>
+        <exclusion>
+          <artifactId>hamcrest-core</artifactId>
+          <groupId>org.hamcrest</groupId>
+        </exclusion>
+      </exclusions>
+      <groupId>junit</groupId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <artifactId>blns-java</artifactId>
+      <groupId>com.rasklaad</groupId>
+      <version>0.0.1</version>
+    </dependency>
+  </dependencies>
+  <modelVersion>4.0.0</modelVersion>
+
+  <name>Vidarr Analysis Provenance Server</name>
+  <parent>
+    <artifactId>vidarr</artifactId>
+    <groupId>ca.on.oicr.gsi.vidarr</groupId>
+    <relativePath>../pom.xml</relativePath>
+    <version>2.13.2-SNAPSHOT</version>
+  </parent>
 </project>

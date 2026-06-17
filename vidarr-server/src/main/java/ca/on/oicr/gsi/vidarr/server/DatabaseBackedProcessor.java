@@ -113,33 +113,6 @@ import tools.jackson.databind.node.ObjectNode;
 public abstract class DatabaseBackedProcessor
     extends BaseProcessor<DatabaseWorkflow, DatabaseOperation, DSLContext> {
 
-  private static class BadRecoveryTracker {
-
-    private static final Set<String> badRecoveryIds = new HashSet<>();
-    private static final Gauge badRecoveryCount =
-        Gauge.build(
-                "vidarr_db_processor_recovery_current_failures",
-                "The number of failures in recovering database-backed operations that have not been deleted")
-            .register();
-
-    private static final Counter badRecoveryTotal =
-        Counter.build(
-                "vidarr_db_processor_recovery_total_failures",
-                "The total number of failures in recovering database-backed operations this boot")
-            .register();
-
-    public static void add(String id) {
-      badRecoveryIds.add(id);
-      badRecoveryCount.set(badRecoveryIds.size());
-      badRecoveryTotal.inc();
-    }
-
-    public static void remove(String id) {
-      badRecoveryIds.remove(id); // does nothing if id is not in HashSet
-      badRecoveryCount.set(badRecoveryIds.size()); // no change if remove did nothing
-    }
-  }
-
   public interface DeleteResultHandler<T> {
 
     T deleted();
@@ -180,6 +153,32 @@ public abstract class DatabaseBackedProcessor
     T unknownWorkflow(String name, String version);
 
     T unresolvedIds(TreeSet<String> inputId);
+  }
+
+  private static class BadRecoveryTracker {
+
+    private static final Gauge badRecoveryCount =
+        Gauge.build(
+                "vidarr_db_processor_recovery_current_failures",
+                "The number of failures in recovering database-backed operations that have not been deleted")
+            .register();
+    private static final Set<String> badRecoveryIds = new HashSet<>();
+    private static final Counter badRecoveryTotal =
+        Counter.build(
+                "vidarr_db_processor_recovery_total_failures",
+                "The total number of failures in recovering database-backed operations this boot")
+            .register();
+
+    public static void add(String id) {
+      badRecoveryIds.add(id);
+      badRecoveryCount.set(badRecoveryIds.size());
+      badRecoveryTotal.inc();
+    }
+
+    public static void remove(String id) {
+      badRecoveryIds.remove(id); // does nothing if id is not in HashSet
+      badRecoveryCount.set(badRecoveryIds.size()); // no change if remove did nothing
+    }
   }
 
   protected static final class WorkflowInformation implements Iterable<String> {
@@ -332,6 +331,24 @@ public abstract class DatabaseBackedProcessor
     } catch (NoSuchAlgorithmException | JacksonException e) {
       throw new IOError(e);
     }
+  }
+
+  public static String extractHashIfIsFullWorkflowRunId(String id) {
+    Matcher matcher = BaseProcessor.WORKFLOW_RUN_ID.matcher(id);
+    if (!matcher.matches()) {
+      // assume it's already a hash
+      return id;
+    }
+    return matcher.group("hash");
+  }
+
+  private static String hashFromAnalysisId(String id) {
+    Matcher matcher = BaseProcessor.ANALYSIS_RECORD_ID.matcher(id);
+    if (!matcher.matches()) {
+      throw new IllegalArgumentException(
+          String.format("'%s' is a malformed Vidarr file identifier", id));
+    }
+    return matcher.group("hash");
   }
 
   /**
@@ -534,33 +551,31 @@ public abstract class DatabaseBackedProcessor
 
   private TreeSet<ExternalId> extractExternalIds(
       JsonNode arguments, WorkflowInformation workflow, TreeSet<String> unresolvedIds) {
-    // add intermediary variable to help the compiler with the types
-    Stream<? extends ExternalId> intermediary =
-        workflow
-            .definition()
-            .parameters()
-            .flatMap(
-                p ->
-                    arguments.has(p.name())
-                        ? p.type()
-                            .apply(
-                                new ExtractInputExternalIds(
-                                    MAPPER,
-                                    arguments.get(p.name()),
-                                    id -> {
-                                      final Optional<FileMetadata> result = pathForId(id);
-                                      if (result.isEmpty()) {
-                                        unresolvedIds.add(id);
-                                      }
-                                      return result;
-                                    }))
-                        : Stream.empty());
-    return intermediary.collect(
-        Collectors.toCollection(
-            () ->
-                new TreeSet<>(
-                    Comparator.comparing(ExternalId::getProvider)
-                        .thenComparing(ExternalId::getId))));
+    return workflow
+        .definition()
+        .parameters()
+        .<ExternalId>flatMap(
+            p ->
+                arguments.has(p.name())
+                    ? p.type()
+                        .apply(
+                            new ExtractInputExternalIds(
+                                MAPPER,
+                                arguments.get(p.name()),
+                                id -> {
+                                  final Optional<FileMetadata> result = pathForId(id);
+                                  if (result.isEmpty()) {
+                                    unresolvedIds.add(id);
+                                  }
+                                  return result;
+                                }))
+                    : Stream.empty())
+        .collect(
+            Collectors.toCollection(
+                () ->
+                    new TreeSet<>(
+                        Comparator.comparing(ExternalId::getProvider)
+                            .thenComparing(ExternalId::getId))));
   }
 
   private TreeSet<String> extractWorkflowInputIds(
@@ -631,6 +646,22 @@ public abstract class DatabaseBackedProcessor
                 throw new RuntimeException(e);
               }
             });
+  }
+
+  @Override
+  public final void inTransaction(Consumer<DSLContext> operation) {
+    databaseLock.acquireUninterruptibly();
+    try {
+      try (final Connection connection = dataSource.getConnection()) {
+        DSL.using(connection, SQLDialect.POSTGRES)
+            .transaction(context -> operation.accept(DSL.using(context)));
+        connection.commit();
+      }
+    } catch (SQLException e) {
+      throw new RuntimeException(e);
+    } finally {
+      databaseLock.release();
+    }
   }
 
   private <T> T launchNewWorkflowRun(
@@ -729,6 +760,35 @@ public abstract class DatabaseBackedProcessor
     return liveness
         .computeIfAbsent(workflowRunId, k -> new SoftReference<>(new AtomicBoolean(true)))
         .get();
+  }
+
+  private Target makeReprovisionTarget(OutputProvisioner<?, ?> provisioner) {
+    return new Target() {
+      @Override
+      public Stream<Pair<String, ConsumableResource>> consumableResources() {
+        return Stream.empty();
+      }
+
+      @Override
+      public WorkflowEngine<?, ?> engine() {
+        return new NoOpWorkflowEngine();
+      }
+
+      @Override
+      public InputProvisioner<?> provisionerFor(InputProvisionFormat type) {
+        return new RawInputProvisioner();
+      }
+
+      @Override
+      public OutputProvisioner<?, ?> provisionerFor(OutputProvisionFormat type) {
+        return provisioner;
+      }
+
+      @Override
+      public Stream<RuntimeProvisioner<?>> runtimeProvisioners() {
+        return Stream.empty();
+      }
+    };
   }
 
   @Override
@@ -993,159 +1053,8 @@ public abstract class DatabaseBackedProcessor
     }
   }
 
-  public final List<String> retry(Optional<List<String>> workflowRunIds) throws SQLException {
-    try (final Connection connection = dataSource.getConnection()) {
-      final ArrayList<String> ids = new ArrayList<>();
-      DSL.using(connection, SQLDialect.POSTGRES)
-          .transaction(
-              context -> {
-                DSLContext dsl = DSL.using(context);
-                Map<Long, List<DatabaseOperation>> operations =
-                    dsl
-                        .select(ACTIVE_OPERATION.asterisk())
-                        .from(
-                            ACTIVE_OPERATION
-                                .join(ACTIVE_WORKFLOW_RUN)
-                                .on(ACTIVE_OPERATION.WORKFLOW_RUN_ID.eq(ACTIVE_WORKFLOW_RUN.ID))
-                                .join(WORKFLOW_RUN)
-                                .on(WORKFLOW_RUN.ID.eq(ACTIVE_WORKFLOW_RUN.ID)))
-                        .where(
-                            ACTIVE_OPERATION
-                                .STATUS
-                                .eq(OperationStatus.FAILED)
-                                .and(ACTIVE_OPERATION.ENGINE_PHASE.eq(Phase.PROVISION_OUT))
-                                .and(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE.eq(Phase.FAILED))
-                                .and(ACTIVE_OPERATION.ATTEMPT.eq(ACTIVE_WORKFLOW_RUN.ATTEMPT))
-                                .and(
-                                    workflowRunIds
-                                        .map(WORKFLOW_RUN.HASH_ID::in)
-                                        .orElse(trueCondition())))
-                        .forUpdate()
-                        .stream()
-                        .collect(
-                            Collectors.groupingBy(
-                                r -> r.get(ACTIVE_OPERATION.WORKFLOW_RUN_ID),
-                                Collectors.mapping(
-                                    r -> {
-                                      r.set(ACTIVE_OPERATION.STATUS, OperationStatus.INITIALIZING);
-                                      return DatabaseOperation.recover(
-                                          r, liveness(r.get(ACTIVE_OPERATION.WORKFLOW_RUN_ID)));
-                                    },
-                                    toList())));
-                final int updated =
-                    dsl.update(ACTIVE_WORKFLOW_RUN)
-                        .set(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE, Phase.PROVISION_OUT)
-                        .where(ACTIVE_WORKFLOW_RUN.ID.in(operations.keySet()))
-                        .execute();
-                if (updated != operations.size()) {
-                  System.err.printf(
-                      "Attempting to retry updated %d workflow runs, but should have updated %d.",
-                      updated, operations.size());
-                }
-                dsl.select()
-                    .from(
-                        ACTIVE_WORKFLOW_RUN
-                            .join(WORKFLOW_RUN)
-                            .on(ACTIVE_WORKFLOW_RUN.ID.eq(WORKFLOW_RUN.ID))
-                            .join(WORKFLOW_VERSION)
-                            .on(WORKFLOW_RUN.WORKFLOW_VERSION_ID.eq(WORKFLOW_VERSION.ID))
-                            .join(WORKFLOW_DEFINITION)
-                            .on(WORKFLOW_VERSION.WORKFLOW_DEFINITION.eq(WORKFLOW_DEFINITION.ID)))
-                    .where(ACTIVE_WORKFLOW_RUN.ID.in(operations.keySet()))
-                    .forUpdate()
-                    .forEach(
-                        record ->
-                            targetByName(record.get(ACTIVE_WORKFLOW_RUN.TARGET))
-                                .ifPresent(
-                                    target -> {
-                                      try {
-                                        ids.add(record.get(WORKFLOW_RUN.HASH_ID));
-                                        System.err.printf(
-                                            "Retrying workflow %s...\n",
-                                            record.get(WORKFLOW_RUN.HASH_ID));
-                                        target
-                                            .consumableResources()
-                                            .forEach(
-                                                cr ->
-                                                    cr.second()
-                                                        .recover(
-                                                            record.get(WORKFLOW_VERSION.NAME),
-                                                            record.get(WORKFLOW_VERSION.VERSION),
-                                                            record.get(WORKFLOW_RUN.HASH_ID),
-                                                            Optional.ofNullable(
-                                                                record.get(
-                                                                    ACTIVE_WORKFLOW_RUN
-                                                                        .CONSUMABLE_RESOURCES))));
-                                        final List<DatabaseOperation> activeOperations =
-                                            operations.get(record.get(ACTIVE_WORKFLOW_RUN.ID));
-                                        if (activeOperations.isEmpty()) {
-                                          System.err.printf(
-                                              "Error retrying workflow run %s: no operations match\n",
-                                              record.get(WORKFLOW_RUN.HASH_ID));
-                                          return;
-                                        }
-                                        final DatabaseWorkflow workflow =
-                                            DatabaseWorkflow.recover(
-                                                target,
-                                                record,
-                                                liveness(record.get(ACTIVE_WORKFLOW_RUN.ID)),
-                                                dsl);
-                                        for (final DatabaseOperation operation : activeOperations) {
-                                          operation.linkTo(workflow);
-                                        }
-                                        recover(
-                                            target,
-                                            buildDefinitionFromRecord(context.dsl(), record),
-                                            workflow,
-                                            activeOperations,
-                                            RecoveryType.RETRY);
-                                      } catch (Exception e) {
-                                        String erroneousHash = record.get(WORKFLOW_RUN.HASH_ID);
-                                        System.err.printf(
-                                            "Error retrying workflow run %s: \n", erroneousHash);
-                                        e.printStackTrace();
-                                        BadRecoveryTracker.add(erroneousHash);
-                                        System.err.println(
-                                            "Continuing recovery on next record in database if one exists.");
-                                      }
-                                    }));
-              });
-      connection.commit();
-      return ids;
-    }
-  }
-
   protected final Set<String> recoveryFailures() {
     return BadRecoveryTracker.badRecoveryIds;
-  }
-
-  private Target makeReprovisionTarget(OutputProvisioner<?, ?> provisioner) {
-    return new Target() {
-      @Override
-      public Stream<Pair<String, ConsumableResource>> consumableResources() {
-        return Stream.empty();
-      }
-
-      @Override
-      public WorkflowEngine<?, ?> engine() {
-        return new NoOpWorkflowEngine();
-      }
-
-      @Override
-      public InputProvisioner<?> provisionerFor(InputProvisionFormat type) {
-        return new RawInputProvisioner();
-      }
-
-      @Override
-      public OutputProvisioner<?, ?> provisionerFor(OutputProvisionFormat type) {
-        return provisioner;
-      }
-
-      @Override
-      public Stream<RuntimeProvisioner<?>> runtimeProvisioners() {
-        return Stream.empty();
-      }
-    };
   }
 
   public <T> T reprovisionOut(
@@ -1482,19 +1391,125 @@ public abstract class DatabaseBackedProcessor
     }
   }
 
-  @Override
-  public final void inTransaction(Consumer<DSLContext> operation) {
-    databaseLock.acquireUninterruptibly();
-    try {
-      try (final Connection connection = dataSource.getConnection()) {
-        DSL.using(connection, SQLDialect.POSTGRES)
-            .transaction(context -> operation.accept(DSL.using(context)));
-        connection.commit();
-      }
-    } catch (SQLException e) {
-      throw new RuntimeException(e);
-    } finally {
-      databaseLock.release();
+  public final List<String> retry(Optional<List<String>> workflowRunIds) throws SQLException {
+    try (final Connection connection = dataSource.getConnection()) {
+      final ArrayList<String> ids = new ArrayList<>();
+      DSL.using(connection, SQLDialect.POSTGRES)
+          .transaction(
+              context -> {
+                DSLContext dsl = DSL.using(context);
+                Map<Long, List<DatabaseOperation>> operations =
+                    dsl
+                        .select(ACTIVE_OPERATION.asterisk())
+                        .from(
+                            ACTIVE_OPERATION
+                                .join(ACTIVE_WORKFLOW_RUN)
+                                .on(ACTIVE_OPERATION.WORKFLOW_RUN_ID.eq(ACTIVE_WORKFLOW_RUN.ID))
+                                .join(WORKFLOW_RUN)
+                                .on(WORKFLOW_RUN.ID.eq(ACTIVE_WORKFLOW_RUN.ID)))
+                        .where(
+                            ACTIVE_OPERATION
+                                .STATUS
+                                .eq(OperationStatus.FAILED)
+                                .and(ACTIVE_OPERATION.ENGINE_PHASE.eq(Phase.PROVISION_OUT))
+                                .and(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE.eq(Phase.FAILED))
+                                .and(ACTIVE_OPERATION.ATTEMPT.eq(ACTIVE_WORKFLOW_RUN.ATTEMPT))
+                                .and(
+                                    workflowRunIds
+                                        .map(WORKFLOW_RUN.HASH_ID::in)
+                                        .orElse(trueCondition())))
+                        .forUpdate()
+                        .stream()
+                        .collect(
+                            Collectors.groupingBy(
+                                r -> r.get(ACTIVE_OPERATION.WORKFLOW_RUN_ID),
+                                Collectors.mapping(
+                                    r -> {
+                                      r.set(ACTIVE_OPERATION.STATUS, OperationStatus.INITIALIZING);
+                                      return DatabaseOperation.recover(
+                                          r, liveness(r.get(ACTIVE_OPERATION.WORKFLOW_RUN_ID)));
+                                    },
+                                    toList())));
+                final int updated =
+                    dsl.update(ACTIVE_WORKFLOW_RUN)
+                        .set(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE, Phase.PROVISION_OUT)
+                        .where(ACTIVE_WORKFLOW_RUN.ID.in(operations.keySet()))
+                        .execute();
+                if (updated != operations.size()) {
+                  System.err.printf(
+                      "Attempting to retry updated %d workflow runs, but should have updated %d.",
+                      updated, operations.size());
+                }
+                dsl.select()
+                    .from(
+                        ACTIVE_WORKFLOW_RUN
+                            .join(WORKFLOW_RUN)
+                            .on(ACTIVE_WORKFLOW_RUN.ID.eq(WORKFLOW_RUN.ID))
+                            .join(WORKFLOW_VERSION)
+                            .on(WORKFLOW_RUN.WORKFLOW_VERSION_ID.eq(WORKFLOW_VERSION.ID))
+                            .join(WORKFLOW_DEFINITION)
+                            .on(WORKFLOW_VERSION.WORKFLOW_DEFINITION.eq(WORKFLOW_DEFINITION.ID)))
+                    .where(ACTIVE_WORKFLOW_RUN.ID.in(operations.keySet()))
+                    .forUpdate()
+                    .forEach(
+                        record ->
+                            targetByName(record.get(ACTIVE_WORKFLOW_RUN.TARGET))
+                                .ifPresent(
+                                    target -> {
+                                      try {
+                                        ids.add(record.get(WORKFLOW_RUN.HASH_ID));
+                                        System.err.printf(
+                                            "Retrying workflow %s...\n",
+                                            record.get(WORKFLOW_RUN.HASH_ID));
+                                        target
+                                            .consumableResources()
+                                            .forEach(
+                                                cr ->
+                                                    cr.second()
+                                                        .recover(
+                                                            record.get(WORKFLOW_VERSION.NAME),
+                                                            record.get(WORKFLOW_VERSION.VERSION),
+                                                            record.get(WORKFLOW_RUN.HASH_ID),
+                                                            Optional.ofNullable(
+                                                                record.get(
+                                                                    ACTIVE_WORKFLOW_RUN
+                                                                        .CONSUMABLE_RESOURCES))));
+                                        final List<DatabaseOperation> activeOperations =
+                                            operations.get(record.get(ACTIVE_WORKFLOW_RUN.ID));
+                                        if (activeOperations.isEmpty()) {
+                                          System.err.printf(
+                                              "Error retrying workflow run %s: no operations match\n",
+                                              record.get(WORKFLOW_RUN.HASH_ID));
+                                          return;
+                                        }
+                                        final DatabaseWorkflow workflow =
+                                            DatabaseWorkflow.recover(
+                                                target,
+                                                record,
+                                                liveness(record.get(ACTIVE_WORKFLOW_RUN.ID)),
+                                                dsl);
+                                        for (final DatabaseOperation operation : activeOperations) {
+                                          operation.linkTo(workflow);
+                                        }
+                                        recover(
+                                            target,
+                                            buildDefinitionFromRecord(context.dsl(), record),
+                                            workflow,
+                                            activeOperations,
+                                            RecoveryType.RETRY);
+                                      } catch (Exception e) {
+                                        String erroneousHash = record.get(WORKFLOW_RUN.HASH_ID);
+                                        System.err.printf(
+                                            "Error retrying workflow run %s: \n", erroneousHash);
+                                        e.printStackTrace();
+                                        BadRecoveryTracker.add(erroneousHash);
+                                        System.err.println(
+                                            "Continuing recovery on next record in database if one exists.");
+                                      }
+                                    }));
+              });
+      connection.commit();
+      return ids;
     }
   }
 
@@ -1993,23 +2008,5 @@ public abstract class DatabaseBackedProcessor
                                     + badEntries);
                           }
                         }));
-  }
-
-  private static String hashFromAnalysisId(String id) {
-    Matcher matcher = BaseProcessor.ANALYSIS_RECORD_ID.matcher(id);
-    if (!matcher.matches()) {
-      throw new IllegalArgumentException(
-          String.format("'%s' is a malformed Vidarr file identifier", id));
-    }
-    return matcher.group("hash");
-  }
-
-  public static String extractHashIfIsFullWorkflowRunId(String id) {
-    Matcher matcher = BaseProcessor.WORKFLOW_RUN_ID.matcher(id);
-    if (!matcher.matches()) {
-      // assume it's already a hash
-      return id;
-    }
-    return matcher.group("hash");
   }
 }

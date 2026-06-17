@@ -6,6 +6,25 @@ For unreleased changes, see [changes](changes).
 
 -----------------------------------------------------------------------------
 
+## [2.14.0] - 2026-06-17
+
+### Changed
+
+* Adds optional 'originalCompleted' time to ReprovisionRequest, for the purpose of making
+  import workflow runs look 'not completed' until they are done loading and reprovisioning
+* If an unload request selects one or more workflow runs or downstream workflow runs which are incomplete, the unload will fail with an error message informing which workflow runs need to be dealt with before the unload can proceed.
+  
+  Note that copy-out requests will proceed as usual. It is possible that a copy-out operation could succeed while an unload with the same filter would fail, as copy-out only returns completed workflow runs and unload now checks all downstream workflow runs.
+
+### Fixed
+
+* 'vidarr-workflow-label' to list of possible filters in /copy-out endpoint
+
+### Upgrade Notes
+
+* Vidarr now runs on Java 21
+
+
 ## [2.13.1] - 2026-05-25
 
 ### Fixed

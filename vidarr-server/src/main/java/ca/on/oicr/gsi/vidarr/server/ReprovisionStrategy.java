@@ -10,6 +10,7 @@ import com.zaxxer.hikari.HikariDataSource;
 import java.sql.SQLException;
 import java.time.OffsetDateTime;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 import org.jooq.DSLContext;
@@ -17,7 +18,7 @@ import org.jooq.Record;
 
 public interface ReprovisionStrategy {
 
-  OffsetDateTime getOriginalCompleted(Record record);
+  OffsetDateTime getOriginalCompleted(Record record, Optional<OffsetDateTime> originalCompleted);
 
   JsonNode getMetadata(Record record, String outputPath,
       String provisionerName, OffsetDateTime originalCompleted);

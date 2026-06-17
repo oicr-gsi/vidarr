@@ -1128,6 +1128,7 @@ public abstract class DatabaseBackedProcessor
       OutputProvisioner<?, ?> provisioner,
       String outputPath,
       int attempt,
+      Optional<OffsetDateTime> optionalCompleted,
       SubmissionResultHandler<T> handler) {
     AtomicReference<T> ret = new AtomicReference<>();
     // New target to aim the new job at
@@ -1217,8 +1218,8 @@ public abstract class DatabaseBackedProcessor
                           oldLivenessLock.set(false);
                         }
                       }
-                      OffsetDateTime originalCompleted = strategy.getOriginalCompleted(record);
-                      if (originalCompleted.equals(OffsetDateTime.MAX)) {
+                      OffsetDateTime originalCompleted = strategy.getOriginalCompleted(record, optionalCompleted);
+                      if (null == originalCompleted || originalCompleted.equals(OffsetDateTime.MAX)) {
                         throw new RuntimeException(String.format(
                             "Workflow run %s doesn't seem to have a valid original completed time.",
                             workflowRunId));

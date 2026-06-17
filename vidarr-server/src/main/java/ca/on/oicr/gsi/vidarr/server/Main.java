@@ -58,6 +58,7 @@ import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -108,10 +109,12 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.EnumSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -490,6 +493,11 @@ public final class Main implements ServerConfig {
   private void importRun(HttpServerExchange httpServerExchange, ImportRequest importRequest) {
     try {
       importRequest.check();
+
+      // Clear and remember import request's completed time so it's null on load
+      ZonedDateTime completed = importRequest.getWorkflowRun().getCompleted();
+      importRequest.getWorkflowRun().setCompleted(null);
+
       // verify = false causes load() to generate a new hash and apply it to the workflow run object
       load(httpServerExchange, importRequest.load(), false, false);
 
@@ -505,7 +513,8 @@ public final class Main implements ServerConfig {
 
       // Use hash id generated during load()
       reprovisionOut(
-          httpServerExchange, importRequest.reprovision(importRequest.getWorkflowRun().getId()));
+          httpServerExchange, importRequest.reprovision(importRequest.getWorkflowRun().getId(),
+              Optional.of(completed.toOffsetDateTime())));
     } catch (Exception e) {
       internalServerErrorResponse(httpServerExchange, e);
     }
@@ -555,6 +564,7 @@ public final class Main implements ServerConfig {
             provisioner,
             reprovisionOutRequest.getOutputPath(),
             reprovisionOutRequest.getAttempt(),
+            reprovisionOutRequest.getOriginalCompleted(),
             new DatabaseBackedProcessor.SubmissionResultHandler<>() {
               @Override
               public boolean allowLaunch() {

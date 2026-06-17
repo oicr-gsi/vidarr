@@ -43,21 +43,13 @@ public class AlertmanagerAutoInhibitConsumableResource implements ConsumableReso
   private final String alertName = "AutoInhibit";
   private String alertmanagerUrl;
   private String autoInhibitOnEnvironment;
+  @JsonIgnore private AlertCache cache;
+  private Integer cacheRequestTimeout;
+  private Integer cacheTtl;
   private Set<String> labelsOfInterest;
   private Set<String> valuesOfInterest;
-  private Integer cacheTtl;
-  private Integer cacheRequestTimeout;
-  @JsonIgnore private AlertCache cache;
 
   public AlertmanagerAutoInhibitConsumableResource() {}
-
-  public Integer getCacheTtl() {
-    return cacheTtl;
-  }
-
-  public Integer getCacheRequestTimeout() {
-    return cacheRequestTimeout;
-  }
 
   public String getAlertmanagerUrl() {
     return alertmanagerUrl;
@@ -65,6 +57,14 @@ public class AlertmanagerAutoInhibitConsumableResource implements ConsumableReso
 
   public String getAutoInhibitOnEnvironment() {
     return autoInhibitOnEnvironment;
+  }
+
+  public Integer getCacheRequestTimeout() {
+    return cacheRequestTimeout;
+  }
+
+  public Integer getCacheTtl() {
+    return cacheTtl;
   }
 
   public Set<String> getLabelsOfInterest() {
@@ -76,43 +76,13 @@ public class AlertmanagerAutoInhibitConsumableResource implements ConsumableReso
   }
 
   @Override
-  public void startup(String name) {
-    if (alertmanagerUrl == null || alertmanagerUrl.isEmpty()) {
-      throw new IllegalArgumentException(
-          "The consumableResources 'alertmanager-auto-inhibit' config is missing "
-              + "'alertmanagerUrl': string.");
-    }
-    if (autoInhibitOnEnvironment == null || autoInhibitOnEnvironment.isEmpty()) {
-      throw new IllegalArgumentException(
-          "The consumableResources 'alertmanager-auto-inhibit' config is missing "
-              + "'autoInhibitOnEnvironment': string.");
-    }
-    if (cacheRequestTimeout == null) {
-      throw new IllegalArgumentException(
-          "The consumableResources 'alertmanager-auto-inhibit' config is missing "
-              + "'cacheRequestTimeout': integer (minutes).");
-    }
-    if (cacheTtl == null) {
-      throw new IllegalArgumentException(
-          "The consumableResources 'alertmanager-auto-inhibit' config is missing "
-              + "'cacheTtl': integer (minutes).");
-    }
-    if (labelsOfInterest.isEmpty()) {
-      throw new IllegalArgumentException(
-          "The consumableResources 'alertmanager-auto-inhibit' config is missing "
-              + "'labelsOfInterest': [string].");
-    }
-    if (valuesOfInterest.isEmpty()) {
-      throw new IllegalArgumentException(
-          "The consumableResources 'alertmanager-auto-inhibit' config is missing "
-              + "'valuesOfInterest': [string].");
-    }
-    cache = new AlertCache(name, alertmanagerUrl, cacheRequestTimeout, cacheTtl);
+  public Optional<Pair<String, BasicType>> inputFromSubmitter() {
+    return Optional.empty(); // This consumable resource operates only based on server config
   }
 
   @Override
-  public Optional<Pair<String, BasicType>> inputFromSubmitter() {
-    return Optional.empty(); // This consumable resource operates only based on server config
+  public boolean isInputFromSubmitterRequired() {
+    return false;
   }
 
   @Override
@@ -168,7 +138,37 @@ public class AlertmanagerAutoInhibitConsumableResource implements ConsumableReso
   }
 
   @Override
-  public boolean isInputFromSubmitterRequired() {
-    return false;
+  public void startup(String name) {
+    if (alertmanagerUrl == null || alertmanagerUrl.isBlank()) {
+      throw new IllegalArgumentException(
+          "The consumableResources 'alertmanager-auto-inhibit' config is missing "
+              + "'alertmanagerUrl': string.");
+    }
+    if (autoInhibitOnEnvironment == null || autoInhibitOnEnvironment.isBlank()) {
+      throw new IllegalArgumentException(
+          "The consumableResources 'alertmanager-auto-inhibit' config is missing "
+              + "'autoInhibitOnEnvironment': string.");
+    }
+    if (cacheRequestTimeout == null) {
+      throw new IllegalArgumentException(
+          "The consumableResources 'alertmanager-auto-inhibit' config is missing "
+              + "'cacheRequestTimeout': integer (minutes).");
+    }
+    if (cacheTtl == null) {
+      throw new IllegalArgumentException(
+          "The consumableResources 'alertmanager-auto-inhibit' config is missing "
+              + "'cacheTtl': integer (minutes).");
+    }
+    if (labelsOfInterest.isEmpty()) {
+      throw new IllegalArgumentException(
+          "The consumableResources 'alertmanager-auto-inhibit' config is missing "
+              + "'labelsOfInterest': [string].");
+    }
+    if (valuesOfInterest.isEmpty()) {
+      throw new IllegalArgumentException(
+          "The consumableResources 'alertmanager-auto-inhibit' config is missing "
+              + "'valuesOfInterest': [string].");
+    }
+    cache = new AlertCache(name, alertmanagerUrl, cacheRequestTimeout, cacheTtl);
   }
 }

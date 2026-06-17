@@ -1,7 +1,8 @@
 package ca.on.oicr.gsi.vidarr.api;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import java.util.List;
+import java.time.OffsetDateTime;
+import java.util.Optional;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class ReprovisionOutRequest {
@@ -9,10 +10,15 @@ public class ReprovisionOutRequest {
   private String workflowRunHashId;
   private String outputProvisionerName;
   private String outputPath;
+  private Optional<OffsetDateTime> originalCompleted;
   private int attempt;
 
   public int getAttempt() {
     return attempt;
+  }
+
+  public Optional<OffsetDateTime> getOriginalCompleted() {
+    return originalCompleted;
   }
 
   public String getOutputPath() {
@@ -29,6 +35,10 @@ public class ReprovisionOutRequest {
 
   public void setAttempt(int attempt) {
     this.attempt = attempt;
+  }
+
+  public void setOriginalCompleted(Optional<OffsetDateTime> originalCompleted) {
+    this.originalCompleted = originalCompleted;
   }
 
   public void setOutputPath(String outputPath) {

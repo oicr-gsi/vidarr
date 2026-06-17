@@ -23,6 +23,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
@@ -32,7 +33,7 @@ import org.jooq.Record;
 public class ReprovisionStrategyReattempt implements ReprovisionStrategy {
 
   @Override
-  public OffsetDateTime getOriginalCompleted(Record record) {
+  public OffsetDateTime getOriginalCompleted(Record record, Optional<OffsetDateTime> originalCompleted) {
     JsonNode metadata = record.get(WORKFLOW_RUN.METADATA);
     Iterator<Entry<String, JsonNode>> iterator = metadata.fields();
     while (iterator.hasNext()) {

@@ -1,7 +1,9 @@
 package ca.on.oicr.gsi.vidarr.api;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 public class ImportRequest {
   private ProvenanceWorkflowRun<ExternalMultiVersionKey> workflowRun;
@@ -75,12 +77,13 @@ public class ImportRequest {
     this.outputProvisionerName = outputProvisionerName;
   }
 
-  public ReprovisionOutRequest reprovision(String hash){
+  public ReprovisionOutRequest reprovision(String hash, Optional<OffsetDateTime> originalCompleted){
     ReprovisionOutRequest ret = new ReprovisionOutRequest();
     ret.setOutputPath(outputPath);
     ret.setOutputProvisionerName(outputProvisionerName);
     ret.setWorkflowRunHashId(hash);
     ret.setAttempt(attempt);
+    ret.setOriginalCompleted(originalCompleted);
     return ret;
   }
 

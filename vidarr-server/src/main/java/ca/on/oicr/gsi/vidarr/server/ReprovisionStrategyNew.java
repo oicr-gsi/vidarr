@@ -16,6 +16,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
@@ -25,8 +26,8 @@ import org.jooq.Record;
 public class ReprovisionStrategyNew implements ReprovisionStrategy {
 
   @Override
-  public OffsetDateTime getOriginalCompleted(Record record) {
-    return record.get(WORKFLOW_RUN.COMPLETED);
+  public OffsetDateTime getOriginalCompleted(Record record, Optional<OffsetDateTime> originalCompleted) {
+    return originalCompleted.orElseGet(() -> record.get(WORKFLOW_RUN.COMPLETED));
   }
 
   @Override

@@ -1717,7 +1717,7 @@ public final class Main implements ServerConfig {
                   createAnalysisRecords(
                       DSL.using(connection, SQLDialect.POSTGRES),
                       output,
-                      VersionPolicy.ALL,
+                      VersionPolicy.LATEST,
                       null,
                       true,
                       Set.of(AnalysisOutputType.FILE, AnalysisOutputType.URL),

@@ -533,21 +533,29 @@ public abstract class DatabaseBackedProcessor
         .definition()
         .parameters()
         .<ExternalId>flatMap(
-            p ->
-                arguments.has(p.name())
-                    ? p.type()
-                        .apply(
-                            new ExtractInputExternalIds(
-                                MAPPER,
-                                arguments.get(p.name()),
-                                id -> {
-                                  final Optional<FileMetadata> result = pathForId(id);
-                                  if (result.isEmpty()) {
-                                    unresolvedIds.add(id);
-                                  }
-                                  return result;
-                                }))
-                    : Stream.empty())
+            p -> {
+              Stream<? extends ExternalId> stream;
+              try {
+                stream =
+                    arguments.has(p.name())
+                        ? p.type()
+                            .apply(
+                                new ExtractInputExternalIds(
+                                    MAPPER,
+                                    arguments.get(p.name()),
+                                    id -> {
+                                      final Optional<FileMetadata> result = pathForId(id);
+                                      if (result.isEmpty()) {
+                                        unresolvedIds.add(id);
+                                      }
+                                      return result;
+                                    }))
+                        : Stream.empty();
+              } catch (IllegalArgumentException e) {
+                stream = Stream.empty();
+              }
+              return stream;
+            })
         .collect(
             Collectors.toCollection(
                 () ->

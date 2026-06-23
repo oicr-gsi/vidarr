@@ -67,6 +67,7 @@ public class ReprovisionStrategyReattempt implements ReprovisionStrategy {
     dsl.update(ACTIVE_WORKFLOW_RUN)
         .set(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE, Phase.REPROVISION)
         .set(ACTIVE_WORKFLOW_RUN.ATTEMPT, record.get(ACTIVE_WORKFLOW_RUN.ATTEMPT))
+        .where(ACTIVE_WORKFLOW_RUN.ID.eq(record.get(ACTIVE_WORKFLOW_RUN.ID)))
         .execute();
     return DatabaseWorkflow.recover(target, record, processor.liveness(record.get(WORKFLOW_RUN.ID)),
         dsl);

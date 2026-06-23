@@ -494,6 +494,8 @@ public final class Main implements ServerConfig {
     try {
       importRequest.check();
 
+      importRequest.getWorkflowRun().setModified(ZonedDateTime.now());
+
       // Clear and remember import request's completed time so it's null on load
       ZonedDateTime completed = importRequest.getWorkflowRun().getCompleted();
       importRequest.getWorkflowRun().setCompleted(null);

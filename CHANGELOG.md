@@ -6,6 +6,17 @@ For unreleased changes, see [changes](changes).
 
 -----------------------------------------------------------------------------
 
+## [2.15.0] - 2026-06-23
+
+### Changed
+
+* `/api/run/<vidarr ID>` endpoint now returns only the latest version for each external key
+
+### Fixed
+
+* Bug where reattempting reprovisioning set active everything in database to reprovision
+
+
 ## [2.14.0] - 2026-06-17
 
 ### Changed

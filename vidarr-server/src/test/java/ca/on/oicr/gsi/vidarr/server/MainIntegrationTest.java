@@ -33,13 +33,13 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.TimeZone;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.configuration.FluentConfiguration;
 import org.jetbrains.annotations.NotNull;
@@ -1535,6 +1535,48 @@ public class MainIntegrationTest {
 
     // Confirm that the workflow run has been loaded back into the database
     get("/api/run/{hash}", terminalWfRunHash).then().assertThat().statusCode(200);
+
+    // Change the load data (file checksums, external ID versions)...
+    var updatedUnloaded = unloaded.deepCopy();
+    var updatedWfrs = MAPPER.createArrayNode();
+    var versionArray = MAPPER.createArrayNode();
+    versionArray.add("SAME");
+    unloaded.get("workflowRuns").forEach(
+      wfr -> {
+        var newWfr = wfr.deepCopy();
+        var newEks = MAPPER.createArrayNode();
+        var newAs = MAPPER.createArrayNode();
+        wfr.get("externalKeys").forEach(
+        ek -> {
+          var newEk = ek.deepCopy();
+          Iterator<Entry<String, JsonNode>> fields = newEk.get("versions").fields();
+          while (fields.hasNext()) {
+            var prop = fields.next();
+            ((ObjectNode) newEk.get("versions")).set(prop.getKey(), versionArray);
+          }
+          newEks.add(newEk);
+        });
+        ((ObjectNode) newWfr).set("externalKeys", newEks);
+        wfr.get("analysis").forEach( a-> {
+          var newA = a.deepCopy();
+          ((ObjectNode) newA).put("checksum", "SAME");
+          newAs.add(newA);
+        });
+        ((ObjectNode) newWfr).set("externalKeys", newEks);
+        ((ObjectNode) newWfr).set("analysis", newAs);
+        updatedWfrs.add(newWfr);
+      });
+    ((ObjectNode) updatedUnloaded).set("workflowRuns", updatedWfrs);
+
+    //... and reload
+    given()
+        .contentType(ContentType.JSON)
+        .body(updatedUnloaded)
+        .when()
+        .post("/api/load")
+        .then()
+        .assertThat()
+        .statusCode(200);
 
     // Confirm that unloading the same data again produces the same result
     JsonPath res2 =

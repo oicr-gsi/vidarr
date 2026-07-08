@@ -2,7 +2,7 @@ package ca.on.oicr.gsi.vidarr.core;
 
 import ca.on.oicr.gsi.Pair;
 import ca.on.oicr.gsi.vidarr.BasicType;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.Map;

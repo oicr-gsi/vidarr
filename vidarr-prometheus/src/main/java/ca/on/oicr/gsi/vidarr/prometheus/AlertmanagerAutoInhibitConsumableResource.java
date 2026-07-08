@@ -6,18 +6,18 @@ import ca.on.oicr.gsi.vidarr.ConsumableResource;
 import ca.on.oicr.gsi.vidarr.ConsumableResourceProvider;
 import ca.on.oicr.gsi.vidarr.ConsumableResourceResponse;
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.ObjectReader;
 import java.time.Instant;
-import java.util.List;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.SerializationFeature;
+import tools.jackson.databind.cfg.DateTimeFeature;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Allow throttling workflow runs if their parameters or the vidarr server's parameters match
@@ -26,8 +26,12 @@ import java.util.stream.Stream;
  * name, workflow name & version (as workflowName_version), or a fixed set of global inhibit values.
  */
 public class AlertmanagerAutoInhibitConsumableResource implements ConsumableResource {
-  static final ObjectMapper MAPPER = new ObjectMapper();
-  private static final ObjectReader READER = MAPPER.readerFor(new TypeReference<List<String>>() {});
+  static final JsonMapper MAPPER =
+      JsonMapper.builder()
+          .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+          .configure(DateTimeFeature.WRITE_DATES_AS_TIMESTAMPS, true)
+          .configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true)
+          .build();
 
   public static ConsumableResourceProvider provider() {
     return () ->
@@ -39,21 +43,13 @@ public class AlertmanagerAutoInhibitConsumableResource implements ConsumableReso
   private final String alertName = "AutoInhibit";
   private String alertmanagerUrl;
   private String autoInhibitOnEnvironment;
+  @JsonIgnore private AlertCache cache;
+  private Integer cacheRequestTimeout;
+  private Integer cacheTtl;
   private Set<String> labelsOfInterest;
   private Set<String> valuesOfInterest;
-  private Integer cacheTtl;
-  private Integer cacheRequestTimeout;
-  @JsonIgnore private AlertCache cache;
 
   public AlertmanagerAutoInhibitConsumableResource() {}
-
-  public Integer getCacheTtl() {
-    return cacheTtl;
-  }
-
-  public Integer getCacheRequestTimeout() {
-    return cacheRequestTimeout;
-  }
 
   public String getAlertmanagerUrl() {
     return alertmanagerUrl;
@@ -61,6 +57,14 @@ public class AlertmanagerAutoInhibitConsumableResource implements ConsumableReso
 
   public String getAutoInhibitOnEnvironment() {
     return autoInhibitOnEnvironment;
+  }
+
+  public Integer getCacheRequestTimeout() {
+    return cacheRequestTimeout;
+  }
+
+  public Integer getCacheTtl() {
+    return cacheTtl;
   }
 
   public Set<String> getLabelsOfInterest() {
@@ -72,43 +76,13 @@ public class AlertmanagerAutoInhibitConsumableResource implements ConsumableReso
   }
 
   @Override
-  public void startup(String name) {
-    if (alertmanagerUrl == null || "".equals(alertmanagerUrl)) {
-      throw new IllegalArgumentException(
-          "The consumableResources 'alertmanager-auto-inhibit' config is missing "
-              + "'alertmanagerUrl': string.");
-    }
-    if (autoInhibitOnEnvironment == null || "".equals(autoInhibitOnEnvironment)) {
-      throw new IllegalArgumentException(
-          "The consumableResources 'alertmanager-auto-inhibit' config is missing "
-              + "'autoInhibitOnEnvironment': string.");
-    }
-    if (cacheRequestTimeout == null) {
-      throw new IllegalArgumentException(
-          "The consumableResources 'alertmanager-auto-inhibit' config is missing "
-              + "'cacheRequestTimeout': integer (minutes).");
-    }
-    if (cacheTtl == null) {
-      throw new IllegalArgumentException(
-          "The consumableResources 'alertmanager-auto-inhibit' config is missing "
-              + "'cacheTtl': integer (minutes).");
-    }
-    if (labelsOfInterest.isEmpty()) {
-      throw new IllegalArgumentException(
-          "The consumableResources 'alertmanager-auto-inhibit' config is missing "
-              + "'labelsOfInterest': [string].");
-    }
-    if (valuesOfInterest.isEmpty()) {
-      throw new IllegalArgumentException(
-          "The consumableResources 'alertmanager-auto-inhibit' config is missing "
-              + "'valuesOfInterest': [string].");
-    }
-    cache = new AlertCache(name, alertmanagerUrl, cacheRequestTimeout, cacheTtl);
+  public Optional<Pair<String, BasicType>> inputFromSubmitter() {
+    return Optional.empty(); // This consumable resource operates only based on server config
   }
 
   @Override
-  public Optional<Pair<String, BasicType>> inputFromSubmitter() {
-    return Optional.empty(); // This consumable resource operates only based on server config
+  public boolean isInputFromSubmitterRequired() {
+    return false;
   }
 
   @Override
@@ -164,7 +138,37 @@ public class AlertmanagerAutoInhibitConsumableResource implements ConsumableReso
   }
 
   @Override
-  public boolean isInputFromSubmitterRequired() {
-    return false;
+  public void startup(String name) {
+    if (alertmanagerUrl == null || alertmanagerUrl.isBlank()) {
+      throw new IllegalArgumentException(
+          "The consumableResources 'alertmanager-auto-inhibit' config is missing "
+              + "'alertmanagerUrl': string.");
+    }
+    if (autoInhibitOnEnvironment == null || autoInhibitOnEnvironment.isBlank()) {
+      throw new IllegalArgumentException(
+          "The consumableResources 'alertmanager-auto-inhibit' config is missing "
+              + "'autoInhibitOnEnvironment': string.");
+    }
+    if (cacheRequestTimeout == null) {
+      throw new IllegalArgumentException(
+          "The consumableResources 'alertmanager-auto-inhibit' config is missing "
+              + "'cacheRequestTimeout': integer (minutes).");
+    }
+    if (cacheTtl == null) {
+      throw new IllegalArgumentException(
+          "The consumableResources 'alertmanager-auto-inhibit' config is missing "
+              + "'cacheTtl': integer (minutes).");
+    }
+    if (labelsOfInterest.isEmpty()) {
+      throw new IllegalArgumentException(
+          "The consumableResources 'alertmanager-auto-inhibit' config is missing "
+              + "'labelsOfInterest': [string].");
+    }
+    if (valuesOfInterest.isEmpty()) {
+      throw new IllegalArgumentException(
+          "The consumableResources 'alertmanager-auto-inhibit' config is missing "
+              + "'valuesOfInterest': [string].");
+    }
+    cache = new AlertCache(name, alertmanagerUrl, cacheRequestTimeout, cacheTtl);
   }
 }

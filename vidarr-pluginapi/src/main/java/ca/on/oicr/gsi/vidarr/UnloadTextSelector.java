@@ -1,22 +1,22 @@
 package ca.on.oicr.gsi.vidarr;
 
-import com.fasterxml.jackson.core.JsonGenerator;
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.DeserializationContext;
-import com.fasterxml.jackson.databind.JsonDeserializer;
-import com.fasterxml.jackson.databind.JsonSerializer;
-import com.fasterxml.jackson.databind.SerializerProvider;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ValueNode;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.JsonGenerator;
+import tools.jackson.core.JsonParser;
+import tools.jackson.databind.DeserializationContext;
+import tools.jackson.databind.SerializationContext;
+import tools.jackson.databind.ValueDeserializer;
+import tools.jackson.databind.ValueSerializer;
+import tools.jackson.databind.annotation.JsonDeserialize;
+import tools.jackson.databind.annotation.JsonSerialize;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ValueNode;
 
 /**
  * An unload filter a JSON value that comes in two forms:
@@ -29,21 +29,21 @@ import java.util.stream.Stream;
 @JsonDeserialize(using = UnloadTextSelector.JacksonDeserializer.class)
 @JsonSerialize(using = UnloadTextSelector.JacksonSerializer.class)
 public abstract class UnloadTextSelector {
-  public static final class JacksonDeserializer extends JsonDeserializer<UnloadTextSelector> {
+  public static final class JacksonDeserializer extends ValueDeserializer<UnloadTextSelector> {
 
     @Override
     public UnloadTextSelector deserialize(
         JsonParser jsonParser, DeserializationContext deserializationContext)
-        throws IOException, JsonProcessingException {
+        throws JacksonException {
       final var tree = jsonParser.readValueAsTree();
-      if (tree.isValueNode() && ((ValueNode) tree).isTextual()) {
-        return of(((ValueNode) tree).asText());
+      if (tree.isValueNode() && ((ValueNode) tree).isString()) {
+        return of(((ValueNode) tree).asString());
       }
       if (tree.isArray()) {
         final var values = new TreeSet<String>();
         for (final var child : ((ArrayNode) tree)) {
-          if (child.isValueNode() && child.isTextual()) {
-            values.add(child.asText());
+          if (child.isValueNode() && child.isString()) {
+            values.add(child.asString());
           } else {
             throw new IllegalArgumentException("Non-string element in array unload filter array.");
           }
@@ -54,15 +54,18 @@ public abstract class UnloadTextSelector {
     }
   }
 
-  public static final class JacksonSerializer extends JsonSerializer<UnloadTextSelector> {
+  public static final class JacksonSerializer extends ValueSerializer<UnloadTextSelector> {
 
     @Override
     public void serialize(
         UnloadTextSelector filter,
         JsonGenerator jsonGenerator,
-        SerializerProvider serializerProvider)
-        throws IOException {
-      filter.toJson(jsonGenerator);
+        SerializationContext serializerProvider) {
+      try {
+        filter.toJson(jsonGenerator);
+      } catch (IOException e) {
+        throw new RuntimeException(e);
+      }
     }
   }
 

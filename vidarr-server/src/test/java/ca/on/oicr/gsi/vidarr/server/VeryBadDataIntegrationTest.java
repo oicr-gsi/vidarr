@@ -1,15 +1,12 @@
 package ca.on.oicr.gsi.vidarr.server;
 
 import static io.restassured.RestAssured.*;
-import static org.hamcrest.Matchers.emptyIterable;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
 
+import ca.on.oicr.gsi.vidarr.api.WorkflowResponse;
 import ca.on.oicr.gsi.vidarr.server.dto.ServerConfiguration;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.rasklaad.blns.NaughtyStrings;
 import io.restassured.RestAssured;
 import io.restassured.http.ContentType;
@@ -30,14 +27,24 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.postgresql.ds.PGSimpleDataSource;
 import org.testcontainers.containers.JdbcDatabaseContainer;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.SerializationFeature;
+import tools.jackson.databind.cfg.DateTimeFeature;
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 public class VeryBadDataIntegrationTest {
   @ClassRule
   public static JdbcDatabaseContainer pg =
       DatabaseBackedTestConfiguration.getTestDatabaseContainer();
 
-  // Jdk8Module is a compatibility fix for de/serializing Optionals
-  private static final ObjectMapper MAPPER = new ObjectMapper().registerModule(new Jdk8Module());
+  private static final JsonMapper MAPPER =
+      JsonMapper.builder()
+          .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+          .configure(DateTimeFeature.WRITE_DATES_AS_TIMESTAMPS, true)
+          .configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true)
+          .build();
   private static ServerConfiguration config;
   private static Main main;
   private static final HttpClient CLIENT =
@@ -57,7 +64,6 @@ public class VeryBadDataIntegrationTest {
     RestAssured.port = config.getPort();
     RestAssured.enableLoggingOfRequestAndResponseIfValidationFails();
     defaultParser = Parser.TEXT;
-    MAPPER.registerModule(new JavaTimeModule());
   }
 
   @Before
@@ -71,11 +77,10 @@ public class VeryBadDataIntegrationTest {
     FluentConfiguration fw = Flyway.configure().dataSource(simpleConnection).cleanDisabled(false);
     fw.load().clean();
     fw.locations("classpath:db/migration").load().migrate();
-    // we do this in a separate step because Flyway on its own isn't finding the test data, and it dies when you
+    // we do this in a separate step because Flyway on its own isn't finding the test data, and it
+    // dies when you
     // try to give it classpath + filesystem locations in one string.
-    fw.locations("filesystem:src/test/resources/db/migration/")
-        .load()
-        .migrate();
+    fw.locations("filesystem:src/test/resources/db/migration/").load().migrate();
   }
 
   public List<String> getNaughtyStringList() {
@@ -117,7 +122,7 @@ public class VeryBadDataIntegrationTest {
   }
 
   @Test(expected = IllegalArgumentException.class)
-  public void addWorkflow() throws JsonProcessingException {
+  public void addWorkflow() throws JacksonException {
     List<String> filteredBlns = getNaughtyStringList();
     String noParamWorkflow = MAPPER.writeValueAsString(new HashMap<>());
 
@@ -133,12 +138,16 @@ public class VeryBadDataIntegrationTest {
               .assertThat()
               .statusCode(200);
 
-          get("/api/workflow/{name}", naughtyString)
-              .then()
-              .assertThat()
-              .body("labels.keySet()", emptyIterable())
-              .body("maxInFlight", equalTo(0))
-              .body("isActive", equalTo(true));
+          WorkflowResponse response =
+              get("/api/workflow/{name}", naughtyString)
+                  .then()
+                  .assertThat()
+                  .statusCode(200)
+                  .extract()
+                  .as(WorkflowResponse.class);
+          assertThat(response.labels(), anEmptyMap());
+          assertThat(response.maxInFlight(), equalTo(0));
+          assertThat(response.isActive(), equalTo(true));
         });
   }
 

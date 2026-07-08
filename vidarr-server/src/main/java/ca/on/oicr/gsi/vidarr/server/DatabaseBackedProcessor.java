@@ -52,13 +52,6 @@ import ca.on.oicr.gsi.vidarr.core.RecoveryType;
 import ca.on.oicr.gsi.vidarr.core.Target;
 import ca.on.oicr.gsi.vidarr.core.ValidateJsonToSimpleType;
 import ca.on.oicr.gsi.vidarr.server.jooq.tables.records.ExternalIdVersionRecord;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import com.zaxxer.hikari.HikariDataSource;
 import io.prometheus.client.Counter;
 import io.prometheus.client.Gauge;
@@ -107,36 +100,18 @@ import org.jooq.Record2;
 import org.jooq.Result;
 import org.jooq.SQLDialect;
 import org.jooq.impl.DSL;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.SerializationFeature;
+import tools.jackson.databind.cfg.DateTimeFeature;
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 
 public abstract class DatabaseBackedProcessor
     extends BaseProcessor<DatabaseWorkflow, DatabaseOperation, DSLContext> {
-
-  private static class BadRecoveryTracker {
-
-    private static final Set<String> badRecoveryIds = new HashSet<>();
-    private static final Gauge badRecoveryCount =
-        Gauge.build(
-                "vidarr_db_processor_recovery_current_failures",
-                "The number of failures in recovering database-backed operations that have not been deleted")
-            .register();
-
-    private static final Counter badRecoveryTotal =
-        Counter.build(
-                "vidarr_db_processor_recovery_total_failures",
-                "The total number of failures in recovering database-backed operations this boot")
-            .register();
-
-    public static void add(String id) {
-      badRecoveryIds.add(id);
-      badRecoveryCount.set(badRecoveryIds.size());
-      badRecoveryTotal.inc();
-    }
-
-    public static void remove(String id) {
-      badRecoveryIds.remove(id); // does nothing if id is not in HashSet
-      badRecoveryCount.set(badRecoveryIds.size()); // no change if remove did nothing
-    }
-  }
 
   public interface DeleteResultHandler<T> {
 
@@ -178,6 +153,32 @@ public abstract class DatabaseBackedProcessor
     T unknownWorkflow(String name, String version);
 
     T unresolvedIds(TreeSet<String> inputId);
+  }
+
+  private static class BadRecoveryTracker {
+
+    private static final Gauge badRecoveryCount =
+        Gauge.build(
+                "vidarr_db_processor_recovery_current_failures",
+                "The number of failures in recovering database-backed operations that have not been deleted")
+            .register();
+    private static final Set<String> badRecoveryIds = new HashSet<>();
+    private static final Counter badRecoveryTotal =
+        Counter.build(
+                "vidarr_db_processor_recovery_total_failures",
+                "The total number of failures in recovering database-backed operations this boot")
+            .register();
+
+    public static void add(String id) {
+      badRecoveryIds.add(id);
+      badRecoveryCount.set(badRecoveryIds.size());
+      badRecoveryTotal.inc();
+    }
+
+    public static void remove(String id) {
+      badRecoveryIds.remove(id); // does nothing if id is not in HashSet
+      badRecoveryCount.set(badRecoveryIds.size()); // no change if remove did nothing
+    }
   }
 
   protected static final class WorkflowInformation implements Iterable<String> {
@@ -232,15 +233,18 @@ public abstract class DatabaseBackedProcessor
 
   public static final TypeReference<SortedMap<String, BasicType>> LABELS_JSON_TYPE =
       new TypeReference<>() {};
-  // Jdk8Module is a compatibility fix for de/serializing Optionals
-  static final ObjectMapper MAPPER = new ObjectMapper().registerModule(new Jdk8Module());
+  static final JsonMapper MAPPER =
+      JsonMapper.builder()
+          .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+          .configure(DateTimeFeature.WRITE_DATES_AS_TIMESTAMPS, true)
+          .configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true)
+          .build();
   public static final TypeReference<Map<String, OutputType>> OUTPUT_JSON_TYPE =
       new TypeReference<>() {};
   public static final TypeReference<Map<String, InputType>> PARAMETER_JSON_TYPE =
       new TypeReference<>() {};
 
-  private static WorkflowDefinition buildDefinitionFromRecord(
-      DSLContext context, Record record) {
+  private static WorkflowDefinition buildDefinitionFromRecord(DSLContext context, Record record) {
     final Map<String, String> accessoryFiles =
         context
             .select(WORKFLOW_VERSION_ACCESSORY.FILENAME, WORKFLOW_DEFINITION.WORKFLOW_FILE)
@@ -324,9 +328,27 @@ public abstract class DatabaseBackedProcessor
       }
 
       return hexDigits(digest.digest());
-    } catch (NoSuchAlgorithmException | JsonProcessingException e) {
+    } catch (NoSuchAlgorithmException | JacksonException e) {
       throw new IOError(e);
     }
+  }
+
+  public static String extractHashIfIsFullWorkflowRunId(String id) {
+    Matcher matcher = BaseProcessor.WORKFLOW_RUN_ID.matcher(id);
+    if (!matcher.matches()) {
+      // assume it's already a hash
+      return id;
+    }
+    return matcher.group("hash");
+  }
+
+  private static String hashFromAnalysisId(String id) {
+    Matcher matcher = BaseProcessor.ANALYSIS_RECORD_ID.matcher(id);
+    if (!matcher.matches()) {
+      throw new IllegalArgumentException(
+          String.format("'%s' is a malformed Vidarr file identifier", id));
+    }
+    return matcher.group("hash");
   }
 
   /**
@@ -533,29 +555,21 @@ public abstract class DatabaseBackedProcessor
         .definition()
         .parameters()
         .<ExternalId>flatMap(
-            p -> {
-              Stream<? extends ExternalId> stream;
-              try {
-                stream =
-                    arguments.has(p.name())
-                        ? p.type()
-                            .apply(
-                                new ExtractInputExternalIds(
-                                    MAPPER,
-                                    arguments.get(p.name()),
-                                    id -> {
-                                      final Optional<FileMetadata> result = pathForId(id);
-                                      if (result.isEmpty()) {
-                                        unresolvedIds.add(id);
-                                      }
-                                      return result;
-                                    }))
-                        : Stream.empty();
-              } catch (IllegalArgumentException e) {
-                stream = Stream.empty();
-              }
-              return stream;
-            })
+            p ->
+                arguments.has(p.name())
+                    ? p.type()
+                        .apply(
+                            new ExtractInputExternalIds(
+                                MAPPER,
+                                arguments.get(p.name()),
+                                id -> {
+                                  final Optional<FileMetadata> result = pathForId(id);
+                                  if (result.isEmpty()) {
+                                    unresolvedIds.add(id);
+                                  }
+                                  return result;
+                                }))
+                    : Stream.empty())
         .collect(
             Collectors.toCollection(
                 () ->
@@ -628,10 +642,26 @@ public abstract class DatabaseBackedProcessor
                     (record.get(WORKFLOW.LABELS) == null
                         ? new TreeMap<>()
                         : MAPPER.readValue(record.get(WORKFLOW.LABELS).data(), LABELS_JSON_TYPE)));
-              } catch (JsonProcessingException e) {
+              } catch (JacksonException e) {
                 throw new RuntimeException(e);
               }
             });
+  }
+
+  @Override
+  public final void inTransaction(Consumer<DSLContext> operation) {
+    databaseLock.acquireUninterruptibly();
+    try {
+      try (final Connection connection = dataSource.getConnection()) {
+        DSL.using(connection, SQLDialect.POSTGRES)
+            .transaction(context -> operation.accept(DSL.using(context)));
+        connection.commit();
+      }
+    } catch (SQLException e) {
+      throw new RuntimeException(e);
+    } finally {
+      databaseLock.release();
+    }
   }
 
   private <T> T launchNewWorkflowRun(
@@ -732,12 +762,43 @@ public abstract class DatabaseBackedProcessor
         .get();
   }
 
+  private Target makeReprovisionTarget(OutputProvisioner<?, ?> provisioner) {
+    return new Target() {
+      @Override
+      public Stream<Pair<String, ConsumableResource>> consumableResources() {
+        return Stream.empty();
+      }
+
+      @Override
+      public WorkflowEngine<?, ?> engine() {
+        return new NoOpWorkflowEngine();
+      }
+
+      @Override
+      public InputProvisioner<?> provisionerFor(InputProvisionFormat type) {
+        return new RawInputProvisioner();
+      }
+
+      @Override
+      public OutputProvisioner<?, ?> provisionerFor(OutputProvisionFormat type) {
+        return provisioner;
+      }
+
+      @Override
+      public Stream<RuntimeProvisioner<?>> runtimeProvisioners() {
+        return Stream.empty();
+      }
+    };
+  }
+
   @Override
-  protected final ObjectMapper mapper() {
+  protected final JsonMapper mapper() {
     return MAPPER;
   }
 
-  final void recover(Consumer<Runnable> startRaw, MaxInFlightByWorkflow maxInflightByWorkflow,
+  final void recover(
+      Consumer<Runnable> startRaw,
+      MaxInFlightByWorkflow maxInflightByWorkflow,
       Map<String, OutputProvisioner<?, ?>> outputProvisioners,
       Map<String, Semaphore> reprovisionCounter)
       throws SQLException {
@@ -811,59 +872,76 @@ public abstract class DatabaseBackedProcessor
                     .where(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE.ne(Phase.FAILED))
                     .forEach(
                         record -> {
-                          if (record.get(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE).equals(Phase.REPROVISION)) {
-                            try{
-                            System.err.printf("Recovering reprovisioning task for %s...%n", record.get(WORKFLOW_RUN.HASH_ID));
+                          if (record
+                              .get(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE)
+                              .equals(Phase.REPROVISION)) {
+                            try {
+                              System.err.printf(
+                                  "Recovering reprovisioning task for %s...%n",
+                                  record.get(WORKFLOW_RUN.HASH_ID));
 
-                              Semaphore s = reprovisionCounter.getOrDefault(record.get(WORKFLOW_RUN.HASH_ID), new Semaphore(1));
-                              if(!s.tryAcquire()){
-                                throw new Exception("There is already a reprovision request on this workflow run right now. Please try again later.");
+                              Semaphore s =
+                                  reprovisionCounter.getOrDefault(
+                                      record.get(WORKFLOW_RUN.HASH_ID), new Semaphore(1));
+                              if (!s.tryAcquire()) {
+                                throw new Exception(
+                                    "There is already a reprovision request on this workflow run right now. Please try again later.");
                               }
                               reprovisionCounter.put(record.get(WORKFLOW_RUN.HASH_ID), s);
-                            final List<DatabaseOperation> activeOperations =
-                                operations.getOrDefault(
-                                    record.get(ACTIVE_WORKFLOW_RUN.ID), List.of());
-                            if (activeOperations.isEmpty()){
-                              throw new Exception(String.format("Workflow run %s does not have any active operations, insufficient information for recovery.", record.get(WORKFLOW_RUN.HASH_ID)));
-                            }
+                              final List<DatabaseOperation> activeOperations =
+                                  operations.getOrDefault(
+                                      record.get(ACTIVE_WORKFLOW_RUN.ID), List.of());
+                              if (activeOperations.isEmpty()) {
+                                throw new Exception(
+                                    String.format(
+                                        "Workflow run %s does not have any active operations, insufficient information for recovery.",
+                                        record.get(WORKFLOW_RUN.HASH_ID)));
+                              }
 
-                            // Get recovery state back
-                            JsonNode recoveryState = activeOperations.get(0).recoveryState().get("state").get("metadata");
+                              // Get recovery state back
+                              JsonNode recoveryState =
+                                  activeOperations
+                                      .getFirst()
+                                      .recoveryState()
+                                      .get("state")
+                                      .get("metadata");
 
-                            if(!recoveryState.has("outputReprovisioner")){
-                              throw new Exception(
-                                  String.format("Reprovisioning for %s lacks outputReprovisioner metadata field.",
-                                      record.get(WORKFLOW_RUN.HASH_ID)
-                                  ));
-                            }
+                              if (!recoveryState.has("outputReprovisioner")) {
+                                throw new Exception(
+                                    String.format(
+                                        "Reprovisioning for %s lacks outputReprovisioner metadata field.",
+                                        record.get(WORKFLOW_RUN.HASH_ID)));
+                              }
 
-                            // Recreate Target with the output provisioner name
-                            OutputProvisioner<?, ?> outputReprovisioner = outputProvisioners.get(
-                                recoveryState.get("outputReprovisioner").textValue());
-                            if(null == outputReprovisioner){
-                              throw new Exception(String.format("outputReprovisioner %s is not represented in config.",
-                                  recoveryState.get("outputReprovisioner").textValue()));
-                            }
-                            Target newTarget = makeReprovisionTarget(outputReprovisioner);
+                              // Recreate Target with the output provisioner name
+                              OutputProvisioner<?, ?> outputReprovisioner =
+                                  outputProvisioners.get(
+                                      recoveryState.get("outputReprovisioner").stringValue());
+                              if (null == outputReprovisioner) {
+                                throw new Exception(
+                                    String.format(
+                                        "outputReprovisioner %s is not represented in config.",
+                                        recoveryState.get("outputReprovisioner").stringValue()));
+                              }
+                              Target newTarget = makeReprovisionTarget(outputReprovisioner);
 
-                            final DatabaseWorkflow workflow =
-                                DatabaseWorkflow.recover(
-                                    newTarget,
-                                    record,
-                                    liveness(record.get(ACTIVE_WORKFLOW_RUN.ID)),
-                                    dsl);
+                              final DatabaseWorkflow workflow =
+                                  DatabaseWorkflow.recover(
+                                      newTarget,
+                                      record,
+                                      liveness(record.get(ACTIVE_WORKFLOW_RUN.ID)),
+                                      dsl);
 
-                            for (final DatabaseOperation operation :
-                                activeOperations) {
-                              operation.linkTo(workflow);
-                            }
+                              for (final DatabaseOperation operation : activeOperations) {
+                                operation.linkTo(workflow);
+                              }
 
-                            recover(
-                                newTarget,
-                                buildDefinitionFromRecord(context.dsl(), record),
-                                workflow,
-                                activeOperations,
-                                RecoveryType.RECOVER);
+                              recover(
+                                  newTarget,
+                                  buildDefinitionFromRecord(context.dsl(), record),
+                                  workflow,
+                                  activeOperations,
+                                  RecoveryType.RECOVER);
                               reprovisionCounter.get(record.get(WORKFLOW_RUN.HASH_ID)).release();
                             } catch (Exception e) {
                               String erroneousHash = record.get(WORKFLOW_RUN.HASH_ID);
@@ -967,12 +1045,356 @@ public abstract class DatabaseBackedProcessor
                                         System.err.println(
                                             "Continuing recovery on next record in database if one exists.");
                                       }
-                                    }
-                                );
+                                    });
                           }
                         });
               });
       connection.commit();
+    }
+  }
+
+  protected final Set<String> recoveryFailures() {
+    return BadRecoveryTracker.badRecoveryIds;
+  }
+
+  public <T> T reprovisionOut(
+      String workflowRunId,
+      String provisionerName,
+      OutputProvisioner<?, ?> provisioner,
+      String outputPath,
+      int attempt,
+      Optional<OffsetDateTime> optionalCompleted,
+      SubmissionResultHandler<T> handler) {
+    AtomicReference<T> ret = new AtomicReference<>();
+    // New target to aim the new job at
+    Target newTarget = makeReprovisionTarget(provisioner);
+
+    // If the workflow run is not active, create a new active workflow run and reconstruct
+    // all the metadata we need to launch reprovisioning.
+    // If the workflow run IS active but failed at phase 'reprovision' and attempt is
+    // incremented, that's a valid request to reattempt a failed reprovisioning.
+    try {
+      try (final Connection connection = dataSource.getConnection()) {
+        DSL.using(connection, SQLDialect.POSTGRES)
+            .transaction(
+                context -> {
+                  boolean process = true;
+                  DSLContext dsl = DSL.using(context);
+                  Result<Record> result =
+                      dsl.select()
+                          .from(
+                              WORKFLOW_RUN
+                                  .join(WORKFLOW_VERSION)
+                                  .on(WORKFLOW_RUN.WORKFLOW_VERSION_ID.eq(WORKFLOW_VERSION.ID))
+                                  .leftJoin(ACTIVE_WORKFLOW_RUN)
+                                  .on(WORKFLOW_RUN.ID.eq(ACTIVE_WORKFLOW_RUN.ID)))
+                          .where(WORKFLOW_RUN.HASH_ID.eq(workflowRunId))
+                          .fetch();
+                  if (result.isNotEmpty() && result.size() == 1) {
+                    Record record = result.getFirst();
+                    ReprovisionStrategy strategy = null;
+
+                    // If there is no active workflow run id, we may need to create a new
+                    // active workflow run
+                    if (null == record.get(ACTIVE_WORKFLOW_RUN.ID)) {
+                      // Unless it's a duplicate request. We already did that!
+                      JsonNode metadata = record.get(WORKFLOW_RUN.METADATA);
+                      if (metadata.has("outputDirectory")
+                          && metadata.get("outputDirectory").stringValue().equals(outputPath)) {
+                        ret.set(handler.matchExisting(record.get(WORKFLOW_RUN.HASH_ID)));
+                        process = false;
+                      } else {
+                        strategy = new ReprovisionStrategyNew();
+                      }
+                    }
+                    // if there IS an active workflow run ID, see if it's failed at reprovision
+                    // and our attempt count has incremented.
+                    else {
+                      if (record.get(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE).equals(Phase.FAILED)) {
+                        Result<Record1<Phase>> operations =
+                            dsl.select(ACTIVE_OPERATION.ENGINE_PHASE)
+                                .from(ACTIVE_OPERATION)
+                                .where(
+                                    ACTIVE_OPERATION.WORKFLOW_RUN_ID.eq(
+                                        select(WORKFLOW_RUN.ID)
+                                            .from(WORKFLOW_RUN)
+                                            .where(WORKFLOW_RUN.HASH_ID.eq(workflowRunId))))
+                                .fetch();
+                        if (attempt > record.get(ACTIVE_WORKFLOW_RUN.ATTEMPT)) {
+                          if (operations.stream()
+                              .anyMatch(
+                                  o ->
+                                      o.get(ACTIVE_OPERATION.ENGINE_PHASE)
+                                          .equals(Phase.REPROVISION))) {
+                            strategy = new ReprovisionStrategyReattempt();
+                          } else {
+                            ret.set(handler.matchExisting(workflowRunId));
+                            process = false;
+                          }
+                        } else {
+                          ret.set(handler.matchExisting(workflowRunId));
+                          process = false;
+                        }
+                      }
+
+                      // There is an active workflow run ID, but the engine phase is something
+                      // other than FAILED. Probably inflight
+                      else {
+                        ret.set(
+                            handler.invalidWorkflow(
+                                Set.of(
+                                    String.format(
+                                        "Workflow hash id %s is active with a phase of %s, which is not FAILED.",
+                                        workflowRunId,
+                                        record.get(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE)))));
+                        process = false;
+                      }
+                    }
+                    if (process) {
+                      // We've established we're in a valid state and chosen a strategy, let's go
+                      final SoftReference<AtomicBoolean> oldLiveness =
+                          liveness.remove(record.get(WORKFLOW_RUN.ID));
+                      if (oldLiveness != null) {
+                        final AtomicBoolean oldLivenessLock = oldLiveness.get();
+                        if (oldLivenessLock != null) {
+                          oldLivenessLock.set(false);
+                        }
+                      }
+                      OffsetDateTime originalCompleted = strategy.getOriginalCompleted(record, optionalCompleted);
+                      if (null == originalCompleted || originalCompleted.equals(OffsetDateTime.MAX)) {
+                        throw new RuntimeException(
+                            String.format(
+                                "Workflow run %s doesn't seem to have a valid original completed time.",
+                                workflowRunId));
+                      }
+                      JsonNode metadata =
+                          strategy.getMetadata(
+                              record, outputPath, provisionerName, originalCompleted);
+
+                      // Null out Completed time in database if it wasn't already
+                      dsl.update(WORKFLOW_RUN)
+                          .setNull(WORKFLOW_RUN.COMPLETED)
+                          .set(WORKFLOW_RUN.METADATA, metadata)
+                          .where(WORKFLOW_RUN.HASH_ID.eq(record.get(WORKFLOW_RUN.HASH_ID)))
+                          .execute();
+
+                      // Get workflow definition needed downstream
+                      Optional<WorkflowInformation> definition;
+                      try {
+                        definition =
+                            getWorkflowByName(
+                                record.get(WORKFLOW_VERSION.NAME),
+                                record.get(WORKFLOW_VERSION.VERSION),
+                                dsl);
+                      } catch (SQLException e) {
+                        throw new RuntimeException(e);
+                      }
+
+                      // Get the analysis, and also the external ids for those analysis records
+                      Map<ProvenanceAnalysisRecord<ExternalId>, JsonNode> analysis =
+                          new HashMap<>();
+                      Map<Integer, Set<ExternalId>> externalIdsByAnalysis = new HashMap<>();
+                      dsl.select()
+                          .from(ANALYSIS)
+                          .where(ANALYSIS.WORKFLOW_RUN_ID.eq(record.get(WORKFLOW_RUN.ID)))
+
+                          // For every analysis record associated with this workflow run, create
+                          // an object for use downstream
+                          .forEach(
+                              analysisDbRecord -> {
+                                ProvenanceAnalysisRecord<ExternalId> analysisObject =
+                                    new ProvenanceAnalysisRecord<>();
+                                analysisObject.setId(analysisDbRecord.get(ANALYSIS.HASH_ID));
+                                analysisObject.setType(
+                                    analysisDbRecord.get(ANALYSIS.ANALYSIS_TYPE));
+                                analysisObject.setChecksum(
+                                    analysisDbRecord.get(ANALYSIS.FILE_CHECKSUM));
+                                analysisObject.setChecksumType(
+                                    analysisDbRecord.get(ANALYSIS.FILE_CHECKSUM_TYPE));
+                                analysisObject.setMetatype(
+                                    analysisDbRecord.get(ANALYSIS.FILE_METATYPE));
+                                analysisObject.setPath(analysisDbRecord.get(ANALYSIS.FILE_PATH));
+                                analysisObject.setSize(analysisDbRecord.get(ANALYSIS.FILE_SIZE));
+
+                                analysisObject.setLabels(
+                                    mapper()
+                                        .convertValue(
+                                            new PostgresJSONBBinding()
+                                                .converter()
+                                                .from(analysisDbRecord.get(ANALYSIS.LABELS)),
+                                            new TypeReference<>() {}));
+                                analysisObject.setWorkflowRun(record.get(WORKFLOW_RUN.HASH_ID));
+                                analysisObject.setCreated(
+                                    analysisDbRecord.get(ANALYSIS.CREATED).toZonedDateTime());
+
+                                // Get the external IDs associated with this analysis record
+                                Integer analysisId = analysisDbRecord.get(ANALYSIS.ID);
+                                dsl.select()
+                                    .from(EXTERNAL_ID)
+                                    .join(ANALYSIS_EXTERNAL_ID)
+                                    .on(EXTERNAL_ID.ID.eq(ANALYSIS_EXTERNAL_ID.EXTERNAL_ID_ID))
+                                    .where(ANALYSIS_EXTERNAL_ID.ANALYSIS_ID.eq(analysisId))
+
+                                    // Build a set of external ids and associate it to the analysis
+                                    // id
+                                    .forEach(
+                                        externalIdDbRecord -> {
+                                          Set<ExternalId> externalIdsForAnalysisRecord =
+                                              externalIdsByAnalysis.containsKey(analysisId)
+                                                  ? externalIdsByAnalysis.get(analysisId)
+                                                  : new HashSet<>();
+                                          externalIdsForAnalysisRecord.add(
+                                              new ExternalId(
+                                                  externalIdDbRecord.get(EXTERNAL_ID.PROVIDER),
+                                                  externalIdDbRecord.get(
+                                                      EXTERNAL_ID.EXTERNAL_ID_)));
+                                          externalIdsByAnalysis.put(
+                                              analysisId, externalIdsForAnalysisRecord);
+                                        });
+                            analysisObject.setExternalKeys(
+                                externalIdsByAnalysis.get(analysisId).stream().toList());
+
+                            // Associate the analysis object with some metadata
+                            // We have to get this from the workflow run, but because in normal
+                            // operation there is only ever 1 outputDirectory for a run, we can
+                            // just get the first workflow run metadatum available.
+                            // No writing is done with this information, so it's ok.
+                            JsonNode workflowRunMetadataPart = null;
+                            Iterator<JsonNode> metadataIterator = metadata.iterator();
+                            while (metadataIterator.hasNext() && null == workflowRunMetadataPart) {
+                              JsonNode metadatum = metadataIterator.next();
+                              ArrayNode contents = (ArrayNode) metadatum.get("contents");
+                              Iterator<JsonNode> contentsIterator = contents.iterator();
+                              while (contentsIterator.hasNext()) {
+                                JsonNode content = contentsIterator.next();
+                                if (content.has("originalDirectory")) {
+                                  ((ObjectNode)content).put("fileChecksum", analysisObject.getChecksum());
+                                  ((ObjectNode)content).put("fileChecksumType", analysisObject.getChecksumType());
+                                  workflowRunMetadataPart = content;
+                                  break;
+                                }
+                              }
+                            }
+                            // Update the metadata again now that we've added the file checksum info
+                            dsl.update(WORKFLOW_RUN)
+                                .set(WORKFLOW_RUN.METADATA, metadata)
+                                .where(WORKFLOW_RUN.HASH_ID.eq(record.get(WORKFLOW_RUN.HASH_ID)))
+                                .execute();
+
+                            if (null == workflowRunMetadataPart) {
+                              handler.invalidWorkflow(Set.of(
+                                      String.format(
+                                          "Unable to correlate workflow run %s with metadata %s to analysis %s with path %s%n",
+                                          workflowRunId,
+                                          metadata.stringValue(),
+                                          analysisId,
+                                          analysisObject.getPath())));
+                            }
+                            analysis.put(analysisObject, workflowRunMetadataPart);
+                          });
+
+                      try {
+                        final DatabaseWorkflow dbWorkflow =
+                            strategy.getDbWorkflow(
+                                record, newTarget, metadata, externalIdsByAnalysis, this, dsl);
+                        ret.set(
+                            strategy.handle(
+                                record,
+                                dbWorkflow,
+                                definition.get(),
+                                analysis,
+                                originalCompleted,
+                                handler,
+                                newTarget,
+                                dataSource,
+                                executor(),
+                                this));
+
+                      } catch (SQLException e) {
+                        throw new RuntimeException(e);
+                      }
+                    }
+                  } else if (result.size() > 1) {
+                    ret.set(
+                        handler.multipleMatches(
+                            result.stream().map(r -> r.get(WORKFLOW_RUN.HASH_ID)).toList()));
+                  } else { // size == 0
+                    ret.set(
+                        handler.invalidWorkflow(
+                            Set.of(
+                                String.format(
+                                    "No record for workflow run hash id %s. Does the run exist?%n",
+                                    workflowRunId))));
+                  }
+                });
+      }
+    } catch (SQLException e) {
+      throw new RuntimeException(e);
+    }
+    return ret.get();
+  }
+
+  protected final Optional<FileMetadata> resolveInDatabase(String inputId) {
+    try {
+      try (final Connection connection = dataSource.getConnection()) {
+        return DSL
+            .using(connection, SQLDialect.POSTGRES)
+            .select()
+            .from(
+                ANALYSIS
+                    .join(ANALYSIS_EXTERNAL_ID)
+                    .on(ANALYSIS.ID.eq(ANALYSIS_EXTERNAL_ID.ANALYSIS_ID))
+                    .join(EXTERNAL_ID)
+                    .on(EXTERNAL_ID.ID.eq(ANALYSIS_EXTERNAL_ID.EXTERNAL_ID_ID))
+                    .join(EXTERNAL_ID_VERSION)
+                    .on(EXTERNAL_ID.ID.eq(EXTERNAL_ID_VERSION.EXTERNAL_ID_ID)))
+            .where(ANALYSIS.ANALYSIS_TYPE.eq("file").and(ANALYSIS.HASH_ID.like(inputId)))
+            .stream()
+            .collect(
+                Collectors.groupingBy(
+                    r -> r.get(ANALYSIS.FILE_PATH),
+                    Collectors.groupingBy(
+                        r ->
+                            new Pair<>(
+                                r.get(EXTERNAL_ID.PROVIDER), r.get(EXTERNAL_ID.EXTERNAL_ID_)),
+                        Collectors.toMap(
+                            r -> r.get(EXTERNAL_ID_VERSION.KEY),
+                            r ->
+                                Stream.of(r.get(EXTERNAL_ID_VERSION.VALUE))
+                                    .collect(Collectors.toSet()),
+                            (a, b) -> {
+                              a.addAll(b);
+                              return a;
+                            }))))
+            .entrySet()
+            .stream()
+            .<FileMetadata>map(
+                e ->
+                    new FileMetadata() {
+                      private final List<ExternalMultiVersionKey> keys =
+                          e.getValue().entrySet().stream()
+                              .map(
+                                  ee ->
+                                      new ExternalMultiVersionKey(
+                                          ee.getKey().first(), ee.getKey().second(), ee.getValue()))
+                              .toList();
+                      private final String path = e.getKey();
+
+                      @Override
+                      public Stream<ExternalMultiVersionKey> externalKeys() {
+                        return keys.stream();
+                      }
+
+                      @Override
+                      public String path() {
+                        return path;
+                      }
+                    })
+            .findAny();
+      }
+    } catch (SQLException e) {
+      e.printStackTrace();
+      return Optional.empty();
     }
   }
 
@@ -1095,369 +1517,6 @@ public abstract class DatabaseBackedProcessor
               });
       connection.commit();
       return ids;
-    }
-  }
-
-  protected final Set<String> recoveryFailures() {
-    return BadRecoveryTracker.badRecoveryIds;
-  }
-
-  private Target makeReprovisionTarget(OutputProvisioner<?, ?> provisioner){
-    return new Target() {
-      @Override
-      public Stream<Pair<String, ConsumableResource>> consumableResources() {
-        return Stream.empty();
-      }
-
-      @Override
-      public WorkflowEngine<?, ?> engine() {
-        return new NoOpWorkflowEngine();
-      }
-
-      @Override
-      public InputProvisioner<?> provisionerFor(InputProvisionFormat type) {
-        return new RawInputProvisioner();
-      }
-
-      @Override
-      public OutputProvisioner<?, ?> provisionerFor(OutputProvisionFormat type) {
-        return provisioner;
-      }
-
-      @Override
-      public Stream<RuntimeProvisioner<?>> runtimeProvisioners() {
-        return Stream.empty();
-      }
-    };
-  }
-
-  public <T> T reprovisionOut(String workflowRunId,
-      String provisionerName,
-      OutputProvisioner<?, ?> provisioner,
-      String outputPath,
-      int attempt,
-      Optional<OffsetDateTime> optionalCompleted,
-      SubmissionResultHandler<T> handler) {
-    AtomicReference<T> ret = new AtomicReference<>();
-    // New target to aim the new job at
-    Target newTarget = makeReprovisionTarget(provisioner);
-
-    // If the workflow run is not active, create a new active workflow run and reconstruct
-    // all the metadata we need to launch reprovisioning.
-    // If the workflow run IS active but failed at phase 'reprovision' and attempt is
-    // incremented, that's a valid request to reattempt a failed reprovisioning.
-    try {
-      try (final Connection connection = dataSource.getConnection()) {
-        DSL.using(connection, SQLDialect.POSTGRES)
-            .transaction(
-                context -> {
-                  boolean process = true;
-                  DSLContext dsl = DSL.using(context);
-                  Result<Record> result = dsl.select()
-                      .from(
-                          WORKFLOW_RUN
-                              .join(WORKFLOW_VERSION)
-                              .on(WORKFLOW_RUN.WORKFLOW_VERSION_ID.eq(WORKFLOW_VERSION.ID))
-                              .leftJoin(ACTIVE_WORKFLOW_RUN)
-                              .on(WORKFLOW_RUN.ID.eq(ACTIVE_WORKFLOW_RUN.ID)))
-                      .where(WORKFLOW_RUN.HASH_ID.eq(workflowRunId))
-                      .fetch();
-                  if (result.isNotEmpty() && result.size() == 1) {
-                    Record record = result.get(0);
-                    ReprovisionStrategy strategy = null;
-
-                    // If there is no active workflow run id, we may need to create a new
-                    // active workflow run
-                    if (null == record.get(ACTIVE_WORKFLOW_RUN.ID)) {
-                      // Unless it's a duplicate request. We already did that!
-                      JsonNode metadata = record.get(WORKFLOW_RUN.METADATA);
-                      if (metadata.has("outputDirectory")
-                          && metadata.get("outputDirectory").textValue().equals(outputPath)) {
-                        ret.set(handler.matchExisting(record.get(WORKFLOW_RUN.HASH_ID)));
-                        process = false;
-                      } else {
-                        strategy = new ReprovisionStrategyNew();
-                      }
-                    }
-                    // if there IS an active workflow run ID, see if it's failed at reprovision
-                    // and our attempt count has incremented.
-                    else {
-                      if (record.get(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE).equals(Phase.FAILED)) {
-                        Result<Record1<Phase>> operations =
-                            dsl.select(ACTIVE_OPERATION.ENGINE_PHASE)
-                                .from(ACTIVE_OPERATION)
-                                .where(ACTIVE_OPERATION.WORKFLOW_RUN_ID.eq(
-                                    select(WORKFLOW_RUN.ID)
-                                        .from(WORKFLOW_RUN)
-                                        .where(WORKFLOW_RUN.HASH_ID.eq(workflowRunId))))
-                                .fetch();
-                        if (attempt > record.get(ACTIVE_WORKFLOW_RUN.ATTEMPT)) {
-                          if (operations.stream().anyMatch(o -> o.get(
-                              ACTIVE_OPERATION.ENGINE_PHASE).equals(Phase.REPROVISION))) {
-                            strategy = new ReprovisionStrategyReattempt();
-                          } else {
-                            ret.set(handler.matchExisting(workflowRunId));
-                            process = false;
-                          }
-                        } else {
-                          ret.set(handler.matchExisting(workflowRunId));
-                          process = false;
-                        }
-                      }
-
-                      // There is an active workflow run ID, but the engine phase is something
-                      // other than FAILED. Probably inflight
-                      else {
-                        ret.set(handler.invalidWorkflow(Set.of(String.format(
-                            "Workflow hash id %s is active with a phase of %s, which is not FAILED.",
-                            workflowRunId,
-                            record.get(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE)))));
-                        process = false;
-                      }
-                    }
-                    if (process) {
-                      // We've established we're in a valid state and chosen a strategy, let's go
-                      final SoftReference<AtomicBoolean> oldLiveness =
-                          liveness.remove(record.get(WORKFLOW_RUN.ID));
-                      if (oldLiveness != null) {
-                        final AtomicBoolean oldLivenessLock =
-                            oldLiveness.get();
-                        if (oldLivenessLock != null) {
-                          oldLivenessLock.set(false);
-                        }
-                      }
-                      OffsetDateTime originalCompleted = strategy.getOriginalCompleted(record, optionalCompleted);
-                      if (null == originalCompleted || originalCompleted.equals(OffsetDateTime.MAX)) {
-                        throw new RuntimeException(String.format(
-                            "Workflow run %s doesn't seem to have a valid original completed time.",
-                            workflowRunId));
-                      }
-                      JsonNode metadata = strategy.getMetadata(record, outputPath, provisionerName,
-                          originalCompleted);
-
-                      // Null out Completed time in database if it wasn't already
-                      dsl.update(WORKFLOW_RUN)
-                          .setNull(WORKFLOW_RUN.COMPLETED)
-                          .set(WORKFLOW_RUN.METADATA, metadata)
-                          .where(WORKFLOW_RUN.HASH_ID.eq(record.get(WORKFLOW_RUN.HASH_ID)))
-                          .execute();
-
-                      // Get workflow definition needed downstream
-                      Optional<WorkflowInformation> definition;
-                      try {
-                        definition = getWorkflowByName(
-                            record.get(WORKFLOW_VERSION.NAME),
-                            record.get(WORKFLOW_VERSION.VERSION), dsl);
-                      } catch (SQLException e) {
-                        throw new RuntimeException(e);
-                      }
-
-                      // Get the analysis, and also the external ids for those analysis records
-                      Map<ProvenanceAnalysisRecord<ExternalId>, JsonNode> analysis = new HashMap<>();
-                      Map<Integer, Set<ExternalId>> externalIdsByAnalysis = new HashMap<>();
-                      dsl.select()
-                          .from(ANALYSIS)
-                          .where(ANALYSIS.WORKFLOW_RUN_ID.eq(record.get(WORKFLOW_RUN.ID)))
-
-                          // For every analysis record associated with this workflow run, create
-                          // an object for use downstream
-                          .forEach(analysisDbRecord -> {
-                            ProvenanceAnalysisRecord<ExternalId> analysisObject = new ProvenanceAnalysisRecord<>();
-                            analysisObject.setId(analysisDbRecord.get(ANALYSIS.HASH_ID));
-                            analysisObject.setType(analysisDbRecord.get(ANALYSIS.ANALYSIS_TYPE));
-                            analysisObject.setChecksum(
-                                analysisDbRecord.get(ANALYSIS.FILE_CHECKSUM));
-                            analysisObject.setChecksumType(
-                                analysisDbRecord.get(ANALYSIS.FILE_CHECKSUM_TYPE));
-                            analysisObject.setMetatype(
-                                analysisDbRecord.get(ANALYSIS.FILE_METATYPE));
-                            analysisObject.setPath(analysisDbRecord.get(ANALYSIS.FILE_PATH));
-                            analysisObject.setSize(analysisDbRecord.get(ANALYSIS.FILE_SIZE));
-
-                            analysisObject.setLabels(
-                                mapper().convertValue(new PostgresJSONBBinding().converter()
-                                        .from(analysisDbRecord.get(ANALYSIS.LABELS)),
-                                    new TypeReference<>() {
-                                    }));
-                            analysisObject.setWorkflowRun(record.get(WORKFLOW_RUN.HASH_ID));
-                            analysisObject.setCreated(
-                                analysisDbRecord.get(ANALYSIS.CREATED).toZonedDateTime());
-
-                            // Get the external IDs associated with this analysis record
-                            Integer analysisId = analysisDbRecord.get(ANALYSIS.ID);
-                            dsl.select()
-                                .from(EXTERNAL_ID)
-                                .join(ANALYSIS_EXTERNAL_ID)
-                                .on(EXTERNAL_ID.ID.eq(ANALYSIS_EXTERNAL_ID.EXTERNAL_ID_ID))
-                                .where(ANALYSIS_EXTERNAL_ID.ANALYSIS_ID.eq(analysisId))
-
-                                // Build a set of external ids and associate it to the analysis id
-                                .forEach(externalIdDbRecord -> {
-                                      Set<ExternalId> externalIdsForAnalysisRecord =
-                                          externalIdsByAnalysis.containsKey(analysisId)
-                                              ? externalIdsByAnalysis.get(
-                                              analysisId)
-                                              : new HashSet<>();
-                                      externalIdsForAnalysisRecord.add(
-                                          new ExternalId(externalIdDbRecord.get(EXTERNAL_ID.PROVIDER),
-                                              externalIdDbRecord.get(EXTERNAL_ID.EXTERNAL_ID_)));
-                                      externalIdsByAnalysis.put(analysisId,
-                                          externalIdsForAnalysisRecord);
-                                    }
-                                );
-                            analysisObject.setExternalKeys(
-                                externalIdsByAnalysis.get(analysisId).stream().toList());
-
-                            // Associate the analysis object with some metadata
-                            // We have to get this from the workflow run, but because in normal
-                            // operation there is only ever 1 outputDirectory for a run, we can
-                            // just get the first workflow run metadatum available.
-                            // No writing is done with this information, so it's ok.
-                            JsonNode workflowRunMetadataPart = null;
-                            Iterator<JsonNode> metadataIterator = metadata.iterator();
-                            while (metadataIterator.hasNext() && null == workflowRunMetadataPart) {
-                              JsonNode metadatum = metadataIterator.next();
-                              ArrayNode contents = (ArrayNode) metadatum.get("contents");
-                              Iterator<JsonNode> contentsIterator = contents.elements();
-                              while (contentsIterator.hasNext()) {
-                                JsonNode content = contentsIterator.next();
-                                if (content.has("originalDirectory")) {
-                                  ((ObjectNode)content).put("fileChecksum", analysisObject.getChecksum());
-                                  ((ObjectNode)content).put("fileChecksumType", analysisObject.getChecksumType());
-                                  workflowRunMetadataPart = content;
-                                  break;
-                                }
-                              }
-                            }
-                            // Update the metadata again now that we've added the file checksum info
-                            dsl.update(WORKFLOW_RUN)
-                                .set(WORKFLOW_RUN.METADATA, metadata)
-                                .where(WORKFLOW_RUN.HASH_ID.eq(record.get(WORKFLOW_RUN.HASH_ID)))
-                                .execute();
-
-                            if (null == workflowRunMetadataPart) {
-                              handler.invalidWorkflow(Set.of(
-                                      String.format(
-                                          "Unable to correlate workflow run %s with metadata %s to analysis %s with path %s%n",
-                                          workflowRunId,
-                                          metadata.textValue(),
-                                          analysisId,
-                                          analysisObject.getPath()
-                                      )
-                                  )
-                              );
-                            }
-                            analysis.put(analysisObject, workflowRunMetadataPart);
-                          });
-
-                      try {
-                        final DatabaseWorkflow dbWorkflow = strategy.getDbWorkflow(record,
-                            newTarget,
-                            metadata, externalIdsByAnalysis, this, dsl);
-                        ret.set(strategy.handle(record, dbWorkflow, definition.get(), analysis,
-                            originalCompleted, handler, newTarget, dataSource, executor(), this));
-
-                      } catch (SQLException e) {
-                        throw new RuntimeException(e);
-                      }
-                    }
-                  } else if (result.size() > 1) {
-                    ret.set(handler.multipleMatches(
-                        result.stream()
-                            .map(r -> r.get(WORKFLOW_RUN.HASH_ID))
-                            .toList()));
-                  } else { // size == 0
-                    ret.set(handler.invalidWorkflow(
-                        Set.of(
-                            String.format(
-                                "No record for workflow run hash id %s. Does the run exist?%n",
-                                workflowRunId))));
-                  }
-                });
-      }
-    } catch (SQLException e) {
-      throw new RuntimeException(e);
-    }
-    return ret.get();
-  }
-
-  protected final Optional<FileMetadata> resolveInDatabase(String inputId) {
-    try {
-      try (final Connection connection = dataSource.getConnection()) {
-        return DSL
-            .using(connection, SQLDialect.POSTGRES)
-            .select()
-            .from(
-                ANALYSIS
-                    .join(ANALYSIS_EXTERNAL_ID)
-                    .on(ANALYSIS.ID.eq(ANALYSIS_EXTERNAL_ID.ANALYSIS_ID))
-                    .join(EXTERNAL_ID)
-                    .on(EXTERNAL_ID.ID.eq(ANALYSIS_EXTERNAL_ID.EXTERNAL_ID_ID))
-                    .join(EXTERNAL_ID_VERSION)
-                    .on(EXTERNAL_ID.ID.eq(EXTERNAL_ID_VERSION.EXTERNAL_ID_ID)))
-            .where(ANALYSIS.ANALYSIS_TYPE.eq("file").and(ANALYSIS.HASH_ID.like(inputId)))
-            .stream()
-            .collect(
-                Collectors.groupingBy(
-                    r -> r.get(ANALYSIS.FILE_PATH),
-                    Collectors.groupingBy(
-                        r ->
-                            new Pair<>(
-                                r.get(EXTERNAL_ID.PROVIDER), r.get(EXTERNAL_ID.EXTERNAL_ID_)),
-                        Collectors.toMap(
-                            r -> r.get(EXTERNAL_ID_VERSION.KEY),
-                            r ->
-                                Stream.of(r.get(EXTERNAL_ID_VERSION.VALUE))
-                                    .collect(Collectors.toSet()),
-                            (a, b) -> {
-                              a.addAll(b);
-                              return a;
-                            }))))
-            .entrySet()
-            .stream()
-            .<FileMetadata>map(
-                e ->
-                    new FileMetadata() {
-                      private final List<ExternalMultiVersionKey> keys =
-                          e.getValue().entrySet().stream()
-                              .map(
-                                  ee ->
-                                      new ExternalMultiVersionKey(
-                                          ee.getKey().first(), ee.getKey().second(), ee.getValue()))
-                              .toList();
-                      private final String path = e.getKey();
-
-                      @Override
-                      public Stream<ExternalMultiVersionKey> externalKeys() {
-                        return keys.stream();
-                      }
-
-                      @Override
-                      public String path() {
-                        return path;
-                      }
-                    })
-            .findAny();
-      }
-    } catch (SQLException e) {
-      e.printStackTrace();
-      return Optional.empty();
-    }
-  }
-
-  @Override
-  public final void inTransaction(Consumer<DSLContext> operation) {
-    databaseLock.acquireUninterruptibly();
-    try {
-      try (final Connection connection = dataSource.getConnection()) {
-        DSL.using(connection, SQLDialect.POSTGRES)
-            .transaction(context -> operation.accept(DSL.using(context)));
-        connection.commit();
-      }
-    } catch (SQLException e) {
-      throw new RuntimeException(e);
-    } finally {
-      databaseLock.release();
     }
   }
 
@@ -1676,7 +1735,8 @@ public abstract class DatabaseBackedProcessor
                                                   return handler.dryRunResult();
                                                 }
                                               } else if (candidates.size() == 1) {
-                                                final long workflowRunId = candidates.get(0).id();
+                                                final long workflowRunId =
+                                                    candidates.getFirst().id();
                                                 final HashMap<Pair<String, String>, List<String>>
                                                     knownMatches = new HashMap<>();
                                                 final ArrayList<ExternalKey> missingKeys =
@@ -1698,14 +1758,15 @@ public abstract class DatabaseBackedProcessor
                                                 }
                                                 if (!missingKeys.isEmpty()) {
                                                   return handler.missingExternalKeyVersions(
-                                                      candidates.get(0).workflowRun(), missingKeys);
+                                                      candidates.getFirst().workflowRun(),
+                                                      missingKeys);
                                                 }
 
                                                 // Exit early if no launching is to occur (e.g. dry
                                                 // run or validate mode).
                                                 if (!handler.allowLaunch()) {
                                                   return handler.matchExisting(
-                                                      candidates.get(0).workflowRun());
+                                                      candidates.getFirst().workflowRun());
                                                 }
 
                                                 addNewExternalKeyVersions(
@@ -1767,7 +1828,7 @@ public abstract class DatabaseBackedProcessor
                                                           metadata,
                                                           externalIds,
                                                           liveness(workflowRunId),
-                                                          candidates.get(0).created(),
+                                                          candidates.getFirst().created(),
                                                           externalKeys,
                                                           consumableResources,
                                                           transaction);
@@ -1784,7 +1845,7 @@ public abstract class DatabaseBackedProcessor
                                                           version,
                                                           candidateId,
                                                           consumableResources,
-                                                          candidates.get(0).created(),
+                                                          candidates.getFirst().created(),
                                                           new Runnable() {
                                                             private boolean launched;
 
@@ -1810,9 +1871,10 @@ public abstract class DatabaseBackedProcessor
                                                           }));
                                                 } else {
                                                   updateLastAccessed(
-                                                      transaction, candidates.get(0).workflowRun());
+                                                      transaction,
+                                                      candidates.getFirst().workflowRun());
                                                   return handler.matchExisting(
-                                                      candidates.get(0).workflowRun());
+                                                      candidates.getFirst().workflowRun());
                                                 }
                                               } else {
                                                 return handler.multipleMatches(
@@ -1953,23 +2015,5 @@ public abstract class DatabaseBackedProcessor
                                     + badEntries);
                           }
                         }));
-  }
-
-  private static String hashFromAnalysisId(String id) {
-    Matcher matcher = BaseProcessor.ANALYSIS_RECORD_ID.matcher(id);
-    if (!matcher.matches()) {
-      throw new IllegalArgumentException(
-          String.format("'%s' is a malformed Vidarr file identifier", id));
-    }
-    return matcher.group("hash");
-  }
-
-  public static String extractHashIfIsFullWorkflowRunId(String id) {
-    Matcher matcher = BaseProcessor.WORKFLOW_RUN_ID.matcher(id);
-    if (!matcher.matches()) {
-      // assume it's already a hash
-      return id;
-    }
-    return matcher.group("hash");
   }
 }

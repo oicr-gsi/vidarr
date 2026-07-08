@@ -5,17 +5,16 @@ import ca.on.oicr.gsi.status.SectionRenderer;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonTypeInfo.As;
 import com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
-import com.fasterxml.jackson.databind.DatabindContext;
-import com.fasterxml.jackson.databind.JavaType;
-import com.fasterxml.jackson.databind.annotation.JsonTypeIdResolver;
-import com.fasterxml.jackson.databind.jsontype.impl.TypeIdResolverBase;
-import java.io.IOException;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.ServiceLoader;
 import java.util.ServiceLoader.Provider;
 import java.util.stream.Collectors;
 import javax.xml.stream.XMLStreamException;
+import tools.jackson.databind.DatabindContext;
+import tools.jackson.databind.JavaType;
+import tools.jackson.databind.annotation.JsonTypeIdResolver;
+import tools.jackson.databind.jsontype.impl.TypeIdResolverBase;
 
 /**
  * A mechanism to collect metrics and log data from a workflow and push it into an appropriate data
@@ -50,21 +49,21 @@ public interface RuntimeProvisioner<State extends Record> {
     }
 
     @Override
-    public String idFromValue(Object o) {
+    public String idFromValue(DatabindContext context, Object value) {
       return knownIds.entrySet().stream()
-          .filter(known -> known.getValue().isInstance(o))
+          .filter(known -> known.getValue().isInstance(value))
           .map(Entry::getKey)
           .findFirst()
           .orElseThrow();
     }
 
     @Override
-    public String idFromValueAndType(Object o, Class<?> aClass) {
-      return idFromValue(o);
+    public String idFromValueAndType(DatabindContext context, Object value, Class<?> suggestedType) {
+      return idFromValue(context, value);
     }
 
     @Override
-    public JavaType typeFromId(DatabindContext context, String id) throws IOException {
+    public JavaType typeFromId(DatabindContext context, String id) {
       final var clazz = knownIds.get(id);
       return clazz == null ? null : context.constructType(clazz);
     }
@@ -82,9 +81,9 @@ public interface RuntimeProvisioner<State extends Record> {
    * Prepare state to provision out data
    *
    * <p>This method should not do any externally-visible work. Anything it needs should be done in a
-   * {@link #build()} so that Vidarr can execute it once the database is in a healthy state.
-   * If build() is compared to Pattern.compile(), then prepareProvisionInput prepares the String
-   * that will have match() executed against it.
+   * {@link #build()} so that Vidarr can execute it once the database is in a healthy state. If
+   * build() is compared to Pattern.compile(), then prepareProvisionInput prepares the String that
+   * will have match() executed against it.
    *
    * @param workflowRunUrl the URL provided by the {@link WorkflowEngine.Result#workflowRunUrl()}
    * @return the state that will be used by {@link #build()}
@@ -94,8 +93,8 @@ public interface RuntimeProvisioner<State extends Record> {
   /**
    * Build a declarative structure to execute the provisioning when played back
    *
-   * Compare to Pattern.compile() - builds a ready object for later use by the processor.
-   * This allows the processor to play back and pause the sequence of events built here.
+   * <p>Compare to Pattern.compile() - builds a ready object for later use by the processor. This
+   * allows the processor to play back and pause the sequence of events built here.
    *
    * @return the sequence of operations that should be performed
    */

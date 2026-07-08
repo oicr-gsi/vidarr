@@ -13,11 +13,11 @@ import ca.on.oicr.gsi.vidarr.WorkflowEngine;
 import ca.on.oicr.gsi.vidarr.WorkflowEngine.Result;
 import ca.on.oicr.gsi.vidarr.api.ExternalId;
 import ca.on.oicr.gsi.vidarr.api.ProvenanceAnalysisRecord;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import com.fasterxml.jackson.databind.node.NullNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.JsonNodeFactory;
+import tools.jackson.databind.node.NullNode;
+import tools.jackson.databind.node.ObjectNode;
 import java.lang.System.Logger.Level;
 import java.time.Instant;
 import java.time.OffsetDateTime;
@@ -41,7 +41,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public abstract class BaseProcessor<
-    W extends ActiveWorkflow<PO, TX>, PO extends ActiveOperation<TX>, TX>
+        W extends ActiveWorkflow<PO, TX>, PO extends ActiveOperation<TX>, TX>
     implements TransactionManager<TX>, FileResolver {
 
   <State extends Record, Output> OperationControlFlow<State, Output> createNext(
@@ -238,9 +238,9 @@ public abstract class BaseProcessor<
                             p ->
                                 activeWorkflow.arguments().has(p.name())
                                     ? p.type()
-                                    .apply(
-                                        new ExtractRetryValues(
-                                            mapper(), activeWorkflow.arguments().get(p.name())))
+                                        .apply(
+                                            new ExtractRetryValues(
+                                                mapper(), activeWorkflow.arguments().get(p.name())))
                                     : Stream.empty())
                         .distinct()
                         .collect(Collectors.toMap(Function.identity(), i -> new ArrayList<>()));
@@ -273,7 +273,8 @@ public abstract class BaseProcessor<
                   realInputs.add(realInput.deepCopy());
                 }
                 realInputs.add(realInput);
-                for (final Entry<Integer, List<Consumer<ObjectNode>>> entry : retryModifications.entrySet()) {
+                for (final Entry<Integer, List<Consumer<ObjectNode>>> entry :
+                    retryModifications.entrySet()) {
                   final ObjectNode input = realInputs.get(entry.getKey());
                   for (final Consumer<ObjectNode> modification : entry.getValue()) {
                     modification.accept(input);
@@ -291,22 +292,22 @@ public abstract class BaseProcessor<
                             parameter ->
                                 activeWorkflow.arguments().has(parameter.name())
                                     ? parameter
-                                    .type()
-                                    .apply(
-                                        new ExtractInputExternalIds(
-                                            mapper(),
-                                            activeWorkflow.arguments().get(parameter.name()),
-                                            BaseProcessor.this))
+                                        .type()
+                                        .apply(
+                                            new ExtractInputExternalIds(
+                                                mapper(),
+                                                activeWorkflow.arguments().get(parameter.name()),
+                                                BaseProcessor.this))
                                     : Stream.empty())
                         .map(
                             ei ->
                                 new ExternalId(
-                                    ((ExternalId)ei).getProvider(), ((ExternalId)ei).getId()))
+                                    ((ExternalId) ei).getProvider(), ((ExternalId) ei).getId()))
                         .collect(Collectors.toSet());
                 if (activeWorkflow
-                    .extraInputIdsHandled() // Set to true when in Remaining or All case
+                        .extraInputIdsHandled() // Set to true when in Remaining or All case
                     ? discoveredExternalIds.containsAll(
-                    outputRequestedExternalIds) // Doesn't need to be equal in this case
+                        outputRequestedExternalIds) // Doesn't need to be equal in this case
                     : discoveredExternalIds.equals(outputRequestedExternalIds)) {
                   startNextPhase(this, provisionInTasks, transaction);
                 } else {
@@ -448,7 +449,8 @@ public abstract class BaseProcessor<
                   final TaskStarter<Result<JsonNode>> relaunch =
                       TaskStarter.launch(
                           definition, activeWorkflow, target.engine(), realInputs.get(index));
-                  final Phase3Run nextPhaseManager = new Phase3Run(target, definition, 1, activeWorkflow);
+                  final Phase3Run nextPhaseManager =
+                      new Phase3Run(target, definition, 1, activeWorkflow);
                   final List<PO> operations =
                       workflow()
                           .phase(
@@ -590,8 +592,12 @@ public abstract class BaseProcessor<
               .visit(
                   new ResultVisitor() {
                     @Override
-                    public void file(String storagePath, String checksum, String checksumType,
-                        long size, String metatype) {
+                    public void file(
+                        String storagePath,
+                        String checksum,
+                        String checksumType,
+                        long size,
+                        String metatype) {
                       final ObjectNode file = node.putObject("result");
                       file.put("path", storagePath);
                       file.put("checksum", checksum);
@@ -620,7 +626,10 @@ public abstract class BaseProcessor<
                         new ResultVisitor() {
                           @Override
                           public void file(
-                              String storagePath, String checksum, String checksumType, long size,
+                              String storagePath,
+                              String checksum,
+                              String checksumType,
+                              long size,
                               String metatype) {
                             workflow()
                                 .provisionFile(
@@ -691,8 +700,7 @@ public abstract class BaseProcessor<
     public TerminalHandler<Void> createTerminal(PO operation) {
       return new TerminalHandler<>() {
         @Override
-        public void failed() {
-        }
+        public void failed() {}
 
         @Override
         public JsonNode serialize(Void result) {
@@ -736,7 +744,10 @@ public abstract class BaseProcessor<
     private final OffsetDateTime originalCompleted;
 
     public BonusPhaseReprovision(
-        Target target, WorkflowDefinition definition, int size, W activeWorkflow,
+        Target target,
+        WorkflowDefinition definition,
+        int size,
+        W activeWorkflow,
         OffsetDateTime originalCompleted) {
       this.target = target;
       this.definition = definition;
@@ -765,8 +776,12 @@ public abstract class BaseProcessor<
               .visit(
                   new ResultVisitor() {
                     @Override
-                    public void file(String storagePath, String checksum, String checksumType,
-                        long size, String metatype) {
+                    public void file(
+                        String storagePath,
+                        String checksum,
+                        String checksumType,
+                        long size,
+                        String metatype) {
                       final ObjectNode file = node.putObject("result");
                       file.put("path", storagePath);
                       file.put("checksum", checksum);
@@ -795,21 +810,21 @@ public abstract class BaseProcessor<
                         new ResultVisitor() {
                           @Override
                           public void file(
-                              String storagePath, String checksum, String checksumType, long size,
+                              String storagePath,
+                              String checksum,
+                              String checksumType,
+                              long size,
                               String metatype) {
-                            workflow()
-                                .reprovisionFile(
-                                    result.data(),
-                                    storagePath,
-                                    transaction);
+                            workflow().reprovisionFile(result.data(), storagePath, transaction);
                           }
 
                           @Override
                           public void url(String url, Map<String, String> labels) {
-                            throw new UnsupportedOperationException("Cannot reprovision URLs at this time.");
+                            throw new UnsupportedOperationException(
+                                "Cannot reprovision URLs at this time.");
                           }
                         });
-                if (size.decrementAndGet() == 0){
+                if (size.decrementAndGet() == 0) {
                   activeWorkflow.succeeded(originalCompleted, transaction);
                 }
               });
@@ -849,7 +864,7 @@ public abstract class BaseProcessor<
           "vidarr:(?<instance>[a-z][a-z0-9_-]*|_)/(?:workflow/(?<name>[a-z][a-zA-Z0-9_]*)/(?<version>[0-9]+(?:\\.[0-9]+)*(?:-[0-9]+)?)/)?run/(?<hash>[0-9a-fA-F]+)");
 
   public static Stream<String> extractInputVidarrIds(
-      ObjectMapper mapper, WorkflowDefinition definition, JsonNode arguments) {
+      JsonMapper mapper, WorkflowDefinition definition, JsonNode arguments) {
     return definition
         .parameters()
         .flatMap(p -> p.type().apply(new ExtractInputVidarrIds(mapper, arguments.get(p.name()))))
@@ -865,7 +880,7 @@ public abstract class BaseProcessor<
   }
 
   public static Stream<String> validateInput(
-      ObjectMapper mapper,
+      JsonMapper mapper,
       Target target,
       WorkflowDefinition workflow,
       JsonNode arguments,
@@ -882,12 +897,12 @@ public abstract class BaseProcessor<
                         o ->
                             metadata.has(o.name())
                                 ? o.type()
-                                .apply(
-                                    new ValidateOutputMetadata(
-                                        mapper,
-                                        target,
-                                        "\"" + o.name() + "\"",
-                                        metadata.get(o.name())))
+                                    .apply(
+                                        new ValidateOutputMetadata(
+                                            mapper,
+                                            target,
+                                            "\"" + o.name() + "\"",
+                                            metadata.get(o.name())))
                                 : Stream.of("Missing metadata attribute " + o.name())),
                 workflow
                     .parameters()
@@ -919,8 +934,8 @@ public abstract class BaseProcessor<
                     .orElseGet(
                         () ->
                             engineParameters == null
-                                || engineParameters.isNull()
-                                || engineParameters.isEmpty()
+                                    || engineParameters.isNull()
+                                    || engineParameters.isEmpty()
                                 ? Stream.empty()
                                 : Stream.of(
                                     "Workflow engine does not support engine parameters, but they"
@@ -938,7 +953,7 @@ public abstract class BaseProcessor<
     return executor;
   }
 
-  protected abstract ObjectMapper mapper();
+  protected abstract JsonMapper mapper();
 
   protected void recover(
       Target target,
@@ -956,8 +971,8 @@ public abstract class BaseProcessor<
             new Phase1Preflight(
                 target, activeOperations.size(), workflow, definition, workflow.isPreflightOkay());
         for (final PO operation : activeOperations) {
-          if (operation.status().equals(OperationStatus.SUCCEEDED) || operation.status()
-              .equals(OperationStatus.FAILED)) {
+          if (operation.status().equals(OperationStatus.SUCCEEDED)
+              || operation.status().equals(OperationStatus.FAILED)) {
             p1.release(operation.status().equals(OperationStatus.SUCCEEDED));
           } else {
             TaskStarter.of(
@@ -971,14 +986,21 @@ public abstract class BaseProcessor<
         }
         break;
       case PROVISION_IN:
-        final Phase2ProvisionIn p2 = new Phase2ProvisionIn(target, activeOperations.size(), definition, workflow);
+        final Phase2ProvisionIn p2 =
+            new Phase2ProvisionIn(target, activeOperations.size(), definition, workflow);
         if (activeOperations.stream().allMatch(o -> o.status().equals(OperationStatus.SUCCEEDED))) {
           inTransaction(
               transaction -> {
-                startNextPhase(p2, List.of(TaskStarter.launch(p2.definition(), p2.activeWorkflow,
-                    target.engine(), p2.activeWorkflow.realInputs().get(0))), transaction);
-              }
-          );
+                startNextPhase(
+                    p2,
+                    List.of(
+                        TaskStarter.launch(
+                            p2.definition(),
+                            p2.activeWorkflow,
+                            target.engine(),
+                            p2.activeWorkflow.realInputs().get(0))),
+                    transaction);
+              });
         } else {
           for (final PO operation : activeOperations) {
             if (operation.status().equals(OperationStatus.SUCCEEDED)) {
@@ -1017,44 +1039,48 @@ public abstract class BaseProcessor<
                 remainingIds.removeAll(workflow.requestedExternalIds());
                 JsonNode workflowRunUrl = recovery.get("workflowRunUrl");
                 if (null != workflowRunUrl && !(workflowRunUrl instanceof NullNode)) {
-                  target.runtimeProvisioners().forEach(
-                      p ->
-                          tasks.add(
-                              TaskStarter.launch(p, allIds, Map.of(), workflowRunUrl.asText())
-                          )
-                  );
+                  target
+                      .runtimeProvisioners()
+                      .forEach(
+                          p ->
+                              tasks.add(
+                                  TaskStarter.launch(
+                                      p, allIds, Map.of(), workflowRunUrl.asText())));
 
-                  if (definition.outputs().allMatch(
-                      output -> {
-                        final AtomicBoolean isOk = new AtomicBoolean(true);
-                        JsonNode jsonOutput = recovery.get("output");
-                        if (jsonOutput != null && !(jsonOutput instanceof NullNode)
-                            && jsonOutput.has(output.name())) {
-                          output.type().apply(
-                                  new PrepareOutputProvisioning(
-                                      mapper(),
-                                      target,
-                                      jsonOutput.get(output.name()),
-                                      workflow.metadata().get(output.name()),
-                                      allIds,
-                                      remainingIds,
-                                      () -> isOk.set(false),
-                                      workflow.id()))
-                              .forEach(tasks::add);
-                          return isOk.get();
-                        } else {
-                          return false;
-                        }
-                      }
-                  )) {
+                  if (definition
+                      .outputs()
+                      .allMatch(
+                          output -> {
+                            final AtomicBoolean isOk = new AtomicBoolean(true);
+                            JsonNode jsonOutput = recovery.get("output");
+                            if (jsonOutput != null
+                                && !(jsonOutput instanceof NullNode)
+                                && jsonOutput.has(output.name())) {
+                              output
+                                  .type()
+                                  .apply(
+                                      new PrepareOutputProvisioning(
+                                          mapper(),
+                                          target,
+                                          jsonOutput.get(output.name()),
+                                          workflow.metadata().get(output.name()),
+                                          allIds,
+                                          remainingIds,
+                                          () -> isOk.set(false),
+                                          workflow.id()))
+                                  .forEach(tasks::add);
+                              return isOk.get();
+                            } else {
+                              return false;
+                            }
+                          })) {
                     // launch phase 4
                     startNextPhase(p3, tasks, transaction);
                   } else {
                     workflow.phase(Phase.FAILED, Collections.emptyList(), transaction);
                   }
                 }
-              }
-          );
+              });
         } else {
           for (final PO operation : activeOperations) {
             TaskStarter.of(
@@ -1072,7 +1098,8 @@ public abstract class BaseProcessor<
         final Phase4ProvisionOut p4 =
             new Phase4ProvisionOut(target, definition, activeOperations.size(), workflow);
         if (activeOperations.stream().allMatch(o -> o.status().equals(OperationStatus.SUCCEEDED))) {
-          // SUCCEEDED means we've already created the file entries in the db, so all that's left to do is clean up
+          // SUCCEEDED means we've already created the file entries in the db, so all that's left to
+          // do is clean up
           inTransaction(
               transaction -> {
                 final JsonNode cleanup = workflow.cleanup();
@@ -1082,8 +1109,7 @@ public abstract class BaseProcessor<
                   startNextPhase(
                       p4,
                       List.of(TaskStarter.launchCleanup(target.engine(), cleanup)),
-                      transaction
-                  );
+                      transaction);
                 }
               });
         } else {
@@ -1110,7 +1136,8 @@ public abstract class BaseProcessor<
                       operation.type(),
                       recoverType.prepare(
                           TaskStarter.wrapOutputProvisioner(
-                              target.provisionerFor(OutputProvisionFormat.valueOf(operation.type()))),
+                              target.provisionerFor(
+                                  OutputProvisionFormat.valueOf(operation.type()))),
                           operation.recoveryState()))
                   .start(this, operation, p4.createTerminal(operation));
             }
@@ -1130,16 +1157,17 @@ public abstract class BaseProcessor<
         break;
       case REPROVISION:
         // Can use the first record because the completed time info will be the same for all
-        JsonNode metadata = activeOperations.get(0)
-            .recoveryState()
-            .get("state")
-            .get("metadata");
-        final OffsetDateTime originalCompleted = OffsetDateTime.ofInstant(
-            Instant.ofEpochSecond(metadata.get("originalCompleted").asInt()), ZoneId.of(metadata.get("originalCompletedOffset").textValue()));
+        JsonNode metadata = activeOperations.get(0).recoveryState().get("state").get("metadata");
+        final OffsetDateTime originalCompleted =
+            OffsetDateTime.ofInstant(
+                Instant.ofEpochSecond(metadata.get("originalCompleted").asInt()),
+                ZoneId.of(metadata.get("originalCompletedOffset").textValue()));
         final BonusPhaseReprovision bonusPhase =
-            new BonusPhaseReprovision(target, definition, activeOperations.size(), workflow, originalCompleted);
+            new BonusPhaseReprovision(
+                target, definition, activeOperations.size(), workflow, originalCompleted);
         if (activeOperations.stream().allMatch(o -> o.status().equals(OperationStatus.SUCCEEDED))) {
-          // SUCCEEDED means we've already created the file entries in the db, so all that's left to do is clean up
+          // SUCCEEDED means we've already created the file entries in the db, so all that's left to
+          // do is clean up
           inTransaction(
               transaction -> {
                 final JsonNode cleanup = workflow.cleanup();
@@ -1149,8 +1177,7 @@ public abstract class BaseProcessor<
                   startNextPhase(
                       bonusPhase,
                       List.of(TaskStarter.launchCleanup(target.engine(), cleanup)),
-                      transaction
-                  );
+                      transaction);
                 }
               });
         } else {
@@ -1160,13 +1187,13 @@ public abstract class BaseProcessor<
               bonusPhase.size.decrementAndGet();
               continue;
             }
-              TaskStarter.of(
-                      operation.type(),
-                      recoverType.prepare(
-                          TaskStarter.wrapOutputProvisioner(
-                              target.provisionerFor(OutputProvisionFormat.valueOf(operation.type()))),
-                          operation.recoveryState()))
-                  .start(this, operation, bonusPhase.createTerminal(operation));
+            TaskStarter.of(
+                    operation.type(),
+                    recoverType.prepare(
+                        TaskStarter.wrapOutputProvisioner(
+                            target.provisionerFor(OutputProvisionFormat.valueOf(operation.type()))),
+                        operation.recoveryState()))
+                .start(this, operation, bonusPhase.createTerminal(operation));
           }
         }
         break;
@@ -1175,7 +1202,10 @@ public abstract class BaseProcessor<
     }
   }
 
-  public void reprovision(Target target, WorkflowDefinition definition, W workflow,
+  public void reprovision(
+      Target target,
+      WorkflowDefinition definition,
+      W workflow,
       Map<ProvenanceAnalysisRecord<ExternalId>, JsonNode> analysisInfo,
       OffsetDateTime originalCompleted,
       TX transaction) {
@@ -1185,16 +1215,18 @@ public abstract class BaseProcessor<
     for (Entry<ProvenanceAnalysisRecord<ExternalId>, JsonNode> analysis : analysisInfo.entrySet()) {
       final AtomicBoolean isOk = new AtomicBoolean(true);
       // URL not supported
-      // `data` is literally just the path of the original file, metadata is `{outputDirectory: target path}`
+      // `data` is literally just the path of the original file, metadata is `{outputDirectory:
+      // target path}`
       if (analysis.getKey().getType().equals("file")) {
-        tasks.add(TaskStarter.launch(OutputProvisionFormat.FILES,
-            target.provisionerFor(OutputProvisionFormat.FILES),
-            new HashSet<>(analysis.getKey().getExternalKeys()),
-            analysis.getKey().getLabels(),
-            analysis.getKey().getWorkflowRun(),
-            analysis.getKey().getPath(),
-            analysis.getValue()
-        ));
+        tasks.add(
+            TaskStarter.launch(
+                OutputProvisionFormat.FILES,
+                target.provisionerFor(OutputProvisionFormat.FILES),
+                new HashSet<>(analysis.getKey().getExternalKeys()),
+                analysis.getKey().getLabels(),
+                analysis.getKey().getWorkflowRun(),
+                analysis.getKey().getPath(),
+                analysis.getValue()));
       }
     }
 
@@ -1202,10 +1234,10 @@ public abstract class BaseProcessor<
       workflow.phase(Phase.FAILED, Collections.emptyList(), transaction);
       return;
     }
-    final List<Pair<String, JsonNode>> initialStates = tasks.stream().map((starter) -> TaskStarter.toPair(starter, mapper()))
-        .toList();
-    final BonusPhaseReprovision phaseManager = new BonusPhaseReprovision(target, definition, tasks.size(), workflow,
-        originalCompleted);
+    final List<Pair<String, JsonNode>> initialStates =
+        tasks.stream().map((starter) -> TaskStarter.toPair(starter, mapper())).toList();
+    final BonusPhaseReprovision phaseManager =
+        new BonusPhaseReprovision(target, definition, tasks.size(), workflow, originalCompleted);
     final List<PO> operations = workflow.phase(Phase.REPROVISION, initialStates, transaction);
     if (operations.size() != tasks.size()) {
       // The backing store has decided to abandon this workflow run
@@ -1216,8 +1248,6 @@ public abstract class BaseProcessor<
       tasks.get(i).start(this, operation, phaseManager.createTerminal(operation));
     }
   }
-
-
 
   protected void start(Target target, WorkflowDefinition definition, W workflow, TX transaction) {
     final ArrayList<TaskStarter<Boolean>> preflightSteps = new ArrayList<>();

@@ -5,12 +5,13 @@ import ca.on.oicr.gsi.cache.SimpleRecord;
 import ca.on.oicr.gsi.vidarr.BasicType;
 import ca.on.oicr.gsi.vidarr.JsonBodyHandler;
 import ca.on.oicr.gsi.vidarr.PriorityInput;
-import com.fasterxml.jackson.core.JacksonException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.cfg.DateTimeFeature;
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.SerializationFeature;
 import io.undertow.Handlers;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.HttpServerExchange;
@@ -26,9 +27,12 @@ import java.util.Optional;
 public final class RemotePriorityInput implements PriorityInput {
   private static final HttpClient HTTP_CLIENT = HttpClient.newHttpClient();
 
-  // Jdk8Module is a compatibility fix for de/serializing Optionals
-  private static final ObjectMapper MAPPER =
-      new ObjectMapper().registerModule(new Jdk8Module()).configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true);
+  static final JsonMapper MAPPER =
+      JsonMapper.builder()
+          .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+          .configure(DateTimeFeature.WRITE_DATES_AS_TIMESTAMPS, true)
+          .configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true)
+          .build();
   private int defaultPriority;
   private BasicType schema;
   private int ttl = 15;

@@ -10,7 +10,7 @@ import ca.on.oicr.gsi.vidarr.OutputProvisioner;
 import ca.on.oicr.gsi.vidarr.OutputProvisionerProvider;
 import ca.on.oicr.gsi.vidarr.core.LocalOutputProvisioner.ProvisionState;
 import ca.on.oicr.gsi.vidarr.core.LocalOutputProvisioner.PreflightState;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

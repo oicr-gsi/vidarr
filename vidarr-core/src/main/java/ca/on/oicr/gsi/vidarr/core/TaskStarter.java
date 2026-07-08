@@ -14,10 +14,10 @@ import ca.on.oicr.gsi.vidarr.WorkflowDefinition;
 import ca.on.oicr.gsi.vidarr.WorkflowEngine;
 import ca.on.oicr.gsi.vidarr.api.ExternalId;
 import ca.on.oicr.gsi.vidarr.core.BaseProcessor.TerminalHandler;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.ObjectNode;
 import java.util.Map;
 import java.util.Set;
 
@@ -86,7 +86,7 @@ interface TaskStarter<Output> {
       WorkflowEngine<?, Cleanup> engine, JsonNode savedState) {
     try {
       return of("", engine.cleanup().launch(engine.cleanup().deserializeOriginal(savedState)));
-    } catch (JsonProcessingException e) {
+    } catch (JacksonException e) {
       return new TaskStarter<>() {
         @Override
         public String name() {
@@ -105,7 +105,7 @@ interface TaskStarter<Output> {
         }
 
         @Override
-        public JsonNode state(ObjectMapper mapper) {
+        public JsonNode state(JsonMapper mapper) {
           return mapper.nullNode();
         }
       };
@@ -128,13 +128,13 @@ interface TaskStarter<Output> {
       }
 
       @Override
-      public JsonNode state(ObjectMapper mapper) {
+      public JsonNode state(JsonMapper mapper) {
         return launcher.state();
       }
     };
   }
 
-  static Pair<String, JsonNode> toPair(TaskStarter<?> starter, ObjectMapper mapper) {
+  static Pair<String, JsonNode> toPair(TaskStarter<?> starter, JsonMapper mapper) {
     return new Pair<>(starter.name(), starter.state(mapper));
   }
 
@@ -151,13 +151,13 @@ interface TaskStarter<Output> {
     return OperationAction.load(OutputProvisionState.class, OutputProvisionState::workflowRunId)
         .then(
             OperationStatefulStep.subStep(
-                (state, id) -> provisioner.prepareProvisionInput(id, state.data(), state.metadata()), action))
+                (state, id) ->
+                    provisioner.prepareProvisionInput(id, state.data(), state.metadata()),
+                action))
         .map(
             (state, result) ->
-                new ProvisionData(state.state().ids(),
-                    state.state().labels(),
-                    result,
-                    state.state().data()));
+                new ProvisionData(
+                    state.state().ids(), state.state().labels(), result, state.state().data()));
   }
 
   private static <State extends Record, OriginalState extends Record>
@@ -166,7 +166,9 @@ interface TaskStarter<Output> {
               RuntimeProvisioner<OriginalState> provisioner,
               OperationAction<State, OriginalState, OutputProvisioner.Result> action) {
     return OperationAction.load(RuntimeProvisionState.class, RuntimeProvisionState::workflowRunUrl)
-        .then(OperationStatefulStep.subStep((state, url) -> provisioner.prepareProvisionInput(url), action))
+        .then(
+            OperationStatefulStep.subStep(
+                (state, url) -> provisioner.prepareProvisionInput(url), action))
         .map(
             (state, result) ->
                 new ProvisionData(state.state().ids(), state.state().labels(), result, null));
@@ -183,5 +185,5 @@ interface TaskStarter<Output> {
   <TX, PO extends ActiveOperation<TX>> void start(
       BaseProcessor<?, PO, TX> processor, PO operation, TerminalHandler<Output> handler);
 
-  JsonNode state(ObjectMapper mapper);
+  JsonNode state(JsonMapper mapper);
 }

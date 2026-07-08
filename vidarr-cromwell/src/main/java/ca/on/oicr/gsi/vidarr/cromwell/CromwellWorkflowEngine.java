@@ -27,9 +27,6 @@ import ca.on.oicr.gsi.vidarr.WorkflowEngine;
 import ca.on.oicr.gsi.vidarr.WorkflowEngineProvider;
 import ca.on.oicr.gsi.vidarr.WorkflowLanguage;
 import ca.on.oicr.gsi.vidarr.WorkingStatus;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.prometheus.client.Counter;
 import java.lang.System.Logger.Level;
 import java.net.http.HttpClient;
@@ -39,6 +36,12 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.xml.stream.XMLStreamException;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.SerializationFeature;
+import tools.jackson.databind.cfg.DateTimeFeature;
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 /** Run workflows using Cromwell */
 public final class CromwellWorkflowEngine implements WorkflowEngine<StateUnstarted, CleanupState> {
@@ -62,7 +65,12 @@ public final class CromwellWorkflowEngine implements WorkflowEngine<StateUnstart
               "The number of HTTP requests to the Cromwell server")
           .labelNames("target")
           .register();
-  static final ObjectMapper MAPPER = new ObjectMapper();
+  static final JsonMapper MAPPER =
+      JsonMapper.builder()
+          .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+          .configure(DateTimeFeature.WRITE_DATES_AS_TIMESTAMPS, true)
+          .configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true)
+          .build();
 
   public static WorkflowEngineProvider provider() {
     return () -> Stream.of(new Pair<>("cromwell", CromwellWorkflowEngine.class));
@@ -204,7 +212,7 @@ public final class CromwellWorkflowEngine implements WorkflowEngine<StateUnstart
      * accept. There's no situation where Cromwell would _need_ to see a null.
      */
     final var filteredParameters = MAPPER.createObjectNode();
-    final var iterator = workflowParameters.fields();
+    final var iterator = workflowParameters.properties().iterator();
     while (iterator.hasNext()) {
       final var field = iterator.next();
       if (!field.getValue().isNull()) {

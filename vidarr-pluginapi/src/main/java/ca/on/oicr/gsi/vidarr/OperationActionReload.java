@@ -1,9 +1,9 @@
 package ca.on.oicr.gsi.vidarr;
 
 import ca.on.oicr.gsi.vidarr.ActiveOperation.TransactionManager;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JavaType;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JavaType;
+import tools.jackson.databind.JsonNode;
 
 final class OperationActionReload<State extends Record, OriginalState extends Record, Input, Result>
     extends OperationAction<State, OriginalState, Result> {
@@ -23,7 +23,7 @@ final class OperationActionReload<State extends Record, OriginalState extends Re
   }
 
   @Override
-  public OriginalState deserializeOriginal(JsonNode originalState) throws JsonProcessingException {
+  public OriginalState deserializeOriginal(JsonNode originalState) throws JacksonException {
     return input.deserializeOriginal(originalState);
   }
 
@@ -33,7 +33,7 @@ final class OperationActionReload<State extends Record, OriginalState extends Re
   }
 
   @Override
-  State rewind(State state) throws JsonProcessingException {
+  State rewind(State state) throws JacksonException {
     return input.rewind(state);
   }
 

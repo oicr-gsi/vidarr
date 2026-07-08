@@ -1,7 +1,7 @@
 package ca.on.oicr.gsi.vidarr.prometheus;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.node.ObjectNode;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;

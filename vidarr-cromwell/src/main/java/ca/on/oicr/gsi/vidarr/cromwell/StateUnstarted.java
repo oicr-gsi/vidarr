@@ -4,8 +4,8 @@ import static ca.on.oicr.gsi.vidarr.cromwell.CromwellWorkflowEngine.MAPPER;
 
 import ca.on.oicr.gsi.vidarr.MultiPartBodyPublisher;
 import ca.on.oicr.gsi.vidarr.WorkflowLanguage;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;

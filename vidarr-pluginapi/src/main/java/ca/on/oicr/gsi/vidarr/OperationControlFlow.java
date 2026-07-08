@@ -1,6 +1,6 @@
 package ca.on.oicr.gsi.vidarr;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 
 /**
  * Control flow for executing {@link OperationAction}

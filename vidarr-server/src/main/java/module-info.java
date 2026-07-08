@@ -11,10 +11,9 @@ module ca.on.oicr.gsi.vidarr.server {
   requires ca.on.oicr.gsi.serverutils;
   requires ca.on.oicr.gsi.vidarr.core;
   requires ca.on.oicr.gsi.vidarr.pluginapi;
-  requires com.fasterxml.jackson.core;
-  requires com.fasterxml.jackson.databind;
-  requires com.fasterxml.jackson.datatype.jsr310;
-  requires com.fasterxml.jackson.datatype.jdk8;
+  requires tools.jackson.core;
+  requires tools.jackson.databind;
+  requires com.fasterxml.jackson.annotation;
   requires com.zaxxer.hikari;
   requires java.management;
   requires java.naming;
@@ -31,15 +30,18 @@ module ca.on.oicr.gsi.vidarr.server {
   requires simpleclient.hotspot;
   requires simpleclient;
   requires undertow.core;
+  requires wildfly.common;
 
   opens ca.on.oicr.gsi.vidarr.server.dto to
       com.fasterxml.jackson.annotation,
-      com.fasterxml.jackson.core,
-      com.fasterxml.jackson.databind;
+      tools.jackson.databind,
+      tools.jackson.core;
   opens ca.on.oicr.gsi.vidarr.server.jooq.tables.records to
-      org.jooq;
+      org.jooq,
+      tools.jackson.databind;
   opens ca.on.oicr.gsi.vidarr.server to
-      com.fasterxml.jackson.databind;
+      tools.jackson.databind,
+      com.fasterxml.jackson.annotation;
   opens db.migration;
 
   uses ConsumableResourceProvider;

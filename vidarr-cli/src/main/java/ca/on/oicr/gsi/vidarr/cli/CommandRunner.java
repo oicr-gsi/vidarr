@@ -3,9 +3,6 @@ package ca.on.oicr.gsi.vidarr.cli;
 import ca.on.oicr.gsi.vidarr.api.ExternalId;
 import ca.on.oicr.gsi.vidarr.core.OutputProvisioningHandler;
 import ca.on.oicr.gsi.vidarr.core.WorkflowConfiguration;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.File;
 import java.io.IOException;
 import java.util.Map;
@@ -13,6 +10,12 @@ import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
 import picocli.CommandLine;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.SerializationFeature;
+import tools.jackson.databind.cfg.DateTimeFeature;
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 /** Subcommand to run a single workflow */
 @CommandLine.Command(
@@ -27,7 +30,12 @@ public class CommandRunner implements Callable<Integer> {
     }
   }
 
-  private static final ObjectMapper MAPPER = new ObjectMapper();
+  static final JsonMapper MAPPER =
+      JsonMapper.builder()
+          .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+          .configure(DateTimeFeature.WRITE_DATES_AS_TIMESTAMPS, true)
+          .configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true)
+          .build();
 
   @CommandLine.Option(
       names = {"-a", "--args", "--arguments"},

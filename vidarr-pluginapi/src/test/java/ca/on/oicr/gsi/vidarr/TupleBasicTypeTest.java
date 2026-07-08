@@ -1,9 +1,9 @@
 package ca.on.oicr.gsi.vidarr;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -39,8 +39,8 @@ public class TupleBasicTypeTest extends BasicTypeTest {
       root.set("elements", types);
       try {
         json = MAPPER.writeValueAsString(root);
-      } catch (JsonProcessingException e) {
-        Assert.fail("JsonProcessingException writing long json: " + e.getMessage());
+      } catch (JacksonException e) {
+        Assert.fail("JacksonException writing long json: " + e.getMessage());
       }
       serializeTester(json, BasicType.tuple(varargs.toArray(new BasicType[varargs.size()])));
     }
@@ -69,8 +69,8 @@ public class TupleBasicTypeTest extends BasicTypeTest {
       root.set("elements", types);
       try {
         json = MAPPER.writeValueAsString(root);
-      } catch (JsonProcessingException e) {
-        Assert.fail("JsonProcessingException writing long json: " + e.getMessage());
+      } catch (JacksonException e) {
+        Assert.fail("JacksonException writing long json: " + e.getMessage());
       }
       deserializeTester(BasicType.tuple(varargs.toArray(new BasicType[varargs.size()])), json);
     }

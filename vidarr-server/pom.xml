@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
   <artifactId>vidarr-server</artifactId>
   <name>Vidarr Analysis Provenance Server</name>
@@ -12,16 +14,12 @@
 
   <dependencies>
     <dependency>
-      <groupId>com.fasterxml.jackson.core</groupId>
+      <groupId>tools.jackson.core</groupId>
       <artifactId>jackson-core</artifactId>
     </dependency>
     <dependency>
-      <groupId>com.fasterxml.jackson.core</groupId>
+      <groupId>tools.jackson.core</groupId>
       <artifactId>jackson-databind</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>com.fasterxml.jackson.datatype</groupId>
-      <artifactId>jackson-datatype-jsr310</artifactId>
     </dependency>
     <dependency>
       <groupId>io.undertow</groupId>
@@ -58,6 +56,12 @@
     <dependency>
       <groupId>org.jooq</groupId>
       <artifactId>jooq</artifactId>
+      <exclusions>
+        <exclusion>
+          <groupId>tools.jackson.core</groupId>
+          <artifactId>jackson-databind</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>org.jooq</groupId>
@@ -66,6 +70,10 @@
     <dependency>
       <groupId>org.jooq</groupId>
       <artifactId>jooq-codegen</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.jooq</groupId>
+      <artifactId>jooq-jackson3-extensions</artifactId>
     </dependency>
     <dependency>
       <groupId>org.postgresql</groupId>
@@ -83,11 +91,12 @@
       <groupId>io.rest-assured</groupId>
       <artifactId>rest-assured</artifactId>
       <scope>test</scope>
-    </dependency><dependency>
-    <groupId>io.rest-assured</groupId>
-    <artifactId>json-path</artifactId>
-    <scope>test</scope>
-  </dependency>
+    </dependency>
+    <dependency>
+      <groupId>io.rest-assured</groupId>
+      <artifactId>json-path</artifactId>
+      <scope>test</scope>
+    </dependency>
     <dependency>
       <groupId>io.rest-assured</groupId>
       <artifactId>xml-path</artifactId>
@@ -107,16 +116,17 @@
       <groupId>junit</groupId>
       <artifactId>junit</artifactId>
       <scope>test</scope>
+      <exclusions>
+        <exclusion>
+          <groupId>org.hamcrest</groupId>
+          <artifactId>hamcrest-core</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>com.rasklaad</groupId>
       <artifactId>blns-java</artifactId>
       <version>0.0.1</version>
-    </dependency>
-    <dependency>
-      <groupId>com.fasterxml.jackson.datatype</groupId>
-      <artifactId>jackson-datatype-jdk8</artifactId>
-      <version>2.17.1</version>
     </dependency>
   </dependencies>
   <build>
@@ -126,11 +136,25 @@
           <groupId>io.fabric8</groupId>
           <artifactId>docker-maven-plugin</artifactId>
           <version>0.48.0</version>
+          <dependencies>
+            <dependency>
+              <groupId>tools.jackson.core</groupId>
+              <artifactId>jackson-core</artifactId>
+            </dependency>
+            <dependency>
+              <groupId>tools.jackson.core</groupId>
+              <artifactId>jackson-databind</artifactId>
+            </dependency>
+            <!--            <dependency>-->
+            <!--              <groupId>tools.jackson.core</groupId>-->
+            <!--              <artifactId>jackson-annotations</artifactId>-->
+            <!--            </dependency>-->
+          </dependencies>
           <configuration>
             <removeVolumes>true</removeVolumes>
             <images>
               <image>
-                <name>postgres:15-alpine</name>
+                <name>postgres:18-alpine</name>
                 <alias>postgres</alias>
                 <run>
                   <env>
@@ -155,6 +179,22 @@
       <plugin>
         <groupId>io.fabric8</groupId>
         <artifactId>docker-maven-plugin</artifactId>
+        <dependencies>
+          <dependency>
+            <groupId>tools.jackson.core</groupId>
+            <artifactId>jackson-core</artifactId>
+            <version>${jackson3.version}</version>
+          </dependency>
+          <dependency>
+            <groupId>tools.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>${jackson3.version}</version>
+          </dependency>
+          <!--          <dependency>-->
+          <!--            <groupId>tools.jackson.core</groupId>-->
+          <!--            <artifactId>jackson-annotations</artifactId>-->
+          <!--          </dependency>-->
+        </dependencies>
         <executions>
           <execution>
             <id>start</id>
@@ -197,6 +237,24 @@
         <groupId>org.jooq</groupId>
         <artifactId>jooq-codegen-maven</artifactId>
         <version>${jooq.version}</version>
+        <dependencies>
+          <dependency>
+            <groupId>org.jooq</groupId>
+            <artifactId>jooq-jackson3-extensions</artifactId>
+            <version>${jooq.version}</version>
+            <exclusions>
+              <exclusion>
+                <groupId>tools.jackson.core</groupId>
+                <artifactId>*</artifactId>
+              </exclusion>
+            </exclusions>
+          </dependency>
+          <dependency>
+            <groupId>tools.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>${jackson3.version}</version>
+          </dependency>
+        </dependencies>
         <executions>
           <execution>
             <id>jooq-codegen</id>
@@ -242,11 +300,12 @@
                         <from>WorkflowLanguage::valueOf</from>
                         <to>WorkflowLanguage::name</to>
                       </lambdaConverter>
-                      <includeExpression>public\.workflow_definition\.workflow_language</includeExpression>
+                      <includeExpression>public\.workflow_definition\.workflow_language
+                      </includeExpression>
                       <includeTypes>.*</includeTypes>
                     </forcedType>
                     <forcedType>
-                      <userType>com.fasterxml.jackson.databind.JsonNode</userType>
+                      <userType>tools.jackson.databind.JsonNode</userType>
                       <binding>ca.on.oicr.gsi.vidarr.server.PostgresJSONBBinding</binding>
                       <includeExpression>.*</includeExpression>
                       <!-- We leave labels alone so we can manipulate them using the database functions -->

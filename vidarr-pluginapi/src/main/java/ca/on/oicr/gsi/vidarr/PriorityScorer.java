@@ -5,12 +5,7 @@ import ca.on.oicr.gsi.vidarr.PriorityScorer.PriorityScorerIdResolver;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonTypeInfo.As;
 import com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
-import com.fasterxml.jackson.databind.DatabindContext;
-import com.fasterxml.jackson.databind.JavaType;
-import com.fasterxml.jackson.databind.annotation.JsonTypeIdResolver;
-import com.fasterxml.jackson.databind.jsontype.impl.TypeIdResolverBase;
 import io.undertow.server.HttpHandler;
-import java.io.IOException;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -19,10 +14,12 @@ import java.util.OptionalInt;
 import java.util.ServiceLoader;
 import java.util.ServiceLoader.Provider;
 import java.util.stream.Collectors;
+import tools.jackson.databind.DatabindContext;
+import tools.jackson.databind.JavaType;
+import tools.jackson.databind.annotation.JsonTypeIdResolver;
+import tools.jackson.databind.jsontype.impl.TypeIdResolverBase;
 
-/**
- * Examine a score to determine if a workflow run should be allowed to proceed or wait
- */
+/** Examine a score to determine if a workflow run should be allowed to proceed or wait */
 @JsonTypeIdResolver(PriorityScorerIdResolver.class)
 @JsonTypeInfo(use = Id.CUSTOM, include = As.PROPERTY, property = "type")
 public interface PriorityScorer {
@@ -41,21 +38,22 @@ public interface PriorityScorer {
     }
 
     @Override
-    public String idFromValue(Object o) {
+    public String idFromValue(DatabindContext context, Object value) {
       return knownIds.entrySet().stream()
-          .filter(known -> known.getValue().isInstance(o))
+          .filter(known -> known.getValue().isInstance(value))
           .map(Entry::getKey)
           .findFirst()
           .orElseThrow();
     }
 
     @Override
-    public String idFromValueAndType(Object o, Class<?> aClass) {
-      return idFromValue(o);
+    public String idFromValueAndType(
+        DatabindContext context, Object value, Class<?> suggestedType) {
+      return idFromValue(context, value);
     }
 
     @Override
-    public JavaType typeFromId(DatabindContext context, String id) throws IOException {
+    public JavaType typeFromId(DatabindContext context, String id) {
       final var clazz = knownIds.get(id);
       return clazz == null ? null : context.constructType(clazz);
     }
@@ -64,12 +62,12 @@ public interface PriorityScorer {
   /**
    * Determine if the workflow run can begin now
    *
-   * @param workflowName        the name of the workflow
-   * @param workflowVersion     the version of the workflow
-   * @param vidarrId            the workflow run identifier
-   * @param created             the time when the workflow run was first submitted
+   * @param workflowName the name of the workflow
+   * @param workflowVersion the version of the workflow
+   * @param vidarrId the workflow run identifier
+   * @param created the time when the workflow run was first submitted
    * @param workflowMaxInFlight the max-in-flight value for this workflow, if available
-   * @param score               the computed score for this workflow run
+   * @param score the computed score for this workflow run
    * @return true if the workflow run may proceed; false if it should wait
    */
   boolean compute(
@@ -95,35 +93,31 @@ public interface PriorityScorer {
    * Indicate that Vidarr has restarted and this workflow run will be started even if this scorer
    * would make it wait.
    *
-   * @param workflowName    the name of the workflow
+   * @param workflowName the name of the workflow
    * @param workflowVersion the version of the workflow
-   * @param vidarrId        the identifier of the workflow run
+   * @param vidarrId the identifier of the workflow run
    */
   void recover(String workflowName, String workflowVersion, String vidarrId);
 
   /**
    * Indicate that the workflow run has completed and the score should purge any state about it
    *
-   * @param workflowName    the name of the workflow
+   * @param workflowName the name of the workflow
    * @param workflowVersion the version of the workflow
-   * @param vidarrId        the identifier of the workflow run
+   * @param vidarrId the identifier of the workflow run
    */
   void complete(String workflowName, String workflowVersion, String vidarrId);
-
 
   /**
    * Indicate that an outer aggregate scorer has failed to meet criteria to start this workflow run,
    * don't completely forget this job but also don't keep it at top priority.
    *
-   * @param workflowName    the name of the workflow
+   * @param workflowName the name of the workflow
    * @param workflowVersion the version of the workflow
-   * @param vidarrId        the identifier of the workflow run
+   * @param vidarrId the identifier of the workflow run
    */
   void putItBack(String workflowName, String workflowVersion, String vidarrId);
 
-
-  /**
-   * Perform any initialization required by this input
-   */
+  /** Perform any initialization required by this input */
   void startup();
 }

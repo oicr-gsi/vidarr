@@ -5,7 +5,7 @@ import ca.on.oicr.gsi.vidarr.BasicType;
 import ca.on.oicr.gsi.vidarr.ConsumableResource;
 import ca.on.oicr.gsi.vidarr.ConsumableResourceResponse;
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.OptionalInt;

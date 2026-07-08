@@ -7,7 +7,7 @@ import ca.on.oicr.gsi.vidarr.api.ExternalId;
 import ca.on.oicr.gsi.vidarr.api.ExternalMultiVersionKey;
 import ca.on.oicr.gsi.vidarr.core.FileMetadata;
 import ca.on.oicr.gsi.vidarr.core.Target;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.node.ObjectNode;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import java.util.Collection;

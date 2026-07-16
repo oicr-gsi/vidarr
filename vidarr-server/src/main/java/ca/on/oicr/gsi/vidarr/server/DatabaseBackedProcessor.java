@@ -1111,16 +1111,16 @@ public abstract class DatabaseBackedProcessor
                     // and our attempt count has incremented.
                     else {
                       if (record.get(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE).equals(Phase.FAILED)) {
-                        Result<Record1<Phase>> operations =
-                            dsl.select(ACTIVE_OPERATION.ENGINE_PHASE)
-                                .from(ACTIVE_OPERATION)
-                                .where(
-                                    ACTIVE_OPERATION.WORKFLOW_RUN_ID.eq(
-                                        select(WORKFLOW_RUN.ID)
-                                            .from(WORKFLOW_RUN)
-                                            .where(WORKFLOW_RUN.HASH_ID.eq(workflowRunId))))
-                                .fetch();
                         if (attempt > record.get(ACTIVE_WORKFLOW_RUN.ATTEMPT)) {
+                          Result<Record1<Phase>> operations =
+                              dsl.select(ACTIVE_OPERATION.ENGINE_PHASE)
+                                  .from(ACTIVE_OPERATION)
+                                  .where(
+                                      ACTIVE_OPERATION.WORKFLOW_RUN_ID.eq(
+                                          select(WORKFLOW_RUN.ID)
+                                              .from(WORKFLOW_RUN)
+                                              .where(WORKFLOW_RUN.HASH_ID.eq(workflowRunId))))
+                                  .fetch();
                           if (operations.stream()
                               .anyMatch(
                                   o ->

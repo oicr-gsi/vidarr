@@ -1,9 +1,12 @@
 package ca.on.oicr.gsi.vidarr.api;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import java.nio.file.Path;
 import java.time.ZonedDateTime;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class ProvenanceAnalysisRecord<K extends ExternalId> {
@@ -83,6 +86,7 @@ public class ProvenanceAnalysisRecord<K extends ExternalId> {
 
   public void setExternalKeys(List<K> externalKeys) {
     this.externalKeys = externalKeys;
+    Collections.sort(externalKeys);
   }
 
   public void setId(String id) {
@@ -123,5 +127,47 @@ public class ProvenanceAnalysisRecord<K extends ExternalId> {
 
   public void setWorkflowRun(String workflowRun) {
     this.workflowRun = workflowRun;
+  }
+
+  /**
+   * When importing a workflow run, we don't initially have a workflowRun nor an id for this
+   * analysis record.
+   * Reprovisioning may change the path of this analysis record, so we only compare the filename,
+   * which is not changed by reprovisioning.
+   * @return integer hash
+   */
+  public int hashCode(){
+    String fileName = Path.of(path).getFileName().toString();
+    return Objects.hash(checksum, checksumType, created, externalKeys, fileName, labels, metatype, size, type);
+  }
+
+  /**
+   * When importing a workflow run, we don't initially have a workflowRun nor an id for this
+   * analysis record.
+   * Reprovisioning may change the path of this analysis record, so we only compare the filename,
+   * which is not changed by reprovisioning.
+   * ExternalKeys may be the same but have different versions, which is valid, so cast down to
+   * ExternalId to ensure they do not get in the way of equality testing.
+   *
+   * @param other the reference object with which to compare.
+   * @return bool
+   */
+  public boolean equals(Object other){
+    if (this == other) return true;
+    if (null == other || getClass() != other.getClass()) return false;
+    ProvenanceAnalysisRecord o = (ProvenanceAnalysisRecord)other;
+    boolean ok = this.checksum.equals(o.checksum)
+        && this.checksumType.equals(o.checksumType)
+        && this.created.equals(o.created)
+        && this.labels.equals(o.labels)
+        && this.metatype.equals(o.metatype)
+        && this.size == o.size
+        && this.type.equals(o.type);
+
+    ok &= this.externalKeys.stream().map(k -> (ExternalId)k).toList().equals(o.externalKeys);
+
+    // Path.equals can introduce filesystem-specific differences in equality
+    ok &= Path.of(path).getFileName().toString().equals(Path.of(o.path).getFileName().toString());
+    return ok;
   }
 }

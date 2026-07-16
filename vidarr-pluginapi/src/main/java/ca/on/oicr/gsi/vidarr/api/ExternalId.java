@@ -6,7 +6,7 @@ import java.util.Objects;
 
 /** A reference to an external key */
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class ExternalId {
+public class ExternalId implements Comparable<ExternalId> {
 
   @JsonProperty("id")
   private String id;
@@ -19,6 +19,19 @@ public class ExternalId {
   public ExternalId(String provider, String id) {
     this.provider = provider;
     this.id = id;
+  }
+
+  @Override
+  public int compareTo(ExternalId o) {
+    if(provider.equals(o.provider)){
+      if (id.equals(o.id)){
+        return 0;
+      } else {
+        return id.compareTo(o.id);
+      }
+    } else {
+      return provider.compareTo(o.provider);
+    }
   }
 
   @Override

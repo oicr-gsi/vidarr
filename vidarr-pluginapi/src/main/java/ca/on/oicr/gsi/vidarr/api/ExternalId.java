@@ -21,6 +21,11 @@ public class ExternalId implements Comparable<ExternalId> {
     this.id = id;
   }
 
+  public ExternalId(ExternalId id){
+    this.provider = id.getProvider();
+    this.id = id.getId();
+  }
+
   @Override
   public int compareTo(ExternalId o) {
     if(provider.equals(o.provider)){

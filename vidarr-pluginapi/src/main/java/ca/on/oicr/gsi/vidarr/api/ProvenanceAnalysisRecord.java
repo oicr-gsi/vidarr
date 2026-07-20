@@ -138,7 +138,7 @@ public class ProvenanceAnalysisRecord<K extends ExternalId> {
    */
   public int hashCode(){
     String fileName = Path.of(path).getFileName().toString();
-    return Objects.hash(checksum, checksumType, created, externalKeys, fileName, labels, metatype, size, type);
+    return Objects.hash(checksum, checksumType, created, externalKeys.stream().map(ExternalId::new).toList(), fileName, labels, metatype, size, type);
   }
 
   /**
@@ -155,7 +155,9 @@ public class ProvenanceAnalysisRecord<K extends ExternalId> {
   public boolean equals(Object other){
     if (this == other) return true;
     if (null == other || getClass() != other.getClass()) return false;
-    ProvenanceAnalysisRecord o = (ProvenanceAnalysisRecord)other;
+
+    // K extends ExternalId, this may be a downcast but it is safe
+    ProvenanceAnalysisRecord<ExternalId> o = (ProvenanceAnalysisRecord)other;
     boolean ok = this.checksum.equals(o.checksum)
         && this.checksumType.equals(o.checksumType)
         && this.created.equals(o.created)
@@ -164,7 +166,12 @@ public class ProvenanceAnalysisRecord<K extends ExternalId> {
         && this.size == o.size
         && this.type.equals(o.type);
 
-    ok &= this.externalKeys.stream().map(k -> (ExternalId)k).toList().equals(o.externalKeys);
+    ok &= this.externalKeys.stream()
+        .map(ExternalId::new)
+        .toList()
+        .equals(o.externalKeys.stream()
+            .map(ExternalId::new)
+            .toList());
 
     // Path.equals can introduce filesystem-specific differences in equality
     ok &= Path.of(path).getFileName().toString().equals(Path.of(o.path).getFileName().toString());

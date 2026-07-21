@@ -88,7 +88,7 @@ public class ProvenanceAnalysisRecord<K extends ExternalId> {
 
   public void setExternalKeys(List<K> externalKeys) {
     this.externalKeys = new ArrayList<>(externalKeys);
-    Collections.sort(externalKeys);
+    Collections.sort(this.externalKeys);
   }
 
   public void setId(String id) {

@@ -3,7 +3,9 @@ package ca.on.oicr.gsi.vidarr.api;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.nio.file.Path;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -85,7 +87,7 @@ public class ProvenanceAnalysisRecord<K extends ExternalId> {
   }
 
   public void setExternalKeys(List<K> externalKeys) {
-    this.externalKeys = externalKeys;
+    this.externalKeys = new ArrayList<>(externalKeys);
     Collections.sort(externalKeys);
   }
 

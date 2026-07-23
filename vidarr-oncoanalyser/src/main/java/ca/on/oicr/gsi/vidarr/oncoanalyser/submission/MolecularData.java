@@ -1,4 +1,4 @@
 package ca.on.oicr.gsi.vidarr.oncoanalyser.submission;
 
-public record MolecularData (SequencingData tumorSample, SequencingData referenceSample,
-                             SequencingData tumorRnaSample) {}
+public record MolecularData (String sequencingPlatform, Sample tumorSample, Sample referenceSample,
+                             Sample tumorRnaSample) {}

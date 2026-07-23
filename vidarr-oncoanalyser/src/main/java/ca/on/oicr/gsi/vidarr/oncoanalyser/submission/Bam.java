@@ -1,6 +1,6 @@
 package ca.on.oicr.gsi.vidarr.oncoanalyser.submission;
 
-public class Bam extends Sample {
+public class Bam extends SequencingData {
     private String path, indexPath;
 
     public String getPath() {

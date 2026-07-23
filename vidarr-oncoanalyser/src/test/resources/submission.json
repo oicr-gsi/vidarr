@@ -1,0 +1,34 @@
+{
+  "submissionId": "TEST_CASE",
+  "templateId": "TEST_TEMPLATE",
+  "molecularData": {
+    "sequencingPlatform": "IMAGINARY_SEQUENCER",
+    "tumorSample": {
+      "name": "TUMOUR_SAMPLE",
+      "sequencingData": {
+        "type": "FASTQ",
+        "pairs": [
+          {"lane":"ONE","library":"TUMOUR_SAMPLE_LIBRARY","laneR1Path":"TUMOUR_SAMPLE_R1.fastq.gz","laneR2Path":"TUMOUR_SAMPLE_R2.fastq.gz", "readGroup": {"ID":"TUMOUR_SAMPLE_ID", "BC":"TUMOUR_SAMPLE_BC", "CN":"TEST",
+            "DS": "TUMOUR_SAMPLE_DS", "DT": "TUMOUR_SAMPLE_DT", "FO": "TUMOUR_SAMPLE_FO", "KS": "TUMOUR_SAMPLE_KS", "LB":"TUMOUR_SAMPLE_LB", "PG": "TUMOUR_SAMPLE_PG", "PI": 365,"PL": "TUMOUR_SAMPLE_PL", "PM": "TUMOUR_SAMPLE_PM","PU":"TUMOUR_SAMPLE_PU", "SM":"TUMOUR_SAMPLE_SM"}}
+        ]
+      }
+    },
+    "referenceSample": {
+      "name": "REFERENCE_SAMPLE",
+      "sequencingData": {
+        "type": "FASTQ",
+        "pairs": [
+          {"laneR1Path":"REFERENCE_SAMPLE_R1.fastq.gz","laneR2Path":"REFERENCE_SAMPLE_R2.fastq.gz", "readGroup": {"ID":"REFERENCE_SAMPLE_ID","SM":"REFERENCE_SAMPLE_SM","LB":"REFERENCE_SAMPLE_LB","PU":"REFERENCE_SAMPLE_PU","CN":"TEST"}},{"laneR1Path":"REFERENCE_SAMPLE_2_R1.fastq.gz","laneR2Path":"REFERENCE_SAMPLE_2_R2.fastq.gz", "readGroup": {"ID":"REFERENCE_SAMPLE_2_ID","SM":"REFERENCE_SAMPLE_2_SM","LB":"REFERENCE_SAMPLE_2_LB","PU":"REFERENCE_SAMPLE_2_PU","CN":"TEST"}}
+        ]
+      }
+    },
+    "tumorRnaSample": {
+      "name": "TUMOUR_RNA_SAMPLE",
+      "sequencingData": {
+        "type": "BAM",
+        "path": "TUMOUR_RNA_SAMPLE.bam",
+        "indexPath": "TUMOUR_RNA_SAMPLE.bai"
+      }
+    }
+  }
+}

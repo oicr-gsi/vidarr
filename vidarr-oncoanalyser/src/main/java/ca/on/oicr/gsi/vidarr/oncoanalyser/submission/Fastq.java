@@ -2,7 +2,7 @@ package ca.on.oicr.gsi.vidarr.oncoanalyser.submission;
 
 import java.util.Set;
 
-public class Fastq extends Sample {
+public class Fastq extends SequencingData {
     private Set<FastqPair> pairs;
 
     public Set<FastqPair> getPairs() {

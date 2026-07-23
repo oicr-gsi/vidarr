@@ -1,6 +1,11 @@
 package ca.on.oicr.gsi.vidarr.oncoanalyser.submission;
 
-import java.util.Set;
+import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
 
-public record SequencingData (String name, Set<Sample> sequencingData) {
-}
+@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.PROPERTY, property = "type")
+@JsonSubTypes({ //
+        @JsonSubTypes.Type(value = Fastq.class, name = "FASTQ"), //
+        @JsonSubTypes.Type(value = Bam.class, name = "BAM"), //
+}) //
+public class SequencingData {}

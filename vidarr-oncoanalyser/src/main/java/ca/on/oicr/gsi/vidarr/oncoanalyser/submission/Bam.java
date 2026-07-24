@@ -5,9 +5,8 @@ import java.util.Objects;
 public class Bam extends SequencingData {
     private String path, indexPath;
 
-    public Bam(){}
-
     public Bam(String path, String indexPath){
+        Objects.requireNonNull(path);
         this.path = path;
         this.indexPath = indexPath;
     }

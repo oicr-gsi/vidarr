@@ -6,6 +6,8 @@ import java.util.Set;
 public class Fastq extends SequencingData {
     private Set<FastqPair> pairs;
 
+    public Fastq(){}
+
     public Fastq(Set<FastqPair> pairs){
         Objects.requireNonNull(pairs);
         this.pairs = pairs;

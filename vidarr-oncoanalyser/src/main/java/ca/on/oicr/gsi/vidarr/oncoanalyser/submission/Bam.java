@@ -1,9 +1,13 @@
 package ca.on.oicr.gsi.vidarr.oncoanalyser.submission;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+
 import java.util.Objects;
 
 public class Bam extends SequencingData {
     private String path, indexPath;
+
+    public Bam(){}
 
     public Bam(String path, String indexPath){
         Objects.requireNonNull(path);

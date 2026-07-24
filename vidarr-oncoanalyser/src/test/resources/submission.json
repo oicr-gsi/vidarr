@@ -18,7 +18,9 @@
       "sequencingData": {
         "type": "FASTQ",
         "pairs": [
-          {"laneR1Path":"REFERENCE_SAMPLE_R1.fastq.gz","laneR2Path":"REFERENCE_SAMPLE_R2.fastq.gz", "readGroup": {"ID":"REFERENCE_SAMPLE_ID","SM":"REFERENCE_SAMPLE_SM","LB":"REFERENCE_SAMPLE_LB","PU":"REFERENCE_SAMPLE_PU","CN":"TEST"}},{"laneR1Path":"REFERENCE_SAMPLE_2_R1.fastq.gz","laneR2Path":"REFERENCE_SAMPLE_2_R2.fastq.gz", "readGroup": {"ID":"REFERENCE_SAMPLE_2_ID","SM":"REFERENCE_SAMPLE_2_SM","LB":"REFERENCE_SAMPLE_2_LB","PU":"REFERENCE_SAMPLE_2_PU","CN":"TEST"}}
+          {"laneR1Path":"REFERENCE_SAMPLE_R1.fastq.gz","laneR2Path":"REFERENCE_SAMPLE_R2.fastq.gz", "readGroup": {"ID":"REFERENCE_SAMPLE_ID",
+            "CN":"TEST","SM":"REFERENCE_SAMPLE_SM","LB":"REFERENCE_SAMPLE_LB","PU":"REFERENCE_SAMPLE_PU"}},{"laneR1Path":"REFERENCE_SAMPLE_2_R1.fastq.gz","laneR2Path":"REFERENCE_SAMPLE_2_R2.fastq.gz", "readGroup": {"ID":"REFERENCE_SAMPLE_2_ID",
+            "CN":"TEST","SM":"REFERENCE_SAMPLE_2_SM","LB":"REFERENCE_SAMPLE_2_LB","PU":"REFERENCE_SAMPLE_2_PU"}}
         ]
       }
     },

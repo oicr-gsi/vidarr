@@ -9,7 +9,6 @@ import tools.jackson.databind.SerializationFeature;
 import tools.jackson.databind.cfg.DateTimeFeature;
 import tools.jackson.databind.json.JsonMapper;
 
-import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Set;
 
@@ -66,10 +65,8 @@ public class OncoAnalyserSubmissionTest {
     }
 
     @Test
-    public void equal() throws IOException {
+    public void equal() {
         // Deserialized object is the same as the json
         Assert.assertEquals(submission, MAPPER.readValue(testFile, OncoAnalyserSubmission.class));
-
-        // I would love to test that the serializations are equal too, but apparently that's a tall order with json!
     }
 }

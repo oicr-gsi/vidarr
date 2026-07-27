@@ -21,6 +21,10 @@
             <groupId>ca.on.oicr.gsi.vidarr</groupId>
             <artifactId>vidarr-pluginapi</artifactId>
         </dependency>
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+        </dependency>
     </dependencies>
 
 </project>

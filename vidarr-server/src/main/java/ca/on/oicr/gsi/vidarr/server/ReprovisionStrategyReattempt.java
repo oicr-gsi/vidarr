@@ -10,47 +10,44 @@ import ca.on.oicr.gsi.vidarr.core.Target;
 import ca.on.oicr.gsi.vidarr.server.DatabaseBackedProcessor.SubmissionResultHandler;
 import ca.on.oicr.gsi.vidarr.server.DatabaseBackedProcessor.WorkflowInformation;
 import com.zaxxer.hikari.HikariDataSource;
+import java.time.DateTimeException;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
-import java.util.Iterator;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 import org.jooq.DSLContext;
 import org.jooq.Record;
 import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.node.ArrayNode;
-import tools.jackson.databind.node.ObjectNode;
 
 public class ReprovisionStrategyReattempt implements ReprovisionStrategy {
 
   @Override
-  public OffsetDateTime getOriginalCompleted(Record record, Optional<OffsetDateTime> originalCompleted) {
-    JsonNode metadata = record.get(WORKFLOW_RUN.METADATA);
-    Iterator<Entry<String, JsonNode>> iterator = metadata.properties().iterator();
-    while (iterator.hasNext()) {
-      Entry<String, JsonNode> entry = iterator.next();
-      ArrayNode contents = (ArrayNode) entry.getValue().get("contents");
-      Iterator<JsonNode> iterator2 = contents.iterator();
-      while (iterator2.hasNext()) {
-        ObjectNode content = (ObjectNode) iterator2.next();
-        if (content.has("originalCompleted")) {
-          return OffsetDateTime.ofInstant(
-              Instant.ofEpochSecond(content.get("originalCompleted").asInt()),
-              ZoneId.of(content.get("originalCompletedOffset").stringValue()));
-        } // else there's some other kind of content here, maybe the next one
-      }
-    }
-    return OffsetDateTime.MAX;
-  }
+  public OffsetDateTime getOriginalCompleted(Record record, Optional<OffsetDateTime> originalCompleted)
+  throws DateTimeException {
+    JsonNode metadata = DatabaseBackedProcessor.getLatestProvision(record.get(WORKFLOW_RUN.METADATA));
 
-  @Override
-  public JsonNode getMetadata(
-      Record record, String outputPath, String provisionerName, OffsetDateTime originalCompleted) {
-    return record.get(WORKFLOW_RUN.METADATA);
+    // TODO there's gotta be a better way of doing this, but i don't know it.
+    // Safe only because the values should be the same across all reprovisions.
+    Optional<Instant> jsonOriginalCompleted = DatabaseBackedProcessor.streamJackson(metadata)
+        .filter(e -> e.getKey().equals("originalCompleted"))
+        .findFirst()
+        .map(e -> Instant.ofEpochSecond(e.getValue().asInt()));
+
+    Optional<ZoneId> jsonOriginalZone = DatabaseBackedProcessor.streamJackson(metadata)
+        .filter(e -> e.getKey().equals("originalCompletedOffset"))
+        .findFirst()
+        .map(e -> ZoneId.of(e.getValue().stringValue()));
+
+    if(jsonOriginalCompleted.isPresent() && jsonOriginalZone.isPresent()) {
+      return OffsetDateTime.ofInstant(jsonOriginalCompleted.get(), jsonOriginalZone.get());
+    } else {
+      throw new DateTimeException(String.format(
+          "Workflow run %s doesn't seem to have a valid original completed time.",
+          record.get(WORKFLOW_RUN.ID)));
+    }
   }
 
   @Override
@@ -58,7 +55,7 @@ public class ReprovisionStrategyReattempt implements ReprovisionStrategy {
       Record record,
       Target target,
       JsonNode metadata,
-      Map<Integer, Set<ExternalId>> externalIdsByAnalysis,
+      Set<ExternalId> externalIds,
       DatabaseBackedProcessor processor,
       DSLContext dsl) {
     record.set(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE, Phase.REPROVISION);

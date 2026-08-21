@@ -5,6 +5,7 @@ import ca.on.oicr.gsi.vidarr.api.ProvenanceAnalysisRecord;
 import ca.on.oicr.gsi.vidarr.core.Target;
 import ca.on.oicr.gsi.vidarr.server.DatabaseBackedProcessor.SubmissionResultHandler;
 import ca.on.oicr.gsi.vidarr.server.DatabaseBackedProcessor.WorkflowInformation;
+import java.time.DateTimeException;
 import tools.jackson.databind.JsonNode;
 import com.zaxxer.hikari.HikariDataSource;
 import java.sql.SQLException;
@@ -18,15 +19,13 @@ import org.jooq.Record;
 
 public interface ReprovisionStrategy {
 
-  OffsetDateTime getOriginalCompleted(Record record, Optional<OffsetDateTime> originalCompleted);
-
-  JsonNode getMetadata(Record record, String outputPath,
-      String provisionerName, OffsetDateTime originalCompleted);
+  OffsetDateTime getOriginalCompleted(Record record, Optional<OffsetDateTime> originalCompleted)
+      throws DateTimeException;
 
   DatabaseWorkflow getDbWorkflow(Record record,
       Target target,
       JsonNode metadata,
-      Map<Integer, Set<ExternalId>> externalIdsByAnalysis,
+      Set<ExternalId> externalIds,
       DatabaseBackedProcessor processor,
       DSLContext dsl) throws SQLException;
 

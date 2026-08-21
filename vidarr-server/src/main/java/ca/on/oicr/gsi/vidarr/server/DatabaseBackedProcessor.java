@@ -99,6 +99,7 @@ import org.jooq.Record1;
 import org.jooq.Record2;
 import org.jooq.Result;
 import org.jooq.SQLDialect;
+import org.jooq.SelectConditionStep;
 import org.jooq.impl.DSL;
 import tools.jackson.core.JacksonException;
 import tools.jackson.core.type.TypeReference;
@@ -1098,9 +1099,10 @@ public abstract class DatabaseBackedProcessor
                     // active workflow run
                     if (null == record.get(ACTIVE_WORKFLOW_RUN.ID)) {
                       // Unless it's a duplicate request. We already did that!
-                      JsonNode metadata = record.get(WORKFLOW_RUN.METADATA);
-                      if (metadata.has("outputDirectory")
-                          && metadata.get("outputDirectory").stringValue().equals(outputPath)) {
+                      JsonNode metadata = getLatestProvision(record.get(WORKFLOW_RUN.METADATA));
+                      if (streamJackson(metadata).anyMatch(e->
+                          e.getKey().equals("outputDirectory")
+                              && e.getValue().toString().startsWith(outputPath))) {
                         ret.set(handler.matchExisting(record.get(WORKFLOW_RUN.HASH_ID)));
                         process = false;
                       } else {
@@ -1169,7 +1171,6 @@ public abstract class DatabaseBackedProcessor
                       // Null out Completed time in database if it wasn't already
                       dsl.update(WORKFLOW_RUN)
                           .setNull(WORKFLOW_RUN.COMPLETED)
-                          .set(WORKFLOW_RUN.METADATA, metadata)
                           .where(WORKFLOW_RUN.HASH_ID.eq(record.get(WORKFLOW_RUN.HASH_ID)))
                           .execute();
 
@@ -1188,7 +1189,27 @@ public abstract class DatabaseBackedProcessor
                       // Get the analysis, and also the external ids for those analysis records
                       Map<ProvenanceAnalysisRecord<ExternalId>, JsonNode> analysis =
                           new HashMap<>();
-                      Map<Integer, Set<ExternalId>> externalIdsByAnalysis = new HashMap<>();
+                      Map<String, Set<ExternalId>> externalIdsByAnalysis = new HashMap<>();
+
+                      // Get all the outputDirectories so we know where the root is
+                      // We don't know what 'provisioned' these paths before - no guarantee of
+                      // chunking or any particular file structure, so we reuse these for
+                      // originalDirectories
+                      Set<String> presentOutputDirectories = streamJackson(fullMetadata)
+                          .filter(e -> e.getKey().equals("outputDirectory"))
+                              .map(e -> e.getValue().stringValue())
+                                  .collect(Collectors.toSet());
+
+                      SelectConditionStep<Record> analysisExternalIds = dsl.select()
+                          .from(EXTERNAL_ID)
+                          .join(ANALYSIS_EXTERNAL_ID)
+                          .on(EXTERNAL_ID.ID.eq(ANALYSIS_EXTERNAL_ID.EXTERNAL_ID_ID))
+                          .where(ANALYSIS_EXTERNAL_ID.ANALYSIS_ID.in(
+                              dsl.select(ANALYSIS.ID)
+                                  .from(ANALYSIS)
+                                  .where(ANALYSIS.WORKFLOW_RUN_ID.eq(record.get(WORKFLOW_RUN.ID)))
+                          ));
+
                       dsl.select()
                           .from(ANALYSIS)
                           .where(ANALYSIS.WORKFLOW_RUN_ID.eq(record.get(WORKFLOW_RUN.ID)))
@@ -1217,26 +1238,25 @@ public abstract class DatabaseBackedProcessor
                                             new PostgresJSONBBinding()
                                                 .converter()
                                                 .from(analysisDbRecord.get(ANALYSIS.LABELS)),
-                                            new TypeReference<>() {}));
+                                            new TypeReference<>() {
+                                            }));
                                 analysisObject.setWorkflowRun(record.get(WORKFLOW_RUN.HASH_ID));
                                 analysisObject.setCreated(
                                     analysisDbRecord.get(ANALYSIS.CREATED).toZonedDateTime());
 
                                 // Get the external IDs associated with this analysis record
-                                Integer analysisId = analysisDbRecord.get(ANALYSIS.ID);
-                                dsl.select()
-                                    .from(EXTERNAL_ID)
-                                    .join(ANALYSIS_EXTERNAL_ID)
-                                    .on(EXTERNAL_ID.ID.eq(ANALYSIS_EXTERNAL_ID.EXTERNAL_ID_ID))
-                                    .where(ANALYSIS_EXTERNAL_ID.ANALYSIS_ID.eq(analysisId))
+                                String analysisHashId = analysisDbRecord.get(ANALYSIS.HASH_ID);
+
 
                                     // Build a set of external ids and associate it to the analysis
                                     // id
-                                    .forEach(
+                                    analysisExternalIds.and(ANALYSIS_EXTERNAL_ID.ANALYSIS_ID
+                                        .eq(analysisDbRecord.get(ANALYSIS.ID)))
+                                        .forEach(
                                         externalIdDbRecord -> {
                                           Set<ExternalId> externalIdsForAnalysisRecord =
-                                              externalIdsByAnalysis.containsKey(analysisId)
-                                                  ? externalIdsByAnalysis.get(analysisId)
+                                              externalIdsByAnalysis.containsKey(analysisHashId)
+                                                  ? externalIdsByAnalysis.get(analysisHashId)
                                                   : new HashSet<>();
                                           externalIdsForAnalysisRecord.add(
                                               new ExternalId(
@@ -1244,54 +1264,88 @@ public abstract class DatabaseBackedProcessor
                                                   externalIdDbRecord.get(
                                                       EXTERNAL_ID.EXTERNAL_ID_)));
                                           externalIdsByAnalysis.put(
-                                              analysisId, externalIdsForAnalysisRecord);
+                                              analysisHashId, externalIdsForAnalysisRecord);
                                         });
-                            analysisObject.setExternalKeys(
-                                externalIdsByAnalysis.get(analysisId).stream().toList());
+                                analysisObject.setExternalKeys(
+                                    externalIdsByAnalysis.get(analysisHashId).stream().toList());
 
-                            // Associate the analysis object with some metadata
-                            // We have to get this from the workflow run, but because in normal
-                            // operation there is only ever 1 outputDirectory for a run, we can
-                            // just get the first workflow run metadatum available.
-                            // No writing is done with this information, so it's ok.
-                            JsonNode workflowRunMetadataPart = null;
-                            Iterator<JsonNode> metadataIterator = metadata.iterator();
-                            while (metadataIterator.hasNext() && null == workflowRunMetadataPart) {
-                              JsonNode metadatum = metadataIterator.next();
-                              ArrayNode contents = (ArrayNode) metadatum.get("contents");
-                              Iterator<JsonNode> contentsIterator = contents.iterator();
-                              while (contentsIterator.hasNext()) {
-                                JsonNode content = contentsIterator.next();
-                                if (content.has("originalDirectory")) {
-                                  ((ObjectNode)content).put("fileChecksum", analysisObject.getChecksum());
-                                  ((ObjectNode)content).put("fileChecksumType", analysisObject.getChecksumType());
-                                  workflowRunMetadataPart = content;
-                                  break;
+                                // We need to build new metadata. This converts all mapping rules
+                                // to MANUAL, and flattens grouped analyses.
+                                String correctOutputDirectory = null;
+
+                                // Sort them longest-first so that if one outputDir is '/a/path' and the other is
+                                // '/a/path/much/more/deeper', match on that one first.
+                                List<String> sortedOutputDirectories = presentOutputDirectories.stream()
+                                    .sorted(
+                                        Comparator.comparingInt(String::length).reversed())
+                                    .toList();
+                                for (String entry : sortedOutputDirectories) {
+                                  if (analysisObject.getPath().startsWith(entry)) {
+                                    correctOutputDirectory = entry;
+                                    break;
+                                  }
                                 }
-                              }
-                            }
-                            // Update the metadata again now that we've added the file checksum info
-                            dsl.update(WORKFLOW_RUN)
-                                .set(WORKFLOW_RUN.METADATA, metadata)
-                                .where(WORKFLOW_RUN.HASH_ID.eq(record.get(WORKFLOW_RUN.HASH_ID)))
-                                .execute();
 
-                            if (null == workflowRunMetadataPart) {
-                              handler.invalidWorkflow(Set.of(
-                                      String.format(
-                                          "Unable to correlate workflow run %s with metadata %s to analysis %s with path %s%n",
-                                          workflowRunId,
-                                          metadata.stringValue(),
-                                          analysisId,
-                                          analysisObject.getPath())));
-                            }
-                            analysis.put(analysisObject, workflowRunMetadataPart);
-                          });
+                                ObjectNode newMetadataNode = MAPPER.createObjectNode();
+                                ArrayNode newContentsArray = MAPPER.createArrayNode();
+
+                                newMetadataNode.put("type", "MANUAL");
+
+                                // contents needs to have the output stuff and then also the ids
+                                ObjectNode newInfoContentNode = MAPPER.createObjectNode();
+                                newInfoContentNode.put("originalDirectory",
+                                    correctOutputDirectory);
+                                newInfoContentNode.put("outputDirectory", outputPath);
+                                newInfoContentNode.put("outputReprovisioner", provisionerName);
+                                newInfoContentNode.put("originalCompleted",
+                                    originalCompleted.toInstant().getEpochSecond());
+                                newInfoContentNode.put("originalCompletedOffset",
+                                    originalCompleted.getOffset().toString());
+                                newInfoContentNode.put("fileChecksum",
+                                    analysisObject.getChecksum());
+                                newInfoContentNode.put("fileChecksumType",
+                                    analysisObject.getChecksumType());
+                                newContentsArray.add(newInfoContentNode);
+
+                                ArrayNode newIdsContentNode = MAPPER.createArrayNode();
+                                for (ExternalId id : externalIdsByAnalysis.get(analysisHashId)) {
+                                  newIdsContentNode.add(
+                                      MAPPER.createObjectNode().put("id", id.getId())
+                                          .put("provider", id.getProvider()));
+                                }
+                                newContentsArray.add(newIdsContentNode);
+
+                                newMetadataNode.set("contents", newContentsArray);
+
+                                analysis.put(analysisObject, newInfoContentNode);
+                                newMetadata.set(analysisHashId,
+                                    newMetadataNode);
+                              });
 
                       try {
+                        // Update the metadata now that it has risen from the ashes
+                        ObjectNode wholeMetadata = fullMetadata.asObject();
+                        if(wholeMetadata.has("reprovision")){
+                          wholeMetadata.get("reprovision").asArray().add(newMetadata);
+                        } else {
+                          JsonNode submission = wholeMetadata.deepCopy();
+                          wholeMetadata = mapper().createObjectNode();
+                          wholeMetadata.set("submission", submission);
+                          wholeMetadata.set("reprovision", mapper().createArrayNode().add(newMetadata));
+                        }
+
+                        dsl.update(WORKFLOW_RUN)
+                            .set(WORKFLOW_RUN.METADATA, wholeMetadata)
+                            .where(WORKFLOW_RUN.HASH_ID.eq(record.get(WORKFLOW_RUN.HASH_ID)))
+                            .execute();
+
                         final DatabaseWorkflow dbWorkflow =
                             strategy.getDbWorkflow(
-                                record, newTarget, metadata, externalIdsByAnalysis, this, dsl);
+                                record, newTarget, newMetadata, externalIdsByAnalysis.values()
+                                    .stream()
+                                    .flatMap(Collection::stream)
+                                    .collect(
+                                    Collectors.toSet()), this, dsl);
                         ret.set(
                             strategy.handle(
                                 record,
@@ -1774,32 +1828,32 @@ public abstract class DatabaseBackedProcessor
                                                 // attempt number is higher or this is a different
                                                 // workflow version, we should restart it.
                                                 if (context
-                                                        .dsl()
-                                                        .selectCount()
-                                                        .from(
-                                                            ACTIVE_WORKFLOW_RUN
-                                                                .join(WORKFLOW_RUN)
-                                                                .on(
-                                                                    WORKFLOW_RUN.ID.eq(
-                                                                        ACTIVE_WORKFLOW_RUN.ID)))
-                                                        .where(
-                                                            WORKFLOW_RUN
-                                                                .ID
-                                                                .eq(workflowRunId)
-                                                                .and(IS_DEAD)
-                                                                .and(
-                                                                    ACTIVE_WORKFLOW_RUN
-                                                                        .ATTEMPT
-                                                                        .eq(attempt - 1)
-                                                                        .or(
-                                                                            WORKFLOW_RUN
-                                                                                .WORKFLOW_VERSION_ID
-                                                                                .ne(
-                                                                                    workflow
-                                                                                        .id()))))
-                                                        .fetchOptional()
-                                                        .map(Record1::value1)
-                                                        .orElse(0)
+                                                    .dsl()
+                                                    .selectCount()
+                                                    .from(
+                                                        ACTIVE_WORKFLOW_RUN
+                                                            .join(WORKFLOW_RUN)
+                                                            .on(
+                                                                WORKFLOW_RUN.ID.eq(
+                                                                    ACTIVE_WORKFLOW_RUN.ID)))
+                                                    .where(
+                                                        WORKFLOW_RUN
+                                                            .ID
+                                                            .eq(workflowRunId)
+                                                            .and(IS_DEAD)
+                                                            .and(
+                                                                ACTIVE_WORKFLOW_RUN
+                                                                    .ATTEMPT
+                                                                    .eq(attempt - 1)
+                                                                    .or(
+                                                                        WORKFLOW_RUN
+                                                                            .WORKFLOW_VERSION_ID
+                                                                            .ne(
+                                                                                workflow
+                                                                                    .id()))))
+                                                    .fetchOptional()
+                                                    .map(Record1::value1)
+                                                    .orElse(0)
                                                     > 0) {
                                                   final SoftReference<AtomicBoolean> oldLiveness =
                                                       liveness.remove(workflowRunId);
@@ -2010,5 +2064,82 @@ public abstract class DatabaseBackedProcessor
                                     + badEntries);
                           }
                         }));
+  }
+
+  /**
+   * If metadata has a `reprovision` array, get the last object in that array.
+   * Otherwise, return the whole provided metadata unmodified (the latest provision
+   * was the original one)
+   *
+   * @param original the whole metadata block
+   * @return either the last object in the reprovision array, or the whole metadata block
+   */
+  protected static JsonNode getLatestProvision(JsonNode original){
+    if (original.has("reprovision")){
+      ArrayNode reprovision = original.get("reprovision").asArray();
+      int count = reprovision.size() - 1;
+      return reprovision.get(count);
+    } else {
+      return original;
+    }
+  }
+
+  /**
+   * Recursively destructures json for the purpose of finding key:value pairs with a certain key or
+   * value.
+   * eg:
+   * <p>
+   * "metadata": {
+   *     "migration": [
+   *       {
+   *         "fileSWID": 19028317,
+   *         "fileMetadata": {
+   *           "type": "MANUAL",
+   *           "contents": [
+   *             {
+   *               "outputDirectory": "/path/to/output"
+   *             },
+   *             [
+   *               {
+   *                 "id": "1234",
+   *                 "provider": "pinery-miso"
+   *               }
+   *           ]
+   *        ]
+   *      }
+   *    }
+   *   ]
+   *  }
+   *  </p>
+   *  Returns a Stream of:
+   *  fileSWID: 19028317, type: MANUAL, outputDirectory: /path/to/output, id: 1234, provider: pinery-miso
+   *
+   * @param node JSON structure
+   * @return Stream of key:value pairs with primitive values.
+   */
+  protected static Stream<Map.Entry<String,JsonNode>> streamJackson(JsonNode node){
+    if (node.isArray()){
+      // then we need to look at the values in the array, which may or may not be objects
+      // if there is something we can recurse into, do so, otherwise skip
+      // (json arrays may hold standalone values other than object)
+      return node.valueStream().flatMap(e -> {
+        if (e.isObject() || e.isArray()){
+          return streamJackson(e);
+        } else {
+          return Stream.empty();
+        }
+      });
+    }
+
+    // node is not an array, stream the properties (not just the values)
+    // if the value is something we can recurse into, do so
+    // otherwise we have identified an object with a primitive value, return it for the flatmap
+    return node.propertyStream().flatMap(e -> {
+      if (e.getValue().isObject() || e.getValue().isArray()){
+        return streamJackson(e.getValue());
+      } else {
+        return Stream.of(e);
+      }
+    });
   }
 }

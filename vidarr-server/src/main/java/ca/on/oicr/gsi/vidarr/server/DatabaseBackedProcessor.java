@@ -1160,16 +1160,11 @@ public abstract class DatabaseBackedProcessor
                           oldLivenessLock.set(false);
                         }
                       }
-                      OffsetDateTime originalCompleted = strategy.getOriginalCompleted(record, optionalCompleted);
-                      if (null == originalCompleted || originalCompleted.equals(OffsetDateTime.MAX)) {
-                        throw new RuntimeException(
-                            String.format(
-                                "Workflow run %s doesn't seem to have a valid original completed time.",
-                                workflowRunId));
-                      }
-                      JsonNode metadata =
-                          strategy.getMetadata(
-                              record, outputPath, provisionerName, originalCompleted);
+                      OffsetDateTime originalCompleted = strategy.getOriginalCompleted(record,
+                          optionalCompleted);
+
+                      JsonNode fullMetadata = record.get(WORKFLOW_RUN.METADATA);
+                      ObjectNode newMetadata = MAPPER.createObjectNode();
 
                       // Null out Completed time in database if it wasn't already
                       dsl.update(WORKFLOW_RUN)

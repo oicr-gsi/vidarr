@@ -8,49 +8,28 @@ import ca.on.oicr.gsi.vidarr.core.Phase;
 import ca.on.oicr.gsi.vidarr.core.Target;
 import ca.on.oicr.gsi.vidarr.server.DatabaseBackedProcessor.SubmissionResultHandler;
 import com.zaxxer.hikari.HikariDataSource;
+import java.time.DateTimeException;
 import java.time.OffsetDateTime;
-import java.util.Collection;
-import java.util.Iterator;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.stream.Collectors;
 import org.jooq.DSLContext;
 import org.jooq.Record;
 import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.node.ArrayNode;
-import tools.jackson.databind.node.ObjectNode;
 
 public class ReprovisionStrategyNew implements ReprovisionStrategy {
 
   @Override
-  public OffsetDateTime getOriginalCompleted(Record record, Optional<OffsetDateTime> originalCompleted) {
-    return originalCompleted.orElseGet(() -> record.get(WORKFLOW_RUN.COMPLETED));
-  }
-
-  @Override
-  public JsonNode getMetadata(
-      Record record, String outputPath, String provisionerName, OffsetDateTime originalCompleted) {
-    JsonNode metadata = record.get(WORKFLOW_RUN.METADATA);
-    Iterator<Entry<String, JsonNode>> iterator = metadata.properties().iterator();
-    while (iterator.hasNext()) {
-      Entry<String, JsonNode> entry = iterator.next();
-      ArrayNode contents = (ArrayNode) entry.getValue().get("contents");
-      Iterator<JsonNode> iterator2 = contents.iterator();
-      while (iterator2.hasNext()) {
-        ObjectNode content = (ObjectNode) iterator2.next();
-        if (content.has("outputDirectory")) {
-          content.set("originalDirectory", content.get("outputDirectory"));
-          content.put("outputDirectory", outputPath);
-          content.put("outputReprovisioner", provisionerName);
-          content.put("originalCompleted", originalCompleted.toInstant().getEpochSecond());
-          content.put("originalCompletedOffset", originalCompleted.getOffset().toString());
-        } // else there's some other kind of content here, maybe the next one
-      }
+  public OffsetDateTime getOriginalCompleted(Record record, Optional<OffsetDateTime> originalCompleted)
+    throws DateTimeException {
+    OffsetDateTime dateTime = originalCompleted.orElseGet(() -> record.get(WORKFLOW_RUN.COMPLETED));
+    if (null == dateTime){
+      throw new DateTimeException(String.format(
+          "Workflow run %s doesn't seem to have a valid original completed time.",
+          record.get(WORKFLOW_RUN.ID)));
     }
-    return metadata;
+    return dateTime;
   }
 
   @Override
@@ -58,7 +37,7 @@ public class ReprovisionStrategyNew implements ReprovisionStrategy {
       Record record,
       Target target,
       JsonNode metadata,
-      Map<Integer, Set<ExternalId>> externalIdsByAnalysis,
+      Set<ExternalId> externalIds,
       DatabaseBackedProcessor processor,
       DSLContext dsl) {
     return DatabaseWorkflow.createActive(
@@ -71,9 +50,7 @@ public class ReprovisionStrategyNew implements ReprovisionStrategy {
         record.get(WORKFLOW_RUN.ARGUMENTS),
         record.get(WORKFLOW_RUN.ENGINE_PARAMETERS),
         metadata,
-        externalIdsByAnalysis.values().stream()
-            .flatMap(Collection::stream)
-            .collect(Collectors.toSet()),
+        externalIds,
         Map.of(), // empty consumable resources
         record.get(WORKFLOW_RUN.CREATED).toInstant(),
         processor::liveness,

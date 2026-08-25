@@ -1200,7 +1200,7 @@ public abstract class DatabaseBackedProcessor
                               .map(e -> e.getValue().stringValue())
                                   .collect(Collectors.toSet());
 
-                      SelectConditionStep<Record> analysisExternalIds = dsl.select()
+                      Result<Record> analysisExternalIds = dsl.select()
                           .from(EXTERNAL_ID)
                           .join(ANALYSIS_EXTERNAL_ID)
                           .on(EXTERNAL_ID.ID.eq(ANALYSIS_EXTERNAL_ID.EXTERNAL_ID_ID))
@@ -1208,7 +1208,7 @@ public abstract class DatabaseBackedProcessor
                               dsl.select(ANALYSIS.ID)
                                   .from(ANALYSIS)
                                   .where(ANALYSIS.WORKFLOW_RUN_ID.eq(record.get(WORKFLOW_RUN.ID)))
-                          ));
+                          )).fetch();
 
                       dsl.select()
                           .from(ANALYSIS)
@@ -1245,26 +1245,32 @@ public abstract class DatabaseBackedProcessor
                                     analysisDbRecord.get(ANALYSIS.CREATED).toZonedDateTime());
 
                                 // Get the external IDs associated with this analysis record
+                                Integer analysisId = analysisDbRecord.get(ANALYSIS.ID);
                                 String analysisHashId = analysisDbRecord.get(ANALYSIS.HASH_ID);
 
 
                                     // Build a set of external ids and associate it to the analysis
                                     // id
-                                    analysisExternalIds.and(ANALYSIS_EXTERNAL_ID.ANALYSIS_ID
-                                        .eq(analysisDbRecord.get(ANALYSIS.ID)))
+                                    analysisExternalIds
+
+
                                         .forEach(
                                         externalIdDbRecord -> {
                                           Set<ExternalId> externalIdsForAnalysisRecord =
                                               externalIdsByAnalysis.containsKey(analysisHashId)
                                                   ? externalIdsByAnalysis.get(analysisHashId)
                                                   : new HashSet<>();
-                                          externalIdsForAnalysisRecord.add(
-                                              new ExternalId(
-                                                  externalIdDbRecord.get(EXTERNAL_ID.PROVIDER),
-                                                  externalIdDbRecord.get(
-                                                      EXTERNAL_ID.EXTERNAL_ID_)));
-                                          externalIdsByAnalysis.put(
-                                              analysisHashId, externalIdsForAnalysisRecord);
+                                          if (externalIdDbRecord
+                                              .get(ANALYSIS_EXTERNAL_ID.ANALYSIS_ID)
+                                              .equals(analysisId)) {
+                                            externalIdsForAnalysisRecord.add(
+                                                new ExternalId(
+                                                    externalIdDbRecord.get(EXTERNAL_ID.PROVIDER),
+                                                    externalIdDbRecord.get(
+                                                        EXTERNAL_ID.EXTERNAL_ID_)));
+                                            externalIdsByAnalysis.put(
+                                                analysisHashId, externalIdsForAnalysisRecord);
+                                          }
                                         });
                                 analysisObject.setExternalKeys(
                                     externalIdsByAnalysis.get(analysisHashId).stream().toList());

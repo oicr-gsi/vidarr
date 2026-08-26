@@ -1112,7 +1112,8 @@ public abstract class DatabaseBackedProcessor
                     // if there IS an active workflow run ID, see if it's failed at reprovision
                     // and our attempt count has incremented.
                     else {
-                      if (record.get(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE).equals(Phase.FAILED)) {
+                      Phase phase = record.get(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE);
+                      if (phase.equals(Phase.FAILED)) {
                         if (attempt > record.get(ACTIVE_WORKFLOW_RUN.ATTEMPT)) {
                           Result<Record1<Phase>> operations =
                               dsl.select(ACTIVE_OPERATION.ENGINE_PHASE)
@@ -1139,14 +1140,20 @@ public abstract class DatabaseBackedProcessor
                         }
                       }
 
+                      else if (phase.equals(Phase.REPROVISION)){
+                        ret.set(handler.matchExisting(workflowRunId));
+                        process = false;
+                      }
+
                       // There is an active workflow run ID, but the engine phase is something
-                      // other than FAILED. Probably inflight
+                      // other than FAILED or REPROVISION. Not something that you can actually
+                      // reprovision.
                       else {
                         ret.set(
                             handler.invalidWorkflow(
                                 Set.of(
                                     String.format(
-                                        "Workflow hash id %s is active with a phase of %s, which is not FAILED.",
+                                        "Workflow hash id %s is active with a phase of %s, which is not FAILED or REPROVISION.",
                                         workflowRunId,
                                         record.get(ACTIVE_WORKFLOW_RUN.ENGINE_PHASE)))));
                         process = false;

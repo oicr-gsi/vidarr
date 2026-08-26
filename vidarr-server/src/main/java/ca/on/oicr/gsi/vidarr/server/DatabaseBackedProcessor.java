@@ -1100,9 +1100,12 @@ public abstract class DatabaseBackedProcessor
                     if (null == record.get(ACTIVE_WORKFLOW_RUN.ID)) {
                       // Unless it's a duplicate request. We already did that!
                       JsonNode metadata = getLatestProvision(record.get(WORKFLOW_RUN.METADATA));
+
+                      // Calling stringValue here should be safe because && is short-circuiting and
+                      // outputDirectory should always have a string value
                       if (streamJackson(metadata).anyMatch(e->
                           e.getKey().equals("outputDirectory")
-                              && e.getValue().toString().startsWith(outputPath))) {
+                              && e.getValue().stringValue().startsWith(outputPath))) {
                         ret.set(handler.matchExisting(record.get(WORKFLOW_RUN.HASH_ID)));
                         process = false;
                       } else {

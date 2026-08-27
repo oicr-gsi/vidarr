@@ -64,7 +64,7 @@ final class OperationStatefulStepStatus<State extends Record, OriginalState exte
             try {
               status = fetch.transform(nextState, value);
             } catch (Exception e) {
-              next.error(e.getMessage());
+              next.error(OperationControlFlow.describe(e));
               return;
             }
             transactionManager.inTransaction(

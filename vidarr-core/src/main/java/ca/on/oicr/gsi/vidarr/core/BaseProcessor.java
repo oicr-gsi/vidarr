@@ -54,12 +54,32 @@ public abstract class BaseProcessor<
 
   @Override
   public final void scheduleTask(Runnable task) {
-    executor.execute(task);
+    executor.execute(reportFailures(task));
   }
 
   @Override
   public final void scheduleTask(long delay, TimeUnit units, Runnable task) {
-    executor.schedule(task, delay, units);
+    executor.schedule(reportFailures(task), delay, units);
+  }
+
+  /**
+   * Wrap a task so that a failure is logged rather than discarded
+   *
+   * <p>{@link ScheduledExecutorService} wraps every task in a future that nothing here observes, so
+   * an exception that escapes a task is otherwise lost without a trace. Tasks that belong to an
+   * operation should already have been wrapped in {@link OperationControlFlow#guard(Runnable)} by
+   * the step that scheduled them, which fails that operation; this is the last line of defence for
+   * everything else.
+   */
+  private Runnable reportFailures(Runnable task) {
+    return () -> {
+      try {
+        task.run();
+      } catch (Throwable e) {
+        LOGGER.log(Level.ERROR, "Unhandled exception in scheduled Vidarr task", e);
+        throw e;
+      }
+    };
   }
 
   private interface PhaseManager<W, R, N, PO> {
@@ -104,7 +124,18 @@ public abstract class BaseProcessor<
     @Override
     public void error(String error) {
       if (finished) {
-        throw new IllegalStateException("Operation is already complete.");
+        /* The operation has already been resolved, so this failure happened while wrapping it up:
+         * serializing the result, or starting the next phase. There is no operation left to fail,
+         * but the workflow run cannot continue either, so mark the operation as failed anyway.
+         * Both backing stores turn that into a failed workflow run, which is what stops the run
+         * from waiting forever for a phase that will never start. */
+        inTransaction(
+            transaction -> {
+              operation.error(error, transaction);
+              operation.log(Level.ERROR, error);
+              operation.status(OperationStatus.FAILED, transaction);
+            });
+        return;
       }
       finished = true;
       inTransaction(
@@ -852,6 +883,8 @@ public abstract class BaseProcessor<
       return activeWorkflow;
     }
   }
+
+  private static final System.Logger LOGGER = System.getLogger(BaseProcessor.class.getName());
 
   public static final Pattern ANALYSIS_RECORD_ID =
       Pattern.compile(

@@ -264,7 +264,8 @@ public abstract sealed class OperationAction<
           ActiveOperation<TX> operation,
           TransactionManager<TX> transactionManager,
           OperationControlFlow<State, Value> next) {
-        transactionManager.scheduleTask(() -> run(s, operation, transactionManager, next));
+        transactionManager.scheduleTask(
+            () -> next.guard(() -> run(s, operation, transactionManager, next)));
       }
 
       @Override
@@ -291,7 +292,8 @@ public abstract sealed class OperationAction<
             ActiveOperation<TX> operation,
             TransactionManager<TX> transactionManager,
             OperationControlFlow<State, Value> next) {
-          transactionManager.scheduleTask(() -> run(s, operation, transactionManager, next));
+          transactionManager.scheduleTask(
+            () -> next.guard(() -> run(s, operation, transactionManager, next)));
         }
 
         @Override

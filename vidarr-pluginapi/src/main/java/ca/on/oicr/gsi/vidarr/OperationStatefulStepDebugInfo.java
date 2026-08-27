@@ -65,7 +65,7 @@ final class OperationStatefulStepDebugInfo<
             try {
               newDebugInfo = fetch.transform(nextState, value);
             } catch (Exception e) {
-              next.error(e.getMessage());
+              next.error(OperationControlFlow.describe(e));
               return;
             }
             transactionManager.inTransaction(

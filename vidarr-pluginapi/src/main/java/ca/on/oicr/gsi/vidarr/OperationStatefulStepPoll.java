@@ -72,8 +72,10 @@ final class OperationStatefulStepPoll<State extends Record, OriginalState extend
                         delay.get(TimeUnit.SECONDS.toChronoUnit()),
                         TimeUnit.SECONDS,
                         () ->
-                            OperationStatefulStepPoll.this.run(
-                                input, nextState, operation, transactionManager, next));
+                            next.guard(
+                                () ->
+                                    OperationStatefulStepPoll.this.run(
+                                        input, nextState, operation, transactionManager, next)));
                   }
 
                   @Override

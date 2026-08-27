@@ -20,7 +20,7 @@ final class OperationStepStatus<Value> extends OperationStep<Value, Value> {
     try {
       newStatus = status.transform(input);
     } catch (Exception e) {
-      next.error(e.getMessage());
+      next.error(OperationControlFlow.describe(e));
       return;
     }
     transactionManager.inTransaction(tx -> operation.status(OperationStatus.of(newStatus), tx));

@@ -4,6 +4,7 @@ import ca.on.oicr.gsi.Pair;
 import ca.on.oicr.gsi.vidarr.ActiveOperation;
 import ca.on.oicr.gsi.vidarr.OperationAction;
 import ca.on.oicr.gsi.vidarr.OperationAction.Launcher;
+import ca.on.oicr.gsi.vidarr.OperationControlFlow;
 import ca.on.oicr.gsi.vidarr.OperationStatefulStep;
 import ca.on.oicr.gsi.vidarr.OperationStatefulStep.Child;
 import ca.on.oicr.gsi.vidarr.OperationStatus;
@@ -123,8 +124,9 @@ interface TaskStarter<Output> {
       @Override
       public <TX, PO extends ActiveOperation<TX>> void start(
           BaseProcessor<?, PO, TX> processor, PO operation, TerminalHandler<Output> handler) {
-        processor.scheduleTask(
-            () -> launcher.launch(operation, processor, processor.createNext(operation, handler)));
+        final OperationControlFlow<State, Output> flow =
+            processor.createNext(operation, handler);
+        processor.scheduleTask(() -> flow.guard(() -> launcher.launch(operation, processor, flow)));
       }
 
       @Override

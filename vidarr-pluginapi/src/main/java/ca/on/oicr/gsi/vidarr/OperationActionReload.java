@@ -68,7 +68,7 @@ final class OperationActionReload<State extends Record, OriginalState extends Re
             try {
               output = loader.prepare(state);
             } catch (Exception e) {
-              flow.error(e.getMessage());
+              flow.error(OperationControlFlow.describe(e));
               return;
             }
             flow.next(output);

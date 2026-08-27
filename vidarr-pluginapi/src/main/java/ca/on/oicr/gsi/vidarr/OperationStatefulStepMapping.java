@@ -64,7 +64,7 @@ final class OperationStatefulStepMapping<
             try {
               output = transformer.transform(nextState, input);
             } catch (Exception e) {
-              next.error(e.getMessage());
+              next.error(OperationControlFlow.describe(e));
               return;
             }
             next.next(output);

@@ -20,7 +20,7 @@ final class OperationStepMapping<Input, Output> extends OperationStep<Input, Out
     try {
       result = transformer.transform(input);
     } catch (Exception e) {
-      next.error(e.getMessage());
+      next.error(OperationControlFlow.describe(e));
       return;
     }
     next.next(result);

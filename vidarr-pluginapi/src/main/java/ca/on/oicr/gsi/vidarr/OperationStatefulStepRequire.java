@@ -67,7 +67,7 @@ final class OperationStatefulStepRequire<State extends Record, OriginalState ext
             try {
               check = predicate.test(nextState, value);
             } catch (Exception e) {
-              next.error(e.getMessage());
+              next.error(OperationControlFlow.describe(e));
               return;
             }
             if (check) {

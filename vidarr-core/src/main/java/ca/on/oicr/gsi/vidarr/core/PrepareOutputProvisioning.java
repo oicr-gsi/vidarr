@@ -67,17 +67,19 @@ final class PrepareOutputProvisioning
       JsonNode metadata,
       JsonNode outputs,
       OutputData outputData) {
-    final var handler = target.provisionerFor(format.format());
+    if (optional && output.isNull()) {
+      // Nothing was produced, so no provisioner is needed and it does not matter if none exists.
+      return Stream.empty();
+    }
+    final var outputFormat = format.format();
+    final var handler = target.provisionerFor(outputFormat);
     if (handler == null) {
       // Preflight rejects a workflow with no provisioner for its outputs, so getting here means the
       // target's configuration changed while the workflow run was in flight.
       throw new IllegalStateException(
           String.format(
               "No output provisioner is configured for %s data, which this workflow produces.",
-              format.format()));
-    }
-    if (optional && output.isNull()) {
-      return Stream.empty();
+              outputFormat));
     }
 
     return (switch (format) {
@@ -120,7 +122,7 @@ final class PrepareOutputProvisioning
                         }
                       });
               return TaskStarter.launch(
-                  format.format(), handler, ids, labels, workflowRunId, data, metadata);
+                  outputFormat, handler, ids, labels, workflowRunId, data, metadata);
             });
   }
 

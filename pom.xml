@@ -205,6 +205,7 @@
     <module>vidarr-cli</module>
     <module>vidarr-prometheus</module>
     <module>vidarr-cardea</module>
+      <module>vidarr-oncoanalyser</module>
   </modules>
   <build>
     <plugins>

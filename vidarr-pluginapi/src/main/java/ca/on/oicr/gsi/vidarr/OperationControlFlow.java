@@ -3,6 +3,8 @@ package ca.on.oicr.gsi.vidarr;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.nio.channels.ClosedByInterruptException;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
 import tools.jackson.databind.JsonNode;
 
 /**
@@ -53,8 +55,9 @@ public interface OperationControlFlow<State, Result> {
    * @return a non-null description of the failure
    */
   static String describe(Throwable throwable) {
-    final var message = throwable.getMessage();
-    return message == null || message.isBlank() ? throwable.toString() : message;
+    final var reported = unwrapFutureFailure(throwable);
+    final var message = reported.getMessage();
+    return message == null || message.isBlank() ? reported.toString() : message;
   }
 
   /**
@@ -88,6 +91,33 @@ public interface OperationControlFlow<State, Result> {
    */
   private static boolean isFatal(Throwable throwable) {
     return throwable instanceof VirtualMachineError && !(throwable instanceof StackOverflowError);
+  }
+
+  /**
+   * Strip the wrappers that {@link java.util.concurrent.CompletableFuture} puts around a failure
+   *
+   * <p>A future that a step chained onto another reports its failure as a {@link
+   * CompletionException} whose own message is the cause's {@code toString()}, so describing the
+   * wrapper buries the real problem in boilerplate, and a cause with no message leaves nothing but
+   * the wrapper's class name. The exception worth reporting is the one underneath.
+   *
+   * @param throwable the failure to unwrap
+   * @return the innermost failure that is not a future's wrapper
+   */
+  private static Throwable unwrapFutureFailure(Throwable throwable) {
+    var current = throwable;
+    // As in causedByInterrupt, the cause chain cannot be trusted to terminate.
+    for (var depth = 0; depth < MAXIMUM_CAUSE_DEPTH; depth++) {
+      if (!(current instanceof CompletionException || current instanceof ExecutionException)) {
+        return current;
+      }
+      final var cause = current.getCause();
+      if (cause == null || cause == current) {
+        return current;
+      }
+      current = cause;
+    }
+    return current;
   }
 
   /**

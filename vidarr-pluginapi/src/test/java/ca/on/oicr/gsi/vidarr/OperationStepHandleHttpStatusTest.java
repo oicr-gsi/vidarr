@@ -6,6 +6,7 @@ import static org.junit.Assert.assertTrue;
 
 import ca.on.oicr.gsi.vidarr.OperationTestDoubles.RecordingFlow;
 import ca.on.oicr.gsi.vidarr.OperationTestDoubles.TestOperation;
+import ca.on.oicr.gsi.vidarr.OperationTestDoubles.TestState;
 import ca.on.oicr.gsi.vidarr.OperationTestDoubles.TestTransactionManager;
 import java.net.http.HttpResponse;
 import java.util.List;
@@ -20,8 +21,8 @@ import org.junit.Test;
  */
 public class OperationStepHandleHttpStatusTest {
 
-  private RecordingFlow<HttpResponse<String>> run(HttpResponse<String> response) {
-    final var flow = new RecordingFlow<HttpResponse<String>>();
+  private RecordingFlow<TestState, HttpResponse<String>> run(HttpResponse<String> response) {
+    final var flow = new RecordingFlow<TestState, HttpResponse<String>>();
     new OperationStepHandleHttpStatus<String>()
         .run(response, new TestOperation(), new TestTransactionManager(), flow);
     return flow;

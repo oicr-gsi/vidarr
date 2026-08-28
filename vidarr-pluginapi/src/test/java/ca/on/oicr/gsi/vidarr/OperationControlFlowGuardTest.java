@@ -8,6 +8,7 @@ import ca.on.oicr.gsi.vidarr.OperationTestDoubles.RecordingFlow;
 import ca.on.oicr.gsi.vidarr.OperationTestDoubles.TestOperation;
 import ca.on.oicr.gsi.vidarr.OperationTestDoubles.TestState;
 import ca.on.oicr.gsi.vidarr.OperationTestDoubles.TestTransactionManager;
+import java.net.ConnectException;
 import java.util.concurrent.CompletableFuture;
 import org.junit.Test;
 
@@ -39,7 +40,7 @@ public class OperationControlFlowGuardTest {
 
   @Test
   public void aFailureReportsTheMessageAndTheStackTrace() {
-    final var flow = new RecordingFlow<String>();
+    final var flow = new RecordingFlow<TestState, String>();
     flow.guard(
         () -> {
           throw new IllegalArgumentException("outputDirectory is missing");
@@ -53,7 +54,7 @@ public class OperationControlFlowGuardTest {
   /** A bare NPE has no message, which is exactly the case that used to leave nothing to go on. */
   @Test
   public void aFailureWithoutAMessageStillReportsSomethingUseful() {
-    final var flow = new RecordingFlow<String>();
+    final var flow = new RecordingFlow<TestState, String>();
     flow.guard(
         () -> {
           final String nothing = null;
@@ -67,7 +68,7 @@ public class OperationControlFlowGuardTest {
 
   @Test
   public void anErrorIsAlsoCaught() {
-    final var flow = new RecordingFlow<String>();
+    final var flow = new RecordingFlow<TestState, String>();
     flow.guard(
         () -> {
           throw new StackOverflowError();
@@ -87,7 +88,7 @@ public class OperationControlFlowGuardTest {
 
   @Test
   public void successfulWorkIsUntouched() {
-    final var flow = new RecordingFlow<String>();
+    final var flow = new RecordingFlow<TestState, String>();
     flow.guard(() -> flow.next("fine"));
     assertEquals(1, flow.results().size());
     assertEquals(0, flow.errors().size());
@@ -99,7 +100,7 @@ public class OperationControlFlowGuardTest {
    */
   @Test
   public void aFailureDownstreamOfAnHttpCallIsReported() {
-    final var flow = new RecordingFlow<String>();
+    final var flow = new RecordingFlow<TestState, String>();
     flow.failOnNext(
         () -> {
           throw new NullPointerException();
@@ -118,15 +119,39 @@ public class OperationControlFlowGuardTest {
   /** A failed request must report something, even though its cause carries no message. */
   @Test
   public void aFailedHttpCallReportsANonNullError() {
-    final var flow = new RecordingFlow<String>();
+    final var flow = new RecordingFlow<TestState, String>();
     OperationStep.<String>future()
         .run(
-            CompletableFuture.failedFuture(new java.net.ConnectException()),
+            CompletableFuture.failedFuture(new ConnectException()),
             new TestOperation(),
             new TestTransactionManager(),
             flow);
     assertEquals(1, flow.errors().size());
     assertNotNull(flow.errors().get(0));
     assertTrue(flow.errors().get(0), flow.errors().get(0).contains("ConnectException"));
+  }
+
+  @Test
+  public void describeUsesTheMessageWhenThereIsOne() {
+    assertEquals(
+        "outputDirectory is missing",
+        OperationControlFlow.describe(new IllegalArgumentException("outputDirectory is missing")));
+  }
+
+  /**
+   * A blank message is as useless as a missing one, and some libraries throw with one, so it must
+   * fall back the same way.
+   */
+  @Test
+  public void describeFallsBackWhenTheMessageIsEmptyOrBlank() {
+    assertEquals(
+        "java.lang.IllegalStateException",
+        OperationControlFlow.describe(new IllegalStateException()));
+    assertEquals(
+        "java.lang.IllegalStateException: ",
+        OperationControlFlow.describe(new IllegalStateException("")));
+    assertEquals(
+        "java.lang.IllegalStateException:    ",
+        OperationControlFlow.describe(new IllegalStateException("   ")));
   }
 }

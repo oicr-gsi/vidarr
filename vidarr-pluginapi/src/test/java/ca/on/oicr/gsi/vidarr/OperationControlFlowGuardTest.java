@@ -1,7 +1,9 @@
 package ca.on.oicr.gsi.vidarr;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
 import ca.on.oicr.gsi.vidarr.OperationTestDoubles.RecordingFlow;
@@ -10,6 +12,7 @@ import ca.on.oicr.gsi.vidarr.OperationTestDoubles.TestState;
 import ca.on.oicr.gsi.vidarr.OperationTestDoubles.TestTransactionManager;
 import java.net.ConnectException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import org.junit.Test;
 
 /**
@@ -64,16 +67,6 @@ public class OperationControlFlowGuardTest {
     final var error = flow.errors().get(0);
     assertTrue(error, error.contains("NullPointerException"));
     assertTrue(error, error.contains("OperationControlFlowGuardTest"));
-  }
-
-  @Test
-  public void anErrorIsAlsoCaught() {
-    final var flow = new RecordingFlow<TestState, String>();
-    flow.guard(
-        () -> {
-          throw new StackOverflowError();
-        });
-    assertEquals(1, flow.errors().size());
   }
 
   /** Reporting must never itself escape, or we are back to an exception nobody sees. */
@@ -154,4 +147,71 @@ public class OperationControlFlowGuardTest {
         "java.lang.IllegalStateException:    ",
         OperationControlFlow.describe(new IllegalStateException("   ")));
   }
+
+  /**
+   * Throwing an {@link InterruptedException} clears the interrupt flag, and Vidarr only interrupts
+   * these threads to shut them down, so swallowing the request would be a shutdown that hangs.
+   */
+  @Test
+  public void anInterruptIsReportedAndTheFlagIsRestored() {
+    final var flow = new RecordingFlow<TestState, String>();
+    assertFalse(Thread.currentThread().isInterrupted());
+    try {
+      flow.guard(
+          () -> {
+            throw new CompletionException(new InterruptedException());
+          });
+      assertTrue(Thread.currentThread().isInterrupted());
+      assertEquals(1, flow.errors().size());
+    } finally {
+      // Do not leak the flag into whatever test runs next on this thread.
+      Thread.interrupted();
+    }
+  }
+
+  /** An ordinary failure must not leave the thread looking like it was asked to stop. */
+  @Test
+  public void anOrdinaryFailureLeavesTheInterruptFlagAlone() {
+    final var flow = new RecordingFlow<TestState, String>();
+    flow.guard(
+        () -> {
+          throw new IllegalStateException("nothing to do with interrupts");
+        });
+    assertFalse(Thread.currentThread().isInterrupted());
+  }
+
+  /**
+   * A broken JVM is not one workflow run's problem. The operation is still failed, so no run is
+   * left waiting, but the error keeps travelling so the server does not quietly carry on.
+   */
+  @Test
+  public void aFatalErrorIsReportedAndThenRethrown() {
+    final var flow = new RecordingFlow<TestState, String>();
+    final var thrown =
+        assertThrows(
+            OutOfMemoryError.class,
+            () ->
+                flow.guard(
+                    () -> {
+                      throw new OutOfMemoryError("Java heap space");
+                    }));
+    assertEquals("Java heap space", thrown.getMessage());
+    assertEquals(1, flow.errors().size());
+    assertTrue(flow.errors().get(0), flow.errors().get(0).contains("OutOfMemoryError"));
+  }
+
+  /**
+   * A {@link StackOverflowError} is a runaway step rather than a broken JVM, and its stack has
+   * already unwound by the time it is caught, so it must stay contained like any other bug.
+   */
+  @Test
+  public void aStackOverflowIsContainedRatherThanRethrown() {
+    final var flow = new RecordingFlow<TestState, String>();
+    flow.guard(
+        () -> {
+          throw new StackOverflowError();
+        });
+    assertEquals(1, flow.errors().size());
+  }
 }
+

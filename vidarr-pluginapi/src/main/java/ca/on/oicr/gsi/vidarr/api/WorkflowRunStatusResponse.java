@@ -1,17 +1,17 @@
 package ca.on.oicr.gsi.vidarr.api;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.node.ObjectNode;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Map;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class WorkflowRunStatusResponse {
 
   private ObjectNode arguments;
-  private int attempt;
+  private Integer attempt;
   private ZonedDateTime completed;
   private JsonNode consumableResources;
   private ZonedDateTime created;
@@ -35,7 +35,7 @@ public class WorkflowRunStatusResponse {
     return arguments;
   }
 
-  public int getAttempt() {
+  public Integer getAttempt() {
     return attempt;
   }
 
@@ -115,7 +115,7 @@ public class WorkflowRunStatusResponse {
     this.arguments = arguments;
   }
 
-  public void setAttempt(int attempt) {
+  public void setAttempt(Integer attempt) {
     this.attempt = attempt;
   }
 

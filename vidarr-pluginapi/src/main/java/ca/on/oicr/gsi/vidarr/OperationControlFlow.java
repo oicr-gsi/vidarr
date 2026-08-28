@@ -2,6 +2,7 @@ package ca.on.oicr.gsi.vidarr;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.nio.channels.ClosedByInterruptException;
 import tools.jackson.databind.JsonNode;
 
 /**
@@ -11,6 +12,35 @@ import tools.jackson.databind.JsonNode;
  * @param <Result> the type the operation should yield
  */
 public interface OperationControlFlow<State, Result> {
+
+  /**
+   * The number of causes that {@link #describe(Throwable)} and {@link #guard(Runnable)} will walk
+   *
+   * <p>Nothing legitimate nests this deeply; the limit exists only so that a malformed cause chain
+   * cannot hang the code that is meant to stop workflow runs from hanging.
+   */
+  int MAXIMUM_CAUSE_DEPTH = 16;
+
+  /**
+   * Determine whether a failure was caused by this thread being interrupted
+   *
+   * @param throwable the failure to inspect
+   * @return true if an interrupt appears anywhere in the cause chain
+   */
+  private static boolean causedByInterrupt(Throwable throwable) {
+    var current = throwable;
+    // A cause chain is not guaranteed to terminate, and looping forever in the code that exists to
+    // stop a workflow run from hanging would be its own version of this bug, so bound the walk.
+    for (var depth = 0; current != null && depth < MAXIMUM_CAUSE_DEPTH; depth++) {
+      if (current instanceof InterruptedException
+          || current instanceof ClosedByInterruptException) {
+        return true;
+      }
+      final var cause = current.getCause();
+      current = cause == current ? null : cause;
+    }
+    return false;
+  }
 
   /**
    * Describe a failure that a step could reasonably expect to encounter
@@ -46,6 +76,21 @@ public interface OperationControlFlow<State, Result> {
   }
 
   /**
+   * Determine whether a failure means the JVM itself is no longer usable
+   *
+   * <p>A {@link StackOverflowError} is a bug in the step that overflowed, and its stack has already
+   * unwound by the time it is caught, so it is treated like any other bug. The remaining {@link
+   * VirtualMachineError}s say that the JVM cannot continue, which is not something a single
+   * workflow run should quietly absorb on the whole server's behalf.
+   *
+   * @param throwable the failure to inspect
+   * @return true if the failure should be allowed to escape after it has been reported
+   */
+  private static boolean isFatal(Throwable throwable) {
+    return throwable instanceof VirtualMachineError && !(throwable instanceof StackOverflowError);
+  }
+
+  /**
    * Perform cleanup for an operation has been externally terminated
    *
    * <p>This should bubble up the call stack
@@ -77,6 +122,12 @@ public interface OperationControlFlow<State, Result> {
     try {
       task.run();
     } catch (Throwable e) {
+      if (causedByInterrupt(e)) {
+        /* Throwing an InterruptedException clears the interrupt flag. Vidarr only interrupts these
+         * threads when it is shutting the executor down, so restore the flag rather than leave the
+         * shutdown looking like it has been dealt with. */
+        Thread.currentThread().interrupt();
+      }
       try {
         error(describeUnhandled(e));
       } catch (Throwable failure) {
@@ -87,6 +138,12 @@ public interface OperationControlFlow<State, Result> {
                 System.Logger.Level.ERROR,
                 "Failed to report unhandled exception in operation",
                 failure);
+      }
+      if (isFatal(e)) {
+        /* The operation has been failed, so no workflow run is left waiting on it, which is all
+         * this method promises. Recording a broken JVM as one workflow run's problem and carrying
+         * on would hide it, so let it escape to the executor as well. */
+        throw (Error) e;
       }
     }
   }

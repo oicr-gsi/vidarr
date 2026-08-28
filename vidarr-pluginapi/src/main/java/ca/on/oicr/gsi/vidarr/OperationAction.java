@@ -293,7 +293,7 @@ public abstract sealed class OperationAction<
             TransactionManager<TX> transactionManager,
             OperationControlFlow<State, Value> next) {
           transactionManager.scheduleTask(
-            () -> next.guard(() -> run(s, operation, transactionManager, next)));
+              () -> next.guard(() -> run(s, operation, transactionManager, next)));
         }
 
         @Override

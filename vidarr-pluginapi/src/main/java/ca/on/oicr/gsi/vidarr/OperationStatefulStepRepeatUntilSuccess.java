@@ -67,8 +67,7 @@ final class OperationStatefulStepRepeatUntilSuccess<
                   delay.get(TimeUnit.SECONDS.toChronoUnit()),
                   TimeUnit.SECONDS,
                   () ->
-                      next.guard(
-                          () -> run(input, nextState, operation, transactionManager, next)));
+                      next.guard(() -> run(input, nextState, operation, transactionManager, next)));
             } else {
               next.error(error);
             }

@@ -124,8 +124,7 @@ interface TaskStarter<Output> {
       @Override
       public <TX, PO extends ActiveOperation<TX>> void start(
           BaseProcessor<?, PO, TX> processor, PO operation, TerminalHandler<Output> handler) {
-        final OperationControlFlow<State, Output> flow =
-            processor.createNext(operation, handler);
+        final OperationControlFlow<State, Output> flow = processor.createNext(operation, handler);
         processor.scheduleTask(() -> flow.guard(() -> launcher.launch(operation, processor, flow)));
       }
 

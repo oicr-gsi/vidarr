@@ -131,6 +131,12 @@ public abstract class BaseProcessor<
          * Both backing stores turn that into a failed workflow run, which is what stops the run
          * from waiting forever for a phase that will never start.
          *
+         * The phase's handler is deliberately left out of it. It has already been told how this
+         * operation turned out, and both handlers that track anything share one countdown between
+         * succeeded() and failed(), so a second call would take this operation off the list of
+         * outstanding operations twice and resolve the phase before its siblings have finished.
+         * Failing the operation is enough to resolve the run on its own, so nothing is lost.
+         *
          * Report only once: each FAILED is a fresh phase transition to the store, which releases
          * the workflow run's consumable resources again. */
         if (reportedAfterFinish) {

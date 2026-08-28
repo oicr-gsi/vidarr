@@ -13,3 +13,11 @@ Workflow runs no longer stall silently when an operation step throws an unexpect
 * Failures that previously reported a null message, such as a `NullPointerException`, now report the
   exception type. A failure that arrives wrapped by `CompletableFuture` reports the underlying
   exception rather than the wrapper.
+* A workflow whose target no longer has a provisioner for one of its output formats now says so,
+  rather than failing with an unexplained `NullPointerException`.
+Note that any current long-running (silently stalled) workflow runs will transition to failed after
+this release. Some of these may be retryable once the underlying issue is fixed. The number of
+long-running workflow runs (running for more than 2 weeks) can be queried with:
+```
+SELECT COUNT(*) FROM workflow_run WHERE completed IS NULL AND NOW() - started > INTERVAL '14 days';
+```

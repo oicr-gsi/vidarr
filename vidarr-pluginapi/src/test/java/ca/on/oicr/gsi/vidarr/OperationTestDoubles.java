@@ -5,6 +5,7 @@ import java.net.http.HttpClient.Version;
 import java.net.http.HttpHeaders;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -21,12 +22,13 @@ final class OperationTestDoubles {
   record TestState(String value) {}
 
   /** Records what a step did instead of passing control to a real successor. */
-  static final class RecordingFlow<Result> implements OperationControlFlow<TestState, Result> {
+  static final class RecordingFlow<State, Result> implements OperationControlFlow<State, Result> {
 
     private int cancels;
-    private final List<String> errors = new java.util.ArrayList<>();
-    private final List<Result> results = new java.util.ArrayList<>();
+    private final List<String> errors = new ArrayList<>();
     private Runnable onNext = () -> {};
+    private Runnable onSerialize = () -> {};
+    private final List<Result> results = new ArrayList<>();
 
     int cancels() {
       return cancels;
@@ -42,13 +44,18 @@ final class OperationTestDoubles {
       errors.add(error);
     }
 
-    List<String> errors() {
-      return errors;
-    }
-
     /** Make the successor of this step misbehave, as a buggy plugin or phase transition would. */
     void failOnNext(Runnable failure) {
       onNext = failure;
+    }
+
+    /** Make check-pointing fail, as a state that Jackson cannot write would. */
+    void failOnSerialize(Runnable failure) {
+      onSerialize = failure;
+    }
+
+    List<String> errors() {
+      return errors;
     }
 
     @Override
@@ -62,8 +69,11 @@ final class OperationTestDoubles {
     }
 
     @Override
-    public JsonNode serializeNestedState(TestState state) {
-      return JsonNodeFactory.instance.textNode(state.value());
+    public JsonNode serializeNestedState(State state) {
+      onSerialize.run();
+      // The real terminal flow serializes with Jackson, and a step that check-points its state
+      // depends on that round-tripping, so do the same thing rather than something convenient.
+      return OperationAction.MAPPER.valueToTree(state);
     }
   }
 
@@ -72,7 +82,7 @@ final class OperationTestDoubles {
 
     private String error;
     private boolean live = true;
-    private final List<String> logs = new java.util.ArrayList<>();
+    private final List<String> logs = new ArrayList<>();
     private JsonNode recoveryState = JsonNodeFactory.instance.nullNode();
     private OperationStatus status = OperationStatus.INITIALIZING;
     private String type;
@@ -96,6 +106,7 @@ final class OperationTestDoubles {
       return live;
     }
 
+    /** Terminate the operation the way an administrator cancelling a workflow run would. */
     void kill() {
       live = false;
     }
@@ -143,6 +154,13 @@ final class OperationTestDoubles {
   /** A transaction manager that runs everything inline so tests stay deterministic. */
   static final class TestTransactionManager implements ActiveOperation.TransactionManager<Void> {
 
+    private final List<Long> delays = new ArrayList<>();
+
+    /** The delay, in seconds, requested by each task that asked to be run later. */
+    List<Long> delays() {
+      return delays;
+    }
+
     @Override
     public void inTransaction(Consumer<Void> transaction) {
       transaction.accept(null);
@@ -155,6 +173,7 @@ final class OperationTestDoubles {
 
     @Override
     public void scheduleTask(long delay, TimeUnit units, Runnable task) {
+      delays.add(units.toSeconds(delay));
       task.run();
     }
   }

@@ -42,7 +42,7 @@ public class OperationStatefulStepSubStepTest {
     final var operation = new TestOperation();
     final var flow = run(operation, (state, input) -> new SubState(input));
     assertEquals(List.of("aligned.bam provisioned"), flow.results());
-    assertEquals(List.of(), flow.errors());
+    assertEquals(List.of(), flow.failures());
     // The checkpoint is what lets a restarted server resume inside the child rather than repeat it.
     assertEquals("aligned.bam", operation.recoveryState().get("child").get("value").asString());
   }
@@ -141,7 +141,7 @@ public class OperationStatefulStepSubStepTest {
             });
     assertEquals(1, flow.cancels());
     assertEquals(List.of(), flow.results());
-    assertEquals(List.of(), flow.errors());
+    assertEquals(List.of(), flow.failures());
     assertFalse(operation.isLive());
   }
 }

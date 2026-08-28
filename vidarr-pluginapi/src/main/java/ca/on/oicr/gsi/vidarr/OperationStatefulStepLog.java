@@ -75,6 +75,11 @@ final class OperationStatefulStepLog<State extends Record, OriginalState extends
           }
 
           @Override
+          public void permanentError(String error) {
+            next.permanentError(error);
+          }
+
+          @Override
           public JsonNode serializeNestedState(State state) {
             return next.serializeNestedState(state);
           }

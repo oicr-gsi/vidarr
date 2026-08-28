@@ -6,4 +6,5 @@ Workflow runs no longer stall silently when an operation step throws an unexpect
 * An HTTP response code that Vidarr does not recognise, such as the 502 or 503 a busy Cromwell can
   return, now fails the operation (and can be retried) rather than throwing.
 * Failures that previously reported a null message, such as a `NullPointerException`, now report the
-  exception type.
+  exception type. A failure that arrives wrapped by `CompletableFuture` reports the underlying
+  exception rather than the wrapper.

@@ -10,9 +10,11 @@ import ca.on.oicr.gsi.vidarr.OperationTestDoubles.RecordingFlow;
 import ca.on.oicr.gsi.vidarr.OperationTestDoubles.TestOperation;
 import ca.on.oicr.gsi.vidarr.OperationTestDoubles.TestState;
 import ca.on.oicr.gsi.vidarr.OperationTestDoubles.TestTransactionManager;
+import java.io.IOException;
 import java.net.ConnectException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
 import org.junit.Test;
 
 /**
@@ -146,6 +148,53 @@ public class OperationControlFlowGuardTest {
     assertEquals(
         "java.lang.IllegalStateException:    ",
         OperationControlFlow.describe(new IllegalStateException("   ")));
+  }
+
+  /**
+   * A step that chains onto a future gets the failure wrapped, and the wrapper's message is only
+   * the cause's {@code toString()}, so reporting it buries the real problem in boilerplate.
+   */
+  @Test
+  public void describeUnwrapsTheFutureMachinery() {
+    assertEquals(
+        "connection refused",
+        OperationControlFlow.describe(
+            new CompletionException(new ConnectException("connection refused"))));
+    assertEquals(
+        "connection refused",
+        OperationControlFlow.describe(
+            new ExecutionException(new ConnectException("connection refused"))));
+    // Nested wrappers happen when a chained future fails inside another chained future.
+    assertEquals(
+        "connection refused",
+        OperationControlFlow.describe(
+            new CompletionException(
+                new ExecutionException(new ConnectException("connection refused")))));
+  }
+
+  /** Unwrapping a cause that has no message must still not report a bare wrapper class name. */
+  @Test
+  public void describeUnwrapsToAMessagelessCause() {
+    assertEquals(
+        "java.net.ConnectException",
+        OperationControlFlow.describe(new CompletionException(new ConnectException())));
+  }
+
+  /** A wrapper with nothing underneath is all there is to report. */
+  @Test
+  public void describeKeepsAWrapperWithNoCause() {
+    assertEquals(
+        "no cause", OperationControlFlow.describe(new ExecutionException("no cause", null)));
+  }
+
+  /** Anything that is not future machinery is reported as-is, cause chain and all. */
+  @Test
+  public void describeDoesNotUnwrapOrdinaryExceptions() {
+    assertEquals(
+        "could not read the manifest",
+        OperationControlFlow.describe(
+            new IllegalStateException(
+                "could not read the manifest", new IOException("disk gone"))));
   }
 
   /**

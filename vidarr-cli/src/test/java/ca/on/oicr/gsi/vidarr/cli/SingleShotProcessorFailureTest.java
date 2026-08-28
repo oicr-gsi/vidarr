@@ -197,6 +197,14 @@ public class SingleShotProcessorFailureTest {
     return metadata;
   }
 
+  private int occurrences(String needle) {
+    var count = 0;
+    for (var from = log().indexOf(needle); from >= 0; from = log().indexOf(needle, from + 1)) {
+      count++;
+    }
+    return count;
+  }
+
   private OutputProvisioningHandler<Void> recordingHandler() {
     return new OutputProvisioningHandler<>() {
       @Override
@@ -326,6 +334,8 @@ public class SingleShotProcessorFailureTest {
     // Failing is only half of it; the run has to say what went wrong.
     assertTrue(log(), log().contains("NullPointerException"));
     assertTrue(log(), log().contains("PrepareOutputProvisioning"));
+    // The operation is already resolved when this happens, so it must not be failed twice.
+    assertEquals(log(), 1, occurrences("Workflow operation failed"));
   }
 
   /** A plugin that throws while being set up must fail the run, not stall it. */

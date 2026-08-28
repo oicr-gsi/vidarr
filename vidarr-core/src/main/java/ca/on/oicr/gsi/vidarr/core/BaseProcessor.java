@@ -110,6 +110,7 @@ public abstract class BaseProcessor<
     private boolean finished;
     private final PO operation;
     private final TerminalHandler<Output> handler;
+    private boolean reportedAfterFinish;
 
     TerminalOperationControlFlow(PO operation, TerminalHandler<Output> handler) {
       this.operation = operation;
@@ -128,7 +129,14 @@ public abstract class BaseProcessor<
          * serializing the result, or starting the next phase. There is no operation left to fail,
          * but the workflow run cannot continue either, so mark the operation as failed anyway.
          * Both backing stores turn that into a failed workflow run, which is what stops the run
-         * from waiting forever for a phase that will never start. */
+         * from waiting forever for a phase that will never start.
+         *
+         * Report only once: each FAILED is a fresh phase transition to the store, which releases
+         * the workflow run's consumable resources again. */
+        if (reportedAfterFinish) {
+          return;
+        }
+        reportedAfterFinish = true;
         inTransaction(
             transaction -> {
               operation.error(error, transaction);

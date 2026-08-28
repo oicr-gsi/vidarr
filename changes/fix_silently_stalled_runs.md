@@ -13,3 +13,5 @@ Workflow runs no longer stall silently when an operation step throws an unexpect
 * Failures that previously reported a null message, such as a `NullPointerException`, now report the
   exception type. A failure that arrives wrapped by `CompletableFuture` reports the underlying
   exception rather than the wrapper.
+* A workflow whose target no longer has a provisioner for one of its output formats now says so,
+  rather than failing with an unexplained `NullPointerException`.

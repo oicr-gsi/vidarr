@@ -91,6 +91,11 @@ final class OperationStatefulStepPoll<State extends Record, OriginalState extend
           }
 
           @Override
+          public void permanentError(String error) {
+            next.permanentError(error);
+          }
+
+          @Override
           public JsonNode serializeNestedState(State state) {
             return next.serializeNestedState(state);
           }

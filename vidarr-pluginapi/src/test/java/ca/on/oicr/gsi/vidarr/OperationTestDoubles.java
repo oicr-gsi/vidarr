@@ -28,6 +28,7 @@ final class OperationTestDoubles {
     private final List<String> errors = new ArrayList<>();
     private Runnable onNext = () -> {};
     private Runnable onSerialize = () -> {};
+    private final List<String> permanentErrors = new ArrayList<>();
     private final List<Result> results = new ArrayList<>();
 
     int cancels() {
@@ -42,6 +43,13 @@ final class OperationTestDoubles {
     @Override
     public void error(String error) {
       errors.add(error);
+    }
+
+    /** Every failure, however it was reported, for tests that do not care which kind it was. */
+    List<String> failures() {
+      final var all = new ArrayList<>(errors);
+      all.addAll(permanentErrors);
+      return all;
     }
 
     /** Make the successor of this step misbehave, as a buggy plugin or phase transition would. */
@@ -62,6 +70,15 @@ final class OperationTestDoubles {
     public void next(Result result) {
       results.add(result);
       onNext.run();
+    }
+
+    @Override
+    public void permanentError(String error) {
+      permanentErrors.add(error);
+    }
+
+    List<String> permanentErrors() {
+      return permanentErrors;
     }
 
     List<Result> results() {

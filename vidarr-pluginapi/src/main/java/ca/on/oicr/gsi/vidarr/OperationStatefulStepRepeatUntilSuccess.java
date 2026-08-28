@@ -85,6 +85,14 @@ final class OperationStatefulStepRepeatUntilSuccess<
           }
 
           @Override
+          public void permanentError(String error) {
+            /* The step has told us that repeating the work cannot change the outcome, so spending
+             * the rest of the retry budget on it would only delay the report. Pass it on as
+             * permanent so that an enclosing repeat does not start the same futile cycle. */
+            next.permanentError(error);
+          }
+
+          @Override
           public JsonNode serializeNestedState(State innerState) {
             return next.serializeNestedState(new RepeatCounter<>(state.attempts(), innerState));
           }

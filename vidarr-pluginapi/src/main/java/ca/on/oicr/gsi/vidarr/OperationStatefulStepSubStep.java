@@ -84,6 +84,11 @@ final class OperationStatefulStepSubStep<
                       }
 
                       @Override
+                      public void permanentError(String error) {
+                        next.permanentError(error);
+                      }
+
+                      @Override
                       public JsonNode serializeNestedState(SubState subState) {
                         return next.serializeNestedState(
                             new Child<>(Optional.of(subState), state.state()));
@@ -146,6 +151,11 @@ final class OperationStatefulStepSubStep<
                                                           transactionManager,
                                                           next)));
                                     }));
+                      }
+
+                      @Override
+                      public void permanentError(String error) {
+                        next.permanentError(error);
                       }
 
                       @Override

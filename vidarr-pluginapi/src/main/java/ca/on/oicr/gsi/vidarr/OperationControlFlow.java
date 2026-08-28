@@ -186,6 +186,26 @@ public interface OperationControlFlow<State, Result> {
   void next(Result result);
 
   /**
+   * Abort a running operation due to an error that reattempting cannot fix
+   *
+   * <p>{@link OperationStatefulStep#repeatUntilSuccess(java.time.Duration, int)} exists because
+   * many failures are transient, but some are not: a request refused because Vidarr is not
+   * authorised to make it will be refused identically however many times it is repeated, and
+   * retrying only delays the report by the whole retry budget. A step that can tell the difference
+   * should report those failures here so that they fail the operation immediately.
+   *
+   * <p>The default treats the failure as retryable, which is the right answer for a control flow
+   * that has no notion of retrying. An implementation only needs to override this if it either
+   * retries or sits between a step and something that does; forgetting to forward it costs nothing
+   * worse than the retries that would have happened anyway.
+   *
+   * @param error the error message that should be reported
+   */
+  default void permanentError(String error) {
+    error(error);
+  }
+
+  /**
    * Convert the state to JSON, performing and wrapping required
    *
    * @param state the state object to serialize

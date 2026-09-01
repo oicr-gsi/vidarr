@@ -6,6 +6,13 @@ For unreleased changes, see [changes](changes).
 
 -----------------------------------------------------------------------------
 
+## [2.16.1] - 2026-09-01
+
+### Fixed
+
+* Fix issue with remote deployments where jboss-logging might have gotten out of sync
+
+
 ## [2.16.0] - 2026-09-01
 
 ### Added

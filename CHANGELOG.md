@@ -6,6 +6,31 @@ For unreleased changes, see [changes](changes).
 
 -----------------------------------------------------------------------------
 
+## [2.16.0] - 2026-09-01
+
+### Added
+
+* API change: add `WorkflowResponse` class
+
+### Changed
+
+* Java API: WorkflowRunStatusResponse is now Integer
+* Upgrade Jackson 2 to Jackson 3.1.3
+* Reprovisioning now creates new workflow run metadata and appends it to the original metadata.
+  The structure is as follows:
+  { "submission": {(the original metadata)},
+  "reprovision": [{(metadata created for the first reprovision)}, {(second reprovision)}, {etc}]
+  }
+  The new metadata reassigns all external keys as MANUAL assignments even if the original
+  metadata used ALL or REMAINING rules. For this reason, the original metadata is preserved in the
+  'submission' block.
+  This change fixes an issue with file checksums getting conflated or dropped during reprovisioning.
+
+### Fixed
+
+* Correct handling for failure to resolve input IDs
+
+
 ## [2.15.0] - 2026-06-23
 
 ### Changed

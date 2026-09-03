@@ -40,6 +40,9 @@ public class OperationStepHandleHttpStatusTest {
     assertEquals(List.of(), flow.errors());
     assertEquals(1, flow.permanentErrors().size());
     assertTrue(flow.permanentErrors().get(0), flow.permanentErrors().get(0).contains("301"));
+    // Reading the header without checking is what used to throw here, so say it was absent.
+    assertTrue(
+        flow.permanentErrors().get(0), flow.permanentErrors().get(0).contains("(unspecified)"));
   }
 
   @Test

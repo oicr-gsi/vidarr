@@ -124,6 +124,37 @@ public class OperationRetryTest {
     assertTrue(flow.errors().get(0), flow.errors().get(0).contains("this plugin is not finished"));
   }
 
+  /**
+   * The attempt that finally succeeds is the one that resumed on Vidarr's executor, so whatever
+   * consumes its result runs where nothing observes the outcome either.
+   */
+  @Test
+  public void aBugAfterASuccessfulRetryFailsTheOperation() {
+    final var attempts = new AtomicInteger();
+    final var flow = new RecordingFlow<RepeatCounter<TestState>, HttpResponse<String>>();
+    flow.failOnNext(
+        () -> {
+          throw new NullPointerException();
+        });
+    OperationAction.load(TestState.class, TestState::value)
+        .then(
+            OperationStep.<String, HttpResponse<String>>mapping(
+                ignored ->
+                    response(attempts.getAndIncrement() == 0 ? 502 : 200, java.util.Map.of())))
+        .then(new OperationStepHandleHttpStatus<String>())
+        .then(OperationStatefulStep.repeatUntilSuccess(RETRY_DELAY, MAXIMUM_ATTEMPTS))
+        .launch(new TestState("workflow-run"))
+        .launch(new TestOperation(), new TestTransactionManager(), flow);
+    assertEquals("the second attempt should have succeeded", 2, attempts.get());
+    assertEquals(1, flow.results().size());
+    assertEquals(1, flow.errors().size());
+    // Reported through the guard, which is the only thing watching a rescheduled attempt.
+    assertTrue(
+        flow.errors().get(0),
+        flow.errors().get(0).startsWith("Unhandled exception while running operation: "));
+    assertTrue(flow.errors().get(0), flow.errors().get(0).contains("NullPointerException"));
+  }
+
   /** Sleeping hands control to the executor, so the work after it needs the same protection. */
   @Test
   public void aBugAfterASleepFailsTheOperation() {

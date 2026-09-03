@@ -29,8 +29,10 @@ import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
@@ -38,6 +40,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 import org.junit.After;
@@ -92,14 +95,48 @@ public class SingleShotProcessorFailureTest {
     }
   }
 
+  /**
+   * An engine that produces the file it was asked for but nothing for the optional output
+   *
+   * <p>A workflow is allowed to declare an optional output and then not produce it, which is not
+   * the same thing as producing a null that somebody has to provision out.
+   */
+  private final class PartialOutputWorkflowEngine extends NoOpWorkflowEngine {
+
+    private final Runnable onFinish;
+
+    PartialOutputWorkflowEngine(Runnable onFinish) {
+      this.onFinish = onFinish;
+    }
+
+    @Override
+    public OperationAction<?, NoOpState, Result<CleanupState>> build() {
+      return OperationAction.load(
+          NoOpState.class,
+          state -> {
+            onFinish.run();
+            final var outputs = MAPPER.createObjectNode();
+            outputs.put(OUTPUT, inputFile);
+            outputs.putNull(OPTIONAL_OUTPUT);
+            return new Result<>(outputs, null, Optional.empty());
+          });
+    }
+  }
+
   /** A provisioner that can be made to misbehave in the ways real ones have. */
   private static final class StubOutputProvisioner
       implements OutputProvisioner<StubPreflightState, StubProvisionState> {
 
     private final boolean crashWhenBuilding;
+    private final OutputProvisionFormat format;
 
     StubOutputProvisioner(boolean crashWhenBuilding) {
+      this(crashWhenBuilding, OutputProvisionFormat.FILES);
+    }
+
+    StubOutputProvisioner(boolean crashWhenBuilding, OutputProvisionFormat format) {
       this.crashWhenBuilding = crashWhenBuilding;
+      this.format = format;
     }
 
     @Override
@@ -121,7 +158,7 @@ public class SingleShotProcessorFailureTest {
 
     @Override
     public boolean canProvision(OutputProvisionFormat format) {
-      return format == OutputProvisionFormat.FILES;
+      return format == this.format;
     }
 
     @Override
@@ -156,6 +193,7 @@ public class SingleShotProcessorFailureTest {
       JsonMapper.builder()
           .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
           .build();
+  private static final String OPTIONAL_OUTPUT = "test.logs";
   private static final String OUTPUT = "test.out";
   /** Long enough that a slow machine does not fail, short enough that a hang is obvious. */
   private static final long TIMEOUT_SECONDS = 30;
@@ -189,11 +227,14 @@ public class SingleShotProcessorFailureTest {
     return captured.toString(StandardCharsets.UTF_8);
   }
 
-  private ObjectNode metadata() {
+  /** Metadata saying to provision every input's data for each of the workflow's outputs. */
+  private ObjectNode metadata(Collection<String> outputs) {
     final var metadata = MAPPER.createObjectNode();
-    final var output = metadata.putObject(OUTPUT);
-    output.put("type", "ALL");
-    output.putArray("contents").addObject().put("outputDirectory", "/tmp");
+    for (final var name : outputs) {
+      final var output = metadata.putObject(name);
+      output.put("type", "ALL");
+      output.putArray("contents").addObject().put("outputDirectory", "/tmp");
+    }
     return metadata;
   }
 
@@ -244,14 +285,33 @@ public class SingleShotProcessorFailureTest {
       Supplier<OutputProvisioner<?, ?>> provisioner,
       WorkflowEngine<?, ?> engine)
       throws ExecutionException, InterruptedException, TimeoutException {
+    return runToCompletion(
+        workflow(outputType), metadata(Set.of(OUTPUT)), provisioner, engine);
+  }
+
+  private boolean runToCompletion(
+      WorkflowDefinition definition,
+      ObjectNode metadata,
+      Supplier<OutputProvisioner<?, ?>> provisioner,
+      WorkflowEngine<?, ?> engine)
+      throws ExecutionException, InterruptedException, TimeoutException {
+    return runToCompletion(definition, metadata, byFormat(provisioner), engine);
+  }
+
+  private boolean runToCompletion(
+      WorkflowDefinition definition,
+      ObjectNode metadata,
+      Function<OutputProvisionFormat, OutputProvisioner<?, ?>> provisioner,
+      WorkflowEngine<?, ?> engine)
+      throws ExecutionException, InterruptedException, TimeoutException {
     final var run =
         new SingleShotProcessor(executor)
             .startAsync(
                 "test-run",
                 target(provisioner, engine),
-                workflow(outputType),
+                definition,
                 arguments(),
-                metadata(),
+                metadata,
                 MAPPER.createObjectNode(),
                 recordingHandler());
     assertNotNull("the run should have been accepted", run);
@@ -276,8 +336,17 @@ public class SingleShotProcessorFailureTest {
     executor.shutdownNow();
   }
 
+  /** Serve one provisioner for whichever format it claims, which is all most tests need. */
+  private Function<OutputProvisionFormat, OutputProvisioner<?, ?>> byFormat(
+      Supplier<OutputProvisioner<?, ?>> outputProvisioner) {
+    return format -> {
+      final var provisioner = outputProvisioner.get();
+      return provisioner != null && provisioner.canProvision(format) ? provisioner : null;
+    };
+  }
+
   private Target target(
-      Supplier<OutputProvisioner<?, ?>> outputProvisioner,
+      Function<OutputProvisionFormat, OutputProvisioner<?, ?>> outputProvisioner,
       WorkflowEngine<?, ?> engine) {
     final var inputProvisioner = new RawInputProvisioner();
     inputProvisioner.setFormats(Set.of(InputProvisionFormat.FILE));
@@ -299,8 +368,7 @@ public class SingleShotProcessorFailureTest {
 
       @Override
       public OutputProvisioner<?, ?> provisionerFor(OutputProvisionFormat type) {
-        final var provisioner = outputProvisioner.get();
-        return provisioner != null && provisioner.canProvision(type) ? provisioner : null;
+        return outputProvisioner.apply(type);
       }
 
       @Override
@@ -312,13 +380,19 @@ public class SingleShotProcessorFailureTest {
 
   /** A workflow whose single output is fed straight from its single parameter. */
   private WorkflowDefinition workflow(OutputType outputType) {
+    return workflow(Map.of(OUTPUT, outputType));
+  }
+
+  /** The same, for the cases that need one output to behave differently from another. */
+  private WorkflowDefinition workflow(Map<String, OutputType> outputs) {
     return new WorkflowDefinition(
         WorkflowLanguage.WDL_1_0,
         "test",
         "",
         Map.of(),
         Stream.of(new WorkflowDefinition.Parameter(InputType.FILE, OUTPUT)),
-        Stream.of(new WorkflowDefinition.Output(outputType, OUTPUT)));
+        outputs.entrySet().stream()
+            .map(output -> new WorkflowDefinition.Output(output.getValue(), output.getKey())));
   }
 
   /**
@@ -362,6 +436,39 @@ public class SingleShotProcessorFailureTest {
             new HookedWorkflowEngine(() -> configured.set(null))));
     assertEquals(List.of(), provisioned);
     assertTrue(log(), log().contains("No output provisioner is configured for FILES"));
+  }
+
+  /**
+   * An output the workflow did not produce needs no provisioner, so it must not matter that there
+   * is none: looking one up before noticing that there was nothing to provision failed runs that
+   * had done nothing wrong.
+   *
+   * <p>The provisioner for the optional output disappears mid-run for the same reason as above,
+   * because a target that never had one would be turned away by preflight instead. The run also
+   * produces a file, because a phase with no operations at all is failed by the framework whatever
+   * the reason for it being empty.
+   */
+  @Test
+  public void anOptionalOutputThatWasNotProducedNeedsNoProvisioner() throws Exception {
+    final var files = new StubOutputProvisioner(false);
+    final var logs =
+        new AtomicReference<OutputProvisioner<?, ?>>(
+            new StubOutputProvisioner(false, OutputProvisionFormat.LOGS));
+    final var outputs =
+        Map.of(OUTPUT, OutputType.FILE, OPTIONAL_OUTPUT, OutputType.LOGS_OPTIONAL);
+    assertTrue(
+        log(),
+        runToCompletion(
+            workflow(outputs),
+            metadata(outputs.keySet()),
+            format ->
+                switch (format) {
+                  case FILES -> files;
+                  case LOGS -> logs.get();
+                  default -> null;
+                },
+            new PartialOutputWorkflowEngine(() -> logs.set(null))));
+    assertEquals(List.of(inputFile), provisioned);
   }
 
   /** Sanity check that the guards did not turn a working run into a failing one. */

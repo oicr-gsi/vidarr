@@ -549,43 +549,44 @@ public abstract class DatabaseBackedProcessor
     }
   }
 
-  private TreeSet<ExternalId> extractExternalIds(
+  final TreeSet<ExternalId> extractExternalIds(
       JsonNode arguments, WorkflowInformation workflow, TreeSet<String> unresolvedIds) {
-      return workflow
-              .definition()
-              .parameters()
-              .flatMap(
-                  p -> {
-                    if (!arguments.has(p.name())) {
-                      return Stream.empty();
-                    }
-                    try {
-                      // wrap this in the try/catch so the parameter is still in scope if an
-                      // IllegalArgumentException is thrown
-                      return p.type()
-                          .apply(
-                              new ExtractInputExternalIds(
-                                  MAPPER,
-                                  arguments.get(p.name()),
-                                  id -> {
-                                    final Optional<FileMetadata> result = pathForId(id);
-                                    if (result.isEmpty()) {
-                                      unresolvedIds.add(id);
-                                    }
-                                    return result;
-                                  }))
-                          .toList().stream();
-                    } catch (IllegalArgumentException e) {
-                      unresolvedIds.add(p.name());
-                      return Stream.empty();
-                    }
-                  })
-              .collect(
-                  Collectors.toCollection(
-                      () ->
-                          new TreeSet<>(
-                              Comparator.comparing(ExternalId::getProvider)
-                                  .thenComparing(ExternalId::getId))));
+    return workflow
+        .definition()
+        .parameters()
+        .flatMap(
+            p -> {
+              if (!arguments.has(p.name())) {
+                return Stream.empty();
+              }
+              try {
+                // wrap this in the try/catch so the parameter is still in scope if an
+                // IllegalArgumentException is thrown
+                return p.type()
+                    .apply(
+                        new ExtractInputExternalIds(
+                            MAPPER,
+                            arguments.get(p.name()),
+                            id -> {
+                              final Optional<FileMetadata> result = pathForId(id);
+                              if (result.isEmpty()) {
+                                unresolvedIds.add(id);
+                              }
+                              return result;
+                            }))
+                    .toList()
+                    .stream();
+              } catch (IllegalArgumentException e) {
+                unresolvedIds.add(p.name());
+                return Stream.empty();
+              }
+            })
+        .collect(
+            Collectors.toCollection(
+                () ->
+                    new TreeSet<>(
+                        Comparator.comparing(ExternalId::getProvider)
+                            .thenComparing(ExternalId::getId))));
   }
 
   private TreeSet<String> extractWorkflowInputIds(

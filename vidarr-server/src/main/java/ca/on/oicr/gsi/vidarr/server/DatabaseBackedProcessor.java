@@ -99,7 +99,6 @@ import org.jooq.Record1;
 import org.jooq.Record2;
 import org.jooq.Result;
 import org.jooq.SQLDialect;
-import org.jooq.SelectConditionStep;
 import org.jooq.impl.DSL;
 import tools.jackson.core.JacksonException;
 import tools.jackson.core.type.TypeReference;
@@ -550,27 +549,38 @@ public abstract class DatabaseBackedProcessor
     }
   }
 
-  private TreeSet<ExternalId> extractExternalIds(
+  final TreeSet<ExternalId> extractExternalIds(
       JsonNode arguments, WorkflowInformation workflow, TreeSet<String> unresolvedIds) {
     return workflow
         .definition()
         .parameters()
-        .<ExternalId>flatMap(
-            p ->
-                arguments.has(p.name())
-                    ? p.type()
-                        .apply(
-                            new ExtractInputExternalIds(
-                                MAPPER,
-                                arguments.get(p.name()),
-                                id -> {
-                                  final Optional<FileMetadata> result = pathForId(id);
-                                  if (result.isEmpty()) {
-                                    unresolvedIds.add(id);
-                                  }
-                                  return result;
-                                }))
-                    : Stream.empty())
+        .flatMap(
+            p -> {
+              if (!arguments.has(p.name())) {
+                return Stream.empty();
+              }
+              try {
+                // wrap this in the try/catch so the parameter is still in scope if an
+                // IllegalArgumentException is thrown
+                return p.type()
+                    .apply(
+                        new ExtractInputExternalIds(
+                            MAPPER,
+                            arguments.get(p.name()),
+                            id -> {
+                              final Optional<FileMetadata> result = pathForId(id);
+                              if (result.isEmpty()) {
+                                unresolvedIds.add(id);
+                              }
+                              return result;
+                            }))
+                    .toList()
+                    .stream();
+              } catch (IllegalArgumentException e) {
+                unresolvedIds.add(p.name());
+                return Stream.empty();
+              }
+            })
         .collect(
             Collectors.toCollection(
                 () ->

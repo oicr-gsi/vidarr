@@ -33,10 +33,6 @@ For unreleased changes, see [changes](changes).
   'submission' block.
   This change fixes an issue with file checksums getting conflated or dropped during reprovisioning.
 
-### Fixed
-
-* Correct handling for failure to resolve input IDs
-
 
 ## [2.15.0] - 2026-06-23
 

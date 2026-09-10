@@ -298,3 +298,47 @@ interfaces Víðarr uses intentionally hide the state type behind a wild card
 (`?`) generic to simplify writing plugins, but any changes to this type will
 cause recovery issues.
 
+## Reporting Failures
+
+Running an operation requires an `OperationControlFlow`, which is how the
+outcome of a step is reported: `next` for a successful value, `error` for a
+failure, and `cancel` for an operation that Víðarr has terminated from outside.
+Exactly one of these must be called for every step that runs. An operation that
+reports nothing at all is not a failed operation; it is a workflow run that
+waits forever for a result that is never coming. The steps themselves are
+sealed, so they are part of the plugin API rather than something a plugin adds,
+but a plugin supplies a control flow whenever it drives an operation itself
+through `OperationAction.Launcher.launch`.
+
+Two situations make the outcome easy to lose, and `OperationControlFlow`
+provides a method for each.
+
+The first is work that resumes on another thread. Steps hand control to each
+other from HTTP completion callbacks and from tasks scheduled on Víðarr's
+executor, and nothing observes the outcome of either, so an exception that
+escapes one is invisible: the control flow is never called and the workflow run
+stalls. `guard(Runnable)` runs a block of work and turns any exception that
+escapes it into an operation error, including a stack trace, so that a bug fails
+the workflow run instead of stranding it. Any code that resumes an operation on
+a thread nothing is watching must route that work through it.
+
+The second is describing the failure. Many exceptions, `NullPointerException`
+most notably, carry no message at all, and a failure from a `CompletableFuture`
+arrives wrapped in a `CompletionException` whose own message is only the cause's
+`toString()`. Reporting `getMessage()` directly therefore records either a null
+error or the wrapper's boilerplate, and the reason for the failure is lost from
+the workflow run. The static `OperationControlFlow.describe(Throwable)` unwraps
+those wrappers and falls back to `toString()` when there is no message, so use
+it in place of `getMessage()` whenever reporting a throwable as an error.
+
+Separately, `repeatUntilSuccess` exists because most failures from an external
+service are transient, but some are not: a request refused because Víðarr is not
+authorised to make it will be refused identically however many times it is
+repeated, and retrying only delays the report by the whole retry budget. A step
+that can tell the difference reports such a failure through
+`permanentError(String)`, which fails the operation immediately instead of
+retrying it. The default treats the failure as retryable, which is the right
+answer for a control flow that has no notion of retrying; a control flow that
+wraps another one should forward `permanentError` to it. Forgetting to forward
+it costs nothing worse than the retries that would have happened anyway.
+

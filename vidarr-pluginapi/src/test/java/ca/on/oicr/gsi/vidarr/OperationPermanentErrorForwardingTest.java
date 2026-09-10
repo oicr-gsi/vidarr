@@ -25,11 +25,11 @@ import org.junit.Test;
  *
  * <p>An action is built out of nested control flows, one per step, and each one decides what to
  * pass on. {@link OperationControlFlow#permanentError(String)} defaults to reporting a retryable
- * error,
- * which is right for a flow with no notion of retrying but wrong for one that merely sits between a
- * step and something that does: a layer that forgets to forward turns "do not bother retrying this"
- * back into "retry this", and the operation spends the whole retry budget on a request that was
- * refused. Every layer that forwards is covered here, because each one forwards separately.
+ * error, which is right for a flow with no notion of retrying but wrong for one that merely sits
+ * between a step and something that does: a layer that forgets to forward turns "do not bother
+ * retrying this" back into "retry this", and the operation spends the whole retry budget on a
+ * request that was refused. Every layer that forwards is covered here, because each one forwards
+ * separately.
  */
 public class OperationPermanentErrorForwardingTest {
 
@@ -60,7 +60,7 @@ public class OperationPermanentErrorForwardingTest {
         .then(
             OperationStep.<String, HttpResponse<String>>mapping(
                 ignored -> response(REFUSED, Map.of())))
-        .then(new OperationStepHandleHttpStatus<String>());
+        .then(new OperationStepHandleHttpStatus<>());
   }
 
   private static void assertStillPermanent(RecordingFlow<?, ?> flow) {
@@ -68,8 +68,8 @@ public class OperationPermanentErrorForwardingTest {
     assertEquals("the failure was downgraded to a retryable error", List.of(), flow.errors());
     assertEquals(1, flow.permanentErrors().size());
     assertTrue(
-        flow.permanentErrors().get(0),
-        flow.permanentErrors().get(0).contains(Integer.toString(REFUSED)));
+        flow.permanentErrors().getFirst(),
+        flow.permanentErrors().getFirst().contains(Integer.toString(REFUSED)));
   }
 
   private static <State extends Record, OriginalState extends Record, Value>
@@ -134,7 +134,7 @@ public class OperationPermanentErrorForwardingTest {
 
   @Test
   public void aReloadForwardsAPermanentError() {
-    assertStillPermanent(runRefusedThrough(action -> action.reload(state -> state.value())));
+    assertStillPermanent(runRefusedThrough(action -> action.reload(TestState::value)));
   }
 
   @Test
@@ -250,7 +250,7 @@ public class OperationPermanentErrorForwardingTest {
                         (state, input) -> new SubState(input),
                         OperationAction.load(
                                 SubState.class, ignored -> response(REFUSED, Map.of()))
-                            .then(new OperationStepHandleHttpStatus<String>()))),
+                            .then(new OperationStepHandleHttpStatus<>()))),
             new TestState("workflow-run")));
   }
 }

@@ -189,10 +189,7 @@ public class SingleShotProcessorFailureTest {
     }
   }
 
-  private static final JsonMapper MAPPER =
-      JsonMapper.builder()
-          .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
-          .build();
+  private static final JsonMapper MAPPER = JsonMapper.builder().build();
   private static final String OPTIONAL_OUTPUT = "test.logs";
   private static final String OUTPUT = "test.out";
   /** Long enough that a slow machine does not fail, short enough that a hang is obvious. */

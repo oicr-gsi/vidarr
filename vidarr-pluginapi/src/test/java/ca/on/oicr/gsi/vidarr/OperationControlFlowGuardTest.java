@@ -94,7 +94,7 @@ public class OperationControlFlowGuardTest {
           throw new IllegalArgumentException("outputDirectory is missing");
         });
     assertEquals(1, flow.errors().size());
-    final var error = flow.errors().get(0);
+    final var error = flow.errors().getFirst();
     assertTrue(error, error.startsWith("Unhandled exception while running operation: "));
     assertTrue(error, error.contains("outputDirectory is missing"));
     assertTrue(error, error.contains("OperationControlFlowGuardTest"));
@@ -110,7 +110,7 @@ public class OperationControlFlowGuardTest {
           nothing.length();
         });
     assertEquals(1, flow.errors().size());
-    final var error = flow.errors().get(0);
+    final var error = flow.errors().getFirst();
     assertTrue(error, error.contains("NullPointerException"));
     assertTrue(error, error.contains("OperationControlFlowGuardTest"));
   }
@@ -124,7 +124,7 @@ public class OperationControlFlowGuardTest {
           throw new IllegalArgumentException("boom");
         });
     assertEquals(1, flow.errors().size());
-    final var error = flow.errors().get(0);
+    final var error = flow.errors().getFirst();
     assertTrue(error, error.contains("boom"));
     assertTrue(error, error.contains("OperationControlFlowGuardTest"));
   }
@@ -157,7 +157,7 @@ public class OperationControlFlowGuardTest {
             flow);
     assertEquals(1, flow.results().size());
     assertEquals(1, flow.errors().size());
-    assertTrue(flow.errors().get(0).contains("NullPointerException"));
+    assertTrue(flow.errors().getFirst().contains("NullPointerException"));
   }
 
   /** A failed request must report something, even though its cause carries no message. */
@@ -171,8 +171,8 @@ public class OperationControlFlowGuardTest {
             new TestTransactionManager(),
             flow);
     assertEquals(1, flow.errors().size());
-    assertNotNull(flow.errors().get(0));
-    assertTrue(flow.errors().get(0), flow.errors().get(0).contains("ConnectException"));
+    assertNotNull(flow.errors().getFirst());
+    assertTrue(flow.errors().getFirst(), flow.errors().getFirst().contains("ConnectException"));
   }
 
   @Test
@@ -305,7 +305,7 @@ public class OperationControlFlowGuardTest {
           });
       assertTrue(Thread.currentThread().isInterrupted());
       assertEquals(1, flow.errors().size());
-      assertTrue(flow.errors().get(0), flow.errors().get(0).contains("InterruptedException"));
+      assertTrue(flow.errors().getFirst(), flow.errors().getFirst().contains("InterruptedException"));
     } finally {
       // Do not leak the flag into whatever test runs next on this thread.
       Thread.interrupted();
@@ -344,7 +344,7 @@ public class OperationControlFlowGuardTest {
           throw new SelfCausedException("its own cause");
         });
     assertEquals(1, flow.errors().size());
-    assertTrue(flow.errors().get(0), flow.errors().get(0).contains("its own cause"));
+    assertTrue(flow.errors().getFirst(), flow.errors().getFirst().contains("its own cause"));
     assertFalse(Thread.currentThread().isInterrupted());
   }
 
@@ -426,7 +426,7 @@ public class OperationControlFlowGuardTest {
                     }));
     assertEquals("Java heap space", thrown.getMessage());
     assertEquals(1, flow.errors().size());
-    assertTrue(flow.errors().get(0), flow.errors().get(0).contains("OutOfMemoryError"));
+    assertTrue(flow.errors().getFirst(), flow.errors().getFirst().contains("OutOfMemoryError"));
   }
 
   /**
@@ -441,6 +441,6 @@ public class OperationControlFlowGuardTest {
           throw new StackOverflowError();
         });
     assertEquals(1, flow.errors().size());
-    assertTrue(flow.errors().get(0), flow.errors().get(0).contains("StackOverflowError"));
+    assertTrue(flow.errors().getFirst(), flow.errors().getFirst().contains("StackOverflowError"));
   }
 }

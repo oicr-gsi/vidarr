@@ -63,7 +63,7 @@ public abstract class BaseProcessor<
   }
 
   /**
-   * Wrap a task so that a failure is logged rather than discarded
+   * Wrap a task so that a failure is reported rather than discarded
    *
    * <p>{@link ScheduledExecutorService} wraps every task in a future that nothing here observes, so
    * an exception that escapes a task is otherwise lost without a trace. Tasks that belong to an
@@ -76,7 +76,7 @@ public abstract class BaseProcessor<
       try {
         task.run();
       } catch (Throwable e) {
-        LOGGER.log(Level.ERROR, "Unhandled exception in scheduled Vidarr task", e);
+        e.printStackTrace();
         throw e;
       }
     };
@@ -897,8 +897,6 @@ public abstract class BaseProcessor<
       return activeWorkflow;
     }
   }
-
-  private static final System.Logger LOGGER = System.getLogger(BaseProcessor.class.getName());
 
   public static final Pattern ANALYSIS_RECORD_ID =
       Pattern.compile(

@@ -163,11 +163,7 @@ public interface OperationControlFlow<State, Result> {
       } catch (Throwable failure) {
         // There is nothing left to report the failure to, so make sure it is at least not silent.
         failure.addSuppressed(e);
-        System.getLogger(OperationControlFlow.class.getName())
-            .log(
-                System.Logger.Level.ERROR,
-                "Failed to report unhandled exception in operation",
-                failure);
+        failure.printStackTrace();
       }
       if (isFatal(e)) {
         /* The operation has been failed, so no workflow run is left waiting on it, which is all

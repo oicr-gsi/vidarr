@@ -7,18 +7,17 @@ import static org.junit.Assert.assertTrue;
 import ca.on.oicr.gsi.vidarr.ActiveOperation;
 import ca.on.oicr.gsi.vidarr.OperationStatus;
 import ca.on.oicr.gsi.vidarr.core.BaseProcessor.TerminalHandler;
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
-import java.util.logging.Handler;
-import java.util.logging.LogRecord;
-import java.util.logging.Logger;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -250,27 +249,14 @@ public class BaseProcessorTerminalFlowTest {
 
   /**
    * A task that belongs to an operation is guarded by the step that scheduled it, but nothing
-   * guards the rest, and the executor's future is never observed. Logging is all that stands
-   * between such a failure and no trace at all.
+   * guards the rest, and the executor's future is never observed. The printed stack trace is all
+   * that stands between such a failure and no trace at all.
    */
   @Test
-  public void aFailureInAScheduledTaskIsLogged() throws Exception {
-    final var records = new CopyOnWriteArrayList<LogRecord>();
-    final var capture =
-        new Handler() {
-          @Override
-          public void close() {}
-
-          @Override
-          public void flush() {}
-
-          @Override
-          public void publish(LogRecord record) {
-            records.add(record);
-          }
-        };
-    final var logger = Logger.getLogger(BaseProcessor.class.getName());
-    logger.addHandler(capture);
+  public void aFailureInAScheduledTaskIsReported() throws Exception {
+    final var captured = new ByteArrayOutputStream();
+    final var original = System.err;
+    System.setErr(new PrintStream(captured, true, StandardCharsets.UTF_8));
     try {
       final var ran = new CountDownLatch(1);
       processor.scheduleTask(
@@ -279,18 +265,22 @@ public class BaseProcessorTerminalFlowTest {
             throw new IllegalStateException("nobody is watching this");
           });
       assertTrue("the task should have run", ran.await(10, TimeUnit.SECONDS));
-      /* The log is written on the executor thread just after the task returns, so wait for it
-       * rather than assume it has already happened. Bounded so that a lost log fails rather than
-       * hangs, and generously enough that a loaded machine does not fail spuriously. */
-      for (var attempt = 0; attempt < 500 && records.isEmpty(); attempt++) {
+      /* The trace is printed on the executor thread just after the task returns, so wait for it
+       * rather than assume it has already happened. Bounded so that a lost report fails rather
+       * than hangs, and generously enough that a loaded machine does not fail spuriously. */
+      for (var attempt = 0;
+          attempt < 500 && !captured.toString(StandardCharsets.UTF_8).contains("watching");
+          attempt++) {
         Thread.sleep(10);
       }
-      assertEquals(1, records.size());
-      assertEquals(
-          "Unhandled exception in scheduled Vidarr task", records.get(0).getMessage());
-      assertEquals("nobody is watching this", records.get(0).getThrown().getMessage());
+      final var trace = captured.toString(StandardCharsets.UTF_8);
+      assertTrue(
+          "the failure should have been printed, but stderr held: " + trace,
+          trace.contains("java.lang.IllegalStateException: nobody is watching this"));
+      assertTrue(
+          "a stack trace should accompany it, but stderr held: " + trace, trace.contains("\tat "));
     } finally {
-      logger.removeHandler(capture);
+      System.setErr(original);
     }
   }
 

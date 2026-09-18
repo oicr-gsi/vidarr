@@ -302,13 +302,14 @@ cause recovery issues.
 
 Running an operation requires an `OperationControlFlow`, which is how the
 outcome of a step is reported: `next` for a successful value, `error` for a
-failure, and `cancel` for an operation that Víðarr has terminated from outside.
-Exactly one of these must be called for every step that runs. An operation that
-reports nothing at all is not a failed operation; it is a workflow run that
-waits forever for a result that is never coming. The steps themselves are
-sealed, so they are part of the plugin API rather than something a plugin adds,
-but a plugin supplies a control flow whenever it drives an operation itself
-through `OperationAction.Launcher.launch`.
+failure which may succeed after a retry, `permanentError` for a failure which
+cannot be resolved by retrying, and `cancel` for an operation that Víðarr has
+terminated from outside. Exactly one of these must be called for every step
+that runs. An operation that reports nothing at all is not a failed operation;
+it is a workflow run that waits forever for a result that is never coming. The
+steps themselves are sealed, so they are part of the plugin API rather than
+something a plugin adds, but a plugin supplies a control flow whenever it
+drives an operation itself through `OperationAction.Launcher.launch`.
 
 Two situations make the outcome easy to lose, and `OperationControlFlow`
 provides a method for each.

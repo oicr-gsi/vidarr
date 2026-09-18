@@ -248,40 +248,69 @@ public class BaseProcessorTerminalFlowTest {
   }
 
   /**
-   * A task that belongs to an operation is guarded by the step that scheduled it, but nothing
-   * guards the rest, and the executor's future is never observed. The printed stack trace is all
-   * that stands between such a failure and no trace at all.
+   * Schedule a task that throws and return everything that reached stderr while it ran
+   *
+   * @param schedule the overload of {@code scheduleTask} under test
+   * @param message the message the task throws, which is also what the wait watches for
    */
-  @Test
-  public void aFailureInAScheduledTaskIsReported() throws Exception {
+  private String stderrFromAFailing(Consumer<Runnable> schedule, String message) throws Exception {
     final var captured = new ByteArrayOutputStream();
     final var original = System.err;
     System.setErr(new PrintStream(captured, true, StandardCharsets.UTF_8));
     try {
       final var ran = new CountDownLatch(1);
-      processor.scheduleTask(
+      schedule.accept(
           () -> {
             ran.countDown();
-            throw new IllegalStateException("nobody is watching this");
+            throw new IllegalStateException(message);
           });
       assertTrue("the task should have run", ran.await(10, TimeUnit.SECONDS));
       /* The trace is printed on the executor thread just after the task returns, so wait for it
        * rather than assume it has already happened. Bounded so that a lost report fails rather
        * than hangs, and generously enough that a loaded machine does not fail spuriously. */
       for (var attempt = 0;
-          attempt < 500 && !captured.toString(StandardCharsets.UTF_8).contains("watching");
+          attempt < 500 && !captured.toString(StandardCharsets.UTF_8).contains(message);
           attempt++) {
         Thread.sleep(10);
       }
-      final var trace = captured.toString(StandardCharsets.UTF_8);
-      assertTrue(
-          "the failure should have been printed, but stderr held: " + trace,
-          trace.contains("java.lang.IllegalStateException: nobody is watching this"));
-      assertTrue(
-          "a stack trace should accompany it, but stderr held: " + trace, trace.contains("\tat "));
+      return captured.toString(StandardCharsets.UTF_8);
     } finally {
       System.setErr(original);
     }
+  }
+
+  private static void assertReported(String stderr, String message) {
+    assertTrue(
+        "the failure should have been printed, but stderr held: " + stderr,
+        stderr.contains("java.lang.IllegalStateException: " + message));
+    assertTrue(
+        "a stack trace should accompany it, but stderr held: " + stderr, stderr.contains("\tat "));
+  }
+
+  /**
+   * A task that belongs to an operation is guarded by the step that scheduled it, but nothing
+   * guards the rest, and the executor's future is never observed. The printed stack trace is all
+   * that stands between such a failure and no trace at all.
+   */
+  @Test
+  public void aFailureInAScheduledTaskIsReported() throws Exception {
+    assertReported(
+        stderrFromAFailing(processor::scheduleTask, "nobody is watching this"),
+        "nobody is watching this");
+  }
+
+  /**
+   * A delayed task is wrapped separately, so it needs saying separately, and it is the likelier of
+   * the two to go unnoticed: work that resumes on a timer — a poll, a retry, a sleep — has no
+   * caller left anywhere to notice that it never came back.
+   */
+  @Test
+  public void aFailureInADelayedTaskIsReported() throws Exception {
+    assertReported(
+        stderrFromAFailing(
+            task -> processor.scheduleTask(1, TimeUnit.MILLISECONDS, task),
+            "nobody is watching this either"),
+        "nobody is watching this either");
   }
 
   /** The same wrapping applies to a delayed task, and it must not stop the task from running. */

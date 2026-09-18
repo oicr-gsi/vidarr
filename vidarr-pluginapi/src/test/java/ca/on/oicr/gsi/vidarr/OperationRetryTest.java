@@ -104,21 +104,32 @@ public class OperationRetryTest {
   }
 
   /**
-   * A retry resumes on Vidarr's executor, so a bug in the retried work lands somewhere nothing
-   * observes. It has to come back as an operation error rather than a run that never finishes.
+   * A step that throws inside a retry has to be reattempted like any other failure, and then
+   * reported once rather than once per attempt
+   *
+   * <p>Turning a thrown exception into a reported error belongs to {@code mapping}, and collapsing
+   * repeated failures into a single one belongs to the retry. This is the only place the two meet,
+   * so a retry that quietly declined to reattempt a thrown failure would show up nowhere else.
    */
   @Test
   public void aBugInsideARetriedStepFailsTheOperation() {
+    final var attempts = new AtomicInteger();
+    final var transactionManager = new TestTransactionManager();
     final var flow = new RecordingFlow<RepeatCounter<TestState>, String>();
     OperationAction.load(TestState.class, TestState::value)
         .then(
             OperationStep.<String, String>mapping(
                 ignored -> {
+                  attempts.incrementAndGet();
                   throw new UnsupportedOperationException("this plugin is not finished");
                 }))
         .then(OperationStatefulStep.repeatUntilSuccess(RETRY_DELAY, 1))
         .launch(new TestState("workflow-run"))
-        .launch(new TestOperation(), new TestTransactionManager(), flow);
+        .launch(new TestOperation(), transactionManager, flow);
+    // The first attempt and the one reattempt the budget allows; a retry that skipped the thrown
+    // failure would report the same error having run the step only once.
+    assertEquals("the throw should have been reattempted", 2, attempts.get());
+    assertEquals(List.of(RETRY_DELAY.toSeconds()), transactionManager.delays());
     // mapping catches its own transformer, so this is the ordinary error path rather than a guard.
     assertEquals(1, flow.errors().size());
     assertTrue(flow.errors().get(0), flow.errors().get(0).contains("this plugin is not finished"));

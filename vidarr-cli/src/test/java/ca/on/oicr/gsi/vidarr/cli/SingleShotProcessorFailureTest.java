@@ -235,14 +235,6 @@ public class SingleShotProcessorFailureTest {
     return metadata;
   }
 
-  private int occurrences(String needle) {
-    var count = 0;
-    for (var from = log().indexOf(needle); from >= 0; from = log().indexOf(needle, from + 1)) {
-      count++;
-    }
-    return count;
-  }
-
   private OutputProvisioningHandler<Void> recordingHandler() {
     return new OutputProvisioningHandler<>() {
       @Override
@@ -396,6 +388,11 @@ public class SingleShotProcessorFailureTest {
    * The case that was reported: the workflow ran to completion, and then provisioning out was set
    * up with output that did not match the declared type. Deciding what to provision happens inside
    * the callback that reports the workflow's success, so the resulting exception was invisible.
+   *
+   * <p>This is the failure that arrives after the operation has already been resolved. What the
+   * framework does about that — failing the operation once more without telling the phase again —
+   * is not visible from here, because a single-shot run only prints what the phase handler is told.
+   * It is covered in {@code BaseProcessorTerminalFlowTest} instead.
    */
   @Test
   public void workflowOutputOfTheWrongShapeFailsTheRun() throws Exception {
@@ -405,8 +402,6 @@ public class SingleShotProcessorFailureTest {
     // Failing is only half of it; the run has to say what went wrong.
     assertTrue(log(), log().contains("NullPointerException"));
     assertTrue(log(), log().contains("PrepareOutputProvisioning"));
-    // The operation is already resolved when this happens, so it must not be failed twice.
-    assertEquals(log(), 1, occurrences("Workflow operation failed"));
   }
 
   /** A plugin that throws while being set up must fail the run, not stall it. */

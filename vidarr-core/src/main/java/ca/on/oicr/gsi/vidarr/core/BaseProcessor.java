@@ -137,8 +137,12 @@ public abstract class BaseProcessor<
          * outstanding operations twice and resolve the phase before its siblings have finished.
          * Failing the operation is enough to resolve the run on its own, so nothing is lost.
          *
-         * Report only once: each FAILED is a fresh phase transition to the store, which releases
-         * the workflow run's consumable resources again. */
+         * Report only once: each FAILED is a fresh phase transition to the store, and the database
+         * store answers one by releasing every consumable resource the target holds for this run
+         * and rewriting the run's engine phase. Releasing twice costs nothing to any resource in
+         * this repository, which all release by removing an ID, but ConsumableResource is a plugin
+         * interface, and an implementation that releases by decrementing a count would be
+         * corrupted by the extra call. */
         if (reportedAfterFinish) {
           return;
         }

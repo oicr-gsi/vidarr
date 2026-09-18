@@ -227,6 +227,28 @@ public class OperationPermanentErrorForwardingTest {
     assertEquals(List.of(), transactionManager.delays());
   }
 
+  /**
+   * The reason the retry forwards rather than reports, stated in its own comment: an enclosing
+   * repeat must not start the futile cycle that the inner one has just declined to start.
+   *
+   * <p>Nesting also doubly wraps the state, so this is the only case where a {@link RepeatCounter}
+   * has to serialize inside another one.
+   */
+  @Test
+  public void aNestedRetryForwardsAPermanentErrorWithoutRetrying() {
+    final var transactionManager = new TestTransactionManager();
+    final var flow =
+        new RecordingFlow<RepeatCounter<RepeatCounter<TestState>>, HttpResponse<String>>();
+    refused()
+        .then(OperationStatefulStep.repeatUntilSuccess(DELAY, 3))
+        .then(OperationStatefulStep.repeatUntilSuccess(DELAY, 3))
+        .launch(new TestState("workflow-run"))
+        .launch(new TestOperation(), transactionManager, flow);
+    assertStillPermanent(flow);
+    assertEquals(
+        "neither repeat should have spent an attempt", List.of(), transactionManager.delays());
+  }
+
   /** A sub-step has to forward what the steps before it reported. */
   @Test
   public void aSubStepForwardsAPermanentErrorFromAboveIt() {

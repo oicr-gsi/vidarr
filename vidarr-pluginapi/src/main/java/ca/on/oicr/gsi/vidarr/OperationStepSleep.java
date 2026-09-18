@@ -20,6 +20,8 @@ final class OperationStepSleep<Result> extends OperationStep<Result, Result> {
       TransactionManager<TX> transactionManager,
       OperationControlFlow<State, Result> next) {
     transactionManager.scheduleTask(
-        duration.get(TimeUnit.SECONDS.toChronoUnit()), TimeUnit.SECONDS, () -> next.next(result));
+        duration.get(TimeUnit.SECONDS.toChronoUnit()),
+        TimeUnit.SECONDS,
+        () -> next.guard(() -> next.next(result)));
   }
 }

@@ -15,5 +15,10 @@ public enum SubmitMode {
    * workflow necessarily could schedule. It only checks that the input is well-formed and that
    * Víðarr would be willing to pass it to a workflow engine.
    */
-  VALIDATE
+  VALIDATE,
+  /**
+   * Validate the submission, and if a match is found, update the external keys associated with
+   * the workflow run.
+   */
+  UPDATE
 }

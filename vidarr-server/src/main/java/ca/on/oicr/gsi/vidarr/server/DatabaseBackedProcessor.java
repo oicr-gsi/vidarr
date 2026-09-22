@@ -153,6 +153,8 @@ public abstract class DatabaseBackedProcessor
     T unknownWorkflow(String name, String version);
 
     T unresolvedIds(TreeSet<String> inputId);
+
+    boolean updateKeys();
   }
 
   private static class BadRecoveryTracker {
@@ -1837,18 +1839,24 @@ public abstract class DatabaseBackedProcessor
                                                       missingKeys);
                                                 }
 
+                                                // Update the keys if it is called for
+                                                // (e.g. run or update mode)
+                                                if (handler.updateKeys()){
+                                                  addNewExternalKeyVersions(
+                                                      externalKeys,
+                                                      transaction,
+                                                      workflowRunId,
+                                                      knownMatches);
+                                                }
+
                                                 // Exit early if no launching is to occur (e.g. dry
-                                                // run or validate mode).
+                                                // run, update, or validate mode).
                                                 if (!handler.allowLaunch()) {
                                                   return handler.matchExisting(
                                                       candidates.getFirst().workflowRun());
                                                 }
 
-                                                addNewExternalKeyVersions(
-                                                    externalKeys,
-                                                    transaction,
-                                                    workflowRunId,
-                                                    knownMatches);
+
 
                                                 // If this workflow is active, but failed, and the
                                                 // attempt number is higher or this is a different

@@ -665,6 +665,11 @@ public final class Main implements ServerConfig {
                             .map(id -> String.format("Input ID %s cannot be resolved", id))
                             .collect(Collectors.toList())));
               }
+
+              @Override
+              public boolean updateKeys() {
+                return true;
+              }
             });
     exchange.setStatusCode(response.first());
     if (postCommitAction.get() != null) {
@@ -2730,6 +2735,11 @@ public final class Main implements ServerConfig {
                           inputId.stream()
                               .map(id -> String.format("Input ID %s cannot be resolved", id))
                               .collect(Collectors.toList())));
+                }
+
+                @Override
+                public boolean updateKeys(){
+                  return body.getMode() == SubmitMode.RUN || body.getMode() == SubmitMode.UPDATE;
                 }
               });
     }

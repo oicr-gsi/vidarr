@@ -7,11 +7,11 @@ import java.util.Objects;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class UnloadedData {
 
-  private List<ProvenanceWorkflowRun<ExternalMultiVersionKey>> workflowRuns;
+  private List<ProvenanceWorkflowRun<ExternalKey>> workflowRuns;
   private List<UnloadedWorkflowVersion> workflowVersions;
   private List<UnloadedWorkflow> workflows;
 
-  public List<ProvenanceWorkflowRun<ExternalMultiVersionKey>> getWorkflowRuns() {
+  public List<ProvenanceWorkflowRun<ExternalKey>> getWorkflowRuns() {
     return workflowRuns;
   }
 
@@ -23,7 +23,7 @@ public class UnloadedData {
     return workflows;
   }
 
-  public void setWorkflowRuns(List<ProvenanceWorkflowRun<ExternalMultiVersionKey>> workflowRuns) {
+  public void setWorkflowRuns(List<ProvenanceWorkflowRun<ExternalKey>> workflowRuns) {
     this.workflowRuns = workflowRuns;
   }
 

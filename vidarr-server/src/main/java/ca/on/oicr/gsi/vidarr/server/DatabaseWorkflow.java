@@ -613,17 +613,17 @@ public class DatabaseWorkflow implements ActiveWorkflow<DatabaseOperation, DSLCo
     this.requestedInputIds = requiredExternalIds;
     requiredExternalIds.stream()
         .map(
-            id ->
+            externalId ->
                 EXTERNAL_ID
                     .PROVIDER
-                    .eq(id.getProvider())
-                    .and(EXTERNAL_ID.EXTERNAL_ID_.eq(id.getId())))
+                    .eq(externalId.getProvider())
+                    .and(EXTERNAL_ID.EXTERNAL_ID_.eq(externalId.getId())))
         .reduce(Condition::or)
         .ifPresent(
             condition ->
                 dsl.update(EXTERNAL_ID)
                     .set(EXTERNAL_ID.REQUESTED, true)
-                    .where(condition)
+                    .where(EXTERNAL_ID.WORKFLOW_RUN_ID.eq(id).and(condition))
                     .execute());
   }
 

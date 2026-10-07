@@ -6,6 +6,20 @@ For unreleased changes, see [changes](changes).
 
 -----------------------------------------------------------------------------
 
+## [2.17.0] - 2026-10-07
+
+### Added
+
+* UPDATE mode for run submissions, updates external keys if matching workflow run is found,
+  otherwise does nothing
+
+### Fixed
+
+* OpenAPI documentation for vidarr-external-id filter
+* External ID `requested` values now updated only if they are assigned to the workflow run being started
+* Correct handling for failure to resolve input IDs
+
+
 ## [2.16.1] - 2026-09-01
 
 ### Fixed

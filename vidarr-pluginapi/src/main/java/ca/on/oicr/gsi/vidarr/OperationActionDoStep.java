@@ -70,6 +70,11 @@ final class OperationActionDoStep<State extends Record, OriginalState extends Re
           }
 
           @Override
+          public void permanentError(String error) {
+            flow.permanentError(error);
+          }
+
+          @Override
           public JsonNode serializeNestedState(State state) {
             return flow.serializeNestedState(state);
           }

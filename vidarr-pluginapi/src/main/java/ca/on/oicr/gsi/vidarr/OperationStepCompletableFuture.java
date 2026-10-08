@@ -17,12 +17,14 @@ final class OperationStepCompletableFuture<Value>
       TransactionManager<TX> transactionManager,
       OperationControlFlow<State, Value> next) {
     input.whenComplete(
-        (result, throwable) -> {
-          if (throwable == null) {
-            next.next(result);
-          } else {
-            next.error(throwable.getMessage());
-          }
-        });
+        (result, throwable) ->
+            next.guard(
+                () -> {
+                  if (throwable == null) {
+                    next.next(result);
+                  } else {
+                    next.error(OperationControlFlow.describe(throwable));
+                  }
+                }));
   }
 }

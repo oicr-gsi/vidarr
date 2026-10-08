@@ -23,7 +23,7 @@ final class OperationStepLog<Value> extends OperationStep<Value, Value> {
     try {
       operation.log(level, message.transform(input));
     } catch (Exception e) {
-      next.error(e.getMessage());
+      next.error(OperationControlFlow.describe(e));
       return;
     }
     next.next(input);

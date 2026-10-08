@@ -65,12 +65,17 @@ final class OperationStatefulStepDebugInfo<
             try {
               newDebugInfo = fetch.transform(nextState, value);
             } catch (Exception e) {
-              next.error(e.getMessage());
+              next.error(OperationControlFlow.describe(e));
               return;
             }
             transactionManager.inTransaction(
                 transaction -> operation.debugInfo(newDebugInfo, transaction));
             next.next(value);
+          }
+
+          @Override
+          public void permanentError(String error) {
+            next.permanentError(error);
           }
 
           @Override

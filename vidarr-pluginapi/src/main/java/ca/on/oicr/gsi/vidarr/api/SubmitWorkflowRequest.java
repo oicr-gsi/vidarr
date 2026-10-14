@@ -30,17 +30,18 @@ public final class SubmitWorkflowRequest {
       return false;
     }
     SubmitWorkflowRequest that = (SubmitWorkflowRequest) o;
-    return attempt == that.attempt && equalsIgnoreAttempt(that);
+    return attempt == that.attempt
+        && mode == that.mode
+        && equalsIgnoreAttemptAndMode(that);
   }
 
-  public boolean equalsIgnoreAttempt(SubmitWorkflowRequest that) {
+  public boolean equalsIgnoreAttemptAndMode(SubmitWorkflowRequest that) {
     return Objects.equals(arguments, that.arguments)
         && Objects.equals(consumableResources, that.consumableResources)
         && Objects.equals(engineParameters, that.engineParameters)
         && Objects.equals(externalKeys, that.externalKeys)
         && Objects.equals(labels, that.labels)
         && Objects.equals(metadata, that.metadata)
-        && mode == that.mode
         && Objects.equals(target, that.target)
         && Objects.equals(workflow, that.workflow)
         && Objects.equals(workflowVersion, that.workflowVersion);
@@ -92,10 +93,10 @@ public final class SubmitWorkflowRequest {
 
   @Override
   public int hashCode() {
-    return hashCodeIgnoreAttempt() * 31 + Integer.hashCode(attempt);
+    return hashCodeIgnoreAttemptAndMode() * 31 + Integer.hashCode(attempt);
   }
 
-  public int hashCodeIgnoreAttempt() {
+  public int hashCodeIgnoreAttemptAndMode() {
     return Objects.hash(
         arguments,
         consumableResources,
@@ -103,7 +104,6 @@ public final class SubmitWorkflowRequest {
         externalKeys,
         labels,
         metadata,
-        mode,
         target,
         workflow,
         workflowVersion);

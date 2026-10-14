@@ -3,6 +3,10 @@ package ca.on.oicr.gsi.vidarr.oncoanalyser;
 import ca.on.oicr.gsi.Pair;
 import ca.on.oicr.gsi.status.SectionRenderer;
 import ca.on.oicr.gsi.vidarr.*;
+import com.google.auth.oauth2.GoogleCredentials;
+import com.google.cloud.storage.Storage;
+import com.google.cloud.storage.StorageOptions;
+import java.io.IOException;
 import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.SerializationFeature;
@@ -28,6 +32,8 @@ public class OncoAnalyserWorkflowEngine implements WorkflowEngine<StateUnstarted
                     .build();
 
     private String statusBucket, metadataBucket, manifestBucket;
+    private GoogleCredentials creds;
+    private Storage storage;
 
     @Override
     public OperationAction<?, CleanupState, Void> cleanup() {
@@ -58,7 +64,12 @@ public class OncoAnalyserWorkflowEngine implements WorkflowEngine<StateUnstarted
 
     @Override
     public void startup() {
-
+      try {
+        creds = GoogleCredentials.getApplicationDefault();
+        storage = StorageOptions.newBuilder().setCredentials(creds).build().getService();
+      } catch (IOException e) {
+        throw new RuntimeException(e); // TODO do better
+      }
     }
 
     @Override

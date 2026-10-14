@@ -6,8 +6,12 @@ module vidarr.oncoanalyser {
     requires java.xml;
     requires tools.jackson.databind;
     requires com.fasterxml.jackson.annotation;
+  requires google.cloud.storage;
+  requires google.cloud.core;
+  requires com.google.auth;
+  requires com.google.auth.oauth2;
 
-    provides WorkflowEngineProvider
+  provides WorkflowEngineProvider
             with OncoAnalyserWorkflowEngine;
 
     opens ca.on.oicr.gsi.vidarr.oncoanalyser.submission to tools.jackson.databind;

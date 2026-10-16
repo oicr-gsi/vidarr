@@ -1,6 +1,7 @@
 package ca.on.oicr.gsi.vidarr.api;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Map;
@@ -29,7 +30,11 @@ public class WorkflowRunStatusResponse {
   private ZonedDateTime started;
   private String target;
   private Map<String, Long> tracing;
+  private String workflowName;
+  private String workflowVersion;
   private String workflowRunUrl;
+  @JsonProperty("waiting_resource")
+  private String waitingResource;
 
   public ObjectNode getArguments() {
     return arguments;
@@ -103,9 +108,15 @@ public class WorkflowRunStatusResponse {
     return tracing;
   }
 
+  public String getWorkflowName() { return workflowName; }
+
+  public String getWorkflowVersion() { return workflowVersion; }
+
   public String getWorkflowRunUrl() {
     return workflowRunUrl;
   }
+
+  public String getWaitingResource() { return waitingResource; }
 
   public boolean isRunning() {
     return running;
@@ -187,7 +198,13 @@ public class WorkflowRunStatusResponse {
     this.tracing = tracing;
   }
 
+  public void setWorkflowName(String workflowName) { this.workflowName = workflowName; }
+
+  public void setWorkflowVersion(String workflowVersion) { this.workflowVersion = workflowVersion; }
+
   public void setWorkflowRunUrl(String workflowRunUrl) {
     this.workflowRunUrl = workflowRunUrl;
   }
+
+  public void setWaitingResource(String waitingResource) { this.waitingResource = waitingResource; }
 }

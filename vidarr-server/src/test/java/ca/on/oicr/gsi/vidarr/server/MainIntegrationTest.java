@@ -5,11 +5,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.*;
 
-import ca.on.oicr.gsi.vidarr.api.ExternalMultiVersionKey;
-import ca.on.oicr.gsi.vidarr.api.ProvenanceWorkflowRun;
-import ca.on.oicr.gsi.vidarr.api.UnloadedData;
-import ca.on.oicr.gsi.vidarr.api.WorkflowDeclaration;
-import ca.on.oicr.gsi.vidarr.api.WorkflowResponse;
+import ca.on.oicr.gsi.vidarr.api.*;
 import ca.on.oicr.gsi.vidarr.core.Phase;
 import ca.on.oicr.gsi.vidarr.server.dto.ServerConfiguration;
 import io.restassured.RestAssured;
@@ -28,15 +24,7 @@ import java.sql.SQLException;
 import java.text.ParseException;
 import java.time.Instant;
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.TimeZone;
+import java.util.*;
 import java.util.stream.Collectors;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.configuration.FluentConfiguration;
@@ -1146,13 +1134,13 @@ public class MainIntegrationTest {
   @Test
   public void whenGetAllWorkflowStatuses_thenStatusesForAllWorkflowsAreReturned() {
     String response = get("/api/status").then().assertThat().statusCode(200).extract().asString();
-    List<Map<String, Object>> statuses = MAPPER.readValue(response, new TypeReference<>() {});
+    List<WorkflowRunStatusResponse> statuses = MAPPER.readValue(response, new TypeReference<>() {});
     assertThat(statuses.size(), equalTo(3));
-    Map<String, Object> firstStatus = statuses.getFirst();
-    assertThat(firstStatus.get("completed"), nullValue());
-    assertThat(firstStatus.get("operationStatus"), equalTo("N/A"));
-    assertThat(firstStatus.get("waiting_resource"), equalTo("prometheus-alert-manager"));
-    assertThat(firstStatus.get("enginePhase"), equalTo(Phase.WAITING_FOR_RESOURCES.toString()));
+    WorkflowRunStatusResponse firstStatus = statuses.getFirst();
+    assertThat(firstStatus.getCompleted(), nullValue());
+    assertThat(firstStatus.getOperationStatus(), equalTo("N/A"));
+    assertThat(firstStatus.getWaitingResource(), equalTo("prometheus-alert-manager"));
+    assertThat(firstStatus.getEnginePhase(), equalTo(Phase.WAITING_FOR_RESOURCES.toString()));
   }
 
   @Test

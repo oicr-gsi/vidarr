@@ -1,50 +1,16 @@
 package ca.on.oicr.gsi.vidarr.server;
 
 import static ca.on.oicr.gsi.vidarr.core.BaseProcessor.hexDigits;
-import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.ACTIVE_OPERATION;
-import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.ACTIVE_WORKFLOW_RUN;
-import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.ANALYSIS;
-import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.ANALYSIS_EXTERNAL_ID;
-import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.EXTERNAL_ID;
-import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.EXTERNAL_ID_VERSION;
-import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.WORKFLOW;
-import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.WORKFLOW_DEFINITION;
-import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.WORKFLOW_RUN;
-import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.WORKFLOW_VERSION;
-import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.WORKFLOW_VERSION_ACCESSORY;
+import static ca.on.oicr.gsi.vidarr.server.jooq.Tables.*;
 import static org.jooq.impl.DSL.jsonObject;
 import static org.jooq.impl.DSL.param;
 
 import ca.on.oicr.gsi.Pair;
 import ca.on.oicr.gsi.prometheus.LatencyHistogram;
-import ca.on.oicr.gsi.status.ConfigurationSection;
-import ca.on.oicr.gsi.status.Header;
-import ca.on.oicr.gsi.status.NavigationMenu;
-import ca.on.oicr.gsi.status.SectionRenderer;
-import ca.on.oicr.gsi.status.ServerConfig;
-import ca.on.oicr.gsi.status.StatusPage;
-import ca.on.oicr.gsi.vidarr.BasicType;
-import ca.on.oicr.gsi.vidarr.ConsumableResource;
-import ca.on.oicr.gsi.vidarr.InputProvisionFormat;
-import ca.on.oicr.gsi.vidarr.InputProvisioner;
-import ca.on.oicr.gsi.vidarr.InputType;
-import ca.on.oicr.gsi.vidarr.JsonBodyHandler;
-import ca.on.oicr.gsi.vidarr.JsonPost;
-import ca.on.oicr.gsi.vidarr.OperationStatus;
-import ca.on.oicr.gsi.vidarr.OutputProvisionFormat;
-import ca.on.oicr.gsi.vidarr.OutputProvisioner;
-import ca.on.oicr.gsi.vidarr.OutputType;
-import ca.on.oicr.gsi.vidarr.RuntimeProvisioner;
-import ca.on.oicr.gsi.vidarr.UnloadFilter;
-import ca.on.oicr.gsi.vidarr.WorkflowEngine;
-import ca.on.oicr.gsi.vidarr.WorkflowLanguage;
+import ca.on.oicr.gsi.status.*;
+import ca.on.oicr.gsi.vidarr.*;
 import ca.on.oicr.gsi.vidarr.api.*;
-import ca.on.oicr.gsi.vidarr.core.BaseProcessor;
-import ca.on.oicr.gsi.vidarr.core.ExtractInputVidarrIds;
-import ca.on.oicr.gsi.vidarr.core.FileMetadata;
-import ca.on.oicr.gsi.vidarr.core.ManualOverrideConsumableResource;
-import ca.on.oicr.gsi.vidarr.core.Phase;
-import ca.on.oicr.gsi.vidarr.core.Target;
+import ca.on.oicr.gsi.vidarr.core.*;
 import ca.on.oicr.gsi.vidarr.server.DatabaseBackedProcessor.DeleteResultHandler;
 import ca.on.oicr.gsi.vidarr.server.dto.ServerConfiguration;
 import ca.on.oicr.gsi.vidarr.server.jooq.tables.ExternalIdVersion;
@@ -91,24 +57,9 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.sql.Connection;
 import java.sql.SQLException;
-import java.time.Duration;
-import java.time.Instant;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.EnumSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.time.*;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
-import java.util.TreeMap;
-import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -123,21 +74,8 @@ import java.util.stream.Stream;
 import javax.xml.stream.XMLStreamException;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.configuration.FluentConfiguration;
-import org.jooq.Condition;
-import org.jooq.Configuration;
-import org.jooq.DSLContext;
-import org.jooq.Field;
-import org.jooq.InsertValuesStep2;
-import org.jooq.InsertValuesStep3;
-import org.jooq.JSON;
-import org.jooq.JSONB;
-import org.jooq.JSONEntry;
-import org.jooq.JSONObjectNullStep;
-import org.jooq.Record1;
-import org.jooq.Record2;
-import org.jooq.Result;
-import org.jooq.SQLDialect;
-import org.jooq.Table;
+import org.jooq.*;
+import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 import org.jooq.impl.SQLDataType;
 import org.postgresql.ds.PGSimpleDataSource;
@@ -232,6 +170,8 @@ public final class Main implements ServerConfig {
                 .otherwise(DSL.inline("WAITING"))));
     STATUS_FIELDS.add(literalJsonEntry("created", WORKFLOW_RUN.CREATED));
     STATUS_FIELDS.add(literalJsonEntry("id", WORKFLOW_RUN.HASH_ID));
+    STATUS_FIELDS.add(literalJsonEntry("workflowName", WORKFLOW_VERSION.NAME));
+    STATUS_FIELDS.add(literalJsonEntry("workflowVersion", WORKFLOW_VERSION.VERSION));
     STATUS_FIELDS.add(literalJsonEntry("inputFiles", WORKFLOW_RUN.INPUT_FILE_IDS));
     STATUS_FIELDS.add(literalJsonEntry("labels", WORKFLOW_RUN.LABELS));
     STATUS_FIELDS.add(literalJsonEntry("modified", WORKFLOW_RUN.MODIFIED));
@@ -1542,7 +1482,9 @@ public final class Main implements ServerConfig {
           .from(
               WORKFLOW_RUN
                   .leftJoin(ACTIVE_WORKFLOW_RUN)
-                  .on(WORKFLOW_RUN.ID.eq(ACTIVE_WORKFLOW_RUN.ID)))
+                  .on(WORKFLOW_RUN.ID.eq(ACTIVE_WORKFLOW_RUN.ID))
+                      .join(WORKFLOW_VERSION)
+                      .on(WORKFLOW_RUN.WORKFLOW_VERSION_ID.eq(WORKFLOW_VERSION.ID)))
           .where(ACTIVE_WORKFLOW_RUN.ID.isNotNull())
           .forEach(
               result -> {
@@ -1733,7 +1675,9 @@ public final class Main implements ServerConfig {
           .from(
               WORKFLOW_RUN
                   .leftJoin(ACTIVE_WORKFLOW_RUN)
-                  .on(WORKFLOW_RUN.ID.eq(ACTIVE_WORKFLOW_RUN.ID)))
+                  .on(WORKFLOW_RUN.ID.eq(ACTIVE_WORKFLOW_RUN.ID))
+                      .join(WORKFLOW_VERSION)
+                      .on(WORKFLOW_RUN.WORKFLOW_VERSION_ID.eq(WORKFLOW_VERSION.ID)))
           .where(WORKFLOW_RUN.HASH_ID.eq(param("vidarrId", vidarrId)))
           .fetchOptional(Record1::value1)
           .ifPresentOrElse(

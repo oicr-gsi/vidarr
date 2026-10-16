@@ -824,7 +824,7 @@ public class MainIntegrationTest {
             .extract()
             .body()
             .as(ProvenanceResponse.class)
-            .getResults();
+            .results();
     Set<JsonNode> externalKeysList =
         response.stream().map(r -> r.get("externalKeys")).collect(Collectors.toSet());
 
@@ -862,7 +862,7 @@ public class MainIntegrationTest {
             .extract()
             .body()
             .as(ProvenanceResponse.class)
-            .getResults();
+            .results();
     Set<JsonNode> externalKeysList =
         results.stream().map(r -> r.get("externalKeys")).collect(Collectors.toSet());
 
@@ -898,7 +898,7 @@ public class MainIntegrationTest {
             .extract()
             .body()
             .as(ProvenanceResponse.class)
-            .getResults();
+            .results();
     Set<JsonNode> externalKeysList =
         response.stream().map(r -> r.get("externalKeys")).collect(Collectors.toSet());
 
@@ -940,7 +940,7 @@ public class MainIntegrationTest {
             .extract()
             .body()
             .as(ProvenanceResponse.class)
-            .getResults();
+            .results();
     Set<JsonNode> externalKeysList =
         results.stream().map(r -> r.get("externalKeys")).collect(Collectors.toSet());
     externalKeysList.forEach(
@@ -970,7 +970,7 @@ public class MainIntegrationTest {
             .extract()
             .body()
             .as(ProvenanceResponse.class)
-            .getResults();
+            .results();
     Set<JsonNode> externalKeysList =
         results.stream().map(r -> r.get("externalKeys")).collect(Collectors.toSet());
     externalKeysList.forEach(
@@ -1000,7 +1000,7 @@ public class MainIntegrationTest {
             .extract()
             .body()
             .as(ProvenanceResponse.class)
-            .getResults()
+            .results()
             .size();
 
     Instant endTime = Instant.ofEpochMilli(1577836860000L); // 2020-01-01 00:01:00
@@ -1062,7 +1062,7 @@ public class MainIntegrationTest {
             .extract()
             .body()
             .as(ProvenanceResponse.class)
-            .getResults();
+            .results();
     assertTrue(
         allResults.stream().anyMatch(r -> targetWorkflow.equals(r.get("workflowName").asText())));
 
@@ -1081,7 +1081,7 @@ public class MainIntegrationTest {
             .extract()
             .body()
             .as(ProvenanceResponse.class)
-            .getResults();
+            .results();
     assertNotEquals(allResults.size(), resultsMissingExcluded.size());
     assertTrue(
         resultsMissingExcluded.stream()
@@ -1999,36 +1999,5 @@ public class MainIntegrationTest {
     return requestBody;
   }
 
-  private static class ProvenanceResponse {
-
-    public ProvenanceResponse() {}
-
-    long epoch;
-    List<JsonNode> results;
-    long timestamp;
-
-    public long getEpoch() {
-      return epoch;
-    }
-
-    public List<JsonNode> getResults() {
-      return results;
-    }
-
-    public long getTimestamp() {
-      return timestamp;
-    }
-
-    public void setEpoch(long epoch) {
-      this.epoch = epoch;
-    }
-
-    public void setResults(List<JsonNode> results) {
-      this.results = results;
-    }
-
-    public void setTimestamp(long timestamp) {
-      this.timestamp = timestamp;
-    }
-  }
+  private record ProvenanceResponse(long epoch, List<JsonNode> results, long timestamp) { }
 }

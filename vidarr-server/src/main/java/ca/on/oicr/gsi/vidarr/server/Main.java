@@ -3148,7 +3148,7 @@ public final class Main implements ServerConfig {
         new GetIdsForDownstreamWorkflowRuns();
     return DSL.using(configuration)
         .select()
-        .from(getIdsForDownstreamWorkflowRuns.call(wfr))
+        .from(getIdsForDownstreamWorkflowRuns.call(wfr, selfName))
         .fetch()
         .intoMap(
             getIdsForDownstreamWorkflowRuns.WFR_ID, getIdsForDownstreamWorkflowRuns.ENGINE_PHASE);

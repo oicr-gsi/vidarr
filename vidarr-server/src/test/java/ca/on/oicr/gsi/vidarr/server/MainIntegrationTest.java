@@ -824,7 +824,7 @@ public class MainIntegrationTest {
             .extract()
             .body()
             .as(ProvenanceResponse.class)
-            .getResults();
+            .results();
     Set<JsonNode> externalKeysList =
         response.stream().map(r -> r.get("externalKeys")).collect(Collectors.toSet());
 
@@ -862,7 +862,7 @@ public class MainIntegrationTest {
             .extract()
             .body()
             .as(ProvenanceResponse.class)
-            .getResults();
+            .results();
     Set<JsonNode> externalKeysList =
         results.stream().map(r -> r.get("externalKeys")).collect(Collectors.toSet());
 
@@ -898,7 +898,7 @@ public class MainIntegrationTest {
             .extract()
             .body()
             .as(ProvenanceResponse.class)
-            .getResults();
+            .results();
     Set<JsonNode> externalKeysList =
         response.stream().map(r -> r.get("externalKeys")).collect(Collectors.toSet());
 
@@ -940,7 +940,7 @@ public class MainIntegrationTest {
             .extract()
             .body()
             .as(ProvenanceResponse.class)
-            .getResults();
+            .results();
     Set<JsonNode> externalKeysList =
         results.stream().map(r -> r.get("externalKeys")).collect(Collectors.toSet());
     externalKeysList.forEach(
@@ -970,7 +970,7 @@ public class MainIntegrationTest {
             .extract()
             .body()
             .as(ProvenanceResponse.class)
-            .getResults();
+            .results();
     Set<JsonNode> externalKeysList =
         results.stream().map(r -> r.get("externalKeys")).collect(Collectors.toSet());
     externalKeysList.forEach(
@@ -1000,7 +1000,7 @@ public class MainIntegrationTest {
             .extract()
             .body()
             .as(ProvenanceResponse.class)
-            .getResults()
+            .results()
             .size();
 
     Instant endTime = Instant.ofEpochMilli(1577836860000L); // 2020-01-01 00:01:00
@@ -1062,7 +1062,7 @@ public class MainIntegrationTest {
             .extract()
             .body()
             .as(ProvenanceResponse.class)
-            .getResults();
+            .results();
     assertTrue(
         allResults.stream().anyMatch(r -> targetWorkflow.equals(r.get("workflowName").asText())));
 
@@ -1081,7 +1081,7 @@ public class MainIntegrationTest {
             .extract()
             .body()
             .as(ProvenanceResponse.class)
-            .getResults();
+            .results();
     assertNotEquals(allResults.size(), resultsMissingExcluded.size());
     assertTrue(
         resultsMissingExcluded.stream()
@@ -1494,6 +1494,87 @@ public class MainIntegrationTest {
     assertThat(
         unloaded.getList("workflowRuns.findAll { it.workflowName == \"fastqc\" }").size(),
         equalTo(1));
+  }
+
+  @Test
+  public void whenUnloadUpstreamWorkflowRun_thenOnlyDownstreamRunsUsingThisInstanceAreUnloaded()
+      throws SQLException {
+    String bcl2fastqWorkflowRunId =
+        "6a3f7102a71043c7717f9f0bdc656ef14b35c92d3cf0df9e9095afa0f9a7acab";
+    String selfInstanceDownstreamId =
+        "1111111111111111111111111111111111111111111111111111111111111111";
+    String otherInstanceDownstreamId =
+        "2222222222222222222222222222222222222222222222222222222222222222";
+    // Both reference files produced by the bcl2fastq run, but only one through this instance
+    insertWorkflowRunCopy(
+        "e268e7206776f44a1b438a650bbc4b26bfec46448c4825043b2cf15270f5fffc",
+        selfInstanceDownstreamId,
+        "vidarr:"
+            + config.getName()
+            + "/file/a508bb9a7bae5562fdf20fbd222936fa77b9c1313f4e5ec507041e72fed808e1");
+    insertWorkflowRunCopy(
+        "e268e7206776f44a1b438a650bbc4b26bfec46448c4825043b2cf15270f5fffc",
+        otherInstanceDownstreamId,
+        "vidarr:not-this-server/file/9d25f1a647b3a1e2555fdf34f057b7334497a69b14e7bbf9f5618b875bdb32a0");
+
+    ObjectNode unloadFilter = MAPPER.createObjectNode();
+    unloadFilter.put("recursive", true);
+    ArrayNode workflowRunIds = MAPPER.createArrayNode();
+    workflowRunIds.add(bcl2fastqWorkflowRunId);
+    ObjectNode filterType = MAPPER.createObjectNode();
+    filterType.put("type", "vidarr-workflow-run-id");
+    filterType.set("id", workflowRunIds);
+    unloadFilter.set("filter", filterType);
+
+    JsonPath res =
+        given()
+            .contentType(ContentType.JSON)
+            .body(unloadFilter)
+            .when()
+            .post("/api/unload")
+            .then()
+            .assertThat()
+            .statusCode(200)
+            .and()
+            .extract()
+            .jsonPath();
+    String unloadFileName = res.get("filename").toString();
+    String unloadedFilePath = unloadDirectory.getRoot().getAbsolutePath() + "/" + unloadFileName;
+
+    JsonPath unloaded = JsonPath.from(new File(unloadedFilePath));
+    assertThat(
+        unloaded.getList("workflowRuns.id"),
+        containsInAnyOrder(
+            bcl2fastqWorkflowRunId,
+            // downstream via vidarr:_/file/...
+            "e268e7206776f44a1b438a650bbc4b26bfec46448c4825043b2cf15270f5fffc",
+            "66a6c5f02112ba6faf2f3ef8ee2a9076ae2a46b2368035fddb72202b555f1fb9",
+            selfInstanceDownstreamId));
+    // assert that the workflow run containing input files from not-this-server was not unloaded
+    get("/api/run/{hash}", otherInstanceDownstreamId).then().assertThat().statusCode(200);
+  }
+
+  private static void insertWorkflowRunCopy(String sourceHashId, String hashId, String inputFileId)
+      throws SQLException {
+    final PGSimpleDataSource simpleConnection = new PGSimpleDataSource();
+    simpleConnection.setServerNames(new String[] {config.getDbHost()});
+    simpleConnection.setPortNumbers(new int[] {config.getDbPort()});
+    simpleConnection.setDatabaseName(config.getDbName());
+    simpleConnection.setUser(config.getDbUser());
+    simpleConnection.setPassword(config.getDbPass());
+    try (final var connection = simpleConnection.getConnection();
+        final var statement =
+            connection.prepareStatement(
+                "INSERT INTO workflow_run (arguments, completed, created, engine_parameters,"
+                    + " hash_id, input_file_ids, labels, last_accessed, metadata, modified,"
+                    + " started, workflow_version_id) SELECT arguments, completed, created,"
+                    + " engine_parameters, ?, ARRAY[?]::varchar[], labels, last_accessed, metadata,"
+                    + " modified, started, workflow_version_id FROM workflow_run WHERE hash_id = ?")) {
+      statement.setString(1, hashId);
+      statement.setString(2, inputFileId);
+      statement.setString(3, sourceHashId);
+      assertEquals(1, statement.executeUpdate());
+    }
   }
 
   @Test
@@ -1918,36 +1999,5 @@ public class MainIntegrationTest {
     return requestBody;
   }
 
-  private static class ProvenanceResponse {
-
-    public ProvenanceResponse() {}
-
-    long epoch;
-    List<JsonNode> results;
-    long timestamp;
-
-    public long getEpoch() {
-      return epoch;
-    }
-
-    public List<JsonNode> getResults() {
-      return results;
-    }
-
-    public long getTimestamp() {
-      return timestamp;
-    }
-
-    public void setEpoch(long epoch) {
-      this.epoch = epoch;
-    }
-
-    public void setResults(List<JsonNode> results) {
-      this.results = results;
-    }
-
-    public void setTimestamp(long timestamp) {
-      this.timestamp = timestamp;
-    }
-  }
+  private record ProvenanceResponse(long epoch, List<JsonNode> results, long timestamp) { }
 }

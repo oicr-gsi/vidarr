@@ -1493,7 +1493,10 @@ public class MainIntegrationTest {
         "1111111111111111111111111111111111111111111111111111111111111111";
     String otherInstanceDownstreamId =
         "2222222222222222222222222222222222222222222222222222222222222222";
-    // Both reference files produced by the bcl2fastq run, but only one through this instance
+    // Both reference files with the same hashes as the files produced by the bcl2fastq run,
+    // but one workflow run refers to a file stored in this instance. The other file is in
+    // a foreign Vidarr instance, and the workflow run referencing this foreign file should
+    // not be a target for recursive unloading.
     insertWorkflowRunCopy(
         "e268e7206776f44a1b438a650bbc4b26bfec46448c4825043b2cf15270f5fffc",
         selfInstanceDownstreamId,

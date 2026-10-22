@@ -66,7 +66,8 @@ final class OperationStatefulStepRepeatUntilSuccess<
               transactionManager.scheduleTask(
                   delay.get(TimeUnit.SECONDS.toChronoUnit()),
                   TimeUnit.SECONDS,
-                  () -> run(input, nextState, operation, transactionManager, next));
+                  () ->
+                      next.guard(() -> run(input, nextState, operation, transactionManager, next)));
             } else {
               next.error(error);
             }
@@ -80,6 +81,14 @@ final class OperationStatefulStepRepeatUntilSuccess<
             } else {
               next.cancel();
             }
+          }
+
+          @Override
+          public void permanentError(String error) {
+            /* The step has told us that repeating the work cannot change the outcome, so spending
+             * the rest of the retry budget on it would only delay the report. Pass it on as
+             * permanent so that an enclosing repeat does not start the same futile cycle. */
+            next.permanentError(error);
           }
 
           @Override

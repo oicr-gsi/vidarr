@@ -90,6 +90,11 @@ final class OperationActionBranch<Output>
           }
 
           @Override
+          public void permanentError(String error) {
+            next.permanentError(error);
+          }
+
+          @Override
           public JsonNode serializeNestedState(InnerState innerState) {
             return next.serializeNestedState(new BranchState(name, MAPPER.valueToTree(innerState)));
           }

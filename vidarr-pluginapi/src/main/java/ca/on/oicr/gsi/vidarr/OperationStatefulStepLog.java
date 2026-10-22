@@ -67,11 +67,16 @@ final class OperationStatefulStepLog<State extends Record, OriginalState extends
             try {
               message = fetch.transform(nextState, value);
             } catch (Exception e) {
-              next.error(e.getMessage());
+              next.error(OperationControlFlow.describe(e));
               return;
             }
             operation.log(level, message);
             next.next(value);
+          }
+
+          @Override
+          public void permanentError(String error) {
+            next.permanentError(error);
           }
 
           @Override

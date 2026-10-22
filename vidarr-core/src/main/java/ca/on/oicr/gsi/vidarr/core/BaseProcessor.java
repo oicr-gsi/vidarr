@@ -54,12 +54,32 @@ public abstract class BaseProcessor<
 
   @Override
   public final void scheduleTask(Runnable task) {
-    executor.execute(task);
+    executor.execute(reportFailures(task));
   }
 
   @Override
   public final void scheduleTask(long delay, TimeUnit units, Runnable task) {
-    executor.schedule(task, delay, units);
+    executor.schedule(reportFailures(task), delay, units);
+  }
+
+  /**
+   * Wrap a task so that a failure is reported rather than discarded
+   *
+   * <p>{@link ScheduledExecutorService} wraps every task in a future that nothing here observes, so
+   * an exception that escapes a task is otherwise lost without a trace. Tasks that belong to an
+   * operation should already have been wrapped in {@link OperationControlFlow#guard(Runnable)} by
+   * the step that scheduled them, which fails that operation; this is the last line of defence for
+   * everything else.
+   */
+  private Runnable reportFailures(Runnable task) {
+    return () -> {
+      try {
+        task.run();
+      } catch (Throwable e) {
+        e.printStackTrace();
+        throw e;
+      }
+    };
   }
 
   private interface PhaseManager<W, R, N, PO> {
@@ -90,6 +110,7 @@ public abstract class BaseProcessor<
     private boolean finished;
     private final PO operation;
     private final TerminalHandler<Output> handler;
+    private boolean reportedAfterFinish;
 
     TerminalOperationControlFlow(PO operation, TerminalHandler<Output> handler) {
       this.operation = operation;
@@ -104,7 +125,35 @@ public abstract class BaseProcessor<
     @Override
     public void error(String error) {
       if (finished) {
-        throw new IllegalStateException("Operation is already complete.");
+        /* The operation has already been resolved, so this failure happened while wrapping it up:
+         * serializing the result, or starting the next phase. There is no operation left to fail,
+         * but the workflow run cannot continue either, so mark the operation as failed anyway.
+         * Both backing stores turn that into a failed workflow run, which is what stops the run
+         * from waiting forever for a phase that will never start.
+         *
+         * The phase's handler is deliberately left out of it. It has already been told how this
+         * operation turned out, and both handlers that track anything share one countdown between
+         * succeeded() and failed(), so a second call would take this operation off the list of
+         * outstanding operations twice and resolve the phase before its siblings have finished.
+         * Failing the operation is enough to resolve the run on its own, so nothing is lost.
+         *
+         * Report only once: each FAILED is a fresh phase transition to the store, and the database
+         * store answers one by releasing every consumable resource the target holds for this run
+         * and rewriting the run's engine phase. Releasing twice costs nothing to any resource in
+         * this repository, which all release by removing an ID, but ConsumableResource is a plugin
+         * interface, and an implementation that releases by decrementing a count would be
+         * corrupted by the extra call. */
+        if (reportedAfterFinish) {
+          return;
+        }
+        reportedAfterFinish = true;
+        inTransaction(
+            transaction -> {
+              operation.error(error, transaction);
+              operation.log(Level.ERROR, error);
+              operation.status(OperationStatus.FAILED, transaction);
+            });
+        return;
       }
       finished = true;
       inTransaction(

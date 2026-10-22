@@ -6,6 +6,23 @@ For unreleased changes, see [changes](changes).
 
 -----------------------------------------------------------------------------
 
+## [2.18.0] - 2026-10-22
+
+### Added
+
+* Java API change: add `workflowName` and `workflowVersion` to workflow run status response
+
+### Changed
+
+* Java API: all fields in UnloadFilterExternalId and UnloadFilterWorkflowLabel are now required
+
+### Fixed
+
+* Recursive unloads now only apply when the upstream input file is from the same
+  Vidarr instance. (Previously, workflow run recursive unloads would also match
+  on input files with the same file ID from other Vidarr instances)
+
+
 ## [2.17.0] - 2026-10-07
 
 ### Added

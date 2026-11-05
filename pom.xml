@@ -182,6 +182,11 @@
         <version>4.13.2</version>
         <scope>test</scope>
       </dependency>
+      <dependency>
+        <groupId>com.google.cloud</groupId>
+        <artifactId>google-cloud-storage</artifactId>
+        <version>2.43.1</version>
+      </dependency>
     </dependencies>
   </dependencyManagement>
   <distributionManagement>
@@ -205,6 +210,7 @@
     <module>vidarr-cli</module>
     <module>vidarr-prometheus</module>
     <module>vidarr-cardea</module>
+      <module>vidarr-oncoanalyser</module>
   </modules>
   <build>
     <plugins>

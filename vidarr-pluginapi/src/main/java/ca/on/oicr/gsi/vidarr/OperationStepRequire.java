@@ -24,7 +24,7 @@ final class OperationStepRequire<Result> extends OperationStep<Result, Result> {
     try {
       wasSuccess = success.test(result);
     } catch (Exception e) {
-      next.error(e.getMessage());
+      next.error(OperationControlFlow.describe(e));
       return;
     }
     if (wasSuccess) {

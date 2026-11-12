@@ -56,7 +56,7 @@ final class OperationActionLoad<State extends Record, Result>
     try {
       value = loader.prepare(state);
     } catch (Exception e) {
-      flow.error(e.getMessage());
+      flow.error(OperationControlFlow.describe(e));
       return;
     }
     flow.next(value);

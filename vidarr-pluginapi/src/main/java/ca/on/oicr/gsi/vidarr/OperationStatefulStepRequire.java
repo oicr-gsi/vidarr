@@ -67,7 +67,7 @@ final class OperationStatefulStepRequire<State extends Record, OriginalState ext
             try {
               check = predicate.test(nextState, value);
             } catch (Exception e) {
-              next.error(e.getMessage());
+              next.error(OperationControlFlow.describe(e));
               return;
             }
             if (check) {
@@ -76,6 +76,11 @@ final class OperationStatefulStepRequire<State extends Record, OriginalState ext
             } else {
               next.error(failureMessage);
             }
+          }
+
+          @Override
+          public void permanentError(String error) {
+            next.permanentError(error);
           }
 
           @Override

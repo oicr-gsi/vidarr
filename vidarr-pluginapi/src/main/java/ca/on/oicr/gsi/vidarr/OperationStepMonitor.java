@@ -27,7 +27,7 @@ final class OperationStepMonitor<Value> extends OperationStep<Value, Value> {
         counter.labels(labels).inc();
       }
     } catch (Exception e) {
-      next.error(e.getMessage());
+      next.error(OperationControlFlow.describe(e));
       return;
     }
     next.next(input);

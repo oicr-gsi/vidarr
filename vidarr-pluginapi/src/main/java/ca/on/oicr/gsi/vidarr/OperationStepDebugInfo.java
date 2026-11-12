@@ -21,7 +21,7 @@ final class OperationStepDebugInfo<Value> extends OperationStep<Value, Value> {
     try {
       newDebugInfo = debugInfo.transform(input);
     } catch (Exception e) {
-      next.error(e.getMessage());
+      next.error(OperationControlFlow.describe(e));
       return;
     }
     transactionManager.inTransaction(tx -> operation.debugInfo(newDebugInfo, tx));

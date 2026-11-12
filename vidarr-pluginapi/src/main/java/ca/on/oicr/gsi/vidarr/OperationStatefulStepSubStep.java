@@ -84,6 +84,11 @@ final class OperationStatefulStepSubStep<
                       }
 
                       @Override
+                      public void permanentError(String error) {
+                        next.permanentError(error);
+                      }
+
+                      @Override
                       public JsonNode serializeNestedState(SubState subState) {
                         return next.serializeNestedState(
                             new Child<>(Optional.of(subState), state.state()));
@@ -116,25 +121,41 @@ final class OperationStatefulStepSubStep<
                         try {
                           originalSubState = spawn.transform(state.state(), value);
                         } catch (Exception e) {
-                          next.error(e.getMessage());
+                          next.error(OperationControlFlow.describe(e));
                           return;
                         }
                         transactionManager.scheduleTask(
-                            () -> {
-                              if (!operation.isLive()) {
-                                next.cancel();
-                                return;
-                              }
-                              final var nextState =
-                                  new Child<>(
-                                      Optional.of(subtask.buildState(originalSubState)),
-                                      state.state());
-                              final var recoveryState = next.serializeNestedState(nextState);
-                              transactionManager.inTransaction(
-                                  tx -> operation.recoveryState(recoveryState, tx));
-                              transactionManager.scheduleTask(
-                                  () -> run(input, nextState, operation, transactionManager, next));
-                            });
+                            () ->
+                                next.guard(
+                                    () -> {
+                                      if (!operation.isLive()) {
+                                        next.cancel();
+                                        return;
+                                      }
+                                      final var nextState =
+                                          new Child<>(
+                                              Optional.of(subtask.buildState(originalSubState)),
+                                              state.state());
+                                      final var recoveryState =
+                                          next.serializeNestedState(nextState);
+                                      transactionManager.inTransaction(
+                                          tx -> operation.recoveryState(recoveryState, tx));
+                                      transactionManager.scheduleTask(
+                                          () ->
+                                              next.guard(
+                                                  () ->
+                                                      run(
+                                                          input,
+                                                          nextState,
+                                                          operation,
+                                                          transactionManager,
+                                                          next)));
+                                    }));
+                      }
+
+                      @Override
+                      public void permanentError(String error) {
+                        next.permanentError(error);
                       }
 
                       @Override

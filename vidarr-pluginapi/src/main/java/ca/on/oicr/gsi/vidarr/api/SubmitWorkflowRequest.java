@@ -93,7 +93,7 @@ public final class SubmitWorkflowRequest {
 
   @Override
   public int hashCode() {
-    return hashCodeIgnoreAttemptAndMode() * 31 + Integer.hashCode(attempt);
+    return Objects.hash(hashCodeIgnoreAttemptAndMode(), attempt, mode);
   }
 
   public int hashCodeIgnoreAttemptAndMode() {

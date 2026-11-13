@@ -6,6 +6,13 @@ For unreleased changes, see [changes](changes).
 
 -----------------------------------------------------------------------------
 
+## [2.19.0] - 2026-11-13
+
+### Changed
+
+* Java API: SubmitWorkflowRequests now optionally ignore mode as well as equals
+
+
 ## [2.18.0] - 2026-10-22
 
 ### Added
